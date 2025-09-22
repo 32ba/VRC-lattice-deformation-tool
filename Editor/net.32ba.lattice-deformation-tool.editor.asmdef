@@ -1,0 +1,10 @@
+{
+  "name": "net.32ba.lattice-deformation-tool.editor",
+  "rootNamespace": "Net._32Ba.LatticeDeformationTool.Editor",
+  "references": [
+    "net.32ba.lattice-deformation-tool"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ]
+}

@@ -1,0 +1,628 @@
+using System;
+using UnityEngine;
+
+namespace Net._32Ba.LatticeDeformationTool
+{
+    [DisallowMultipleComponent]
+    [ExecuteAlways]
+    public class LatticeDeformer : MonoBehaviour
+    {
+        [SerializeField] private LatticeAsset _settings = new LatticeAsset();
+        [SerializeField] private SkinnedMeshRenderer _skinnedMeshRenderer;
+        [SerializeField] private MeshFilter _meshFilter;
+        [SerializeField] private bool _deformOnEnable = false;
+        [SerializeField] private bool _recalculateNormals = true;
+        [SerializeField] private bool _recalculateTangents = false;
+        [SerializeField] private bool _recalculateBounds = true;
+        [SerializeField] private bool _autoInitializeFromSource = true;
+        [SerializeField, HideInInspector] private bool _hasInitializedFromSource = false;
+        [SerializeField, HideInInspector] private LatticeDeformerCache _cache = new LatticeDeformerCache();
+        [SerializeField, HideInInspector] private Mesh _runtimeMesh;
+        [SerializeField, HideInInspector] private Mesh _sourceMesh;
+
+        private Vector3[] _controlBuffer = Array.Empty<Vector3>();
+
+        public LatticeAsset Settings
+        {
+            get
+            {
+                EnsureSettings();
+                return _settings;
+            }
+            set
+            {
+                _settings = value ?? new LatticeAsset();
+                _hasInitializedFromSource = false;
+                InvalidateCache();
+            }
+        }
+
+        public bool AutoInitializeFromSource
+        {
+            get => _autoInitializeFromSource;
+            set => _autoInitializeFromSource = value;
+        }
+
+        public Mesh RuntimeMesh => _runtimeMesh;
+
+        public Transform MeshTransform
+        {
+            get
+            {
+                if (_skinnedMeshRenderer != null)
+                {
+                    return _skinnedMeshRenderer.transform;
+                }
+
+                if (_meshFilter != null)
+                {
+                    return _meshFilter.transform;
+                }
+
+                return transform;
+            }
+        }
+
+        public void Reset()
+        {
+            if (_skinnedMeshRenderer == null)
+            {
+                _skinnedMeshRenderer = GetComponent<SkinnedMeshRenderer>();
+            }
+
+            if (_meshFilter == null)
+            {
+                _meshFilter = GetComponent<MeshFilter>();
+            }
+
+            EnsureSettings();
+
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                CacheSourceMesh();
+                if (_sourceMesh != null)
+                {
+                    InitializeFromSource(true);
+                }
+            }
+#endif
+        }
+        private void OnEnable()
+        {
+            EnsureSettings();
+            CacheSourceMesh();
+            TryAutoConfigureSettings();
+
+            if (_deformOnEnable)
+            {
+                Deform();
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (Application.isPlaying)
+            {
+                return;
+            }
+
+            RestoreOriginalMesh();
+        }
+
+        public void Deform()
+        {
+            EnsureSettings();
+            var settings = _settings;
+            if (settings == null)
+            {
+                return;
+            }
+
+            CacheSourceMesh();
+            TryAutoConfigureSettings();
+
+            if (_sourceMesh == null)
+            {
+                return;
+            }
+
+            if (!EnsureCache(settings))
+            {
+                return;
+            }
+
+            var mesh = AcquireRuntimeMesh();
+            if (mesh == null)
+            {
+                return;
+            }
+
+            int cpCount = settings.ControlPointCount;
+            EnsureControlBuffer(cpCount);
+            CollectControlPointsLocal(settings, MeshTransform, _controlBuffer);
+
+            var entries = _cache.Entries;
+            if (entries == null || entries.Length == 0)
+            {
+                return;
+            }
+
+            var vertices = new Vector3[entries.Length];
+            for (int i = 0; i < entries.Length; i++)
+            {
+                var entry = entries[i];
+                var w0 = entry.Weights0;
+                var w1 = entry.Weights1;
+
+                vertices[i] =
+                    w0.x * _controlBuffer[entry.Corner0] +
+                    w0.y * _controlBuffer[entry.Corner1] +
+                    w0.z * _controlBuffer[entry.Corner2] +
+                    w0.w * _controlBuffer[entry.Corner3] +
+                    w1.x * _controlBuffer[entry.Corner4] +
+                    w1.y * _controlBuffer[entry.Corner5] +
+                    w1.z * _controlBuffer[entry.Corner6] +
+                    w1.w * _controlBuffer[entry.Corner7];
+            }
+
+            mesh.vertices = vertices;
+
+            if (_recalculateNormals)
+            {
+                mesh.RecalculateNormals();
+            }
+
+            if (_recalculateTangents)
+            {
+                mesh.RecalculateTangents();
+            }
+
+            if (_recalculateBounds)
+            {
+                mesh.RecalculateBounds();
+            }
+
+            mesh.UploadMeshData(false);
+
+            AssignRuntimeMesh(mesh);
+        }
+
+        public void RestoreOriginalMesh()
+        {
+            if (_skinnedMeshRenderer != null && _sourceMesh != null)
+            {
+                _skinnedMeshRenderer.sharedMesh = _sourceMesh;
+            }
+
+            if (_meshFilter != null && _sourceMesh != null)
+            {
+                _meshFilter.sharedMesh = _sourceMesh;
+            }
+
+            ReleaseRuntimeMesh();
+        }
+
+        public void InvalidateCache()
+        {
+            _cache.Clear();
+        }
+
+        public void InitializeFromSource(bool resetControlPoints)
+        {
+            EnsureSettings();
+            var settings = _settings;
+            if (settings == null || _sourceMesh == null)
+            {
+                return;
+            }
+
+            var meshBounds = _sourceMesh.bounds;
+            var meshTransform = MeshTransform;
+            var targetBounds = meshBounds;
+
+            if (settings.ApplySpace == LatticeApplySpace.World && meshTransform != null)
+            {
+                targetBounds = TransformBounds(meshTransform.localToWorldMatrix, meshBounds);
+            }
+
+            settings.LocalBounds = targetBounds;
+
+            if (resetControlPoints)
+            {
+                settings.ResetControlPoints();
+            }
+
+            _hasInitializedFromSource = true;
+            InvalidateCache();
+
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                UnityEditor.EditorUtility.SetDirty(this);
+            }
+#endif
+        }
+
+        private void EnsureSettings()
+        {
+            if (_settings == null)
+            {
+                _settings = new LatticeAsset();
+            }
+
+            _settings.EnsureInitialized();
+        }
+
+        private void CacheSourceMesh()
+        {
+            Mesh nextSource = null;
+
+            if (_skinnedMeshRenderer != null)
+            {
+                nextSource = _skinnedMeshRenderer.sharedMesh;
+            }
+
+            if (nextSource == null && _meshFilter != null)
+            {
+                nextSource = _meshFilter.sharedMesh;
+            }
+
+            if (_runtimeMesh != null && ReferenceEquals(_runtimeMesh, nextSource))
+            {
+                return;
+            }
+
+            if (ReferenceEquals(_sourceMesh, nextSource))
+            {
+                return;
+            }
+
+            _sourceMesh = nextSource;
+            _hasInitializedFromSource = false;
+            InvalidateCache();
+            ReleaseRuntimeMesh();
+        }
+
+        private void TryAutoConfigureSettings()
+        {
+            if (!_autoInitializeFromSource)
+            {
+                return;
+            }
+
+            if (_sourceMesh == null)
+            {
+                return;
+            }
+
+            if (_hasInitializedFromSource)
+            {
+                return;
+            }
+
+            InitializeFromSource(true);
+        }
+
+        private Mesh AcquireRuntimeMesh()
+        {
+            if (_runtimeMesh != null)
+            {
+                return _runtimeMesh;
+            }
+
+            if (_sourceMesh == null)
+            {
+                return null;
+            }
+
+            _runtimeMesh = Instantiate(_sourceMesh);
+            _runtimeMesh.name = _sourceMesh.name + " (Lattice)";
+            AssignRuntimeMesh(_runtimeMesh);
+            return _runtimeMesh;
+        }
+
+        private void AssignRuntimeMesh(Mesh mesh)
+        {
+            if (_skinnedMeshRenderer != null)
+            {
+                _skinnedMeshRenderer.sharedMesh = mesh;
+            }
+
+            if (_meshFilter != null)
+            {
+                _meshFilter.sharedMesh = mesh;
+            }
+        }
+
+        private void ReleaseRuntimeMesh()
+        {
+            if (_runtimeMesh == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(_runtimeMesh);
+            }
+            else
+            {
+                DestroyImmediate(_runtimeMesh);
+            }
+
+            _runtimeMesh = null;
+        }
+
+        private void EnsureControlBuffer(int controlPointCount)
+        {
+            if (controlPointCount <= 0)
+            {
+                _controlBuffer = Array.Empty<Vector3>();
+                return;
+            }
+
+            if (_controlBuffer == null || _controlBuffer.Length != controlPointCount)
+            {
+                _controlBuffer = new Vector3[controlPointCount];
+            }
+        }
+
+        private void CollectControlPointsLocal(LatticeAsset settings, Transform meshTransform, Span<Vector3> buffer)
+        {
+            if (settings == null)
+            {
+                return;
+            }
+
+            var applySpace = settings.ApplySpace;
+            for (int i = 0; i < buffer.Length; i++)
+            {
+                var point = settings.GetControlPointLocal(i);
+
+                if (applySpace == LatticeApplySpace.World && meshTransform != null)
+                {
+                    point = meshTransform.InverseTransformPoint(point);
+                }
+
+                buffer[i] = point;
+            }
+        }
+
+        private bool EnsureCache(LatticeAsset settings)
+        {
+            if (settings == null)
+            {
+                return false;
+            }
+
+            if (_cache == null)
+            {
+                _cache = new LatticeDeformerCache();
+            }
+
+            var mesh = _sourceMesh;
+            if (mesh == null)
+            {
+                return false;
+            }
+
+            if (_cache.IsCompatibleWith(settings, mesh))
+            {
+                return true;
+            }
+
+            return RebuildCache(settings, mesh);
+        }
+
+        private bool RebuildCache(LatticeAsset settings, Mesh mesh)
+        {
+            if (settings == null || mesh == null)
+            {
+                return false;
+            }
+
+            var gridSize = settings.GridSize;
+            if (gridSize.x < 2 || gridSize.y < 2 || gridSize.z < 2)
+            {
+                return false;
+            }
+
+            int vertexCount = mesh.vertexCount;
+            if (vertexCount <= 0)
+            {
+                _cache.Clear();
+                return false;
+            }
+
+            var restVertices = mesh.vertices;
+            var entries = new LatticeCacheEntry[vertexCount];
+            var bounds = settings.LocalBounds;
+
+            for (int i = 0; i < vertexCount; i++)
+            {
+                var local = restVertices[i];
+                var barycentric = CalculateNormalizedCoordinate(bounds, local);
+                entries[i] = BuildTrilinearEntry(gridSize, barycentric);
+            }
+
+            _cache.Populate(gridSize, bounds, settings.Interpolation, vertexCount, entries, restVertices);
+            return true;
+        }
+
+        private static Vector3 CalculateNormalizedCoordinate(Bounds bounds, Vector3 point)
+        {
+            var size = bounds.size;
+            var min = bounds.min;
+
+            float nx = size.x > Mathf.Epsilon ? (point.x - min.x) / size.x : 0f;
+            float ny = size.y > Mathf.Epsilon ? (point.y - min.y) / size.y : 0f;
+            float nz = size.z > Mathf.Epsilon ? (point.z - min.z) / size.z : 0f;
+
+            return new Vector3(Mathf.Clamp01(nx), Mathf.Clamp01(ny), Mathf.Clamp01(nz));
+        }
+
+        private static LatticeCacheEntry BuildTrilinearEntry(Vector3Int gridSize, Vector3 barycentric)
+        {
+            var scaled = new Vector3(
+                Mathf.Clamp(barycentric.x * (gridSize.x - 1), 0f, gridSize.x - 1),
+                Mathf.Clamp(barycentric.y * (gridSize.y - 1), 0f, gridSize.y - 1),
+                Mathf.Clamp(barycentric.z * (gridSize.z - 1), 0f, gridSize.z - 1));
+
+            int ix = Mathf.Min(Mathf.FloorToInt(scaled.x), gridSize.x - 2);
+            int iy = Mathf.Min(Mathf.FloorToInt(scaled.y), gridSize.y - 2);
+            int iz = Mathf.Min(Mathf.FloorToInt(scaled.z), gridSize.z - 2);
+
+            float tx = Mathf.Clamp01(scaled.x - ix);
+            float ty = Mathf.Clamp01(scaled.y - iy);
+            float tz = Mathf.Clamp01(scaled.z - iz);
+
+            int nx = gridSize.x;
+            int ny = gridSize.y;
+
+            int Index(int x, int y, int z) => x + y * nx + z * nx * ny;
+
+            int c000 = Index(ix, iy, iz);
+            int c100 = Index(ix + 1, iy, iz);
+            int c010 = Index(ix, iy + 1, iz);
+            int c110 = Index(ix + 1, iy + 1, iz);
+            int c001 = Index(ix, iy, iz + 1);
+            int c101 = Index(ix + 1, iy, iz + 1);
+            int c011 = Index(ix, iy + 1, iz + 1);
+            int c111 = Index(ix + 1, iy + 1, iz + 1);
+
+            float tx1 = 1f - tx;
+            float ty1 = 1f - ty;
+            float tz1 = 1f - tz;
+
+            float w000 = tx1 * ty1 * tz1;
+            float w100 = tx * ty1 * tz1;
+            float w010 = tx1 * ty * tz1;
+            float w110 = tx * ty * tz1;
+            float w001 = tx1 * ty1 * tz;
+            float w101 = tx * ty1 * tz;
+            float w011 = tx1 * ty * tz;
+            float w111 = tx * ty * tz;
+
+            return new LatticeCacheEntry
+            {
+                Corner0 = c000,
+                Corner1 = c100,
+                Corner2 = c010,
+                Corner3 = c110,
+                Corner4 = c001,
+                Corner5 = c101,
+                Corner6 = c011,
+                Corner7 = c111,
+                Weights0 = new Vector4(w000, w100, w010, w110),
+                Weights1 = new Vector4(w001, w101, w011, w111),
+                Barycentric = new Vector3(tx, ty, tz)
+            };
+        }
+
+        private static Bounds TransformBounds(Matrix4x4 matrix, Bounds bounds)
+        {
+            var center = matrix.MultiplyPoint3x4(bounds.center);
+            var extents = bounds.extents;
+
+            var axisX = matrix.MultiplyVector(new Vector3(extents.x, 0f, 0f));
+            var axisY = matrix.MultiplyVector(new Vector3(0f, extents.y, 0f));
+            var axisZ = matrix.MultiplyVector(new Vector3(0f, 0f, extents.z));
+
+            var halfSize = new Vector3(
+                Mathf.Abs(axisX.x) + Mathf.Abs(axisY.x) + Mathf.Abs(axisZ.x),
+                Mathf.Abs(axisX.y) + Mathf.Abs(axisY.y) + Mathf.Abs(axisZ.y),
+                Mathf.Abs(axisX.z) + Mathf.Abs(axisY.z) + Mathf.Abs(axisZ.z));
+
+            return new Bounds(center, halfSize * 2f);
+        }
+    }
+
+    [Serializable]
+    internal sealed class LatticeDeformerCache
+    {
+        [SerializeField] private Vector3Int _gridSize;
+        [SerializeField] private Bounds _localBounds;
+        [SerializeField] private LatticeInterpolationMode _interpolation;
+        [SerializeField] private int _vertexCount;
+        [SerializeField] private LatticeCacheEntry[] _entries = Array.Empty<LatticeCacheEntry>();
+        [SerializeField] private Vector3[] _restVertices = Array.Empty<Vector3>();
+
+        public LatticeCacheEntry[] Entries => _entries;
+
+        public bool IsCompatibleWith(LatticeAsset asset, Mesh mesh)
+        {
+            if (asset == null || mesh == null)
+            {
+                return false;
+            }
+
+            if (_entries == null || _entries.Length == 0)
+            {
+                return false;
+            }
+
+            if (_vertexCount != mesh.vertexCount)
+            {
+                return false;
+            }
+
+            if (_gridSize != asset.GridSize)
+            {
+                return false;
+            }
+
+            if (_interpolation != asset.Interpolation)
+            {
+                return false;
+            }
+
+            if (!ApproximatelyEquals(_localBounds, asset.LocalBounds))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        public void Populate(Vector3Int gridSize, Bounds bounds, LatticeInterpolationMode interpolation, int vertexCount, LatticeCacheEntry[] entries, Vector3[] restVertices)
+        {
+            _gridSize = gridSize;
+            _localBounds = bounds;
+            _interpolation = interpolation;
+            _vertexCount = vertexCount;
+            _entries = entries ?? Array.Empty<LatticeCacheEntry>();
+            _restVertices = restVertices ?? Array.Empty<Vector3>();
+        }
+
+        public void Clear()
+        {
+            _entries = Array.Empty<LatticeCacheEntry>();
+            _restVertices = Array.Empty<Vector3>();
+            _vertexCount = 0;
+        }
+
+        private static bool ApproximatelyEquals(Bounds lhs, Bounds rhs)
+        {
+            const float epsilon = 1e-5f;
+            return (lhs.center - rhs.center).sqrMagnitude <= epsilon * epsilon &&
+                   (lhs.size - rhs.size).sqrMagnitude <= epsilon * epsilon;
+        }
+    }
+
+    [Serializable]
+    internal struct LatticeCacheEntry
+    {
+        public int Corner0;
+        public int Corner1;
+        public int Corner2;
+        public int Corner3;
+        public int Corner4;
+        public int Corner5;
+        public int Corner6;
+        public int Corner7;
+        public Vector4 Weights0;
+        public Vector4 Weights1;
+        public Vector3 Barycentric;
+    }
+}

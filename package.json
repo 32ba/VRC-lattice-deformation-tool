@@ -1,0 +1,12 @@
+{
+  "name": "net.32ba.lattice-deformation-tool",
+  "displayName": "Lattice Deformation Tool",
+  "version": "0.0.1",
+  "unity": "2022.3",
+  "description": "Editor tooling for free-form lattice deformation of meshes and skinned meshes.",
+  "author": {
+    "name": "32ba"
+  },
+  "vpmDependencies": {},
+  "dependencies": {}
+}
