@@ -2,7 +2,8 @@
   "name": "net.32ba.lattice-deformation-tool.editor",
   "rootNamespace": "Net._32Ba.LatticeDeformationTool.Editor",
   "references": [
-    "net.32ba.lattice-deformation-tool"
+    "net.32ba.lattice-deformation-tool",
+    "nadena.dev.ndmf"
   ],
   "includePlatforms": [
     "Editor"

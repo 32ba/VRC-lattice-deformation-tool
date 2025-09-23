@@ -7,9 +7,11 @@ using UnityEngine.Rendering;
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
     [EditorTool("Lattice Tool", typeof(LatticeDeformer))]
-    public sealed class LatticeTool : EditorTool
+    public sealed class LatticeDeformerTool : EditorTool
     {
         private static GUIContent s_icon;
+        private static bool s_showIndices = false;
+        private static int s_selectedControl = -1;
 
         public override GUIContent toolbarIcon
         {
@@ -60,6 +62,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
+            DrawOverlayUI();
             DrawControlHandles(deformer, settings, controlCount);
         }
 
@@ -124,7 +127,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             var handleColor = new Color(0.2f, 0.8f, 1f, 0.9f);
-            Handles.color = handleColor;
+
+            if (s_selectedControl >= controlCount)
+            {
+                s_selectedControl = -1;
+            }
 
             for (int index = 0; index < controlCount; index++)
             {
@@ -141,14 +148,28 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var worldPosition = worldPositions[index];
                 float handleSize = HandleUtility.GetHandleSize(worldPosition) * 0.08f;
 
-                EditorGUI.BeginChangeCheck();
-                var fmh_147_21_638941814807696584 = Quaternion.identity; var newPosition = Handles.FreeMoveHandle(
-                    worldPosition,
-                    handleSize,
-                    Vector3.zero,
-                    Handles.CubeHandleCap);
-                Handles.Label(newPosition, $" {index}");
+                bool isSelected = index == s_selectedControl;
+                Handles.color = isSelected ? Color.yellow : handleColor;
 
+                if (!isSelected)
+                {
+                    if (Handles.Button(worldPosition, Quaternion.identity, handleSize, handleSize, Handles.CubeHandleCap))
+                    {
+                        s_selectedControl = index;
+                        SceneView.RepaintAll();
+                    }
+
+                    if (s_showIndices)
+                    {
+                        Handles.Label(worldPosition, $" {index}");
+                    }
+
+                    continue;
+                }
+
+                EditorGUI.BeginChangeCheck();
+                var fmh_147_21_638941814807696584 = Quaternion.identity;
+                var newPosition = Handles.PositionHandle(worldPosition, Quaternion.identity);
                 if (!EditorGUI.EndChangeCheck())
                 {
                     continue;
@@ -163,9 +184,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 settings.SetControlPointLocal(index, stored);
 
                 deformer.InvalidateCache();
-                deformer.Deform();
+                deformer.Deform(false);
                 EditorUtility.SetDirty(deformer);
-                SceneView.RepaintAll();
+                LatticePreviewUtility.RequestSceneRepaint();
             }
 
             Handles.zTest = previousZTest;
@@ -178,8 +199,34 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            deformer.Deform();
-            SceneView.RepaintAll();
+            deformer.Deform(false);
+            LatticePreviewUtility.RequestSceneRepaint();
+        }
+
+        private static void DrawOverlayUI()
+        {
+            var sceneView = SceneView.currentDrawingSceneView;
+            if (sceneView == null)
+            {
+                return;
+            }
+
+            Handles.BeginGUI();
+            GUILayout.BeginArea(new Rect(12f, 12f, 220f, 90f), GUIContent.none, GUI.skin.window);
+            GUILayout.Label("Lattice Tool", EditorStyles.boldLabel);
+            s_showIndices = GUILayout.Toggle(s_showIndices, "Show Control Indices");
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Clear Selection", GUILayout.Width(110f)))
+            {
+                s_selectedControl = -1;
+                SceneView.RepaintAll();
+            }
+            GUILayout.Label(s_selectedControl >= 0 ? $"Selected: {s_selectedControl}" : "Selected: None");
+            GUILayout.EndHorizontal();
+
+            GUILayout.EndArea();
+            Handles.EndGUI();
         }
     }
 }

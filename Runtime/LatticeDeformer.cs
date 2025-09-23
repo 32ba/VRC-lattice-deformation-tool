@@ -7,14 +7,14 @@ namespace Net._32Ba.LatticeDeformationTool
     [ExecuteAlways]
     public class LatticeDeformer : MonoBehaviour
     {
+        public static bool SuppressRestoreOnDisable { get; set; } = false;
+
         [SerializeField] private LatticeAsset _settings = new LatticeAsset();
         [SerializeField] private SkinnedMeshRenderer _skinnedMeshRenderer;
         [SerializeField] private MeshFilter _meshFilter;
-        [SerializeField] private bool _deformOnEnable = false;
         [SerializeField] private bool _recalculateNormals = true;
         [SerializeField] private bool _recalculateTangents = false;
         [SerializeField] private bool _recalculateBounds = true;
-        [SerializeField] private bool _autoInitializeFromSource = true;
         [SerializeField, HideInInspector] private bool _hasInitializedFromSource = false;
         [SerializeField, HideInInspector] private LatticeDeformerCache _cache = new LatticeDeformerCache();
         [SerializeField, HideInInspector] private Mesh _runtimeMesh;
@@ -36,14 +36,9 @@ namespace Net._32Ba.LatticeDeformationTool
                 InvalidateCache();
             }
         }
-
-        public bool AutoInitializeFromSource
-        {
-            get => _autoInitializeFromSource;
-            set => _autoInitializeFromSource = value;
-        }
-
         public Mesh RuntimeMesh => _runtimeMesh;
+
+        public Mesh SourceMesh => _sourceMesh;
 
         public Transform MeshTransform
         {
@@ -93,11 +88,6 @@ namespace Net._32Ba.LatticeDeformationTool
             EnsureSettings();
             CacheSourceMesh();
             TryAutoConfigureSettings();
-
-            if (_deformOnEnable)
-            {
-                Deform();
-            }
         }
 
         private void OnDisable()
@@ -107,35 +97,40 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
+            if (SuppressRestoreOnDisable)
+            {
+                ReleaseRuntimeMesh();
+                return;
+            }
+
             RestoreOriginalMesh();
         }
 
-        public void Deform()
+        public Mesh Deform(bool assignToRenderer = true)
         {
             EnsureSettings();
             var settings = _settings;
             if (settings == null)
             {
-                return;
+                return null;
             }
 
             CacheSourceMesh();
             TryAutoConfigureSettings();
-
             if (_sourceMesh == null)
             {
-                return;
+                return null;
             }
 
             if (!EnsureCache(settings))
             {
-                return;
+                return null;
             }
 
-            var mesh = AcquireRuntimeMesh();
+            var mesh = AcquireRuntimeMesh(assignToRenderer);
             if (mesh == null)
             {
-                return;
+                return null;
             }
 
             int cpCount = settings.ControlPointCount;
@@ -145,7 +140,7 @@ namespace Net._32Ba.LatticeDeformationTool
             var entries = _cache.Entries;
             if (entries == null || entries.Length == 0)
             {
-                return;
+                return null;
             }
 
             var vertices = new Vector3[entries.Length];
@@ -185,7 +180,12 @@ namespace Net._32Ba.LatticeDeformationTool
 
             mesh.UploadMeshData(false);
 
-            AssignRuntimeMesh(mesh);
+            if (assignToRenderer)
+            {
+                AssignRuntimeMesh(mesh);
+            }
+
+            return mesh;
         }
 
         public void RestoreOriginalMesh()
@@ -286,11 +286,6 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private void TryAutoConfigureSettings()
         {
-            if (!_autoInitializeFromSource)
-            {
-                return;
-            }
-
             if (_sourceMesh == null)
             {
                 return;
@@ -304,21 +299,25 @@ namespace Net._32Ba.LatticeDeformationTool
             InitializeFromSource(true);
         }
 
-        private Mesh AcquireRuntimeMesh()
+        private Mesh AcquireRuntimeMesh(bool assignToRenderer)
         {
-            if (_runtimeMesh != null)
+            if (_runtimeMesh == null)
             {
-                return _runtimeMesh;
+                if (_sourceMesh == null)
+                {
+                    return null;
+                }
+
+                _runtimeMesh = Instantiate(_sourceMesh);
+                _runtimeMesh.name = _sourceMesh.name + " (Lattice)";
+                _runtimeMesh.hideFlags = HideFlags.HideAndDontSave;
             }
 
-            if (_sourceMesh == null)
+            if (assignToRenderer)
             {
-                return null;
+                AssignRuntimeMesh(_runtimeMesh);
             }
 
-            _runtimeMesh = Instantiate(_sourceMesh);
-            _runtimeMesh.name = _sourceMesh.name + " (Lattice)";
-            AssignRuntimeMesh(_runtimeMesh);
             return _runtimeMesh;
         }
 
