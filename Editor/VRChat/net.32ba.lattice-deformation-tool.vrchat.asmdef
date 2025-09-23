@@ -1,0 +1,30 @@
+{
+  "name": "net.32ba.lattice-deformation-tool.vrchat",
+  "rootNamespace": "Net._32Ba.LatticeDeformationTool.Editor",
+  "references": [
+    "net.32ba.lattice-deformation-tool.editor",
+    "net.32ba.lattice-deformation-tool",
+    "VRC.SDKBase.Editor.BuildPipeline",
+    "VRC.SDKBase",
+    "VRC.SDK3A"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [
+    "LATTICE_VRCSDK3_AVATAR"
+  ],
+  "versionDefines": [
+    {
+      "name": "com.vrchat.avatars",
+      "expression": "(0.0.0,999.9.9)",
+      "define": "LATTICE_VRCSDK3_AVATAR"
+    }
+  ],
+  "noEngineReferences": false
+}
