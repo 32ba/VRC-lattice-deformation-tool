@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.EditorTools;
 using UnityEngine;
@@ -11,7 +12,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         private static GUIContent s_icon;
         private static bool s_showIndices = false;
-        private static int s_selectedControl = -1;
+        private static readonly HashSet<int> s_selectedControls = new HashSet<int>();
 
         public override GUIContent toolbarIcon
         {
@@ -35,7 +36,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         public override void OnWillBeDeactivated()
         {
             Undo.undoRedoPerformed -= OnUndoRedo;
-            SceneView.RepaintAll();
+            ClearSelection();
         }
 
         public override void OnToolGUI(EditorWindow window)
@@ -68,7 +69,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void DrawControlHandles(LatticeDeformer deformer, LatticeAsset settings, int controlCount)
         {
-            var meshTransform = deformer.MeshTransform;            
+            var meshTransform = deformer.MeshTransform;
             var gridSize = settings.GridSize;
             int nx = Mathf.Max(1, gridSize.x);
             int ny = Mathf.Max(1, gridSize.y);
@@ -125,10 +126,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             var handleColor = new Color(0.2f, 0.8f, 1f, 0.9f);
 
-            if (s_selectedControl >= controlCount)
-            {
-                s_selectedControl = -1;
-            }
+            s_selectedControls.RemoveWhere(idx => idx < 0 || idx >= controlCount);
 
             for (int index = 0; index < controlCount; index++)
             {
@@ -145,49 +143,82 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var worldPosition = worldPositions[index];
                 float handleSize = HandleUtility.GetHandleSize(worldPosition) * 0.08f;
 
-                bool isSelected = index == s_selectedControl;
+                bool isSelected = s_selectedControls.Contains(index);
                 Handles.color = isSelected ? Color.yellow : handleColor;
 
-                if (!isSelected)
+                bool additive = false;
+                var currentEvent = Event.current;
+                if (currentEvent != null)
                 {
-                    if (Handles.Button(worldPosition, Quaternion.identity, handleSize, handleSize, Handles.CubeHandleCap))
-                    {
-                        s_selectedControl = index;
-                        SceneView.RepaintAll();
-                    }
-
-                    if (s_showIndices)
-                    {
-                        Handles.Label(worldPosition, $" {index}");
-                    }
-
-                    continue;
+                    additive = currentEvent.shift || currentEvent.control || currentEvent.command;
                 }
+
+                if (Handles.Button(worldPosition, Quaternion.identity, handleSize, handleSize, Handles.CubeHandleCap))
+                {
+                    if (additive)
+                    {
+                        if (!s_selectedControls.Add(index))
+                        {
+                            s_selectedControls.Remove(index);
+                        }
+                    }
+                    else
+                    {
+                        s_selectedControls.Clear();
+                        s_selectedControls.Add(index);
+                    }
+
+                    SceneView.RepaintAll();
+                }
+
+                if (s_showIndices)
+                {
+                    Handles.Label(worldPosition, $" {index}");
+                }
+            }
+
+            if (s_selectedControls.Count > 0)
+            {
+                Vector3 pivot = Vector3.zero;
+                foreach (var selectedIndex in s_selectedControls)
+                {
+                    pivot += worldPositions[selectedIndex];
+                }
+
+                pivot /= s_selectedControls.Count;
 
                 if (Tools.pivotRotation == PivotRotation.Global)
                 {
-                    Handles.Label(worldPosition, " Global-space editing disabled");
-                    continue;
+                    Handles.Label(pivot, " Global-space editing disabled");
                 }
-
-                EditorGUI.BeginChangeCheck();
-                var handleRotation = meshTransform != null ? meshTransform.rotation : Quaternion.identity;
-                var newPosition = Handles.PositionHandle(worldPosition, handleRotation);
-                if (!EditorGUI.EndChangeCheck())
+                else
                 {
-                    continue;
+                    EditorGUI.BeginChangeCheck();
+                    var handleRotation = meshTransform != null ? meshTransform.rotation : Quaternion.identity;
+                    var newPivot = Handles.PositionHandle(pivot, handleRotation);
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        var delta = newPivot - pivot;
+                        if (delta != Vector3.zero)
+                        {
+                            Undo.RecordObject(deformer, "Move Lattice Controls");
+
+                            foreach (var selectedIndex in s_selectedControls)
+                            {
+                                var newWorldPosition = worldPositions[selectedIndex] + delta;
+                                var stored = meshTransform != null
+                                    ? meshTransform.InverseTransformPoint(newWorldPosition)
+                                    : newWorldPosition;
+                                settings.SetControlPointLocal(selectedIndex, stored);
+                            }
+
+                            deformer.InvalidateCache();
+                            deformer.Deform(false);
+                            EditorUtility.SetDirty(deformer);
+                            LatticePreviewUtility.RequestSceneRepaint();
+                        }
+                    }
                 }
-
-                Undo.RecordObject(deformer, "Move Lattice Control");
-
-                var stored = meshTransform != null ? meshTransform.InverseTransformPoint(newPosition) : newPosition;
-
-                settings.SetControlPointLocal(index, stored);
-
-                deformer.InvalidateCache();
-                deformer.Deform(false);
-                EditorUtility.SetDirty(deformer);
-                LatticePreviewUtility.RequestSceneRepaint();
             }
 
             Handles.zTest = previousZTest;
@@ -220,14 +251,44 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Clear Selection", GUILayout.Width(110f)))
             {
-                s_selectedControl = -1;
-                SceneView.RepaintAll();
+                ClearSelection();
             }
-            GUILayout.Label(s_selectedControl >= 0 ? $"Selected: {s_selectedControl}" : "Selected: None");
+            GUILayout.Label(GetSelectionLabel());
             GUILayout.EndHorizontal();
+
+            GUILayout.Label("Hold Shift/Ctrl to toggle selection.", EditorStyles.miniLabel);
 
             GUILayout.EndArea();
             Handles.EndGUI();
+        }
+
+        private static void ClearSelection()
+        {
+            if (s_selectedControls.Count == 0)
+            {
+                return;
+            }
+
+            s_selectedControls.Clear();
+            SceneView.RepaintAll();
+        }
+
+        private static string GetSelectionLabel()
+        {
+            if (s_selectedControls.Count == 0)
+            {
+                return "Selected: None";
+            }
+
+            if (s_selectedControls.Count == 1)
+            {
+                foreach (var index in s_selectedControls)
+                {
+                    return $"Selected: {index}";
+                }
+            }
+
+            return $"Selected: {s_selectedControls.Count} controls";
         }
     }
 }
