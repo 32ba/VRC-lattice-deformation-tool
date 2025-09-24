@@ -1,4 +1,10 @@
 {
   "name": "net.32ba.lattice-deformation-tool",
-  "rootNamespace": "Net._32Ba.LatticeDeformationTool"
+  "rootNamespace": "Net._32Ba.LatticeDeformationTool",
+  "references": [
+    "Unity.Collections",
+    "Unity.Mathematics",
+    "Unity.Jobs",
+    "Unity.Burst"
+  ]
 }

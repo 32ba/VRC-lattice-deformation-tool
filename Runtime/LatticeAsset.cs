@@ -1,4 +1,8 @@
 using System;
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool
@@ -90,20 +94,9 @@ namespace Net._32Ba.LatticeDeformationTool
                 _controlPointsLocal = new Vector3[newCount];
             }
 
-            // TODO(CUST-123): Burstify control-point resampling to avoid large single-thread stalls.
-            for (int z = 0; z < newGridSize.z; z++)
+            if (!TryResampleControlPointsWithJobs(oldPointsCopy, oldGrid, _gridSize, _controlPointsLocal))
             {
-                float w = newGridSize.z > 1 ? (float)z / (newGridSize.z - 1) : 0f;
-                for (int y = 0; y < newGridSize.y; y++)
-                {
-                    float v = newGridSize.y > 1 ? (float)y / (newGridSize.y - 1) : 0f;
-                    for (int x = 0; x < newGridSize.x; x++)
-                    {
-                        float u = newGridSize.x > 1 ? (float)x / (newGridSize.x - 1) : 0f;
-                        int newIndex = Index(newGridSize, x, y, z);
-                        _controlPointsLocal[newIndex] = SampleControlPoints(oldPointsCopy, oldGrid, u, v, w);
-                    }
-                }
+                ResampleControlPointsManaged(oldPointsCopy, oldGrid, _gridSize, _controlPointsLocal);
             }
         }
 
@@ -184,6 +177,176 @@ namespace Net._32Ba.LatticeDeformationTool
             Vector3 c1 = Vector3.Lerp(c01, c11, ty);
 
             return Vector3.Lerp(c0, c1, tz);
+        }
+
+        private bool TryResampleControlPointsWithJobs(Vector3[] sourcePoints, Vector3Int sourceGrid, Vector3Int targetGrid, Vector3[] target)
+        {
+            if (!UseJobsAndBurst)
+            {
+                return false;
+            }
+
+            if (sourcePoints == null || target == null)
+            {
+                return false;
+            }
+
+            int expectedSourceCount = sourceGrid.x * sourceGrid.y * sourceGrid.z;
+            int expectedTargetCount = targetGrid.x * targetGrid.y * targetGrid.z;
+
+            if (expectedSourceCount != sourcePoints.Length || expectedTargetCount != target.Length)
+            {
+                return false;
+            }
+
+            if (expectedSourceCount == 0 || expectedTargetCount == 0)
+            {
+                return false;
+            }
+
+            NativeArray<float3> sourceNative = default;
+            NativeArray<float3> targetNative = default;
+
+            try
+            {
+                sourceNative = new NativeArray<float3>(sourcePoints.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+                targetNative = new NativeArray<float3>(target.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+
+                for (int i = 0; i < sourcePoints.Length; i++)
+                {
+                    var point = sourcePoints[i];
+                    sourceNative[i] = new float3(point.x, point.y, point.z);
+                }
+
+                var job = new ResampleControlPointsJob
+                {
+                    OldPoints = sourceNative,
+                    Result = targetNative,
+                    OldGrid = new int3(sourceGrid.x, sourceGrid.y, sourceGrid.z),
+                    NewGrid = new int3(targetGrid.x, targetGrid.y, targetGrid.z)
+                };
+
+                job.Schedule(target.Length, math.max(1, targetGrid.x)).Complete();
+
+                for (int i = 0; i < target.Length; i++)
+                {
+                    var point = targetNative[i];
+                    target[i] = new Vector3(point.x, point.y, point.z);
+                }
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                if (sourceNative.IsCreated)
+                {
+                    sourceNative.Dispose();
+                }
+
+                if (targetNative.IsCreated)
+                {
+                    targetNative.Dispose();
+                }
+            }
+        }
+
+        private static void ResampleControlPointsManaged(Vector3[] sourcePoints, Vector3Int sourceGrid, Vector3Int targetGrid, Vector3[] target)
+        {
+            for (int z = 0; z < targetGrid.z; z++)
+            {
+                float w = targetGrid.z > 1 ? (float)z / (targetGrid.z - 1) : 0f;
+                for (int y = 0; y < targetGrid.y; y++)
+                {
+                    float v = targetGrid.y > 1 ? (float)y / (targetGrid.y - 1) : 0f;
+                    for (int x = 0; x < targetGrid.x; x++)
+                    {
+                        float u = targetGrid.x > 1 ? (float)x / (targetGrid.x - 1) : 0f;
+                        int newIndex = Index(targetGrid, x, y, z);
+                        target[newIndex] = SampleControlPoints(sourcePoints, sourceGrid, u, v, w);
+                    }
+                }
+            }
+        }
+
+        [BurstCompile]
+        private struct ResampleControlPointsJob : IJobParallelFor
+        {
+            [ReadOnly]
+            public NativeArray<float3> OldPoints;
+
+            public int3 OldGrid;
+            public int3 NewGrid;
+
+            [WriteOnly]
+            public NativeArray<float3> Result;
+
+            public void Execute(int index)
+            {
+                int3 clampedNewGrid = math.max(NewGrid, new int3(1, 1, 1));
+                int nx = clampedNewGrid.x;
+                int ny = clampedNewGrid.y;
+                int nz = clampedNewGrid.z;
+
+                int plane = nx * ny;
+                int z = index / plane;
+                int y = (index / nx) % ny;
+                int x = index % nx;
+
+                float u = nx > 1 ? (float)x / (nx - 1) : 0f;
+                float v = ny > 1 ? (float)y / (ny - 1) : 0f;
+                float w = nz > 1 ? (float)z / (nz - 1) : 0f;
+
+                Result[index] = SampleOldGrid(u, v, w);
+            }
+
+            private float3 SampleOldGrid(float u, float v, float w)
+            {
+                int3 clampedOldGrid = math.max(OldGrid, new int3(1, 1, 1));
+
+                float fx = clampedOldGrid.x > 1 ? u * (clampedOldGrid.x - 1) : 0f;
+                float fy = clampedOldGrid.y > 1 ? v * (clampedOldGrid.y - 1) : 0f;
+                float fz = clampedOldGrid.z > 1 ? w * (clampedOldGrid.z - 1) : 0f;
+
+                int x0 = math.clamp((int)math.floor(fx), 0, clampedOldGrid.x - 1);
+                int y0 = math.clamp((int)math.floor(fy), 0, clampedOldGrid.y - 1);
+                int z0 = math.clamp((int)math.floor(fz), 0, clampedOldGrid.z - 1);
+
+                int x1 = math.min(x0 + 1, clampedOldGrid.x - 1);
+                int y1 = math.min(y0 + 1, clampedOldGrid.y - 1);
+                int z1 = math.min(z0 + 1, clampedOldGrid.z - 1);
+
+                float tx = clampedOldGrid.x > 1 ? fx - x0 : 0f;
+                float ty = clampedOldGrid.y > 1 ? fy - y0 : 0f;
+                float tz = clampedOldGrid.z > 1 ? fz - z0 : 0f;
+
+                float3 c000 = OldPoints[Index(clampedOldGrid, x0, y0, z0)];
+                float3 c100 = OldPoints[Index(clampedOldGrid, x1, y0, z0)];
+                float3 c010 = OldPoints[Index(clampedOldGrid, x0, y1, z0)];
+                float3 c110 = OldPoints[Index(clampedOldGrid, x1, y1, z0)];
+                float3 c001 = OldPoints[Index(clampedOldGrid, x0, y0, z1)];
+                float3 c101 = OldPoints[Index(clampedOldGrid, x1, y0, z1)];
+                float3 c011 = OldPoints[Index(clampedOldGrid, x0, y1, z1)];
+                float3 c111 = OldPoints[Index(clampedOldGrid, x1, y1, z1)];
+
+                float3 c00 = math.lerp(c000, c100, tx);
+                float3 c10 = math.lerp(c010, c110, tx);
+                float3 c01 = math.lerp(c001, c101, tx);
+                float3 c11 = math.lerp(c011, c111, tx);
+
+                float3 c0 = math.lerp(c00, c10, ty);
+                float3 c1 = math.lerp(c01, c11, ty);
+
+                return math.lerp(c0, c1, tz);
+            }
+
+            private static int Index(int3 grid, int x, int y, int z)
+            {
+                return x + y * grid.x + z * grid.x * grid.y;
+            }
         }
 
         private void EnsureControlPointCapacity()

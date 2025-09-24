@@ -1,4 +1,8 @@
 using System;
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool
@@ -143,22 +147,31 @@ namespace Net._32Ba.LatticeDeformationTool
                 return null;
             }
 
-            var vertices = new Vector3[entries.Length];
-            for (int i = 0; i < entries.Length; i++)
-            {
-                var entry = entries[i];
-                var w0 = entry.Weights0;
-                var w1 = entry.Weights1;
+            Vector3[] vertices;
 
-                vertices[i] =
-                    w0.x * _controlBuffer[entry.Corner0] +
-                    w0.y * _controlBuffer[entry.Corner1] +
-                    w0.z * _controlBuffer[entry.Corner2] +
-                    w0.w * _controlBuffer[entry.Corner3] +
-                    w1.x * _controlBuffer[entry.Corner4] +
-                    w1.y * _controlBuffer[entry.Corner5] +
-                    w1.z * _controlBuffer[entry.Corner6] +
-                    w1.w * _controlBuffer[entry.Corner7];
+            if (settings.UseJobsAndBurst && TryDeformWithJobs(entries, _controlBuffer, out var jobVertices))
+            {
+                vertices = jobVertices;
+            }
+            else
+            {
+                vertices = new Vector3[entries.Length];
+                for (int i = 0; i < entries.Length; i++)
+                {
+                    var entry = entries[i];
+                    var w0 = entry.Weights0;
+                    var w1 = entry.Weights1;
+
+                    vertices[i] =
+                        w0.x * _controlBuffer[entry.Corner0] +
+                        w0.y * _controlBuffer[entry.Corner1] +
+                        w0.z * _controlBuffer[entry.Corner2] +
+                        w0.w * _controlBuffer[entry.Corner3] +
+                        w1.x * _controlBuffer[entry.Corner4] +
+                        w1.y * _controlBuffer[entry.Corner5] +
+                        w1.z * _controlBuffer[entry.Corner6] +
+                        w1.w * _controlBuffer[entry.Corner7];
+                }
             }
 
             mesh.vertices = vertices;
@@ -372,6 +385,84 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
+        private bool TryDeformWithJobs(LatticeCacheEntry[] entries, Vector3[] controlPoints, out Vector3[] result)
+        {
+            result = null;
+
+            if (entries == null || entries.Length == 0)
+            {
+                return false;
+            }
+
+            if (controlPoints == null || controlPoints.Length == 0)
+            {
+                return false;
+            }
+
+            NativeArray<float3> controlNative = default;
+            NativeArray<LatticeCacheEntry> entriesNative = default;
+            NativeArray<float3> outputNative = default;
+
+            try
+            {
+                controlNative = new NativeArray<float3>(controlPoints.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+                for (int i = 0; i < controlPoints.Length; i++)
+                {
+                    var point = controlPoints[i];
+                    controlNative[i] = new float3(point.x, point.y, point.z);
+                }
+
+                entriesNative = new NativeArray<LatticeCacheEntry>(entries.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+                for (int i = 0; i < entries.Length; i++)
+                {
+                    entriesNative[i] = entries[i];
+                }
+
+                outputNative = new NativeArray<float3>(entries.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+
+                var job = new DeformVerticesJob
+                {
+                    ControlPoints = controlNative,
+                    Entries = entriesNative,
+                    Result = outputNative
+                };
+
+                job.Schedule(entries.Length, 64).Complete();
+
+                var vertices = new Vector3[entries.Length];
+                for (int i = 0; i < vertices.Length; i++)
+                {
+                    var v = outputNative[i];
+                    vertices[i] = new Vector3(v.x, v.y, v.z);
+                }
+
+                result = vertices;
+                return true;
+            }
+            catch
+            {
+                result = null;
+                return false;
+            }
+            finally
+            {
+                if (controlNative.IsCreated)
+                {
+                    controlNative.Dispose();
+                }
+
+                if (entriesNative.IsCreated)
+                {
+                    entriesNative.Dispose();
+                }
+
+                if (outputNative.IsCreated)
+                {
+                    outputNative.Dispose();
+                }
+            }
+        }
+
         private bool EnsureCache(LatticeAsset settings)
         {
             if (settings == null)
@@ -447,21 +538,23 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private static LatticeCacheEntry BuildTrilinearEntry(Vector3Int gridSize, Vector3 barycentric)
         {
-            var scaled = new Vector3(
-                Mathf.Clamp(barycentric.x * (gridSize.x - 1), 0f, gridSize.x - 1),
-                Mathf.Clamp(barycentric.y * (gridSize.y - 1), 0f, gridSize.y - 1),
-                Mathf.Clamp(barycentric.z * (gridSize.z - 1), 0f, gridSize.z - 1));
+            var grid = new int3(gridSize.x, gridSize.y, gridSize.z);
 
-            int ix = Mathf.Min(Mathf.FloorToInt(scaled.x), gridSize.x - 2);
-            int iy = Mathf.Min(Mathf.FloorToInt(scaled.y), gridSize.y - 2);
-            int iz = Mathf.Min(Mathf.FloorToInt(scaled.z), gridSize.z - 2);
+            float3 scaled = new float3(
+                math.clamp(barycentric.x * (grid.x - 1), 0f, grid.x - 1),
+                math.clamp(barycentric.y * (grid.y - 1), 0f, grid.y - 1),
+                math.clamp(barycentric.z * (grid.z - 1), 0f, grid.z - 1));
 
-            float tx = Mathf.Clamp01(scaled.x - ix);
-            float ty = Mathf.Clamp01(scaled.y - iy);
-            float tz = Mathf.Clamp01(scaled.z - iz);
+            int ix = math.min((int)math.floor(scaled.x), grid.x - 2);
+            int iy = math.min((int)math.floor(scaled.y), grid.y - 2);
+            int iz = math.min((int)math.floor(scaled.z), grid.z - 2);
 
-            int nx = gridSize.x;
-            int ny = gridSize.y;
+            float tx = math.saturate(scaled.x - ix);
+            float ty = math.saturate(scaled.y - iy);
+            float tz = math.saturate(scaled.z - iz);
+
+            int nx = grid.x;
+            int ny = grid.y;
 
             int Index(int x, int y, int z) => x + y * nx + z * nx * ny;
 
@@ -497,9 +590,9 @@ namespace Net._32Ba.LatticeDeformationTool
                 Corner5 = c101,
                 Corner6 = c011,
                 Corner7 = c111,
-                Weights0 = new Vector4(w000, w100, w010, w110),
-                Weights1 = new Vector4(w001, w101, w011, w111),
-                Barycentric = new Vector3(tx, ty, tz)
+                Weights0 = new float4(w000, w100, w010, w110),
+                Weights1 = new float4(w001, w101, w011, w111),
+                Barycentric = new float3(tx, ty, tz)
             };
         }
 
@@ -518,6 +611,38 @@ namespace Net._32Ba.LatticeDeformationTool
                 Mathf.Abs(axisX.z) + Mathf.Abs(axisY.z) + Mathf.Abs(axisZ.z));
 
             return new Bounds(center, halfSize * 2f);
+        }
+
+        [BurstCompile]
+        private struct DeformVerticesJob : IJobParallelFor
+        {
+            [ReadOnly]
+            public NativeArray<LatticeCacheEntry> Entries;
+
+            [ReadOnly]
+            public NativeArray<float3> ControlPoints;
+
+            [WriteOnly]
+            public NativeArray<float3> Result;
+
+            public void Execute(int index)
+            {
+                var entry = Entries[index];
+                float4 w0 = entry.Weights0;
+                float4 w1 = entry.Weights1;
+
+                float3 value =
+                    w0.x * ControlPoints[entry.Corner0] +
+                    w0.y * ControlPoints[entry.Corner1] +
+                    w0.z * ControlPoints[entry.Corner2] +
+                    w0.w * ControlPoints[entry.Corner3] +
+                    w1.x * ControlPoints[entry.Corner4] +
+                    w1.y * ControlPoints[entry.Corner5] +
+                    w1.z * ControlPoints[entry.Corner6] +
+                    w1.w * ControlPoints[entry.Corner7];
+
+                Result[index] = value;
+            }
         }
     }
 
@@ -604,8 +729,8 @@ namespace Net._32Ba.LatticeDeformationTool
         public int Corner5;
         public int Corner6;
         public int Corner7;
-        public Vector4 Weights0;
-        public Vector4 Weights1;
-        public Vector3 Barycentric;
+        public float4 Weights0;
+        public float4 Weights1;
+        public float3 Barycentric;
     }
 }
