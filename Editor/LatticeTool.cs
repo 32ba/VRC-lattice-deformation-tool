@@ -10,9 +10,30 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     [EditorTool("Lattice Tool", typeof(LatticeDeformer))]
     public sealed class LatticeDeformerTool : EditorTool
     {
+        private enum MirrorAxis
+        {
+            X = 0,
+            Y = 1,
+            Z = 2
+        }
+
+        private enum MirrorBehavior
+        {
+            Identical = 0,
+            Mirrored = 1,
+            Antisymmetric = 2
+        }
+
+        private static readonly string[] s_axisLabels = { "X", "Y", "Z" };
+        private static readonly string[] s_behaviorLabels = { "Copy", "Mirror", "Antisymmetric" };
+
         private static GUIContent s_icon;
         private static bool s_showIndices = false;
         private static readonly HashSet<int> s_selectedControls = new HashSet<int>();
+        private static bool s_mirrorEditing = false;
+        private static MirrorAxis s_mirrorAxis = MirrorAxis.X;
+        private static MirrorBehavior s_mirrorBehavior = MirrorBehavior.Mirrored;
+        private static PivotRotation? s_previousPivotRotation;
 
         public override GUIContent toolbarIcon
         {
@@ -29,6 +50,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         public override void OnActivated()
         {
+            s_previousPivotRotation = Tools.pivotRotation;
+            Tools.pivotRotation = PivotRotation.Local;
             Undo.undoRedoPerformed += OnUndoRedo;
             SceneView.RepaintAll();
         }
@@ -37,6 +60,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             Undo.undoRedoPerformed -= OnUndoRedo;
             ClearSelection();
+            if (s_previousPivotRotation.HasValue)
+            {
+                Tools.pivotRotation = s_previousPivotRotation.Value;
+                s_previousPivotRotation = null;
+            }
         }
 
         public override void OnToolGUI(EditorWindow window)
@@ -44,6 +72,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (Event.current != null && Event.current.commandName == "UndoRedoPerformed")
             {
                 return;
+            }
+
+            if (Tools.pivotRotation != PivotRotation.Local)
+            {
+                Tools.pivotRotation = PivotRotation.Local;
             }
 
             if (target is not LatticeDeformer deformer)
@@ -94,6 +127,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var previousZTest = Handles.zTest;
             Handles.zTest = CompareFunction.LessEqual;
 
+            if (s_mirrorEditing)
+            {
+                DrawMirrorPlane(settings, meshTransform);
+            }
+
             var cageColor = new Color(1f, 1f, 1f, 0.8f);
             Handles.color = cageColor;
 
@@ -125,6 +163,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             var handleColor = new Color(0.2f, 0.8f, 1f, 0.9f);
+            var mirrorPartnerColor = new Color(1f, 0.5f, 0.2f, 0.9f);
 
             s_selectedControls.RemoveWhere(idx => idx < 0 || idx >= controlCount);
 
@@ -144,7 +183,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 float handleSize = HandleUtility.GetHandleSize(worldPosition) * 0.08f;
 
                 bool isSelected = s_selectedControls.Contains(index);
-                Handles.color = isSelected ? Color.yellow : handleColor;
+                bool isMirrorPartner = false;
+                if (!isSelected && s_mirrorEditing && TryGetSymmetryIndex(index, gridSize, s_mirrorBehavior, s_mirrorAxis, out var symmetryOfIndex))
+                {
+                    isMirrorPartner = s_selectedControls.Contains(symmetryOfIndex);
+                }
+
+                Handles.color = isSelected ? Color.yellow : isMirrorPartner ? mirrorPartnerColor : handleColor;
 
                 bool additive = false;
                 var currentEvent = Event.current;
@@ -203,13 +248,58 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         {
                             Undo.RecordObject(deformer, "Move Lattice Controls");
 
+                            var deltaLocal = meshTransform != null
+                                ? meshTransform.InverseTransformVector(delta)
+                                : delta;
+                            var bounds = settings.LocalBounds;
+                            var processedIndices = new HashSet<int>();
+
                             foreach (var selectedIndex in s_selectedControls)
                             {
+                                if (!processedIndices.Add(selectedIndex))
+                                {
+                                    continue;
+                                }
+
                                 var newWorldPosition = worldPositions[selectedIndex] + delta;
                                 var stored = meshTransform != null
                                     ? meshTransform.InverseTransformPoint(newWorldPosition)
                                     : newWorldPosition;
                                 settings.SetControlPointLocal(selectedIndex, stored);
+
+                                if (s_mirrorEditing && TryGetSymmetryIndex(selectedIndex, gridSize, s_mirrorBehavior, s_mirrorAxis, out var mirrorIndex))
+                                {
+                                    if (!processedIndices.Add(mirrorIndex))
+                                    {
+                                        continue;
+                                    }
+
+                                    Vector3 mirrorLocal;
+
+                                    switch (s_mirrorBehavior)
+                                    {
+                                        case MirrorBehavior.Identical:
+                                        {
+                                            var original = settings.GetControlPointLocal(mirrorIndex);
+                                            mirrorLocal = original + deltaLocal;
+                                            break;
+                                        }
+                                        case MirrorBehavior.Mirrored:
+                                            mirrorLocal = MirrorPointAxis(stored, bounds, s_mirrorAxis);
+                                            break;
+                                        case MirrorBehavior.Antisymmetric:
+                                        {
+                                            var original = settings.GetControlPointLocal(mirrorIndex);
+                                            mirrorLocal = original - deltaLocal;
+                                            break;
+                                        }
+                                        default:
+                                            mirrorLocal = stored;
+                                            break;
+                                    }
+
+                                    settings.SetControlPointLocal(mirrorIndex, mirrorLocal);
+                                }
                             }
 
                             deformer.InvalidateCache();
@@ -244,7 +334,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             Handles.BeginGUI();
-            GUILayout.BeginArea(new Rect(12f, 12f, 220f, 90f), GUIContent.none, GUI.skin.window);
+            GUILayout.BeginArea(new Rect(12f, 12f, 300f, 210f), GUIContent.none, GUI.skin.window);
             GUILayout.Label("Lattice Tool", EditorStyles.boldLabel);
             s_showIndices = GUILayout.Toggle(s_showIndices, "Show Control Indices");
 
@@ -256,10 +346,158 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             GUILayout.Label(GetSelectionLabel());
             GUILayout.EndHorizontal();
 
+            GUILayout.Space(4f);
+
+            bool mirrorEnabled = GUILayout.Toggle(s_mirrorEditing, "Mirror Editing");
+            if (mirrorEnabled != s_mirrorEditing)
+            {
+                s_mirrorEditing = mirrorEnabled;
+                SceneView.RepaintAll();
+            }
+
+            using (new EditorGUI.DisabledScope(!s_mirrorEditing))
+            {
+                int modeSelection = EditorGUILayout.Popup("Mirror Mode", (int)s_mirrorBehavior, s_behaviorLabels);
+                modeSelection = Mathf.Clamp(modeSelection, 0, s_behaviorLabels.Length - 1);
+                var newMode = (MirrorBehavior)modeSelection;
+                if (newMode != s_mirrorBehavior)
+                {
+                    s_mirrorBehavior = newMode;
+                    SceneView.RepaintAll();
+                }
+
+                GUILayout.Label("Mirror Axis", EditorStyles.miniLabel);
+                int axisSelection = GUILayout.Toolbar((int)s_mirrorAxis, s_axisLabels);
+                axisSelection = Mathf.Clamp(axisSelection, 0, s_axisLabels.Length - 1);
+                var newAxis = (MirrorAxis)axisSelection;
+                if (newAxis != s_mirrorAxis)
+                {
+                    s_mirrorAxis = newAxis;
+                    SceneView.RepaintAll();
+                }
+            }
+
             GUILayout.Label("Hold Shift/Ctrl to toggle selection.", EditorStyles.miniLabel);
 
             GUILayout.EndArea();
             Handles.EndGUI();
+        }
+
+        private static void DrawMirrorPlane(LatticeAsset settings, Transform meshTransform)
+        {
+            var bounds = settings.LocalBounds;
+            var size = bounds.size;
+            if (size == Vector3.zero)
+            {
+                return;
+            }
+
+            var centerLocal = bounds.center;
+            Vector3 axisA;
+            Vector3 axisB;
+
+            switch (s_mirrorAxis)
+            {
+                case MirrorAxis.X:
+                    axisA = Vector3.up * (size.y * 0.5f);
+                    axisB = Vector3.forward * (size.z * 0.5f);
+                    break;
+                case MirrorAxis.Y:
+                    axisA = Vector3.right * (size.x * 0.5f);
+                    axisB = Vector3.forward * (size.z * 0.5f);
+                    break;
+                case MirrorAxis.Z:
+                default:
+                    axisA = Vector3.right * (size.x * 0.5f);
+                    axisB = Vector3.up * (size.y * 0.5f);
+                    break;
+            }
+
+            var localCorners = new Vector3[4];
+            localCorners[0] = centerLocal + axisA + axisB;
+            localCorners[1] = centerLocal + axisA - axisB;
+            localCorners[2] = centerLocal - axisA - axisB;
+            localCorners[3] = centerLocal - axisA + axisB;
+
+            if (meshTransform != null)
+            {
+                for (int i = 0; i < localCorners.Length; i++)
+                {
+                    localCorners[i] = meshTransform.TransformPoint(localCorners[i]);
+                }
+            }
+
+            var fillColor = new Color(0.3f, 0.6f, 1f, 0.08f);
+            var outlineColor = new Color(0.3f, 0.6f, 1f, 0.6f);
+            Handles.DrawSolidRectangleWithOutline(localCorners, fillColor, outlineColor);
+        }
+
+        private static bool TryGetSymmetryIndex(int index, Vector3Int gridSize, MirrorBehavior behavior, MirrorAxis axis, out int symmetryIndex)
+        {
+            int nx = Mathf.Max(1, gridSize.x);
+            int ny = Mathf.Max(1, gridSize.y);
+            int nz = Mathf.Max(1, gridSize.z);
+
+            symmetryIndex = index;
+
+            if (behavior != MirrorBehavior.Identical &&
+                behavior != MirrorBehavior.Mirrored &&
+                behavior != MirrorBehavior.Antisymmetric)
+            {
+                return false;
+            }
+
+            if ((axis == MirrorAxis.X && nx <= 1) ||
+                (axis == MirrorAxis.Y && ny <= 1) ||
+                (axis == MirrorAxis.Z && nz <= 1))
+            {
+                return false;
+            }
+
+            int ix = index % nx;
+            int iy = (index / nx) % ny;
+            int iz = index / (nx * ny);
+
+            int mirrorX = ix;
+            int mirrorY = iy;
+            int mirrorZ = iz;
+
+            switch (axis)
+            {
+                case MirrorAxis.X:
+                    mirrorX = nx - 1 - ix;
+                    break;
+                case MirrorAxis.Y:
+                    mirrorY = ny - 1 - iy;
+                    break;
+                case MirrorAxis.Z:
+                    mirrorZ = nz - 1 - iz;
+                    break;
+            }
+
+            symmetryIndex = mirrorX + mirrorY * nx + mirrorZ * nx * ny;
+            return symmetryIndex != index;
+        }
+
+        private static Vector3 MirrorPointAxis(Vector3 localPoint, Bounds bounds, MirrorAxis axis)
+        {
+            var mirrored = localPoint;
+            var center = bounds.center;
+
+            switch (axis)
+            {
+                case MirrorAxis.X:
+                    mirrored.x = center.x - (localPoint.x - center.x);
+                    break;
+                case MirrorAxis.Y:
+                    mirrored.y = center.y - (localPoint.y - center.y);
+                    break;
+                case MirrorAxis.Z:
+                    mirrored.z = center.z - (localPoint.z - center.z);
+                    break;
+            }
+
+            return mirrored;
         }
 
         private static void ClearSelection()
