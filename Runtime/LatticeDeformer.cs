@@ -463,6 +463,64 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
+        private bool TryBuildCacheWithJobs(Vector3Int gridSize, Bounds bounds, Vector3[] restVertices, out LatticeCacheEntry[] result)
+        {
+            result = null;
+
+            if (restVertices == null || restVertices.Length == 0)
+            {
+                return false;
+            }
+
+            NativeArray<float3> restNative = default;
+            NativeArray<LatticeCacheEntry> entriesNative = default;
+
+            try
+            {
+                restNative = new NativeArray<float3>(restVertices.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+                for (int i = 0; i < restVertices.Length; i++)
+                {
+                    var v = restVertices[i];
+                    restNative[i] = new float3(v.x, v.y, v.z);
+                }
+
+                entriesNative = new NativeArray<LatticeCacheEntry>(restVertices.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+
+                var job = new BuildCacheEntriesJob
+                {
+                    Grid = new int3(gridSize.x, gridSize.y, gridSize.z),
+                    BoundsMin = new float3(bounds.min.x, bounds.min.y, bounds.min.z),
+                    BoundsSize = new float3(bounds.size.x, bounds.size.y, bounds.size.z),
+                    RestVertices = restNative,
+                    Entries = entriesNative
+                };
+
+                job.Schedule(restVertices.Length, 64).Complete();
+
+                var entries = new LatticeCacheEntry[entriesNative.Length];
+                entriesNative.CopyTo(entries);
+                result = entries;
+                return true;
+            }
+            catch
+            {
+                result = null;
+                return false;
+            }
+            finally
+            {
+                if (restNative.IsCreated)
+                {
+                    restNative.Dispose();
+                }
+
+                if (entriesNative.IsCreated)
+                {
+                    entriesNative.Dispose();
+                }
+            }
+        }
+
         private bool EnsureCache(LatticeAsset settings)
         {
             if (settings == null)
@@ -510,14 +568,23 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             var restVertices = mesh.vertices;
-            var entries = new LatticeCacheEntry[vertexCount];
             var bounds = settings.LocalBounds;
+            LatticeCacheEntry[] entries;
 
-            for (int i = 0; i < vertexCount; i++)
+            if (settings.UseJobsAndBurst && TryBuildCacheWithJobs(gridSize, bounds, restVertices, out var jobEntries))
             {
-                var local = restVertices[i];
-                var barycentric = CalculateNormalizedCoordinate(bounds, local);
-                entries[i] = BuildTrilinearEntry(gridSize, barycentric);
+                entries = jobEntries;
+            }
+            else
+            {
+                entries = new LatticeCacheEntry[vertexCount];
+
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    var local = restVertices[i];
+                    var barycentric = CalculateNormalizedCoordinate(bounds, local);
+                    entries[i] = BuildTrilinearEntry(gridSize, barycentric);
+                }
             }
 
             _cache.Populate(gridSize, bounds, settings.Interpolation, vertexCount, entries, restVertices);
@@ -642,6 +709,93 @@ namespace Net._32Ba.LatticeDeformationTool
                     w1.w * ControlPoints[entry.Corner7];
 
                 Result[index] = value;
+            }
+        }
+
+        [BurstCompile]
+        private struct BuildCacheEntriesJob : IJobParallelFor
+        {
+            [ReadOnly]
+            public NativeArray<float3> RestVertices;
+
+            public int3 Grid;
+            public float3 BoundsMin;
+            public float3 BoundsSize;
+
+            [WriteOnly]
+            public NativeArray<LatticeCacheEntry> Entries;
+
+            public void Execute(int index)
+            {
+                float3 local = RestVertices[index];
+
+                const float epsilon = 1e-6f;
+                float3 invSize = new float3(
+                    math.abs(BoundsSize.x) > epsilon ? 1f / BoundsSize.x : 0f,
+                    math.abs(BoundsSize.y) > epsilon ? 1f / BoundsSize.y : 0f,
+                    math.abs(BoundsSize.z) > epsilon ? 1f / BoundsSize.z : 0f);
+
+                float3 barycentric = math.saturate((local - BoundsMin) * invSize);
+
+                Entries[index] = BuildEntry(Grid, barycentric);
+            }
+
+            private static LatticeCacheEntry BuildEntry(int3 grid, float3 barycentric)
+            {
+                int3 clampedGrid = new int3(math.max(2, grid.x), math.max(2, grid.y), math.max(2, grid.z));
+
+                float3 maxIndex = new float3(clampedGrid.x - 1, clampedGrid.y - 1, clampedGrid.z - 1);
+                float3 scaled = math.clamp(barycentric * maxIndex, 0f, maxIndex);
+
+                int ix = math.min((int)math.floor(scaled.x), clampedGrid.x - 2);
+                int iy = math.min((int)math.floor(scaled.y), clampedGrid.y - 2);
+                int iz = math.min((int)math.floor(scaled.z), clampedGrid.z - 2);
+
+                float tx = math.saturate(scaled.x - ix);
+                float ty = math.saturate(scaled.y - iy);
+                float tz = math.saturate(scaled.z - iz);
+
+                int nx = clampedGrid.x;
+                int ny = clampedGrid.y;
+
+                int Index(int x, int y, int z) => x + y * nx + z * nx * ny;
+
+                int c000 = Index(ix, iy, iz);
+                int c100 = Index(ix + 1, iy, iz);
+                int c010 = Index(ix, iy + 1, iz);
+                int c110 = Index(ix + 1, iy + 1, iz);
+                int c001 = Index(ix, iy, iz + 1);
+                int c101 = Index(ix + 1, iy, iz + 1);
+                int c011 = Index(ix, iy + 1, iz + 1);
+                int c111 = Index(ix + 1, iy + 1, iz + 1);
+
+                float tx1 = 1f - tx;
+                float ty1 = 1f - ty;
+                float tz1 = 1f - tz;
+
+                float w000 = tx1 * ty1 * tz1;
+                float w100 = tx * ty1 * tz1;
+                float w010 = tx1 * ty * tz1;
+                float w110 = tx * ty * tz1;
+                float w001 = tx1 * ty1 * tz;
+                float w101 = tx * ty1 * tz;
+                float w011 = tx1 * ty * tz;
+                float w111 = tx * ty * tz;
+
+                return new LatticeCacheEntry
+                {
+                    Corner0 = c000,
+                    Corner1 = c100,
+                    Corner2 = c010,
+                    Corner3 = c110,
+                    Corner4 = c001,
+                    Corner5 = c101,
+                    Corner6 = c011,
+                    Corner7 = c111,
+                    Weights0 = new float4(w000, w100, w010, w110),
+                    Weights1 = new float4(w001, w101, w011, w111),
+                    Barycentric = new float3(tx, ty, tz)
+                };
             }
         }
     }

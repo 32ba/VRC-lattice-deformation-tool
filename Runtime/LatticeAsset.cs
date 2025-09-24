@@ -349,6 +349,37 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
+        [BurstCompile]
+        private struct PopulateControlPointsJob : IJobParallelFor
+        {
+            [WriteOnly]
+            public NativeArray<float3> Result;
+
+            public int3 Grid;
+            public float3 BoundsMin;
+            public float3 BoundsSize;
+
+            public void Execute(int index)
+            {
+                int nx = Grid.x;
+                int ny = Grid.y;
+
+                int plane = nx * ny;
+                int z = index / plane;
+                int y = (index / nx) % ny;
+                int x = index % nx;
+
+                float wx = nx > 1 ? (float)x / (nx - 1) : 0f;
+                float wy = ny > 1 ? (float)y / (ny - 1) : 0f;
+                float wz = Grid.z > 1 ? (float)z / (Grid.z - 1) : 0f;
+
+                float3 normalized = new float3(wx, wy, wz);
+                float3 position = BoundsMin + BoundsSize * normalized;
+
+                Result[index] = position;
+            }
+        }
+
         private void EnsureControlPointCapacity()
         {
             int expected = ControlPointCount;
@@ -400,6 +431,11 @@ namespace Net._32Ba.LatticeDeformationTool
             int ny = _gridSize.y;
             int nz = _gridSize.z;
 
+            if (UseJobsAndBurst && TryPopulateControlPointsWithJobs(min, size, _gridSize, _controlPointsLocal))
+            {
+                return;
+            }
+
             int index = 0;
             for (int z = 0; z < nz; z++)
             {
@@ -412,6 +448,51 @@ namespace Net._32Ba.LatticeDeformationTool
                         float wx = nx > 1 ? (float)x / (nx - 1) : 0f;
                         _controlPointsLocal[index++] = min + Vector3.Scale(size, new Vector3(wx, wy, wz));
                     }
+                }
+            }
+        }
+
+        private bool TryPopulateControlPointsWithJobs(Vector3 boundsMin, Vector3 boundsSize, Vector3Int grid, Vector3[] target)
+        {
+            int expected = grid.x * grid.y * grid.z;
+            if (expected != target.Length || expected == 0)
+            {
+                return false;
+            }
+
+            NativeArray<float3> targetNative = default;
+
+            try
+            {
+                targetNative = new NativeArray<float3>(target.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+
+                var job = new PopulateControlPointsJob
+                {
+                    Result = targetNative,
+                    Grid = new int3(math.max(1, grid.x), math.max(1, grid.y), math.max(1, grid.z)),
+                    BoundsMin = new float3(boundsMin.x, boundsMin.y, boundsMin.z),
+                    BoundsSize = new float3(boundsSize.x, boundsSize.y, boundsSize.z)
+                };
+
+                job.Schedule(target.Length, math.max(1, grid.x)).Complete();
+
+                for (int i = 0; i < target.Length; i++)
+                {
+                    var value = targetNative[i];
+                    target[i] = new Vector3(value.x, value.y, value.z);
+                }
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                if (targetNative.IsCreated)
+                {
+                    targetNative.Dispose();
                 }
             }
         }
