@@ -218,15 +218,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             var meshBounds = _sourceMesh.bounds;
-            var meshTransform = MeshTransform;
-            var targetBounds = meshBounds;
-
-            if (settings.ApplySpace == LatticeApplySpace.World && meshTransform != null)
-            {
-                targetBounds = TransformBounds(meshTransform.localToWorldMatrix, meshBounds);
-            }
-
-            settings.LocalBounds = targetBounds;
+            settings.LocalBounds = meshBounds;
 
             if (resetControlPoints)
             {
@@ -374,17 +366,9 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            var applySpace = settings.ApplySpace;
             for (int i = 0; i < buffer.Length; i++)
             {
-                var point = settings.GetControlPointLocal(i);
-
-                if (applySpace == LatticeApplySpace.World && meshTransform != null)
-                {
-                    point = meshTransform.InverseTransformPoint(point);
-                }
-
-                buffer[i] = point;
+                buffer[i] = settings.GetControlPointLocal(i);
             }
         }
 

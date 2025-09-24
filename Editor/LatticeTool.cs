@@ -68,8 +68,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void DrawControlHandles(LatticeDeformer deformer, LatticeAsset settings, int controlCount)
         {
-            var meshTransform = deformer.MeshTransform;
-            var applySpace = settings.ApplySpace;
+            var meshTransform = deformer.MeshTransform;            
             var gridSize = settings.GridSize;
             int nx = Mathf.Max(1, gridSize.x);
             int ny = Mathf.Max(1, gridSize.y);
@@ -86,9 +85,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     {
                         int index = Index(x, y, z);
                         var local = settings.GetControlPointLocal(index);
-                        worldPositions[index] = applySpace == LatticeApplySpace.World
-                            ? local
-                            : meshTransform.TransformPoint(local);
+                        worldPositions[index] = meshTransform != null ? meshTransform.TransformPoint(local) : local;
                     }
                 }
             }
@@ -167,9 +164,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     continue;
                 }
 
+                if (Tools.pivotRotation == PivotRotation.Global)
+                {
+                    Handles.Label(worldPosition, " Global-space editing disabled");
+                    continue;
+                }
+
                 EditorGUI.BeginChangeCheck();
-                var fmh_147_21_638941814807696584 = Quaternion.identity;
-                var newPosition = Handles.PositionHandle(worldPosition, Quaternion.identity);
+                var handleRotation = meshTransform != null ? meshTransform.rotation : Quaternion.identity;
+                var newPosition = Handles.PositionHandle(worldPosition, handleRotation);
                 if (!EditorGUI.EndChangeCheck())
                 {
                     continue;
@@ -177,9 +180,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 Undo.RecordObject(deformer, "Move Lattice Control");
 
-                var stored = applySpace == LatticeApplySpace.World
-                    ? newPosition
-                    : meshTransform.InverseTransformPoint(newPosition);
+                var stored = meshTransform != null ? meshTransform.InverseTransformPoint(newPosition) : newPosition;
 
                 settings.SetControlPointLocal(index, stored);
 

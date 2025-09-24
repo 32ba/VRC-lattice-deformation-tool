@@ -357,7 +357,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             private readonly Vector3 _boundsCenter;
             private readonly Vector3 _boundsSize;
             private readonly LatticeInterpolationMode _interpolation;
-            private readonly LatticeApplySpace _applySpace;
             private readonly bool _useJobs;
             private readonly int _controlPointHash;
             private readonly int _controlPointCount;
@@ -367,7 +366,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Vector3Int gridSize,
                 Bounds bounds,
                 LatticeInterpolationMode interpolation,
-                LatticeApplySpace applySpace,
                 bool useJobs,
                 int sourceMeshId,
                 int controlHash,
@@ -377,7 +375,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _boundsCenter = bounds.center;
                 _boundsSize = bounds.size;
                 _interpolation = interpolation;
-                _applySpace = applySpace;
                 _useJobs = useJobs;
                 _sourceMeshId = sourceMeshId;
                 _controlPointHash = controlHash;
@@ -409,7 +406,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     settings?.GridSize ?? Vector3Int.zero,
                     settings?.LocalBounds ?? new Bounds(Vector3.zero, Vector3.zero),
                     settings?.Interpolation ?? LatticeInterpolationMode.Trilinear,
-                    settings?.ApplySpace ?? LatticeApplySpace.Local,
                     settings?.UseJobsAndBurst ?? false,
                     deformer.SourceMesh != null ? deformer.SourceMesh.GetInstanceID() : 0,
                     hash,
@@ -429,7 +425,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                        _boundsCenter == other._boundsCenter &&
                        _boundsSize == other._boundsSize &&
                        _interpolation == other._interpolation &&
-                       _applySpace == other._applySpace &&
                        _useJobs == other._useJobs &&
                        _sourceMeshId == other._sourceMeshId &&
                        _controlPointHash == other._controlPointHash &&
@@ -448,7 +443,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     _boundsCenter,
                     _boundsSize,
                     (int)_interpolation,
-                    (int)_applySpace,
                     _useJobs,
                     _sourceMeshId);
 

@@ -9,12 +9,6 @@ namespace Net._32Ba.LatticeDeformationTool
         CubicBernstein = 1
     }
 
-    public enum LatticeApplySpace
-    {
-        Local = 0,
-        World = 1
-    }
-
     [System.Serializable]
     public class LatticeAsset : ISerializationCallbackReceiver
     {
@@ -32,8 +26,6 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField]
         private LatticeInterpolationMode _interpolation = LatticeInterpolationMode.Trilinear;
 
-        [SerializeField]
-        private LatticeApplySpace _applySpace = LatticeApplySpace.Local;
 
         [SerializeField]
         private bool _useJobsAndBurst = false;
@@ -66,12 +58,6 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             get => _interpolation;
             set => _interpolation = value;
-        }
-
-        public LatticeApplySpace ApplySpace
-        {
-            get => _applySpace;
-            set => _applySpace = value;
         }
 
         public bool UseJobsAndBurst
