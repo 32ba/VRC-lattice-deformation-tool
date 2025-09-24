@@ -1,7 +1,9 @@
 #if UNITY_EDITOR
+using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.EditorTools;
+using UnityEditor.Overlays;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -10,14 +12,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     [EditorTool("Lattice Tool", typeof(LatticeDeformer))]
     public sealed class LatticeDeformerTool : EditorTool
     {
-        private enum MirrorAxis
+        internal enum MirrorAxis
         {
             X = 0,
             Y = 1,
             Z = 2
         }
 
-        private enum MirrorBehavior
+        internal enum MirrorBehavior
         {
             Identical = 0,
             Mirrored = 1,
@@ -34,6 +36,69 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static MirrorAxis s_mirrorAxis = MirrorAxis.X;
         private static MirrorBehavior s_mirrorBehavior = MirrorBehavior.Mirrored;
         private static PivotRotation? s_previousPivotRotation;
+
+        internal static bool ShowIndices
+        {
+            get => s_showIndices;
+            set
+            {
+                if (s_showIndices == value)
+                {
+                    return;
+                }
+
+                s_showIndices = value;
+                SceneView.RepaintAll();
+            }
+        }
+
+        internal static bool MirrorEditing
+        {
+            get => s_mirrorEditing;
+            set
+            {
+                if (s_mirrorEditing == value)
+                {
+                    return;
+                }
+
+                s_mirrorEditing = value;
+                SceneView.RepaintAll();
+            }
+        }
+
+        internal static MirrorAxis CurrentMirrorAxis
+        {
+            get => s_mirrorAxis;
+            set
+            {
+                if (s_mirrorAxis == value)
+                {
+                    return;
+                }
+
+                s_mirrorAxis = value;
+                SceneView.RepaintAll();
+            }
+        }
+
+        internal static MirrorBehavior CurrentMirrorBehavior
+        {
+            get => s_mirrorBehavior;
+            set
+            {
+                if (s_mirrorBehavior == value)
+                {
+                    return;
+                }
+
+                s_mirrorBehavior = value;
+                SceneView.RepaintAll();
+            }
+        }
+
+        internal static string[] AxisLabels => s_axisLabels;
+        internal static string[] BehaviorLabels => s_behaviorLabels;
 
         public override GUIContent toolbarIcon
         {
@@ -96,7 +161,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            DrawOverlayUI();
             DrawControlHandles(deformer, settings, controlCount);
         }
 
@@ -127,7 +191,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var previousZTest = Handles.zTest;
             Handles.zTest = CompareFunction.LessEqual;
 
-            if (s_mirrorEditing)
+            if (MirrorEditing)
             {
                 DrawMirrorPlane(settings, meshTransform);
             }
@@ -184,7 +248,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 bool isSelected = s_selectedControls.Contains(index);
                 bool isMirrorPartner = false;
-                if (!isSelected && s_mirrorEditing && TryGetSymmetryIndex(index, gridSize, s_mirrorBehavior, s_mirrorAxis, out var symmetryOfIndex))
+                if (!isSelected && MirrorEditing && TryGetSymmetryIndex(index, gridSize, CurrentMirrorBehavior, CurrentMirrorAxis, out var symmetryOfIndex))
                 {
                     isMirrorPartner = s_selectedControls.Contains(symmetryOfIndex);
                 }
@@ -216,7 +280,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     SceneView.RepaintAll();
                 }
 
-                if (s_showIndices)
+                if (ShowIndices)
                 {
                     Handles.Label(worldPosition, $" {index}");
                 }
@@ -267,7 +331,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                     : newWorldPosition;
                                 settings.SetControlPointLocal(selectedIndex, stored);
 
-                                if (s_mirrorEditing && TryGetSymmetryIndex(selectedIndex, gridSize, s_mirrorBehavior, s_mirrorAxis, out var mirrorIndex))
+                                if (MirrorEditing && TryGetSymmetryIndex(selectedIndex, gridSize, CurrentMirrorBehavior, CurrentMirrorAxis, out var mirrorIndex))
                                 {
                                     if (!processedIndices.Add(mirrorIndex))
                                     {
@@ -276,7 +340,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                                     Vector3 mirrorLocal;
 
-                                    switch (s_mirrorBehavior)
+                                    switch (CurrentMirrorBehavior)
                                     {
                                         case MirrorBehavior.Identical:
                                         {
@@ -285,7 +349,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                             break;
                                         }
                                         case MirrorBehavior.Mirrored:
-                                            mirrorLocal = MirrorPointAxis(stored, bounds, s_mirrorAxis);
+                                            mirrorLocal = MirrorPointAxis(stored, bounds, CurrentMirrorAxis);
                                             break;
                                         case MirrorBehavior.Antisymmetric:
                                         {
@@ -325,64 +389,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             LatticePreviewUtility.RequestSceneRepaint();
         }
 
-        private static void DrawOverlayUI()
-        {
-            var sceneView = SceneView.currentDrawingSceneView;
-            if (sceneView == null)
-            {
-                return;
-            }
-
-            Handles.BeginGUI();
-            GUILayout.BeginArea(new Rect(12f, 12f, 300f, 210f), GUIContent.none, GUI.skin.window);
-            GUILayout.Label("Lattice Tool", EditorStyles.boldLabel);
-            s_showIndices = GUILayout.Toggle(s_showIndices, "Show Control Indices");
-
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Clear Selection", GUILayout.Width(110f)))
-            {
-                ClearSelection();
-            }
-            GUILayout.Label(GetSelectionLabel());
-            GUILayout.EndHorizontal();
-
-            GUILayout.Space(4f);
-
-            bool mirrorEnabled = GUILayout.Toggle(s_mirrorEditing, "Mirror Editing");
-            if (mirrorEnabled != s_mirrorEditing)
-            {
-                s_mirrorEditing = mirrorEnabled;
-                SceneView.RepaintAll();
-            }
-
-            using (new EditorGUI.DisabledScope(!s_mirrorEditing))
-            {
-                int modeSelection = EditorGUILayout.Popup("Mirror Mode", (int)s_mirrorBehavior, s_behaviorLabels);
-                modeSelection = Mathf.Clamp(modeSelection, 0, s_behaviorLabels.Length - 1);
-                var newMode = (MirrorBehavior)modeSelection;
-                if (newMode != s_mirrorBehavior)
-                {
-                    s_mirrorBehavior = newMode;
-                    SceneView.RepaintAll();
-                }
-
-                GUILayout.Label("Mirror Axis", EditorStyles.miniLabel);
-                int axisSelection = GUILayout.Toolbar((int)s_mirrorAxis, s_axisLabels);
-                axisSelection = Mathf.Clamp(axisSelection, 0, s_axisLabels.Length - 1);
-                var newAxis = (MirrorAxis)axisSelection;
-                if (newAxis != s_mirrorAxis)
-                {
-                    s_mirrorAxis = newAxis;
-                    SceneView.RepaintAll();
-                }
-            }
-
-            GUILayout.Label("Hold Shift/Ctrl to toggle selection.", EditorStyles.miniLabel);
-
-            GUILayout.EndArea();
-            Handles.EndGUI();
-        }
-
         private static void DrawMirrorPlane(LatticeAsset settings, Transform meshTransform)
         {
             var bounds = settings.LocalBounds;
@@ -396,7 +402,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Vector3 axisA;
             Vector3 axisB;
 
-            switch (s_mirrorAxis)
+            switch (CurrentMirrorAxis)
             {
                 case MirrorAxis.X:
                     axisA = Vector3.up * (size.y * 0.5f);
@@ -427,7 +433,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
-            var fillColor = new Color(0.3f, 0.6f, 1f, 0.08f);
+            var fillColor = new Color(0.3f, 0.6f, 1f, 0.3f);
             var outlineColor = new Color(0.3f, 0.6f, 1f, 0.6f);
             Handles.DrawSolidRectangleWithOutline(localCorners, fillColor, outlineColor);
         }
@@ -500,7 +506,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return mirrored;
         }
 
-        private static void ClearSelection()
+        internal static void ClearSelection()
         {
             if (s_selectedControls.Count == 0)
             {
@@ -511,7 +517,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             SceneView.RepaintAll();
         }
 
-        private static string GetSelectionLabel()
+        internal static string GetSelectionLabel()
         {
             if (s_selectedControls.Count == 0)
             {
@@ -527,6 +533,56 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             return $"Selected: {s_selectedControls.Count} controls";
+        }
+    }
+
+    [Overlay(typeof(SceneView), "Lattice Tool", defaultDisplay = true)]
+    internal sealed class LatticeDeformerToolOverlay : IMGUIOverlay, ITransientOverlay
+    {
+        public bool visible => ToolManager.activeToolType == typeof(LatticeDeformerTool);
+
+        public override void OnGUI()
+        {
+            if (ToolManager.activeToolType != typeof(LatticeDeformerTool))
+            {
+                GUILayout.Label("Activate the Lattice Tool to access settings.", EditorStyles.miniLabel);
+                return;
+            }
+
+            using (new GUILayout.VerticalScope(GUILayout.MinWidth(260f)))
+            {
+                GUILayout.Label("Lattice Tool", EditorStyles.boldLabel);
+
+                LatticeDeformerTool.ShowIndices = GUILayout.Toggle(LatticeDeformerTool.ShowIndices, "Show Control Indices");
+
+                using (new GUILayout.HorizontalScope())
+                {
+                    if (GUILayout.Button("Clear Selection", GUILayout.Width(110f)))
+                    {
+                        LatticeDeformerTool.ClearSelection();
+                    }
+
+                    GUILayout.Label(LatticeDeformerTool.GetSelectionLabel());
+                }
+
+                GUILayout.Space(4f);
+
+                LatticeDeformerTool.MirrorEditing = GUILayout.Toggle(LatticeDeformerTool.MirrorEditing, "Mirror Editing");
+
+                using (new EditorGUI.DisabledScope(!LatticeDeformerTool.MirrorEditing))
+                {
+                    int modeSelection = EditorGUILayout.Popup("Mirror Mode", (int)LatticeDeformerTool.CurrentMirrorBehavior, LatticeDeformerTool.BehaviorLabels);
+                    modeSelection = Mathf.Clamp(modeSelection, 0, LatticeDeformerTool.BehaviorLabels.Length - 1);
+                    LatticeDeformerTool.CurrentMirrorBehavior = (LatticeDeformerTool.MirrorBehavior)modeSelection;
+
+                    GUILayout.Label("Mirror Axis", EditorStyles.miniLabel);
+                    int axisSelection = GUILayout.Toolbar((int)LatticeDeformerTool.CurrentMirrorAxis, LatticeDeformerTool.AxisLabels);
+                    axisSelection = Mathf.Clamp(axisSelection, 0, LatticeDeformerTool.AxisLabels.Length - 1);
+                    LatticeDeformerTool.CurrentMirrorAxis = (LatticeDeformerTool.MirrorAxis)axisSelection;
+                }
+
+                GUILayout.Label("Hold Shift/Ctrl to toggle selection.", EditorStyles.miniLabel);
+            }
         }
     }
 }
