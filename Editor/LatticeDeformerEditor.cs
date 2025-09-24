@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.EditorTools;
 using UnityEngine;
@@ -11,23 +12,35 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SerializedProperty _settingsProp;
         private SerializedProperty _skinnedRendererProp;
         private SerializedProperty _meshFilterProp;
-        private SerializedProperty _gridSizeProp;
         private SerializedProperty _recalcNormalsProp;
         private SerializedProperty _recalcTangentsProp;
         private SerializedProperty _recalcBoundsProp;
 
         private static bool s_showOptions = false;
         private static bool s_showAdvancedSettings = false;
+        private static readonly Dictionary<int, Vector3Int> s_pendingGridSizes = new();
 
         private void OnEnable()
         {
             _settingsProp = serializedObject.FindProperty("_settings");
             _skinnedRendererProp = serializedObject.FindProperty("_skinnedMeshRenderer");
             _meshFilterProp = serializedObject.FindProperty("_meshFilter");
-            _gridSizeProp = _settingsProp.FindPropertyRelative("_gridSize");
             _recalcNormalsProp = serializedObject.FindProperty("_recalculateNormals");
             _recalcTangentsProp = serializedObject.FindProperty("_recalculateTangents");
             _recalcBoundsProp = serializedObject.FindProperty("_recalculateBounds");
+
+            InitializePendingGridSizes();
+        }
+
+        private void OnDisable()
+        {
+            foreach (var obj in targets)
+            {
+                if (obj is LatticeDeformer deformer)
+                {
+                    s_pendingGridSizes.Remove(deformer.GetInstanceID());
+                }
+            }
         }
 
         public override void OnInspectorGUI()
@@ -43,7 +56,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Lattice Settings", EditorStyles.boldLabel);
             EditorGUI.indentLevel++;
-            EditorGUILayout.PropertyField(_gridSizeProp, new GUIContent("Grid Size"));
+            DrawGridSizeControls((LatticeDeformer)target);
 
             s_showAdvancedSettings = EditorGUILayout.Foldout(s_showAdvancedSettings, "Advanced Settings", true);
             if (s_showAdvancedSettings)
@@ -125,6 +138,124 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 enterChildren = iterator.NextVisible(false);
             }
+        }
+
+        private void InitializePendingGridSizes()
+        {
+            foreach (var obj in targets)
+            {
+                if (obj is not LatticeDeformer deformer)
+                {
+                    continue;
+                }
+
+                var settings = deformer.Settings;
+                if (settings == null)
+                {
+                    continue;
+                }
+
+                s_pendingGridSizes[deformer.GetInstanceID()] = settings.GridSize;
+            }
+        }
+
+        private static void ApplyGridSizeChange(LatticeDeformer deformer, Vector3Int newSize)
+        {
+            if (deformer == null)
+            {
+                return;
+            }
+
+            var settings = deformer.Settings;
+            if (settings == null)
+            {
+                return;
+            }
+
+            newSize.x = Mathf.Max(2, newSize.x);
+            newSize.y = Mathf.Max(2, newSize.y);
+            newSize.z = Mathf.Max(2, newSize.z);
+
+            Undo.RecordObject(deformer, "Change Lattice Grid Size");
+            settings.ResizeGrid(newSize);
+            deformer.InvalidateCache();
+            deformer.Deform(false);
+            EditorUtility.SetDirty(deformer);
+
+            LatticePreviewUtility.RequestSceneRepaint();
+            SceneView.RepaintAll();
+        }
+
+        private void DrawGridSizeControls(LatticeDeformer deformer)
+        {
+            if (deformer == null)
+            {
+                EditorGUILayout.HelpBox("No Lattice Deformer selected.", MessageType.Info);
+                return;
+            }
+
+            var settings = deformer.Settings;
+            if (settings == null)
+            {
+                EditorGUILayout.HelpBox("Missing Lattice Asset on this deformer.", MessageType.Warning);
+                return;
+            }
+
+            int id = deformer.GetInstanceID();
+            if (!s_pendingGridSizes.TryGetValue(id, out var pending))
+            {
+                pending = settings.GridSize;
+                s_pendingGridSizes[id] = pending;
+            }
+
+            EditorGUILayout.LabelField("Current Grid Size", settings.GridSize.ToString());
+            EditorGUI.BeginChangeCheck();
+            pending = EditorGUILayout.Vector3IntField("Pending Grid Size", pending);
+            if (EditorGUI.EndChangeCheck())
+            {
+                pending.x = Mathf.Max(2, pending.x);
+                pending.y = Mathf.Max(2, pending.y);
+                pending.z = Mathf.Max(2, pending.z);
+                s_pendingGridSizes[id] = pending;
+            }
+
+            bool hasPendingChange = s_pendingGridSizes[id] != settings.GridSize;
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                using (new EditorGUI.DisabledScope(!hasPendingChange))
+                {
+                    if (GUILayout.Button("Apply", GUILayout.Width(80f)))
+                    {
+                        foreach (var obj in targets)
+                        {
+                            if (obj is LatticeDeformer selected)
+                            {
+                                if (!s_pendingGridSizes.TryGetValue(selected.GetInstanceID(), out var pendingSize))
+                                {
+                                    pendingSize = selected.Settings?.GridSize ?? pending;
+                                }
+
+                                ApplyGridSizeChange(selected, pendingSize);
+                                s_pendingGridSizes[selected.GetInstanceID()] = selected.Settings?.GridSize ?? pendingSize;
+                            }
+                        }
+                    }
+
+                    if (GUILayout.Button("Revert", GUILayout.Width(80f)))
+                    {
+                        foreach (var obj in targets)
+                        {
+                            if (obj is LatticeDeformer selected && selected.Settings != null)
+                            {
+                                s_pendingGridSizes[selected.GetInstanceID()] = selected.Settings.GridSize;
+                            }
+                        }
+                    }
+                }
+            }
+
+            EditorGUILayout.Space();
         }
     }
 }
