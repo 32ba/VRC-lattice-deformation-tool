@@ -8,7 +8,7 @@
     "name": "32ba"
   },
   "vpmDependencies": {
-    "nadena.dev.ndmf": "=>1.9.0"
+    "nadena.dev.ndmf": ">=1.9.0"
   },
   "dependencies": {}
 }
