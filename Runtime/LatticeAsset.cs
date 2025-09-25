@@ -126,6 +126,74 @@ namespace Net._32Ba.LatticeDeformationTool
             PopulateControlPoints();
         }
 
+        public void RelaxInteriorControlPoints(int iterations = 2)
+        {
+            if (_controlPointsLocal == null)
+            {
+                return;
+            }
+
+            int count = ControlPointCount;
+            if (count == 0 || iterations <= 0)
+            {
+                return;
+            }
+
+            int nx = _gridSize.x;
+            int ny = _gridSize.y;
+            int nz = _gridSize.z;
+
+            if (nx <= 2 || ny <= 2 || nz <= 2)
+            {
+                return;
+            }
+
+            iterations = Mathf.Min(iterations, 16);
+
+            var working = _controlPointsLocal;
+            var buffer = new Vector3[count];
+
+            int xStride = 1;
+            int yStride = nx;
+            int zStride = nx * ny;
+
+            for (int iter = 0; iter < iterations; iter++)
+            {
+                Array.Copy(working, buffer, count);
+
+                for (int z = 1; z < nz - 1; z++)
+                {
+                    int zOffset = z * zStride;
+                    for (int y = 1; y < ny - 1; y++)
+                    {
+                        int yOffset = zOffset + y * yStride;
+                        for (int x = 1; x < nx - 1; x++)
+                        {
+                            int index = yOffset + x;
+
+                            Vector3 sum = working[index - xStride] +
+                                          working[index + xStride] +
+                                          working[index - yStride] +
+                                          working[index + yStride] +
+                                          working[index - zStride] +
+                                          working[index + zStride];
+
+                            buffer[index] = sum / 6f;
+                        }
+                    }
+                }
+
+                var swap = working;
+                working = buffer;
+                buffer = swap;
+            }
+
+            if (!ReferenceEquals(working, _controlPointsLocal))
+            {
+                Array.Copy(working, _controlPointsLocal, count);
+            }
+        }
+
         public void EnsureInitialized()
         {
             GridSize = _gridSize;

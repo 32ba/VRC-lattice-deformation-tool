@@ -31,11 +31,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static GUIContent s_icon;
         private static bool s_showIndices = false;
+        private static bool s_includeInteriorControls = false;
         private static readonly HashSet<int> s_selectedControls = new HashSet<int>();
         private static bool s_mirrorEditing = false;
         private static MirrorAxis s_mirrorAxis = MirrorAxis.X;
         private static MirrorBehavior s_mirrorBehavior = MirrorBehavior.Mirrored;
         private static PivotRotation? s_previousPivotRotation;
+        private static Vector3Int s_lastGridSize = Vector3Int.one;
 
         internal static bool ShowIndices
         {
@@ -63,6 +65,26 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
 
                 s_mirrorEditing = value;
+                SceneView.RepaintAll();
+            }
+        }
+
+        internal static bool IncludeInteriorControls
+        {
+            get => s_includeInteriorControls;
+            set
+            {
+                if (s_includeInteriorControls == value)
+                {
+                    return;
+                }
+
+                s_includeInteriorControls = value;
+                if (!s_includeInteriorControls)
+                {
+                    FilterSelectionToBoundary(s_lastGridSize);
+                }
+
                 SceneView.RepaintAll();
             }
         }
@@ -171,6 +193,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             int nx = Mathf.Max(1, gridSize.x);
             int ny = Mathf.Max(1, gridSize.y);
             int nz = Mathf.Max(1, gridSize.z);
+            s_lastGridSize = new Vector3Int(nx, ny, nz);
 
             int Index(int x, int y, int z) => x + y * nx + z * nx * ny;
 
@@ -237,8 +260,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 int iy = (index / nx) % ny;
                 int iz = index / (nx * ny);
 
-                bool onBoundary = ix == 0 || ix == nx - 1 || iy == 0 || iy == ny - 1 || iz == 0 || iz == nz - 1;
-                if (!onBoundary)
+                bool onBoundary = IsBoundaryIndex(ix, iy, iz, nx, ny, nz);
+                if (!onBoundary && !IncludeInteriorControls)
                 {
                     continue;
                 }
@@ -364,6 +387,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                                     settings.SetControlPointLocal(mirrorIndex, mirrorLocal);
                                 }
+                            }
+
+                            if (!IncludeInteriorControls)
+                            {
+                                settings.RelaxInteriorControlPoints(2);
                             }
 
                             deformer.InvalidateCache();
@@ -517,6 +545,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             SceneView.RepaintAll();
         }
 
+        private static bool IsBoundaryIndex(int ix, int iy, int iz, int nx, int ny, int nz)
+        {
+            return ix == 0 || ix == nx - 1 || iy == 0 || iy == ny - 1 || iz == 0 || iz == nz - 1;
+        }
+
+        private static void FilterSelectionToBoundary(Vector3Int gridSize)
+        {
+            if (s_selectedControls.Count == 0)
+            {
+                return;
+            }
+
+            int nx = Mathf.Max(1, gridSize.x);
+            int ny = Mathf.Max(1, gridSize.y);
+            int nz = Mathf.Max(1, gridSize.z);
+
+            s_selectedControls.RemoveWhere(index =>
+            {
+                int ix = index % nx;
+                int iy = (index / nx) % ny;
+                int iz = index / (nx * ny);
+                return !IsBoundaryIndex(ix, iy, iz, nx, ny, nz);
+            });
+        }
+
         internal static string GetSelectionLabel()
         {
             if (s_selectedControls.Count == 0)
@@ -554,6 +607,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 GUILayout.Label("Lattice Tool", EditorStyles.boldLabel);
 
                 LatticeDeformerTool.ShowIndices = GUILayout.Toggle(LatticeDeformerTool.ShowIndices, "Show Control Indices");
+
+                GUILayout.Label("Point Scope", EditorStyles.miniLabel);
+                int scopeSelection = GUILayout.Toolbar(LatticeDeformerTool.IncludeInteriorControls ? 1 : 0, new[] { "Surface Only", "All Points" });
+                bool includeInterior = scopeSelection == 1;
+                LatticeDeformerTool.IncludeInteriorControls = includeInterior;
+                GUILayout.Space(2f);
 
                 using (new GUILayout.HorizontalScope())
                 {
