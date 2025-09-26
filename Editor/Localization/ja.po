@@ -1,0 +1,119 @@
+msgid ""
+msgstr ""
+"Language: ja\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Lattice Tool"
+msgstr "Lattice Tool"
+
+msgid "X"
+msgstr "X"
+
+msgid "Y"
+msgstr "Y"
+
+msgid "Z"
+msgstr "Z"
+
+msgid "Copy"
+msgstr "コピー"
+
+msgid "Mirror"
+msgstr "ミラー"
+
+msgid "Antisymmetric"
+msgstr "反対称"
+
+msgid "Global-space editing disabled"
+msgstr "グローバル空間での編集は無効です"
+
+msgid "Move Lattice Controls"
+msgstr "Move Lattice Controls"
+
+msgid "Selected: None"
+msgstr "選択: なし"
+
+msgid "Selected: {0}"
+msgstr "選択: {0}"
+
+msgid "Selected: {0} controls"
+msgstr "選択: {0} 個のコントロール"
+
+msgid "Activate the Lattice Tool to access settings."
+msgstr "Activate the Lattice Tool to access settings."
+
+msgid "Show Control Indices"
+msgstr "コントロール番号を表示"
+
+msgid "Point Scope"
+msgstr "ポイント範囲"
+
+msgid "Surface Only"
+msgstr "表面のみ"
+
+msgid "All Points"
+msgstr "すべてのポイント"
+
+msgid "Clear Selection"
+msgstr "選択をクリア"
+
+msgid "Mirror Editing"
+msgstr "ミラー編集"
+
+msgid "Mirror Mode"
+msgstr "ミラーモード"
+
+msgid "Mirror Axis"
+msgstr "ミラー軸"
+
+msgid "Hold Shift/Ctrl to toggle selection."
+msgstr "Shift/Ctrl を押しながらで選択を切り替えます。"
+
+msgid "Target Skinned Mesh Renderer"
+msgstr "Target Skinned Mesh Renderer"
+msgid "Target Mesh Filter"
+msgstr "Target Mesh Filter"
+msgid "Lattice Settings"
+msgstr "Lattice Settings"
+
+msgid "Advanced Settings"
+msgstr "詳細設定"
+
+msgid "Mesh Update Options"
+msgstr "メッシュ更新オプション"
+
+msgid "(NDMF) Disable Lattice Preview"
+msgstr "(NDMF) Disable Lattice Preview"
+
+msgid "(NDMF) Enable Lattice Preview"
+msgstr "(NDMF) Enable Lattice Preview"
+
+msgid "Activate Lattice Tool"
+msgstr "Activate Lattice Tool"
+
+msgid "Change Lattice Grid Size"
+msgstr "Change Lattice Grid Size"
+
+msgid "No Lattice Deformer selected."
+msgstr "No Lattice Deformer selected."
+
+msgid "Missing Lattice Asset on this deformer."
+msgstr "Missing Lattice Asset on this deformer."
+
+msgid "Current Grid Size"
+msgstr "現在のグリッドサイズ"
+
+msgid "Pending Grid Size"
+msgstr "保留中のグリッドサイズ"
+
+msgid "Apply"
+msgstr "適用"
+
+msgid "Revert"
+msgstr "元に戻す"
+
+msgid "Lattice Deformer"
+msgstr "Lattice Deformer"
+
+msgid "Tool Language"
+msgstr "ツールの言語"

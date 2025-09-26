@@ -1,0 +1,119 @@
+msgid ""
+msgstr ""
+"Language: zh-Hant\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Lattice Tool"
+msgstr "Lattice Tool"
+
+msgid "X"
+msgstr "X"
+
+msgid "Y"
+msgstr "Y"
+
+msgid "Z"
+msgstr "Z"
+
+msgid "Copy"
+msgstr "複製"
+
+msgid "Mirror"
+msgstr "鏡像"
+
+msgid "Antisymmetric"
+msgstr "反對稱"
+
+msgid "Global-space editing disabled"
+msgstr "全域空間編輯已停用"
+
+msgid "Move Lattice Controls"
+msgstr "Move Lattice Controls"
+
+msgid "Selected: None"
+msgstr "選取: 無"
+
+msgid "Selected: {0}"
+msgstr "選取: {0}"
+
+msgid "Selected: {0} controls"
+msgstr "選取: {0} 個控制點"
+
+msgid "Activate the Lattice Tool to access settings."
+msgstr "Activate the Lattice Tool to access settings."
+
+msgid "Show Control Indices"
+msgstr "顯示控制點索引"
+
+msgid "Point Scope"
+msgstr "點範圍"
+
+msgid "Surface Only"
+msgstr "僅限表面"
+
+msgid "All Points"
+msgstr "所有點"
+
+msgid "Clear Selection"
+msgstr "清除選取"
+
+msgid "Mirror Editing"
+msgstr "鏡像編輯"
+
+msgid "Mirror Mode"
+msgstr "鏡像模式"
+
+msgid "Mirror Axis"
+msgstr "鏡像軸"
+
+msgid "Hold Shift/Ctrl to toggle selection."
+msgstr "按住 Shift/Ctrl 可切換選取。"
+
+msgid "Target Skinned Mesh Renderer"
+msgstr "Target Skinned Mesh Renderer"
+msgid "Target Mesh Filter"
+msgstr "Target Mesh Filter"
+msgid "Lattice Settings"
+msgstr "Lattice Settings"
+
+msgid "Advanced Settings"
+msgstr "進階設定"
+
+msgid "Mesh Update Options"
+msgstr "網格更新選項"
+
+msgid "(NDMF) Disable Lattice Preview"
+msgstr "(NDMF) Disable Lattice Preview"
+
+msgid "(NDMF) Enable Lattice Preview"
+msgstr "(NDMF) Enable Lattice Preview"
+
+msgid "Activate Lattice Tool"
+msgstr "Activate Lattice Tool"
+
+msgid "Change Lattice Grid Size"
+msgstr "Change Lattice Grid Size"
+
+msgid "No Lattice Deformer selected."
+msgstr "No Lattice Deformer selected."
+
+msgid "Missing Lattice Asset on this deformer."
+msgstr "Missing Lattice Asset on this deformer."
+
+msgid "Current Grid Size"
+msgstr "目前網格大小"
+
+msgid "Pending Grid Size"
+msgstr "待定網格大小"
+
+msgid "Apply"
+msgstr "套用"
+
+msgid "Revert"
+msgstr "還原"
+
+msgid "Lattice Deformer"
+msgstr "Lattice Deformer"
+
+msgid "Tool Language"
+msgstr "工具語言"

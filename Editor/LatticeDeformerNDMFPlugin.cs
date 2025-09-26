@@ -1,5 +1,6 @@
 using nadena.dev.ndmf;
 using Net._32Ba.LatticeDeformationTool;
+using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -10,7 +11,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     internal sealed class LatticeDeformerNDMFPlugin : Plugin<LatticeDeformerNDMFPlugin>
     {
         public override string QualifiedName => "net.32ba.lattice-deformation-tool";
-        public override string DisplayName => "Lattice Deformer";
+        public override string DisplayName => LatticeLocalization.Tr("Lattice Deformer");
 
         protected override void Configure()
         {

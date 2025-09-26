@@ -1,0 +1,121 @@
+msgid ""
+msgstr ""
+"Language: en\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Lattice Tool"
+msgstr "Lattice Tool"
+
+msgid "X"
+msgstr "X"
+
+msgid "Y"
+msgstr "Y"
+
+msgid "Z"
+msgstr "Z"
+
+msgid "Copy"
+msgstr "Copy"
+
+msgid "Mirror"
+msgstr "Mirror"
+
+msgid "Antisymmetric"
+msgstr "Antisymmetric"
+
+msgid "Global-space editing disabled"
+msgstr "Global-space editing disabled"
+
+msgid "Move Lattice Controls"
+msgstr "Move Lattice Controls"
+
+msgid "Selected: None"
+msgstr "Selected: None"
+
+msgid "Selected: {0}"
+msgstr "Selected: {0}"
+
+msgid "Selected: {0} controls"
+msgstr "Selected: {0} controls"
+
+msgid "Activate the Lattice Tool to access settings."
+msgstr "Activate the Lattice Tool to access settings."
+
+msgid "Show Control Indices"
+msgstr "Show Control Indices"
+
+msgid "Point Scope"
+msgstr "Point Scope"
+
+msgid "Surface Only"
+msgstr "Surface Only"
+
+msgid "All Points"
+msgstr "All Points"
+
+msgid "Clear Selection"
+msgstr "Clear Selection"
+
+msgid "Mirror Editing"
+msgstr "Mirror Editing"
+
+msgid "Mirror Mode"
+msgstr "Mirror Mode"
+
+msgid "Mirror Axis"
+msgstr "Mirror Axis"
+
+msgid "Hold Shift/Ctrl to toggle selection."
+msgstr "Hold Shift/Ctrl to toggle selection."
+
+msgid "Target Skinned Mesh Renderer"
+msgstr "Target Skinned Mesh Renderer"
+
+msgid "Target Mesh Filter"
+msgstr "Target Mesh Filter"
+
+msgid "Lattice Settings"
+msgstr "Lattice Settings"
+
+msgid "Advanced Settings"
+msgstr "Advanced Settings"
+
+msgid "Mesh Update Options"
+msgstr "Mesh Update Options"
+
+msgid "(NDMF) Disable Lattice Preview"
+msgstr "(NDMF) Disable Lattice Preview"
+
+msgid "(NDMF) Enable Lattice Preview"
+msgstr "(NDMF) Enable Lattice Preview"
+
+msgid "Activate Lattice Tool"
+msgstr "Activate Lattice Tool"
+
+msgid "Change Lattice Grid Size"
+msgstr "Change Lattice Grid Size"
+
+msgid "No Lattice Deformer selected."
+msgstr "No Lattice Deformer selected."
+
+msgid "Missing Lattice Asset on this deformer."
+msgstr "Missing Lattice Asset on this deformer."
+
+msgid "Current Grid Size"
+msgstr "Current Grid Size"
+
+msgid "Pending Grid Size"
+msgstr "Pending Grid Size"
+
+msgid "Apply"
+msgstr "Apply"
+
+msgid "Revert"
+msgstr "Revert"
+
+msgid "Lattice Deformer"
+msgstr "Lattice Deformer"
+
+msgid "Tool Language"
+msgstr "Tool Language"

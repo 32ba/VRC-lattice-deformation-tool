@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
 using nadena.dev.ndmf.preview;
+using UnityEditor;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
@@ -14,7 +15,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly Dictionary<Renderer, LatticeDeformer> _rendererToDeformer = new Dictionary<Renderer, LatticeDeformer>();
 
         private static readonly TogglablePreviewNode s_previewToggle = TogglablePreviewNode.Create(
-            () => "Lattice Deformer",
+            () => LatticeLocalization.Tr("Lattice Deformer"),
             typeof(LatticeDeformerPreviewFilter).FullName);
 
         internal static bool PreviewToggleEnabled => s_previewToggle.IsEnabled.Value;

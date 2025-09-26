@@ -1,0 +1,119 @@
+msgid ""
+msgstr ""
+"Language: ko\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Lattice Tool"
+msgstr "Lattice Tool"
+
+msgid "X"
+msgstr "X"
+
+msgid "Y"
+msgstr "Y"
+
+msgid "Z"
+msgstr "Z"
+
+msgid "Copy"
+msgstr "복사"
+
+msgid "Mirror"
+msgstr "미러"
+
+msgid "Antisymmetric"
+msgstr "반대칭"
+
+msgid "Global-space editing disabled"
+msgstr "글로벌 공간 편집이 비활성화되었습니다"
+
+msgid "Move Lattice Controls"
+msgstr "Move Lattice Controls"
+
+msgid "Selected: None"
+msgstr "선택: 없음"
+
+msgid "Selected: {0}"
+msgstr "선택: {0}"
+
+msgid "Selected: {0} controls"
+msgstr "선택: 컨트롤 {0}개"
+
+msgid "Activate the Lattice Tool to access settings."
+msgstr "Activate the Lattice Tool to access settings."
+
+msgid "Show Control Indices"
+msgstr "컨트롤 인덱스 표시"
+
+msgid "Point Scope"
+msgstr "포인트 범위"
+
+msgid "Surface Only"
+msgstr "표면만"
+
+msgid "All Points"
+msgstr "모든 포인트"
+
+msgid "Clear Selection"
+msgstr "선택 지우기"
+
+msgid "Mirror Editing"
+msgstr "미러 편집"
+
+msgid "Mirror Mode"
+msgstr "미러 모드"
+
+msgid "Mirror Axis"
+msgstr "미러 축"
+
+msgid "Hold Shift/Ctrl to toggle selection."
+msgstr "Shift/Ctrl을 누른 채로 선택을 전환합니다."
+
+msgid "Target Skinned Mesh Renderer"
+msgstr "Target Skinned Mesh Renderer"
+msgid "Target Mesh Filter"
+msgstr "Target Mesh Filter"
+msgid "Lattice Settings"
+msgstr "Lattice Settings"
+
+msgid "Advanced Settings"
+msgstr "고급 설정"
+
+msgid "Mesh Update Options"
+msgstr "메시 업데이트 옵션"
+
+msgid "(NDMF) Disable Lattice Preview"
+msgstr "(NDMF) Disable Lattice Preview"
+
+msgid "(NDMF) Enable Lattice Preview"
+msgstr "(NDMF) Enable Lattice Preview"
+
+msgid "Activate Lattice Tool"
+msgstr "Activate Lattice Tool"
+
+msgid "Change Lattice Grid Size"
+msgstr "Change Lattice Grid Size"
+
+msgid "No Lattice Deformer selected."
+msgstr "No Lattice Deformer selected."
+
+msgid "Missing Lattice Asset on this deformer."
+msgstr "Missing Lattice Asset on this deformer."
+
+msgid "Current Grid Size"
+msgstr "현재 그리드 크기"
+
+msgid "Pending Grid Size"
+msgstr "대기 중인 그리드 크기"
+
+msgid "Apply"
+msgstr "적용"
+
+msgid "Revert"
+msgstr "되돌리기"
+
+msgid "Lattice Deformer"
+msgstr "Lattice Deformer"
+
+msgid "Tool Language"
+msgstr "툴 언어"
