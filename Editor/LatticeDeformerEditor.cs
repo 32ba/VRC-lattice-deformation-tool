@@ -29,6 +29,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _recalcTangentsProp = serializedObject.FindProperty("_recalculateTangents");
             _recalcBoundsProp = serializedObject.FindProperty("_recalculateBounds");
 
+            AutoAssignLocalRendererReferences();
             InitializePendingGridSizes();
 
             LatticeLocalization.LanguageChanged += Repaint;
@@ -49,14 +50,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         public override void OnInspectorGUI()
         {
+            AutoAssignLocalRendererReferences();
             serializedObject.Update();
+
+            bool hasSkinnedAssigned = _skinnedRendererProp != null && !_skinnedRendererProp.hasMultipleDifferentValues && _skinnedRendererProp.objectReferenceValue != null;
+            bool hasMeshAssigned = _meshFilterProp != null && !_meshFilterProp.hasMultipleDifferentValues && _meshFilterProp.objectReferenceValue != null;
+
+            bool disableSkinnedField = ShouldDisableRendererField<SkinnedMeshRenderer>() || hasMeshAssigned;
+            bool disableMeshField = ShouldDisableRendererField<MeshFilter>() || hasSkinnedAssigned;
 
             DrawLanguageSelector();
             EditorGUILayout.Space();
 
-            using (new EditorGUI.DisabledScope(true))
+            using (new EditorGUI.DisabledScope(disableSkinnedField))
             {
                 EditorGUILayout.PropertyField(_skinnedRendererProp, LatticeLocalization.Content("Target Skinned Mesh Renderer"));
+            }
+
+            using (new EditorGUI.DisabledScope(disableMeshField))
+            {
                 EditorGUILayout.PropertyField(_meshFilterProp, LatticeLocalization.Content("Target Mesh Filter"));
             }
 
@@ -64,6 +76,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorGUILayout.LabelField(LatticeLocalization.Content("Lattice Settings"), EditorStyles.boldLabel);
             EditorGUI.indentLevel++;
             DrawGridSizeControls((LatticeDeformer)target);
+            DrawResetLatticeBoxControls();
 
             s_showAdvancedSettings = EditorGUILayout.Foldout(s_showAdvancedSettings, LatticeLocalization.Tr("Advanced Settings"), true);
             if (s_showAdvancedSettings)
@@ -120,6 +133,188 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 ToolManager.SetActiveTool<LatticeDeformerTool>();
                 LatticePreviewUtility.RequestSceneRepaint();
             }
+        }
+
+        private void AutoAssignLocalRendererReferences()
+        {
+            if (targets == null || targets.Length == 0)
+            {
+                return;
+            }
+
+            foreach (var obj in targets)
+            {
+                if (obj is not LatticeDeformer deformer)
+                {
+                    continue;
+                }
+
+                var localSkinned = deformer.GetComponent<SkinnedMeshRenderer>();
+                var localMesh = deformer.GetComponent<MeshFilter>();
+
+                if (localSkinned == null && localMesh == null)
+                {
+                    continue;
+                }
+
+                var serialized = new SerializedObject(deformer);
+                serialized.UpdateIfRequiredOrScript();
+
+                var skinnedProp = serialized.FindProperty("_skinnedMeshRenderer");
+                var meshProp = serialized.FindProperty("_meshFilter");
+
+                bool changed = false;
+
+                if (localSkinned != null)
+                {
+                    if (skinnedProp != null && skinnedProp.objectReferenceValue != localSkinned)
+                    {
+                        skinnedProp.objectReferenceValue = localSkinned;
+                        changed = true;
+                    }
+
+                    if (meshProp != null && meshProp.objectReferenceValue != null)
+                    {
+                        meshProp.objectReferenceValue = null;
+                        changed = true;
+                    }
+                }
+                else if (localMesh != null)
+                {
+                    if (meshProp != null && meshProp.objectReferenceValue != localMesh)
+                    {
+                        meshProp.objectReferenceValue = localMesh;
+                        changed = true;
+                    }
+
+                    if (skinnedProp != null && skinnedProp.objectReferenceValue != null)
+                    {
+                        skinnedProp.objectReferenceValue = null;
+                        changed = true;
+                    }
+                }
+
+                if (changed)
+                {
+                    serialized.ApplyModifiedPropertiesWithoutUndo();
+                }
+            }
+        }
+
+        private bool ShouldDisableRendererField<T>() where T : Component
+        {
+            if (targets == null || targets.Length == 0)
+            {
+                return false;
+            }
+
+            if (targets.Length == 1)
+            {
+                if (target is not LatticeDeformer single)
+                {
+                    return false;
+                }
+
+                return single.GetComponent<T>() != null;
+            }
+
+            foreach (var obj in targets)
+            {
+                if (obj is not LatticeDeformer deformer || deformer.GetComponent<T>() == null)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private void DrawResetLatticeBoxControls()
+        {
+            bool canReset = false;
+
+            foreach (var obj in targets)
+            {
+                if (obj is LatticeDeformer deformer && HasResettableBounds(deformer))
+                {
+                    canReset = true;
+                    break;
+                }
+            }
+
+            using (new EditorGUI.DisabledScope(!canReset))
+            {
+                if (GUILayout.Button(LatticeLocalization.Tr("Reset Lattice Box")))
+                {
+                    bool anyReset = false;
+
+                    foreach (var obj in targets)
+                    {
+                        if (obj is LatticeDeformer deformer && ResetLatticeBox(deformer))
+                        {
+                            anyReset = true;
+                        }
+                    }
+
+                    if (anyReset)
+                    {
+                        serializedObject.Update();
+                        LatticePreviewUtility.RequestSceneRepaint();
+                        SceneView.RepaintAll();
+                    }
+                }
+            }
+        }
+
+        private static bool HasResettableBounds(LatticeDeformer deformer)
+        {
+            if (deformer == null)
+            {
+                return false;
+            }
+
+            if (deformer.Settings == null)
+            {
+                return false;
+            }
+
+            if (deformer.SourceMesh != null)
+            {
+                return true;
+            }
+
+            return deformer.GetComponent<SkinnedMeshRenderer>() != null || deformer.GetComponent<MeshFilter>() != null;
+        }
+
+        private static bool ResetLatticeBox(LatticeDeformer deformer)
+        {
+            if (!HasResettableBounds(deformer))
+            {
+                return false;
+            }
+
+            var settings = deformer.Settings;
+            if (settings == null)
+            {
+                return false;
+            }
+
+            Undo.RecordObject(deformer, LatticeLocalization.Tr("Reset Lattice Box"));
+
+            deformer.Deform(false);
+
+            if (deformer.SourceMesh == null)
+            {
+                return false;
+            }
+
+            deformer.InitializeFromSource(true);
+            deformer.InvalidateCache();
+            deformer.Deform(false);
+
+            EditorUtility.SetDirty(deformer);
+
+            return true;
         }
 
         private void DrawLanguageSelector()
@@ -280,3 +475,4 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     }
 }
 #endif
+

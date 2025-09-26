@@ -117,3 +117,6 @@ msgstr "Lattice Deformer"
 
 msgid "Tool Language"
 msgstr "툴 언어"
+
+msgid "Reset Lattice Box"
+msgstr "래티스 박스 초기화"

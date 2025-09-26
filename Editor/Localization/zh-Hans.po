@@ -117,3 +117,6 @@ msgstr "Lattice Deformer"
 
 msgid "Tool Language"
 msgstr "工具语言"
+
+msgid "Reset Lattice Box"
+msgstr "重置晶格盒"
