@@ -114,12 +114,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             bool modified = serializedObject.ApplyModifiedProperties();
             if (modified)
             {
+                bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
+
                 foreach (var obj in targets)
                 {
                     if (obj is LatticeDeformer instance)
                     {
                         instance.InvalidateCache();
-                        instance.Deform(false);
+                        instance.Deform(assignRuntimeMesh);
                         EditorUtility.SetDirty(instance);
                     }
                 }
@@ -302,7 +304,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Undo.RecordObject(deformer, LatticeLocalization.Tr("Reset Lattice Box"));
 
             deformer.Deform(false);
-
             if (deformer.SourceMesh == null)
             {
                 return false;
@@ -310,7 +311,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             deformer.InitializeFromSource(true);
             deformer.InvalidateCache();
-            deformer.Deform(false);
+            bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
+            deformer.Deform(assignRuntimeMesh);
 
             EditorUtility.SetDirty(deformer);
 
@@ -346,7 +348,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             bool enterChildren = iterator.NextVisible(true);
             while (enterChildren && !SerializedProperty.EqualContents(iterator, end))
             {
-                if (iterator.depth == _settingsProp.depth + 1 && iterator.name != "_gridSize")
+                if (iterator.depth == _settingsProp.depth + 1 && iterator.name != "_gridSize" && iterator.name != "_controlPointsLocal")
                 {
                     EditorGUILayout.PropertyField(iterator, includeChildren: true);
                 }
@@ -394,7 +396,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Undo.RecordObject(deformer, LatticeLocalization.Tr("Change Lattice Grid Size"));
             settings.ResizeGrid(newSize);
             deformer.InvalidateCache();
-            deformer.Deform(false);
+
+            bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
+            deformer.Deform(assignRuntimeMesh);
+
             EditorUtility.SetDirty(deformer);
 
             LatticePreviewUtility.RequestSceneRepaint();

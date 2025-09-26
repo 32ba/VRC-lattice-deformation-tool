@@ -2,6 +2,7 @@ using System;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
+using Unity.Jobs.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -34,6 +35,9 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField]
         private bool _useJobsAndBurst = false;
 
+        [SerializeField]
+        private bool _hasAutoConfiguredJobs = false;
+
         public Vector3Int GridSize
         {
             get => _gridSize;
@@ -55,7 +59,11 @@ namespace Net._32Ba.LatticeDeformationTool
         public bool UseJobsAndBurst
         {
             get => _useJobsAndBurst;
-            set => _useJobsAndBurst = value;
+            set
+            {
+                _useJobsAndBurst = value;
+                _hasAutoConfiguredJobs = true;
+            }
         }
 
         public int ControlPointCount => _gridSize.x * _gridSize.y * _gridSize.z;
@@ -64,6 +72,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public void ResizeGrid(Vector3Int newGridSize)
         {
+            EnsureJobsAutoConfigured();
             newGridSize.x = Mathf.Max(k_MinAxisResolution, newGridSize.x);
             newGridSize.y = Mathf.Max(k_MinAxisResolution, newGridSize.y);
             newGridSize.z = Mathf.Max(k_MinAxisResolution, newGridSize.z);
@@ -196,10 +205,31 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public void EnsureInitialized()
         {
+            EnsureJobsAutoConfigured();
             GridSize = _gridSize;
             EnsureControlPointCapacity();
         }
 
+        private void EnsureJobsAutoConfigured()
+        {
+            if (_hasAutoConfiguredJobs)
+            {
+                return;
+            }
+
+            bool canUseJobs = JobsUtility.JobWorkerCount > 0;
+#if UNITY_EDITOR
+            canUseJobs &= Unity.Burst.BurstCompiler.IsEnabled;
+#endif
+
+            if (canUseJobs)
+            {
+                _useJobsAndBurst = true;
+            }
+
+            _hasAutoConfiguredJobs = true;
+
+        }
         private static int Index(Vector3Int grid, int x, int y, int z)
         {
             return x + y * grid.x + z * grid.x * grid.y;

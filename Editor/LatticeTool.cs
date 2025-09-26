@@ -442,6 +442,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             deformer.Deform(false);
+
             LatticePreviewUtility.RequestSceneRepaint();
         }
 

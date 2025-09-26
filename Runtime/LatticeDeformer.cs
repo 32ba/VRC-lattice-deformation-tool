@@ -20,9 +20,9 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private bool _recalculateTangents = false;
         [SerializeField] private bool _recalculateBounds = true;
         [SerializeField, HideInInspector] private bool _hasInitializedFromSource = false;
-        [SerializeField, HideInInspector] private LatticeDeformerCache _cache = new LatticeDeformerCache();
-        [SerializeField, HideInInspector] private Mesh _runtimeMesh;
-        [SerializeField, HideInInspector] private Mesh _sourceMesh;
+        [NonSerialized] private LatticeDeformerCache _cache = new LatticeDeformerCache();
+        [NonSerialized] private Mesh _runtimeMesh;
+        [NonSerialized] private Mesh _sourceMesh;
 
         private Vector3[] _controlBuffer = Array.Empty<Vector3>();
 
@@ -128,7 +128,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
             if (!EnsureCache(settings))
             {
-                return null;
+                    return null;
             }
 
             var mesh = AcquireRuntimeMesh(assignToRenderer);
@@ -218,6 +218,11 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public void InvalidateCache()
         {
+            if (_cache == null)
+            {
+                _cache = new LatticeDeformerCache();
+            }
+
             _cache.Clear();
         }
 
@@ -585,6 +590,7 @@ namespace Net._32Ba.LatticeDeformationTool
                     var barycentric = CalculateNormalizedCoordinate(bounds, local);
                     entries[i] = BuildTrilinearEntry(gridSize, barycentric);
                 }
+
             }
 
             _cache.Populate(gridSize, bounds, settings.Interpolation, vertexCount, entries, restVertices);
