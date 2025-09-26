@@ -147,32 +147,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 return null;
             }
 
-            Vector3[] vertices;
-
-            if (settings.UseJobsAndBurst && TryDeformWithJobs(entries, _controlBuffer, out var jobVertices))
-            {
-                vertices = jobVertices;
-            }
-            else
-            {
-                vertices = new Vector3[entries.Length];
-                for (int i = 0; i < entries.Length; i++)
-                {
-                    var entry = entries[i];
-                    var w0 = entry.Weights0;
-                    var w1 = entry.Weights1;
-
-                    vertices[i] =
-                        w0.x * _controlBuffer[entry.Corner0] +
-                        w0.y * _controlBuffer[entry.Corner1] +
-                        w0.z * _controlBuffer[entry.Corner2] +
-                        w0.w * _controlBuffer[entry.Corner3] +
-                        w1.x * _controlBuffer[entry.Corner4] +
-                        w1.y * _controlBuffer[entry.Corner5] +
-                        w1.z * _controlBuffer[entry.Corner6] +
-                        w1.w * _controlBuffer[entry.Corner7];
-                }
-            }
+            var vertices = DeformWithJobs(entries, _controlBuffer);
 
             mesh.vertices = vertices;
 
@@ -390,40 +365,34 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        private bool TryDeformWithJobs(LatticeCacheEntry[] entries, Vector3[] controlPoints, out Vector3[] result)
+        private Vector3[] DeformWithJobs(LatticeCacheEntry[] entries, Vector3[] controlPoints)
         {
-            result = null;
-
             if (entries == null || entries.Length == 0)
             {
-                return false;
+                throw new ArgumentException("Cache entries are required for deformation.", nameof(entries));
             }
 
             if (controlPoints == null || controlPoints.Length == 0)
             {
-                return false;
+                throw new ArgumentException("Control points are required for deformation.", nameof(controlPoints));
             }
 
-            NativeArray<float3> controlNative = default;
-            NativeArray<LatticeCacheEntry> entriesNative = default;
-            NativeArray<float3> outputNative = default;
+            var controlNative = new NativeArray<float3>(controlPoints.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            var entriesNative = new NativeArray<LatticeCacheEntry>(entries.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            var outputNative = new NativeArray<float3>(entries.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 
             try
             {
-                controlNative = new NativeArray<float3>(controlPoints.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
                 for (int i = 0; i < controlPoints.Length; i++)
                 {
                     var point = controlPoints[i];
                     controlNative[i] = new float3(point.x, point.y, point.z);
                 }
 
-                entriesNative = new NativeArray<LatticeCacheEntry>(entries.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
                 for (int i = 0; i < entries.Length; i++)
                 {
                     entriesNative[i] = entries[i];
                 }
-
-                outputNative = new NativeArray<float3>(entries.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 
                 var job = new DeformVerticesJob
                 {
@@ -441,13 +410,7 @@ namespace Net._32Ba.LatticeDeformationTool
                     vertices[i] = new Vector3(v.x, v.y, v.z);
                 }
 
-                result = vertices;
-                return true;
-            }
-            catch
-            {
-                result = null;
-                return false;
+                return vertices;
             }
             finally
             {
@@ -468,28 +431,24 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        private bool TryBuildCacheWithJobs(Vector3Int gridSize, Bounds bounds, Vector3[] restVertices, out LatticeCacheEntry[] result)
-        {
-            result = null;
 
+        private LatticeCacheEntry[] BuildCacheWithJobs(Vector3Int gridSize, Bounds bounds, Vector3[] restVertices)
+        {
             if (restVertices == null || restVertices.Length == 0)
             {
-                return false;
+                throw new ArgumentException("Rest vertices are required to build the cache.", nameof(restVertices));
             }
 
-            NativeArray<float3> restNative = default;
-            NativeArray<LatticeCacheEntry> entriesNative = default;
+            var restNative = new NativeArray<float3>(restVertices.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            var entriesNative = new NativeArray<LatticeCacheEntry>(restVertices.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 
             try
             {
-                restNative = new NativeArray<float3>(restVertices.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
                 for (int i = 0; i < restVertices.Length; i++)
                 {
                     var v = restVertices[i];
                     restNative[i] = new float3(v.x, v.y, v.z);
                 }
-
-                entriesNative = new NativeArray<LatticeCacheEntry>(restVertices.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 
                 var job = new BuildCacheEntriesJob
                 {
@@ -504,13 +463,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
                 var entries = new LatticeCacheEntry[entriesNative.Length];
                 entriesNative.CopyTo(entries);
-                result = entries;
-                return true;
-            }
-            catch
-            {
-                result = null;
-                return false;
+                return entries;
             }
             finally
             {
@@ -525,6 +478,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 }
             }
         }
+
 
         private bool EnsureCache(LatticeAsset settings)
         {
@@ -576,22 +530,7 @@ namespace Net._32Ba.LatticeDeformationTool
             var bounds = settings.LocalBounds;
             LatticeCacheEntry[] entries;
 
-            if (settings.UseJobsAndBurst && TryBuildCacheWithJobs(gridSize, bounds, restVertices, out var jobEntries))
-            {
-                entries = jobEntries;
-            }
-            else
-            {
-                entries = new LatticeCacheEntry[vertexCount];
-
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    var local = restVertices[i];
-                    var barycentric = CalculateNormalizedCoordinate(bounds, local);
-                    entries[i] = BuildTrilinearEntry(gridSize, barycentric);
-                }
-
-            }
+            entries = BuildCacheWithJobs(gridSize, bounds, restVertices);
 
             _cache.Populate(gridSize, bounds, settings.Interpolation, vertexCount, entries, restVertices);
             return true;

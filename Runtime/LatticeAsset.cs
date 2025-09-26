@@ -2,7 +2,6 @@ using System;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
-using Unity.Jobs.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -32,11 +31,7 @@ namespace Net._32Ba.LatticeDeformationTool
         private LatticeInterpolationMode _interpolation = LatticeInterpolationMode.Trilinear;
 
 
-        [SerializeField]
-        private bool _useJobsAndBurst = false;
 
-        [SerializeField]
-        private bool _hasAutoConfiguredJobs = false;
 
         public Vector3Int GridSize
         {
@@ -56,15 +51,7 @@ namespace Net._32Ba.LatticeDeformationTool
             set => _interpolation = value;
         }
 
-        public bool UseJobsAndBurst
-        {
-            get => _useJobsAndBurst;
-            set
-            {
-                _useJobsAndBurst = value;
-                _hasAutoConfiguredJobs = true;
-            }
-        }
+        public bool UseJobsAndBurst => true;
 
         public int ControlPointCount => _gridSize.x * _gridSize.y * _gridSize.z;
 
@@ -72,7 +59,6 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public void ResizeGrid(Vector3Int newGridSize)
         {
-            EnsureJobsAutoConfigured();
             newGridSize.x = Mathf.Max(k_MinAxisResolution, newGridSize.x);
             newGridSize.y = Mathf.Max(k_MinAxisResolution, newGridSize.y);
             newGridSize.z = Mathf.Max(k_MinAxisResolution, newGridSize.z);
@@ -88,25 +74,25 @@ namespace Net._32Ba.LatticeDeformationTool
 
             _gridSize = newGridSize;
 
-            if (!hasExistingPoints)
+            int newCount = ControlPointCount;
+            if (newCount <= 0)
             {
-                EnsureControlPointCapacity();
+                _controlPointsLocal = Array.Empty<Vector3>();
                 return;
             }
 
-            var oldPointsCopy = new Vector3[oldPoints.Length];
-            System.Array.Copy(oldPoints, oldPointsCopy, oldPoints.Length);
+            var newPoints = new Vector3[newCount];
 
-            int newCount = ControlPointCount;
-            if (_controlPointsLocal == null || _controlPointsLocal.Length != newCount)
+            if (hasExistingPoints && oldGrid.x > 0 && oldGrid.y > 0 && oldGrid.z > 0)
             {
-                _controlPointsLocal = new Vector3[newCount];
+                ResampleControlPointsWithJobs(oldPoints, oldGrid, _gridSize, newPoints);
+            }
+            else
+            {
+                PopulateControlPointsWithJobs(newPoints);
             }
 
-            if (!TryResampleControlPointsWithJobs(oldPointsCopy, oldGrid, _gridSize, _controlPointsLocal))
-            {
-                ResampleControlPointsManaged(oldPointsCopy, oldGrid, _gridSize, _controlPointsLocal);
-            }
+            _controlPointsLocal = newPoints;
         }
 
         public Vector3 GetControlPointLocal(int index)
@@ -205,31 +191,9 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public void EnsureInitialized()
         {
-            EnsureJobsAutoConfigured();
-            GridSize = _gridSize;
             EnsureControlPointCapacity();
         }
 
-        private void EnsureJobsAutoConfigured()
-        {
-            if (_hasAutoConfiguredJobs)
-            {
-                return;
-            }
-
-            bool canUseJobs = JobsUtility.JobWorkerCount > 0;
-#if UNITY_EDITOR
-            canUseJobs &= Unity.Burst.BurstCompiler.IsEnabled;
-#endif
-
-            if (canUseJobs)
-            {
-                _useJobsAndBurst = true;
-            }
-
-            _hasAutoConfiguredJobs = true;
-
-        }
         private static int Index(Vector3Int grid, int x, int y, int z)
         {
             return x + y * grid.x + z * grid.x * grid.y;
@@ -277,66 +241,62 @@ namespace Net._32Ba.LatticeDeformationTool
             return Vector3.Lerp(c0, c1, tz);
         }
 
-        private bool TryResampleControlPointsWithJobs(Vector3[] sourcePoints, Vector3Int sourceGrid, Vector3Int targetGrid, Vector3[] target)
+        private void ResampleControlPointsWithJobs(Vector3[] sourcePoints, Vector3Int sourceGrid, Vector3Int targetGrid, Vector3[] target)
         {
-            if (!UseJobsAndBurst)
+            if (sourcePoints == null)
             {
-                return false;
+                throw new ArgumentNullException(nameof(sourcePoints));
             }
 
-            if (sourcePoints == null || target == null)
+            if (target == null)
             {
-                return false;
+                throw new ArgumentNullException(nameof(target));
             }
 
             int expectedSourceCount = sourceGrid.x * sourceGrid.y * sourceGrid.z;
             int expectedTargetCount = targetGrid.x * targetGrid.y * targetGrid.z;
 
-            if (expectedSourceCount != sourcePoints.Length || expectedTargetCount != target.Length)
+            if (expectedSourceCount != sourcePoints.Length)
             {
-                return false;
+                throw new ArgumentException("Source control point array does not match source grid dimensions.", nameof(sourcePoints));
+            }
+
+            if (expectedTargetCount != target.Length)
+            {
+                throw new ArgumentException("Target control point array does not match target grid dimensions.", nameof(target));
             }
 
             if (expectedSourceCount == 0 || expectedTargetCount == 0)
             {
-                return false;
+                return;
             }
 
-            NativeArray<float3> sourceNative = default;
-            NativeArray<float3> targetNative = default;
+            var sourceNative = new NativeArray<float3>(sourcePoints.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            var targetNative = new NativeArray<float3>(target.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 
             try
             {
-                sourceNative = new NativeArray<float3>(sourcePoints.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
-                targetNative = new NativeArray<float3>(target.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
-
                 for (int i = 0; i < sourcePoints.Length; i++)
                 {
-                    var point = sourcePoints[i];
-                    sourceNative[i] = new float3(point.x, point.y, point.z);
+                    var value = sourcePoints[i];
+                    sourceNative[i] = new float3(value.x, value.y, value.z);
                 }
 
                 var job = new ResampleControlPointsJob
                 {
                     OldPoints = sourceNative,
                     Result = targetNative,
-                    OldGrid = new int3(sourceGrid.x, sourceGrid.y, sourceGrid.z),
-                    NewGrid = new int3(targetGrid.x, targetGrid.y, targetGrid.z)
+                    OldGrid = new int3(math.max(2, sourceGrid.x), math.max(2, sourceGrid.y), math.max(2, sourceGrid.z)),
+                    NewGrid = new int3(math.max(2, targetGrid.x), math.max(2, targetGrid.y), math.max(2, targetGrid.z))
                 };
 
                 job.Schedule(target.Length, math.max(1, targetGrid.x)).Complete();
 
                 for (int i = 0; i < target.Length; i++)
                 {
-                    var point = targetNative[i];
-                    target[i] = new Vector3(point.x, point.y, point.z);
+                    var value = targetNative[i];
+                    target[i] = new Vector3(value.x, value.y, value.z);
                 }
-
-                return true;
-            }
-            catch
-            {
-                return false;
             }
             finally
             {
@@ -352,23 +312,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        private static void ResampleControlPointsManaged(Vector3[] sourcePoints, Vector3Int sourceGrid, Vector3Int targetGrid, Vector3[] target)
-        {
-            for (int z = 0; z < targetGrid.z; z++)
-            {
-                float w = targetGrid.z > 1 ? (float)z / (targetGrid.z - 1) : 0f;
-                for (int y = 0; y < targetGrid.y; y++)
-                {
-                    float v = targetGrid.y > 1 ? (float)y / (targetGrid.y - 1) : 0f;
-                    for (int x = 0; x < targetGrid.x; x++)
-                    {
-                        float u = targetGrid.x > 1 ? (float)x / (targetGrid.x - 1) : 0f;
-                        int newIndex = Index(targetGrid, x, y, z);
-                        target[newIndex] = SampleControlPoints(sourcePoints, sourceGrid, u, v, w);
-                    }
-                }
-            }
-        }
+
 
         [BurstCompile]
         private struct ResampleControlPointsJob : IJobParallelFor
@@ -483,24 +427,20 @@ namespace Net._32Ba.LatticeDeformationTool
             int expected = ControlPointCount;
             if (expected <= 0)
             {
-                _controlPointsLocal = System.Array.Empty<Vector3>();
+                _controlPointsLocal = Array.Empty<Vector3>();
                 return;
             }
 
             bool sizeChanged = _controlPointsLocal == null || _controlPointsLocal.Length != expected;
             if (sizeChanged)
             {
-                System.Array.Resize(ref _controlPointsLocal, expected);
+                _controlPointsLocal = new Vector3[expected];
+                PopulateControlPoints();
+                return;
             }
 
             if (_controlPointsLocal == null)
             {
-                return;
-            }
-
-            if (sizeChanged)
-            {
-                PopulateControlPoints();
                 return;
             }
 
@@ -523,47 +463,30 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            var min = _localBounds.min;
-            var size = _localBounds.size;
-            int nx = _gridSize.x;
-            int ny = _gridSize.y;
-            int nz = _gridSize.z;
+            PopulateControlPointsWithJobs(_localBounds.min, _localBounds.size, _gridSize, _controlPointsLocal);
+        }
 
-            if (UseJobsAndBurst && TryPopulateControlPointsWithJobs(min, size, _gridSize, _controlPointsLocal))
+        private void PopulateControlPointsWithJobs(Vector3[] target)
+        {
+            if (target == null || target.Length == 0)
             {
                 return;
             }
 
-            int index = 0;
-            for (int z = 0; z < nz; z++)
-            {
-                float wz = nz > 1 ? (float)z / (nz - 1) : 0f;
-                for (int y = 0; y < ny; y++)
-                {
-                    float wy = ny > 1 ? (float)y / (ny - 1) : 0f;
-                    for (int x = 0; x < nx; x++)
-                    {
-                        float wx = nx > 1 ? (float)x / (nx - 1) : 0f;
-                        _controlPointsLocal[index++] = min + Vector3.Scale(size, new Vector3(wx, wy, wz));
-                    }
-                }
-            }
+            PopulateControlPointsWithJobs(_localBounds.min, _localBounds.size, _gridSize, target);
         }
 
-        private bool TryPopulateControlPointsWithJobs(Vector3 boundsMin, Vector3 boundsSize, Vector3Int grid, Vector3[] target)
+        private void PopulateControlPointsWithJobs(Vector3 boundsMin, Vector3 boundsSize, Vector3Int grid, Vector3[] target)
         {
             int expected = grid.x * grid.y * grid.z;
-            if (expected != target.Length || expected == 0)
+            if (target == null || target.Length != expected || expected == 0)
             {
-                return false;
+                throw new ArgumentException("Target array does not match grid dimensions.", nameof(target));
             }
 
-            NativeArray<float3> targetNative = default;
-
+            var targetNative = new NativeArray<float3>(target.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
             try
             {
-                targetNative = new NativeArray<float3>(target.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
-
                 var job = new PopulateControlPointsJob
                 {
                     Result = targetNative,
@@ -579,12 +502,6 @@ namespace Net._32Ba.LatticeDeformationTool
                     var value = targetNative[i];
                     target[i] = new Vector3(value.x, value.y, value.z);
                 }
-
-                return true;
-            }
-            catch
-            {
-                return false;
             }
             finally
             {
@@ -595,6 +512,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
+        
         void ISerializationCallbackReceiver.OnBeforeSerialize()
         {
         }
@@ -605,3 +523,4 @@ namespace Net._32Ba.LatticeDeformationTool
         }
     }
 }
+

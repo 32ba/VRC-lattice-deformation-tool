@@ -407,7 +407,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     settings?.GridSize ?? Vector3Int.zero,
                     settings?.LocalBounds ?? new Bounds(Vector3.zero, Vector3.zero),
                     settings?.Interpolation ?? LatticeInterpolationMode.Trilinear,
-                    settings?.UseJobsAndBurst ?? false,
+                    settings != null,
                     deformer.SourceMesh != null ? deformer.SourceMesh.GetInstanceID() : 0,
                     hash,
                     controlPoints.Length);
