@@ -42,45 +42,45 @@ msgstr "选中: {0} 个控制点"
 msgid "Activate the Lattice Tool to access settings."
 msgstr "Activate the Lattice Tool to access settings."
 
-msgid "Show Control Indices"
-msgstr "显示控制点索引"
+msgid "Show Control IDs"
+msgstr "显示控制 ID"
 
-msgid "Point Scope"
-msgstr "点范围"
+msgid "Control Point Scope"
+msgstr "控制点范围"
 
-msgid "Surface Only"
-msgstr "仅限表面"
+msgid "Boundary Only"
+msgstr "仅边界"
 
-msgid "All Points"
-msgstr "所有点"
+msgid "All Controls"
+msgstr "全部控制点"
 
 msgid "Clear Selection"
 msgstr "清除选择"
 
-msgid "Mirror Editing"
-msgstr "镜像编辑"
+msgid "Enable Symmetry Editing"
+msgstr "启用对称编辑"
 
-msgid "Mirror Mode"
-msgstr "镜像模式"
+msgid "Symmetry Mode"
+msgstr "对称模式"
 
-msgid "Mirror Axis"
-msgstr "镜像轴"
+msgid "Symmetry Axis"
+msgstr "对称轴"
 
-msgid "Hold Shift/Ctrl to toggle selection."
-msgstr "按住 Shift/Ctrl 切换选择。"
+msgid "Hold Shift/Ctrl to add/remove controls."
+msgstr "按住 Shift/Ctrl 可添加或移除控制点。"
 
-msgid "Target Skinned Mesh Renderer"
-msgstr "Target Skinned Mesh Renderer"
-msgid "Target Mesh Filter"
-msgstr "Target Mesh Filter"
-msgid "Lattice Settings"
-msgstr "Lattice Settings"
+msgid "Skinned Mesh Source"
+msgstr "Skinned Mesh Source"
+msgid "Static Mesh Source"
+msgstr "Static Mesh Source"
+msgid "Lattice Cage Settings"
+msgstr "晶格笼设置"
 
-msgid "Advanced Settings"
-msgstr "高级设置"
+msgid "Advanced Cage Settings"
+msgstr "笼高级设置"
 
-msgid "Mesh Update Options"
-msgstr "网格更新选项"
+msgid "Mesh Rebuild Options"
+msgstr "网格重建选项"
 
 msgid "(NDMF) Disable Lattice Preview"
 msgstr "(NDMF) Disable Lattice Preview"
@@ -88,23 +88,23 @@ msgstr "(NDMF) Disable Lattice Preview"
 msgid "(NDMF) Enable Lattice Preview"
 msgstr "(NDMF) Enable Lattice Preview"
 
-msgid "Activate Lattice Tool"
-msgstr "Activate Lattice Tool"
+msgid "Open Lattice Editor"
+msgstr "打开晶格编辑器"
 
-msgid "Change Lattice Grid Size"
-msgstr "Change Lattice Grid Size"
+msgid "Change Lattice Divisions"
+msgstr "更改晶格分段"
 
 msgid "No Lattice Deformer selected."
 msgstr "No Lattice Deformer selected."
 
-msgid "Missing Lattice Asset on this deformer."
-msgstr "Missing Lattice Asset on this deformer."
+msgid "No Lattice Asset assigned to this deformer."
+msgstr "此变形器未分配晶格资产。"
 
-msgid "Current Grid Size"
-msgstr "当前网格大小"
+msgid "Current Grid Divisions"
+msgstr "当前网格分段"
 
-msgid "Pending Grid Size"
-msgstr "待定网格大小"
+msgid "Pending Grid Divisions"
+msgstr "更改后的网格分段"
 
 msgid "Apply"
 msgstr "应用"
@@ -118,5 +118,10 @@ msgstr "Lattice Deformer"
 msgid "Tool Language"
 msgstr "工具语言"
 
-msgid "Reset Lattice Box"
-msgstr "重置晶格盒"
+msgid "Reset Lattice Cage"
+msgstr "重置晶格笼"
+
+
+
+
+

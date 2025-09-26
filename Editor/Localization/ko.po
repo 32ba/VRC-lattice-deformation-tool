@@ -42,45 +42,45 @@ msgstr "선택: 컨트롤 {0}개"
 msgid "Activate the Lattice Tool to access settings."
 msgstr "Activate the Lattice Tool to access settings."
 
-msgid "Show Control Indices"
-msgstr "컨트롤 인덱스 표시"
+msgid "Show Control IDs"
+msgstr "제어 ID 표시"
 
-msgid "Point Scope"
-msgstr "포인트 범위"
+msgid "Control Point Scope"
+msgstr "제어점 범위"
 
-msgid "Surface Only"
-msgstr "표면만"
+msgid "Boundary Only"
+msgstr "경계만"
 
-msgid "All Points"
-msgstr "모든 포인트"
+msgid "All Controls"
+msgstr "모든 제어점"
 
 msgid "Clear Selection"
 msgstr "선택 지우기"
 
-msgid "Mirror Editing"
-msgstr "미러 편집"
+msgid "Enable Symmetry Editing"
+msgstr "대칭 편집 활성화"
 
-msgid "Mirror Mode"
-msgstr "미러 모드"
+msgid "Symmetry Mode"
+msgstr "대칭 모드"
 
-msgid "Mirror Axis"
-msgstr "미러 축"
+msgid "Symmetry Axis"
+msgstr "대칭 축"
 
-msgid "Hold Shift/Ctrl to toggle selection."
-msgstr "Shift/Ctrl을 누른 채로 선택을 전환합니다."
+msgid "Hold Shift/Ctrl to add/remove controls."
+msgstr "Shift/Ctrl을 눌러 제어점을 추가/제거합니다."
 
-msgid "Target Skinned Mesh Renderer"
-msgstr "Target Skinned Mesh Renderer"
-msgid "Target Mesh Filter"
-msgstr "Target Mesh Filter"
-msgid "Lattice Settings"
-msgstr "Lattice Settings"
+msgid "Skinned Mesh Source"
+msgstr "Skinned Mesh Source"
+msgid "Static Mesh Source"
+msgstr "Static Mesh Source"
+msgid "Lattice Cage Settings"
+msgstr "래티스 케이지 설정"
 
-msgid "Advanced Settings"
-msgstr "고급 설정"
+msgid "Advanced Cage Settings"
+msgstr "케이지 고급 설정"
 
-msgid "Mesh Update Options"
-msgstr "메시 업데이트 옵션"
+msgid "Mesh Rebuild Options"
+msgstr "메시 재구성 옵션"
 
 msgid "(NDMF) Disable Lattice Preview"
 msgstr "(NDMF) Disable Lattice Preview"
@@ -88,23 +88,23 @@ msgstr "(NDMF) Disable Lattice Preview"
 msgid "(NDMF) Enable Lattice Preview"
 msgstr "(NDMF) Enable Lattice Preview"
 
-msgid "Activate Lattice Tool"
-msgstr "Activate Lattice Tool"
+msgid "Open Lattice Editor"
+msgstr "래티스 편집기 열기"
 
-msgid "Change Lattice Grid Size"
-msgstr "Change Lattice Grid Size"
+msgid "Change Lattice Divisions"
+msgstr "래티스 분할 변경"
 
 msgid "No Lattice Deformer selected."
 msgstr "No Lattice Deformer selected."
 
-msgid "Missing Lattice Asset on this deformer."
-msgstr "Missing Lattice Asset on this deformer."
+msgid "No Lattice Asset assigned to this deformer."
+msgstr "이 디포머에 라티스 에셋이 할당되어 있지 않습니다."
 
-msgid "Current Grid Size"
-msgstr "현재 그리드 크기"
+msgid "Current Grid Divisions"
+msgstr "현재 그리드 분할"
 
-msgid "Pending Grid Size"
-msgstr "대기 중인 그리드 크기"
+msgid "Pending Grid Divisions"
+msgstr "변경될 그리드 분할"
 
 msgid "Apply"
 msgstr "적용"
@@ -118,5 +118,10 @@ msgstr "Lattice Deformer"
 msgid "Tool Language"
 msgstr "툴 언어"
 
-msgid "Reset Lattice Box"
-msgstr "래티스 박스 초기화"
+msgid "Reset Lattice Cage"
+msgstr "래티스 케이지 초기화"
+
+
+
+
+

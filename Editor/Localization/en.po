@@ -42,47 +42,47 @@ msgstr "Selected: {0} controls"
 msgid "Activate the Lattice Tool to access settings."
 msgstr "Activate the Lattice Tool to access settings."
 
-msgid "Show Control Indices"
-msgstr "Show Control Indices"
+msgid "Show Control IDs"
+msgstr "Show Control IDs"
 
-msgid "Point Scope"
-msgstr "Point Scope"
+msgid "Control Point Scope"
+msgstr "Control Point Scope"
 
-msgid "Surface Only"
-msgstr "Surface Only"
+msgid "Boundary Only"
+msgstr "Boundary Only"
 
-msgid "All Points"
-msgstr "All Points"
+msgid "All Controls"
+msgstr "All Controls"
 
 msgid "Clear Selection"
 msgstr "Clear Selection"
 
-msgid "Mirror Editing"
-msgstr "Mirror Editing"
+msgid "Enable Symmetry Editing"
+msgstr "Enable Symmetry Editing"
 
-msgid "Mirror Mode"
-msgstr "Mirror Mode"
+msgid "Symmetry Mode"
+msgstr "Symmetry Mode"
 
-msgid "Mirror Axis"
-msgstr "Mirror Axis"
+msgid "Symmetry Axis"
+msgstr "Symmetry Axis"
 
-msgid "Hold Shift/Ctrl to toggle selection."
-msgstr "Hold Shift/Ctrl to toggle selection."
+msgid "Hold Shift/Ctrl to add/remove controls."
+msgstr "Hold Shift/Ctrl to add/remove controls."
 
-msgid "Target Skinned Mesh Renderer"
-msgstr "Target Skinned Mesh Renderer"
+msgid "Skinned Mesh Source"
+msgstr "Skinned Mesh Source"
 
-msgid "Target Mesh Filter"
-msgstr "Target Mesh Filter"
+msgid "Static Mesh Source"
+msgstr "Static Mesh Source"
 
-msgid "Lattice Settings"
-msgstr "Lattice Settings"
+msgid "Lattice Cage Settings"
+msgstr "Lattice Cage Settings"
 
-msgid "Advanced Settings"
-msgstr "Advanced Settings"
+msgid "Advanced Cage Settings"
+msgstr "Advanced Cage Settings"
 
-msgid "Mesh Update Options"
-msgstr "Mesh Update Options"
+msgid "Mesh Rebuild Options"
+msgstr "Mesh Rebuild Options"
 
 msgid "(NDMF) Disable Lattice Preview"
 msgstr "(NDMF) Disable Lattice Preview"
@@ -90,23 +90,23 @@ msgstr "(NDMF) Disable Lattice Preview"
 msgid "(NDMF) Enable Lattice Preview"
 msgstr "(NDMF) Enable Lattice Preview"
 
-msgid "Activate Lattice Tool"
-msgstr "Activate Lattice Tool"
+msgid "Open Lattice Editor"
+msgstr "Open Lattice Editor"
 
-msgid "Change Lattice Grid Size"
-msgstr "Change Lattice Grid Size"
+msgid "Change Lattice Divisions"
+msgstr "Change Lattice Divisions"
 
 msgid "No Lattice Deformer selected."
 msgstr "No Lattice Deformer selected."
 
-msgid "Missing Lattice Asset on this deformer."
-msgstr "Missing Lattice Asset on this deformer."
+msgid "No Lattice Asset assigned to this deformer."
+msgstr "No Lattice Asset assigned to this deformer."
 
-msgid "Current Grid Size"
-msgstr "Current Grid Size"
+msgid "Current Grid Divisions"
+msgstr "Current Grid Divisions"
 
-msgid "Pending Grid Size"
-msgstr "Pending Grid Size"
+msgid "Pending Grid Divisions"
+msgstr "Pending Grid Divisions"
 
 msgid "Apply"
 msgstr "Apply"
@@ -120,5 +120,11 @@ msgstr "Lattice Deformer"
 msgid "Tool Language"
 msgstr "Tool Language"
 
-msgid "Reset Lattice Box"
-msgstr "Reset Lattice Box"
+msgid "Reset Lattice Cage"
+msgstr "Reset Lattice Cage"
+
+
+
+
+
+

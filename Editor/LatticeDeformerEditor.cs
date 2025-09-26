@@ -64,21 +64,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             using (new EditorGUI.DisabledScope(disableSkinnedField))
             {
-                EditorGUILayout.PropertyField(_skinnedRendererProp, LatticeLocalization.Content("Target Skinned Mesh Renderer"));
+                EditorGUILayout.PropertyField(_skinnedRendererProp, LatticeLocalization.Content("Skinned Mesh Source"));
             }
 
             using (new EditorGUI.DisabledScope(disableMeshField))
             {
-                EditorGUILayout.PropertyField(_meshFilterProp, LatticeLocalization.Content("Target Mesh Filter"));
+                EditorGUILayout.PropertyField(_meshFilterProp, LatticeLocalization.Content("Static Mesh Source"));
             }
 
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField(LatticeLocalization.Content("Lattice Settings"), EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(LatticeLocalization.Content("Lattice Cage Settings"), EditorStyles.boldLabel);
             EditorGUI.indentLevel++;
             DrawGridSizeControls((LatticeDeformer)target);
             DrawResetLatticeBoxControls();
 
-            s_showAdvancedSettings = EditorGUILayout.Foldout(s_showAdvancedSettings, LatticeLocalization.Tr("Advanced Settings"), true);
+            s_showAdvancedSettings = EditorGUILayout.Foldout(s_showAdvancedSettings, LatticeLocalization.Tr("Advanced Cage Settings"), true);
             if (s_showAdvancedSettings)
             {
                 EditorGUI.indentLevel++;
@@ -89,7 +89,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorGUILayout.Space();
 
             EditorGUILayout.Space();
-            s_showOptions = EditorGUILayout.BeginFoldoutHeaderGroup(s_showOptions, LatticeLocalization.Tr("Mesh Update Options"));
+            s_showOptions = EditorGUILayout.BeginFoldoutHeaderGroup(s_showOptions, LatticeLocalization.Tr("Mesh Rebuild Options"));
             if (s_showOptions)
             {
                 EditorGUI.indentLevel++;
@@ -130,7 +130,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             EditorGUILayout.Space();
-            if (GUILayout.Button(LatticeLocalization.Tr("Activate Lattice Tool")))
+            if (GUILayout.Button(LatticeLocalization.Tr("Open Lattice Editor")))
             {
                 ToolManager.SetActiveTool<LatticeDeformerTool>();
                 LatticePreviewUtility.RequestSceneRepaint();
@@ -246,7 +246,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             using (new EditorGUI.DisabledScope(!canReset))
             {
-                if (GUILayout.Button(LatticeLocalization.Tr("Reset Lattice Box")))
+                if (GUILayout.Button(LatticeLocalization.Tr("Reset Lattice Cage")))
                 {
                     bool anyReset = false;
 
@@ -301,7 +301,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return false;
             }
 
-            Undo.RecordObject(deformer, LatticeLocalization.Tr("Reset Lattice Box"));
+            Undo.RecordObject(deformer, LatticeLocalization.Tr("Reset Lattice Cage"));
 
             deformer.Deform(false);
             if (deformer.SourceMesh == null)
@@ -393,7 +393,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             newSize.y = Mathf.Max(2, newSize.y);
             newSize.z = Mathf.Max(2, newSize.z);
 
-            Undo.RecordObject(deformer, LatticeLocalization.Tr("Change Lattice Grid Size"));
+            Undo.RecordObject(deformer, LatticeLocalization.Tr("Change Lattice Divisions"));
             settings.ResizeGrid(newSize);
             deformer.InvalidateCache();
 
@@ -417,7 +417,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var settings = deformer.Settings;
             if (settings == null)
             {
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr("Missing Lattice Asset on this deformer."), MessageType.Warning);
+                EditorGUILayout.HelpBox(LatticeLocalization.Tr("No Lattice Asset assigned to this deformer."), MessageType.Warning);
                 return;
             }
 
@@ -428,9 +428,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 s_pendingGridSizes[id] = pending;
             }
 
-            EditorGUILayout.LabelField(LatticeLocalization.Content("Current Grid Size"), new GUIContent(settings.GridSize.ToString()));
+            EditorGUILayout.LabelField(LatticeLocalization.Content("Current Grid Divisions"), new GUIContent(settings.GridSize.ToString()));
             EditorGUI.BeginChangeCheck();
-            pending = EditorGUILayout.Vector3IntField(LatticeLocalization.Tr("Pending Grid Size"), pending);
+            pending = EditorGUILayout.Vector3IntField(LatticeLocalization.Tr("Pending Grid Divisions"), pending);
             if (EditorGUI.EndChangeCheck())
             {
                 pending.x = Mathf.Max(2, pending.x);
@@ -480,4 +480,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     }
 }
 #endif
+
+
+
 

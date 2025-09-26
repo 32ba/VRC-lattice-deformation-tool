@@ -40,47 +40,47 @@ msgid "Selected: {0} controls"
 msgstr "選択: {0} 個のコントロール"
 
 msgid "Activate the Lattice Tool to access settings."
-msgstr "Activate the Lattice Tool to access settings."
+msgstr "Lattice Tool を有効化してください。"
 
-msgid "Show Control Indices"
-msgstr "コントロール番号を表示"
+msgid "Show Control IDs"
+msgstr "制御IDを表示"
 
-msgid "Point Scope"
-msgstr "ポイント範囲"
+msgid "Control Point Scope"
+msgstr "制御点の範囲"
 
-msgid "Surface Only"
-msgstr "表面のみ"
+msgid "Boundary Only"
+msgstr "境界のみ"
 
-msgid "All Points"
-msgstr "すべてのポイント"
+msgid "All Controls"
+msgstr "全制御点"
 
 msgid "Clear Selection"
 msgstr "選択をクリア"
 
-msgid "Mirror Editing"
-msgstr "ミラー編集"
+msgid "Enable Symmetry Editing"
+msgstr "対称編集を有効化"
 
-msgid "Mirror Mode"
-msgstr "ミラーモード"
+msgid "Symmetry Mode"
+msgstr "対称モード"
 
-msgid "Mirror Axis"
-msgstr "ミラー軸"
+msgid "Symmetry Axis"
+msgstr "対称軸"
 
-msgid "Hold Shift/Ctrl to toggle selection."
-msgstr "Shift/Ctrl を押しながらで選択を切り替えます。"
+msgid "Hold Shift/Ctrl to add/remove controls."
+msgstr "Shift/Ctrl を押しながら制御点を追加または削除します。"
 
-msgid "Target Skinned Mesh Renderer"
-msgstr "Target Skinned Mesh Renderer"
-msgid "Target Mesh Filter"
-msgstr "Target Mesh Filter"
-msgid "Lattice Settings"
-msgstr "Lattice Settings"
+msgid "Skinned Mesh Source"
+msgstr "Skinned Mesh Source"
+msgid "Static Mesh Source"
+msgstr "Static Mesh Source"
+msgid "Lattice Cage Settings"
+msgstr "ラティスケージ設定"
 
-msgid "Advanced Settings"
-msgstr "詳細設定"
+msgid "Advanced Cage Settings"
+msgstr "ケージ詳細設定"
 
-msgid "Mesh Update Options"
-msgstr "メッシュ更新オプション"
+msgid "Mesh Rebuild Options"
+msgstr "メッシュ再構築オプション"
 
 msgid "(NDMF) Disable Lattice Preview"
 msgstr "(NDMF) Disable Lattice Preview"
@@ -88,23 +88,23 @@ msgstr "(NDMF) Disable Lattice Preview"
 msgid "(NDMF) Enable Lattice Preview"
 msgstr "(NDMF) Enable Lattice Preview"
 
-msgid "Activate Lattice Tool"
-msgstr "Activate Lattice Tool"
+msgid "Open Lattice Editor"
+msgstr "ラティスエディターを開く"
 
-msgid "Change Lattice Grid Size"
-msgstr "Change Lattice Grid Size"
+msgid "Change Lattice Divisions"
+msgstr "ラティス分割数を変更"
 
 msgid "No Lattice Deformer selected."
 msgstr "No Lattice Deformer selected."
 
-msgid "Missing Lattice Asset on this deformer."
-msgstr "Missing Lattice Asset on this deformer."
+msgid "No Lattice Asset assigned to this deformer."
+msgstr "このデフォーマーにラティスアセットが割り当てられていません。"
 
-msgid "Current Grid Size"
-msgstr "現在のグリッドサイズ"
+msgid "Current Grid Divisions"
+msgstr "現在のグリッド分割数"
 
-msgid "Pending Grid Size"
-msgstr "保留中のグリッドサイズ"
+msgid "Pending Grid Divisions"
+msgstr "変更後のグリッド分割数"
 
 msgid "Apply"
 msgstr "適用"
@@ -118,5 +118,10 @@ msgstr "Lattice Deformer"
 msgid "Tool Language"
 msgstr "ツールの言語"
 
-msgid "Reset Lattice Box"
-msgstr "ラティスボックスをリセット"
+msgid "Reset Lattice Cage"
+msgstr "ラティスケージをリセット"
+
+
+
+
+
