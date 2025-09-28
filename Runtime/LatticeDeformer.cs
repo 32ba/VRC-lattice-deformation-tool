@@ -20,6 +20,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private bool _recalculateTangents = false;
         [SerializeField] private bool _recalculateBounds = true;
         [SerializeField, HideInInspector] private bool _hasInitializedFromSource = false;
+        [SerializeField, HideInInspector] private Mesh _serializedSourceMesh;
         [NonSerialized] private LatticeDeformerCache _cache = new LatticeDeformerCache();
         [NonSerialized] private Mesh _runtimeMesh;
         [NonSerialized] private Mesh _sourceMesh;
@@ -225,6 +226,11 @@ namespace Net._32Ba.LatticeDeformationTool
             if (!Application.isPlaying)
             {
                 UnityEditor.EditorUtility.SetDirty(this);
+
+                if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(this))
+                {
+                    UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(this);
+                }
             }
 #endif
         }
@@ -248,13 +254,21 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            if (ReferenceEquals(_sourceMesh, nextSource))
+            bool meshChanged = !ReferenceEquals(_sourceMesh, nextSource);
+
+            _sourceMesh = nextSource;
+
+            if (!ReferenceEquals(_serializedSourceMesh, nextSource))
+            {
+                _serializedSourceMesh = nextSource;
+                _hasInitializedFromSource = false;
+            }
+
+            if (!meshChanged)
             {
                 return;
             }
 
-            _sourceMesh = nextSource;
-            _hasInitializedFromSource = false;
             InvalidateCache();
             ReleaseRuntimeMesh();
         }
@@ -279,6 +293,14 @@ namespace Net._32Ba.LatticeDeformationTool
             if (_sourceMesh == null)
             {
                 return;
+            }
+
+            EnsureSettings();
+            var settings = _settings;
+
+            if (!_hasInitializedFromSource && settings != null && settings.HasCustomizedControlPoints())
+            {
+                _hasInitializedFromSource = true;
             }
 
             if (_hasInitializedFromSource)

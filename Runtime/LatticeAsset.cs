@@ -57,6 +57,49 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public System.ReadOnlySpan<Vector3> ControlPointsLocal => _controlPointsLocal ?? System.Array.Empty<Vector3>();
 
+        public bool HasCustomizedControlPoints(float tolerance = 1e-6f)
+        {
+            if (_controlPointsLocal == null)
+            {
+                return false;
+            }
+
+            int count = ControlPointCount;
+            if (count == 0)
+            {
+                return false;
+            }
+
+            float threshold = tolerance * tolerance;
+            Vector3Int grid = _gridSize;
+            Vector3 min = _localBounds.min;
+            Vector3 size = _localBounds.size;
+
+            int index = 0;
+            for (int z = 0; z < grid.z; z++)
+            {
+                float wz = grid.z > 1 ? (float)z / (grid.z - 1) : 0f;
+                for (int y = 0; y < grid.y; y++)
+                {
+                    float wy = grid.y > 1 ? (float)y / (grid.y - 1) : 0f;
+                    for (int x = 0; x < grid.x; x++, index++)
+                    {
+                        float wx = grid.x > 1 ? (float)x / (grid.x - 1) : 0f;
+
+                        Vector3 normalized = new Vector3(wx, wy, wz);
+                        Vector3 expected = min + Vector3.Scale(size, normalized);
+
+                        if (Vector3.SqrMagnitude(_controlPointsLocal[index] - expected) > threshold)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
         public void ResizeGrid(Vector3Int newGridSize)
         {
             newGridSize.x = Mathf.Max(k_MinAxisResolution, newGridSize.x);

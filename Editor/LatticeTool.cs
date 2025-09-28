@@ -424,7 +424,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                             deformer.InvalidateCache();
                             deformer.Deform(false);
-                            EditorUtility.SetDirty(deformer);
+                            LatticePrefabUtility.MarkModified(deformer);
                             LatticePreviewUtility.RequestSceneRepaint();
                         }
                     }
