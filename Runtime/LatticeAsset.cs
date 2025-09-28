@@ -271,45 +271,20 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            var sourceNative = new NativeArray<float3>(sourcePoints.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
-            var targetNative = new NativeArray<float3>(target.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            using var sourceNative = LatticeNativeArrayUtility.CreateCopy(sourcePoints, Allocator.TempJob);
+            using var targetNative = LatticeNativeArrayUtility.CreateFloat3Array(target.Length, Allocator.TempJob);
 
-            try
+            var job = new ResampleControlPointsJob
             {
-                for (int i = 0; i < sourcePoints.Length; i++)
-                {
-                    var value = sourcePoints[i];
-                    sourceNative[i] = new float3(value.x, value.y, value.z);
-                }
+                OldPoints = sourceNative,
+                Result = targetNative,
+                OldGrid = new int3(math.max(2, sourceGrid.x), math.max(2, sourceGrid.y), math.max(2, sourceGrid.z)),
+                NewGrid = new int3(math.max(2, targetGrid.x), math.max(2, targetGrid.y), math.max(2, targetGrid.z))
+            };
 
-                var job = new ResampleControlPointsJob
-                {
-                    OldPoints = sourceNative,
-                    Result = targetNative,
-                    OldGrid = new int3(math.max(2, sourceGrid.x), math.max(2, sourceGrid.y), math.max(2, sourceGrid.z)),
-                    NewGrid = new int3(math.max(2, targetGrid.x), math.max(2, targetGrid.y), math.max(2, targetGrid.z))
-                };
+            job.Schedule(target.Length, math.max(1, targetGrid.x)).Complete();
 
-                job.Schedule(target.Length, math.max(1, targetGrid.x)).Complete();
-
-                for (int i = 0; i < target.Length; i++)
-                {
-                    var value = targetNative[i];
-                    target[i] = new Vector3(value.x, value.y, value.z);
-                }
-            }
-            finally
-            {
-                if (sourceNative.IsCreated)
-                {
-                    sourceNative.Dispose();
-                }
-
-                if (targetNative.IsCreated)
-                {
-                    targetNative.Dispose();
-                }
-            }
+            targetNative.CopyToManaged(target);
         }
 
 
@@ -484,32 +459,19 @@ namespace Net._32Ba.LatticeDeformationTool
                 throw new ArgumentException("Target array does not match grid dimensions.", nameof(target));
             }
 
-            var targetNative = new NativeArray<float3>(target.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
-            try
-            {
-                var job = new PopulateControlPointsJob
-                {
-                    Result = targetNative,
-                    Grid = new int3(math.max(1, grid.x), math.max(1, grid.y), math.max(1, grid.z)),
-                    BoundsMin = new float3(boundsMin.x, boundsMin.y, boundsMin.z),
-                    BoundsSize = new float3(boundsSize.x, boundsSize.y, boundsSize.z)
-                };
+            using var targetNative = LatticeNativeArrayUtility.CreateFloat3Array(target.Length, Allocator.TempJob);
 
-                job.Schedule(target.Length, math.max(1, grid.x)).Complete();
-
-                for (int i = 0; i < target.Length; i++)
-                {
-                    var value = targetNative[i];
-                    target[i] = new Vector3(value.x, value.y, value.z);
-                }
-            }
-            finally
+            var job = new PopulateControlPointsJob
             {
-                if (targetNative.IsCreated)
-                {
-                    targetNative.Dispose();
-                }
-            }
+                Result = targetNative,
+                Grid = new int3(math.max(1, grid.x), math.max(1, grid.y), math.max(1, grid.z)),
+                BoundsMin = new float3(boundsMin.x, boundsMin.y, boundsMin.z),
+                BoundsSize = new float3(boundsSize.x, boundsSize.y, boundsSize.z)
+            };
+
+            job.Schedule(target.Length, math.max(1, grid.x)).Complete();
+
+            targetNative.CopyToManaged(target);
         }
 
         

@@ -39,12 +39,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             LatticeLocalization.LanguageChanged -= Repaint;
 
-            foreach (var obj in targets)
+            foreach (var deformer in EnumerateTargets())
             {
-                if (obj is LatticeDeformer deformer)
-                {
-                    s_pendingGridSizes.Remove(deformer.GetInstanceID());
-                }
+                s_pendingGridSizes.Remove(deformer.GetInstanceID());
             }
         }
 
@@ -116,14 +113,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
 
-                foreach (var obj in targets)
+                foreach (var instance in EnumerateTargets())
                 {
-                    if (obj is LatticeDeformer instance)
-                    {
-                        instance.InvalidateCache();
-                        instance.Deform(assignRuntimeMesh);
-                        EditorUtility.SetDirty(instance);
-                    }
+                    instance.InvalidateCache();
+                    instance.Deform(assignRuntimeMesh);
+                    EditorUtility.SetDirty(instance);
                 }
 
                 LatticePreviewUtility.RequestSceneRepaint();
@@ -144,13 +138,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            foreach (var obj in targets)
+            foreach (var deformer in EnumerateTargets())
             {
-                if (obj is not LatticeDeformer deformer)
-                {
-                    continue;
-                }
-
                 var localSkinned = deformer.GetComponent<SkinnedMeshRenderer>();
                 var localMesh = deformer.GetComponent<MeshFilter>();
 
@@ -210,38 +199,58 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return false;
             }
 
-            if (targets.Length == 1)
+            bool anyFound = false;
+            foreach (var deformer in EnumerateTargets())
             {
-                if (target is not LatticeDeformer single)
+                anyFound = true;
+                if (deformer.GetComponent<T>() == null)
                 {
                     return false;
                 }
+            }
 
-                return single.GetComponent<T>() != null;
+            if (!anyFound)
+            {
+                return false;
+            }
+
+            if (targets.Length == 1)
+            {
+                return (target as LatticeDeformer)?.GetComponent<T>() != null;
+            }
+
+            return true;
+        }
+
+        private IEnumerable<LatticeDeformer> EnumerateTargets()
+        {
+            if (targets == null)
+            {
+                yield break;
             }
 
             foreach (var obj in targets)
             {
-                if (obj is not LatticeDeformer deformer || deformer.GetComponent<T>() == null)
+                if (obj is LatticeDeformer deformer)
                 {
-                    return false;
+                    yield return deformer;
                 }
             }
-
-            return true;
         }
 
         private void DrawResetLatticeBoxControls()
         {
             bool canReset = false;
 
-            foreach (var obj in targets)
+            foreach (var deformer in EnumerateTargets())
             {
-                if (obj is LatticeDeformer deformer && HasResettableBounds(deformer))
+                if (!HasResettableBounds(deformer))
                 {
-                    canReset = true;
-                    break;
+                    continue;
                 }
+
+                canReset = true;
+                break;
             }
 
             using (new EditorGUI.DisabledScope(!canReset))
@@ -250,9 +259,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     bool anyReset = false;
 
-                    foreach (var obj in targets)
+                    foreach (var deformer in EnumerateTargets())
                     {
-                        if (obj is LatticeDeformer deformer && ResetLatticeBox(deformer))
+                        if (ResetLatticeBox(deformer))
                         {
                             anyReset = true;
                         }
@@ -359,13 +368,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void InitializePendingGridSizes()
         {
-            foreach (var obj in targets)
+            foreach (var deformer in EnumerateTargets())
             {
-                if (obj is not LatticeDeformer deformer)
-                {
-                    continue;
-                }
-
                 var settings = deformer.Settings;
                 if (settings == null)
                 {
@@ -447,26 +451,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     if (GUILayout.Button(LatticeLocalization.Tr("Apply"), GUILayout.Width(80f)))
                     {
-                        foreach (var obj in targets)
+                        foreach (var selected in EnumerateTargets())
                         {
-                            if (obj is LatticeDeformer selected)
+                            if (!s_pendingGridSizes.TryGetValue(selected.GetInstanceID(), out var pendingSize))
                             {
-                                if (!s_pendingGridSizes.TryGetValue(selected.GetInstanceID(), out var pendingSize))
-                                {
-                                    pendingSize = selected.Settings?.GridSize ?? pending;
-                                }
-
-                                ApplyGridSizeChange(selected, pendingSize);
-                                s_pendingGridSizes[selected.GetInstanceID()] = selected.Settings?.GridSize ?? pendingSize;
+                                pendingSize = selected.Settings?.GridSize ?? pending;
                             }
+
+                            ApplyGridSizeChange(selected, pendingSize);
+                            s_pendingGridSizes[selected.GetInstanceID()] = selected.Settings?.GridSize ?? pendingSize;
                         }
                     }
 
                     if (GUILayout.Button(LatticeLocalization.Tr("Revert"), GUILayout.Width(80f)))
                     {
-                        foreach (var obj in targets)
+                        foreach (var selected in EnumerateTargets())
                         {
-                            if (obj is LatticeDeformer selected && selected.Settings != null)
+                            if (selected.Settings != null)
                             {
                                 s_pendingGridSizes[selected.GetInstanceID()] = selected.Settings.GridSize;
                             }

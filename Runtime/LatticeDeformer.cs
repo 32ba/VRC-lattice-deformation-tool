@@ -139,7 +139,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
             int cpCount = settings.ControlPointCount;
             EnsureControlBuffer(cpCount);
-            CollectControlPointsLocal(settings, MeshTransform, _controlBuffer);
+            CollectControlPointsLocal(settings, _controlBuffer.AsSpan());
 
             var entries = _cache.Entries;
             if (entries == null || entries.Length == 0)
@@ -241,17 +241,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private void CacheSourceMesh()
         {
-            Mesh nextSource = null;
-
-            if (_skinnedMeshRenderer != null)
-            {
-                nextSource = _skinnedMeshRenderer.sharedMesh;
-            }
-
-            if (nextSource == null && _meshFilter != null)
-            {
-                nextSource = _meshFilter.sharedMesh;
-            }
+            Mesh nextSource = GetSharedSourceMesh();
 
             if (_runtimeMesh != null && ReferenceEquals(_runtimeMesh, nextSource))
             {
@@ -267,6 +257,21 @@ namespace Net._32Ba.LatticeDeformationTool
             _hasInitializedFromSource = false;
             InvalidateCache();
             ReleaseRuntimeMesh();
+        }
+
+        private Mesh GetSharedSourceMesh()
+        {
+            if (_skinnedMeshRenderer != null)
+            {
+                return _skinnedMeshRenderer.sharedMesh;
+            }
+
+            if (_meshFilter != null)
+            {
+                return _meshFilter.sharedMesh;
+            }
+
+            return null;
         }
 
         private void TryAutoConfigureSettings()
@@ -352,17 +357,20 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        private void CollectControlPointsLocal(LatticeAsset settings, Transform meshTransform, Span<Vector3> buffer)
+        private static void CollectControlPointsLocal(LatticeAsset settings, Span<Vector3> buffer)
         {
-            if (settings == null)
+            if (settings == null || buffer.IsEmpty)
             {
                 return;
             }
 
-            for (int i = 0; i < buffer.Length; i++)
+            var source = settings.ControlPointsLocal;
+            if (source.Length != buffer.Length)
             {
-                buffer[i] = settings.GetControlPointLocal(i);
+                throw new InvalidOperationException("Control point buffer length does not match the lattice asset data.");
             }
+
+            source.CopyTo(buffer);
         }
 
         private Vector3[] DeformWithJobs(LatticeCacheEntry[] entries, Vector3[] controlPoints)
@@ -377,58 +385,23 @@ namespace Net._32Ba.LatticeDeformationTool
                 throw new ArgumentException("Control points are required for deformation.", nameof(controlPoints));
             }
 
-            var controlNative = new NativeArray<float3>(controlPoints.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
-            var entriesNative = new NativeArray<LatticeCacheEntry>(entries.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
-            var outputNative = new NativeArray<float3>(entries.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            using var controlNative = LatticeNativeArrayUtility.CreateCopy(controlPoints, Allocator.TempJob);
+            using var entriesNative = LatticeNativeArrayUtility.CreateCopy(entries, Allocator.TempJob);
+            using var outputNative = LatticeNativeArrayUtility.CreateFloat3Array(entries.Length, Allocator.TempJob);
 
-            try
+            var job = new DeformVerticesJob
             {
-                for (int i = 0; i < controlPoints.Length; i++)
-                {
-                    var point = controlPoints[i];
-                    controlNative[i] = new float3(point.x, point.y, point.z);
-                }
+                ControlPoints = controlNative,
+                Entries = entriesNative,
+                Result = outputNative
+            };
 
-                for (int i = 0; i < entries.Length; i++)
-                {
-                    entriesNative[i] = entries[i];
-                }
+            job.Schedule(entries.Length, 64).Complete();
 
-                var job = new DeformVerticesJob
-                {
-                    ControlPoints = controlNative,
-                    Entries = entriesNative,
-                    Result = outputNative
-                };
+            var vertices = new Vector3[entries.Length];
+            outputNative.CopyToManaged(vertices);
 
-                job.Schedule(entries.Length, 64).Complete();
-
-                var vertices = new Vector3[entries.Length];
-                for (int i = 0; i < vertices.Length; i++)
-                {
-                    var v = outputNative[i];
-                    vertices[i] = new Vector3(v.x, v.y, v.z);
-                }
-
-                return vertices;
-            }
-            finally
-            {
-                if (controlNative.IsCreated)
-                {
-                    controlNative.Dispose();
-                }
-
-                if (entriesNative.IsCreated)
-                {
-                    entriesNative.Dispose();
-                }
-
-                if (outputNative.IsCreated)
-                {
-                    outputNative.Dispose();
-                }
-            }
+            return vertices;
         }
 
 
@@ -439,44 +412,23 @@ namespace Net._32Ba.LatticeDeformationTool
                 throw new ArgumentException("Rest vertices are required to build the cache.", nameof(restVertices));
             }
 
-            var restNative = new NativeArray<float3>(restVertices.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
-            var entriesNative = new NativeArray<LatticeCacheEntry>(restVertices.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            using var restNative = LatticeNativeArrayUtility.CreateCopy(restVertices, Allocator.TempJob);
+            using var entriesNative = new NativeArray<LatticeCacheEntry>(restVertices.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 
-            try
+            var job = new BuildCacheEntriesJob
             {
-                for (int i = 0; i < restVertices.Length; i++)
-                {
-                    var v = restVertices[i];
-                    restNative[i] = new float3(v.x, v.y, v.z);
-                }
+                Grid = new int3(gridSize.x, gridSize.y, gridSize.z),
+                BoundsMin = new float3(bounds.min.x, bounds.min.y, bounds.min.z),
+                BoundsSize = new float3(bounds.size.x, bounds.size.y, bounds.size.z),
+                RestVertices = restNative,
+                Entries = entriesNative
+            };
 
-                var job = new BuildCacheEntriesJob
-                {
-                    Grid = new int3(gridSize.x, gridSize.y, gridSize.z),
-                    BoundsMin = new float3(bounds.min.x, bounds.min.y, bounds.min.z),
-                    BoundsSize = new float3(bounds.size.x, bounds.size.y, bounds.size.z),
-                    RestVertices = restNative,
-                    Entries = entriesNative
-                };
+            job.Schedule(restVertices.Length, 64).Complete();
 
-                job.Schedule(restVertices.Length, 64).Complete();
-
-                var entries = new LatticeCacheEntry[entriesNative.Length];
-                entriesNative.CopyTo(entries);
-                return entries;
-            }
-            finally
-            {
-                if (restNative.IsCreated)
-                {
-                    restNative.Dispose();
-                }
-
-                if (entriesNative.IsCreated)
-                {
-                    entriesNative.Dispose();
-                }
-            }
+            var entries = new LatticeCacheEntry[entriesNative.Length];
+            entriesNative.CopyToManaged(entries);
+            return entries;
         }
 
 
