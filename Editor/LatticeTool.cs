@@ -670,9 +670,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 LatticeDeformerTool.IncludeInteriorControls = includeInterior;
                 GUILayout.Space(2f);
 
-                LatticeDeformerTool.OccludeWithSceneGeometry = GUILayout.Toggle(
-                    LatticeDeformerTool.OccludeWithSceneGeometry,
-                    LatticeLocalization.Content("Hide cage behind scene objects"));
+                bool keepControlsVisible = GUILayout.Toggle(
+                    !LatticeDeformerTool.OccludeWithSceneGeometry,
+                    LatticeLocalization.Content("Keep control points visible through objects"));
+                LatticeDeformerTool.OccludeWithSceneGeometry = !keepControlsVisible;
 
                 GUILayout.Space(2f);
 

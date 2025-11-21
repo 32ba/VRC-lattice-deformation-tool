@@ -54,8 +54,8 @@ msgstr "境界のみ"
 msgid "All Controls"
 msgstr "全制御点"
 
-msgid "Hide cage behind scene objects"
-msgstr "シーンのオブジェクトの裏ではケージを隠す"
+msgid "Keep control points visible through objects"
+msgstr "オブジェクトで制御点を隠さない"
 
 msgid "Clear Selection"
 msgstr "選択をクリア"

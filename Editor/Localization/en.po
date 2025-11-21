@@ -54,8 +54,8 @@ msgstr "Boundary Only"
 msgid "All Controls"
 msgstr "All Controls"
 
-msgid "Hide cage behind scene objects"
-msgstr "Hide cage behind scene objects"
+msgid "Keep control points visible through objects"
+msgstr "Keep control points visible through objects"
 
 msgid "Clear Selection"
 msgstr "Clear Selection"

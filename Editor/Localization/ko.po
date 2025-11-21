@@ -54,8 +54,8 @@ msgstr "경계만"
 msgid "All Controls"
 msgstr "모든 제어점"
 
-msgid "Hide cage behind scene objects"
-msgstr "다른 오브젝트 뒤에 있을 때 케이지 숨기기"
+msgid "Keep control points visible through objects"
+msgstr "오브젝트 뒤에서도 제어점이 보이도록 유지"
 
 msgid "Clear Selection"
 msgstr "선택 지우기"
