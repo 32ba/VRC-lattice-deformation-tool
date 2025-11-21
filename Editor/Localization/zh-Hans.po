@@ -54,8 +54,8 @@ msgstr "仅边界"
 msgid "All Controls"
 msgstr "全部控制点"
 
-msgid "Occlude Lattice Cage"
-msgstr "让场景物体遮挡格子笼"
+msgid "Hide cage behind scene objects"
+msgstr "被场景物体挡住时隐藏笼架"
 
 msgid "Clear Selection"
 msgstr "清除选择"

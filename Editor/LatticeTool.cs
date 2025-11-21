@@ -672,7 +672,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 LatticeDeformerTool.OccludeWithSceneGeometry = GUILayout.Toggle(
                     LatticeDeformerTool.OccludeWithSceneGeometry,
-                    LatticeLocalization.Content("Occlude Lattice Cage"));
+                    LatticeLocalization.Content("Hide cage behind scene objects"));
 
                 GUILayout.Space(2f);
 

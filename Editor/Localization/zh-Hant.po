@@ -54,8 +54,8 @@ msgstr "僅邊界"
 msgid "All Controls"
 msgstr "全部控制點"
 
-msgid "Occlude Lattice Cage"
-msgstr "讓場景物件遮蔽晶格籠"
+msgid "Hide cage behind scene objects"
+msgstr "被場景物件遮擋時隱藏籠架"
 
 msgid "Clear Selection"
 msgstr "清除選取"
