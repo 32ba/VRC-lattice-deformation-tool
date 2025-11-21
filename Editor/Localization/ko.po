@@ -54,6 +54,9 @@ msgstr "경계만"
 msgid "All Controls"
 msgstr "모든 제어점"
 
+msgid "Occlude Lattice Cage"
+msgstr "씬 오브젝트로 래티스 케이지 가리기"
+
 msgid "Clear Selection"
 msgstr "선택 지우기"
 

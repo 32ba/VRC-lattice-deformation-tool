@@ -54,6 +54,9 @@ msgstr "境界のみ"
 msgid "All Controls"
 msgstr "全制御点"
 
+msgid "Occlude Lattice Cage"
+msgstr "ラティスケージをシーンオブジェクトで隠す"
+
 msgid "Clear Selection"
 msgstr "選択をクリア"
 

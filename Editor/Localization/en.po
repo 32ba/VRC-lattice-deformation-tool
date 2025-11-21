@@ -54,6 +54,9 @@ msgstr "Boundary Only"
 msgid "All Controls"
 msgstr "All Controls"
 
+msgid "Occlude Lattice Cage"
+msgstr "Occlude Lattice Cage"
+
 msgid "Clear Selection"
 msgstr "Clear Selection"
 
