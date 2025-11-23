@@ -33,6 +33,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_mirrorEditing = false;
         private static MirrorAxis s_mirrorAxis = MirrorAxis.X;
         private static MirrorBehavior s_mirrorBehavior = MirrorBehavior.Mirrored;
+        private static bool s_occludeWithSceneGeometry = true;
         private static PivotRotation? s_previousPivotRotation;
         private static Vector3Int s_lastGridSize = Vector3Int.one;
 
@@ -62,6 +63,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
 
                 s_showIndices = value;
+                SceneView.RepaintAll();
+            }
+        }
+
+        internal static bool OccludeWithSceneGeometry
+        {
+            get => s_occludeWithSceneGeometry;
+            set
+            {
+                if (s_occludeWithSceneGeometry == value)
+                {
+                    return;
+                }
+
+                s_occludeWithSceneGeometry = value;
                 SceneView.RepaintAll();
             }
         }
@@ -243,7 +259,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             var previousZTest = Handles.zTest;
-            Handles.zTest = CompareFunction.LessEqual;
+            Handles.zTest = OccludeWithSceneGeometry ? CompareFunction.LessEqual : CompareFunction.Always;
 
             if (MirrorEditing)
             {
@@ -655,6 +671,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     });
                 bool includeInterior = scopeSelection == 1;
                 LatticeDeformerTool.IncludeInteriorControls = includeInterior;
+                GUILayout.Space(2f);
+
+                bool keepControlsVisible = GUILayout.Toggle(
+                    !LatticeDeformerTool.OccludeWithSceneGeometry,
+                    LatticeLocalization.Content("Keep control points visible through objects"));
+                LatticeDeformerTool.OccludeWithSceneGeometry = !keepControlsVisible;
+
                 GUILayout.Space(2f);
 
                 using (new GUILayout.HorizontalScope())

@@ -54,6 +54,9 @@ msgstr "Boundary Only"
 msgid "All Controls"
 msgstr "All Controls"
 
+msgid "Keep control points visible through objects"
+msgstr "Keep control points visible through objects"
+
 msgid "Clear Selection"
 msgstr "Clear Selection"
 

@@ -54,6 +54,9 @@ msgstr "仅边界"
 msgid "All Controls"
 msgstr "全部控制点"
 
+msgid "Keep control points visible through objects"
+msgstr "物体不会遮挡控制点"
+
 msgid "Clear Selection"
 msgstr "清除选择"
 
