@@ -211,6 +211,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
+            // Prevent selection from switching away from the current lattice while editing.
+            HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
+
             DrawControlHandles(deformer, settings, controlCount);
         }
 
