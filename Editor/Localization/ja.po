@@ -88,6 +88,47 @@ msgstr "メッシュ再構築オプション"
 msgid "(NDMF) Disable Lattice Preview"
 msgstr "(NDMF) Disable Lattice Preview"
 
+# アライン設定
+msgid "Lattice Cage Alignment"
+msgstr "ラティスケージ位置調整"
+
+msgid "(NDMF) Alignment Mode"
+msgstr "(NDMF) アラインメントモード"
+
+msgid "Mode1: Transform only\nMode2: Transform + Center offset (clamped)\nMode3: Bounds remap + Center offset"
+msgstr "Mode1: Transform のみ\nMode2: Transform + センターオフセット(クランプ)\nMode3: Bounds リマップ + センターオフセット"
+
+msgid "Manual Offset (proxy local)"
+msgstr "手動オフセット (プロキシローカル)"
+
+msgid "Direct offset applied in proxy local space before auto center / clamp"
+msgstr "自動センター/クランプの前にプロキシローカルで直接適用されるオフセット"
+
+msgid "Manual Scale (proxy local)"
+msgstr "手動スケール (プロキシローカル)"
+
+msgid "(NDMF) Allow Center Offset when Bounds Skipped"
+msgstr "(NDMF) Bounds 無効時もセンターオフセットを許可"
+
+msgid "Alignment Auto-Initialized"
+msgstr "アライン自動初期化済み"
+
+msgid "(Debug) Log Preview Alignment to Console"
+msgstr "(Debug) プレビューアラインをコンソールにログ出力"
+
+msgid "Auto Apply Offset/Scale"
+msgstr "オフセット／スケール自動適用"
+
+msgid "Manual Only / Auto Offset / Auto Scale / Auto Offset+Scale"
+msgstr "手動のみ／オフセット自動／スケール自動／オフセット＋スケール自動"
+
+# Scale axis labels
+msgid "X"
+msgstr "X"
+msgid "Y"
+msgstr "Y"
+msgid "Z"
+msgstr "Z"
 msgid "(NDMF) Enable Lattice Preview"
 msgstr "(NDMF) Enable Lattice Preview"
 
@@ -128,3 +169,30 @@ msgstr "ラティスケージをリセット"
 
 
 
+msgid "Choose how preview proxy is mapped: Mode1=Transform, Mode2=Transform+Center offset, Mode3=Bounds remap"
+msgstr "プレビュープロキシの合わせ方を選択: モード1=Transform, モード2=Transform+中心オフセット, モード3=Boundsリマップ"
+
+msgid "Mode 1"
+msgstr "モード1"
+
+msgid "Mode 2"
+msgstr "モード2"
+
+msgid "Mode 3"
+msgstr "モード3"
+
+msgid "Transform only (uses proxy transform, no bounds remap)"
+msgstr "Transform のみ（プロキシのTransformを使用、バウンズリマップなし）"
+
+msgid "Transform + center offset (adds center delta)"
+msgstr "Transform + 中心オフセット（中心差分を加算）"
+
+msgid "Bounds remap (maps lattice bounds to proxy bounds)"
+msgstr "Bounds リマップ（ラティスのバウンズをプロキシのバウンズへ写像）"
+msgid "Offset"
+msgstr "オフセット"
+
+msgid "Scale"
+msgstr "スケール"
+msgid "Position/scale here only move the editing cage in the Scene view. They do not change the deform target\'s bounds or final mesh deformation."
+msgstr "ここで設定する位置・スケールはシーン上の編集用ケージだけを動かします。変形対象メッシュのバウンズや最終変形には影響しません。"

@@ -88,6 +88,47 @@ msgstr "网格重建选项"
 msgid "(NDMF) Disable Lattice Preview"
 msgstr "(NDMF) Disable Lattice Preview"
 
+# Alignment settings
+msgid "Lattice Cage Alignment"
+msgstr "格架笼对齐"
+
+msgid "(NDMF) Alignment Mode"
+msgstr "(NDMF) 对齐模式"
+
+msgid "Mode1: Transform only\nMode2: Transform + Center offset (clamped)\nMode3: Bounds remap + Center offset"
+msgstr "模式1: 仅Transform\n模式2: Transform + 中心偏移(限制)\n模式3: Bounds重映射 + 中心偏移"
+
+msgid "Manual Offset (proxy local)"
+msgstr "手动偏移 (代理局部)"
+
+msgid "Direct offset applied in proxy local space before auto center / clamp"
+msgstr "在自动中心/限制前应用于代理局部空间的直接偏移"
+
+msgid "Manual Scale (proxy local)"
+msgstr "手动缩放 (代理局部)"
+
+msgid "(NDMF) Allow Center Offset when Bounds Skipped"
+msgstr "(NDMF) 略过Bounds时允许中心偏移"
+
+msgid "Alignment Auto-Initialized"
+msgstr "对齐已自动初始化"
+
+msgid "(Debug) Log Preview Alignment to Console"
+msgstr "(Debug) 将预览对齐输出到控制台"
+
+msgid "Auto Apply Offset/Scale"
+msgstr "自动应用偏移/缩放"
+
+msgid "Manual Only / Auto Offset / Auto Scale / Auto Offset+Scale"
+msgstr "仅手动 / 自动偏移 / 自动缩放 / 自动偏移+缩放"
+
+# Scale axis labels
+msgid "X"
+msgstr "X"
+msgid "Y"
+msgstr "Y"
+msgid "Z"
+msgstr "Z"
 msgid "(NDMF) Enable Lattice Preview"
 msgstr "(NDMF) Enable Lattice Preview"
 
@@ -128,3 +169,30 @@ msgstr "重置晶格笼"
 
 
 
+msgid "Choose how preview proxy is mapped: Mode1=Transform, Mode2=Transform+Center offset, Mode3=Bounds remap"
+msgstr "选择预览代理的对齐方式：模式1=仅变换，模式2=变换+中心偏移，模式3=包围盒重映射"
+
+msgid "Mode 1"
+msgstr "模式1"
+
+msgid "Mode 2"
+msgstr "模式2"
+
+msgid "Mode 3"
+msgstr "模式3"
+
+msgid "Transform only (uses proxy transform, no bounds remap)"
+msgstr "仅变换（使用代理的变换，不做包围盒重映射）"
+
+msgid "Transform + center offset (adds center delta)"
+msgstr "变换+中心偏移（添加中心差）"
+
+msgid "Bounds remap (maps lattice bounds to proxy bounds)"
+msgstr "包围盒重映射（将格笼包围盒映射到代理包围盒）"
+msgid "Offset"
+msgstr "偏移"
+
+msgid "Scale"
+msgstr "缩放"
+msgid "Position/scale here only move the editing cage in the Scene view. They do not change the deform target\'s bounds or final mesh deformation."
+msgstr "此处设置的位置/缩放仅影响场景视图中的编辑笼，不会改变变形目标的包围盒或最终变形结果。"

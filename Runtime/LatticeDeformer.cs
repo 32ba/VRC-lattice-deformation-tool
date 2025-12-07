@@ -7,11 +7,18 @@ using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool
 {
-    [DisallowMultipleComponent]
-    [ExecuteAlways]
+[DisallowMultipleComponent]
+[ExecuteAlways]
     public class LatticeDeformer : MonoBehaviour
     {
         public static bool SuppressRestoreOnDisable { get; set; } = false;
+
+        public enum LatticeAlignMode
+        {
+            Mode1_TransformOnly = 0,
+            Mode2_TransformPlusCenter = 1,
+            Mode3_BoundsRemap = 2
+        }
 
         [SerializeField] private LatticeAsset _settings = new LatticeAsset();
         [SerializeField] private SkinnedMeshRenderer _skinnedMeshRenderer;
@@ -21,6 +28,17 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private bool _recalculateBounds = true;
         [SerializeField, HideInInspector] private bool _hasInitializedFromSource = false;
         [SerializeField, HideInInspector] private Mesh _serializedSourceMesh;
+
+        // Preview alignment (per-instance)
+        [SerializeField, HideInInspector] private LatticeAlignMode _alignMode = LatticeAlignMode.Mode3_BoundsRemap;
+        [SerializeField, HideInInspector] private float _centerClampMulXY = 0f;
+        [SerializeField, HideInInspector] private float _centerClampMinXY = 0f;
+        [SerializeField, HideInInspector] private float _centerClampMulZ = 0f;
+        [SerializeField, HideInInspector] private float _centerClampMinZ = 0f;
+        [SerializeField, HideInInspector] private bool _allowCenterOffsetWhenBoundsSkipped = false;
+        [SerializeField, HideInInspector] private bool _alignAutoInitialized = false;
+        [SerializeField, HideInInspector] private Vector3 _manualOffsetProxy = Vector3.zero;
+        [SerializeField, HideInInspector] private Vector3 _manualScaleProxy = Vector3.one;
         [NonSerialized] private LatticeDeformerCache _cache = new LatticeDeformerCache();
         [NonSerialized] private Mesh _runtimeMesh;
         [NonSerialized] private Mesh _sourceMesh;
@@ -44,6 +62,66 @@ namespace Net._32Ba.LatticeDeformationTool
         public Mesh RuntimeMesh => _runtimeMesh;
 
         public Mesh SourceMesh => _sourceMesh;
+
+        // Alignment settings accessors
+        public LatticeAlignMode AlignMode
+        {
+            get => _alignMode;
+            set => _alignMode = value;
+        }
+
+        public float CenterClampMulXY
+        {
+            get => _centerClampMulXY;
+            set => _centerClampMulXY = Mathf.Max(0f, value);
+        }
+
+        public float CenterClampMinXY
+        {
+            get => _centerClampMinXY;
+            set => _centerClampMinXY = Mathf.Max(0f, value);
+        }
+
+        public float CenterClampMulZ
+        {
+            get => _centerClampMulZ;
+            set => _centerClampMulZ = Mathf.Max(0f, value);
+        }
+
+        public float CenterClampMinZ
+        {
+            get => _centerClampMinZ;
+            set => _centerClampMinZ = Mathf.Max(0f, value);
+        }
+
+        public bool AllowCenterOffsetWhenBoundsSkipped
+        {
+            get => _allowCenterOffsetWhenBoundsSkipped;
+            set => _allowCenterOffsetWhenBoundsSkipped = value;
+        }
+
+        public bool AlignAutoInitialized
+        {
+            get => _alignAutoInitialized;
+            set => _alignAutoInitialized = value;
+        }
+
+        public Vector3 ManualOffsetProxy
+        {
+            get => _manualOffsetProxy;
+            set => _manualOffsetProxy = value;
+        }
+
+        public Vector3 ManualScaleProxy
+        {
+            get => _manualScaleProxy;
+            set
+            {
+                _manualScaleProxy.x = Mathf.Max(0.0001f, value.x);
+                _manualScaleProxy.y = Mathf.Max(0.0001f, value.y);
+                _manualScaleProxy.z = Mathf.Max(0.0001f, value.z);
+            }
+        }
 
         public Transform MeshTransform
         {
