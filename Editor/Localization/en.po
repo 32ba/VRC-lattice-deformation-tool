@@ -90,6 +90,53 @@ msgstr "Mesh Rebuild Options"
 msgid "(NDMF) Disable Lattice Preview"
 msgstr "(NDMF) Disable Lattice Preview"
 
+# Alignment settings
+msgid "Lattice Cage Alignment"
+msgstr "Lattice Cage Alignment"
+
+msgid "(NDMF) Alignment Mode"
+msgstr "(NDMF) Alignment Mode"
+msgid "Choose how preview proxy is mapped: Mode1=Transform, Mode2=Transform+Center offset, Mode3=Bounds remap"
+msgstr "Choose how preview proxy is mapped: Mode1=Transform, Mode2=Transform+Center offset, Mode3=Bounds remap"
+msgid "Mode 1"
+msgstr "Mode 1"
+msgid "Mode 2"
+msgstr "Mode 2"
+msgid "Mode 3"
+msgstr "Mode 3"
+msgid "Transform only (uses proxy transform, no bounds remap)"
+msgstr "Transform only (uses proxy transform, no bounds remap)"
+msgid "Transform + center offset (adds center delta)"
+msgstr "Transform + center offset (adds center delta)"
+msgid "Bounds remap (maps lattice bounds to proxy bounds)"
+msgstr "Bounds remap (maps lattice bounds to proxy bounds)"
+
+msgid "Mode1: Transform only\nMode2: Transform + Center offset (clamped)\nMode3: Bounds remap + Center offset"
+msgstr "Mode1: Transform only\nMode2: Transform + Center offset (clamped)\nMode3: Bounds remap + Center offset"
+
+msgid "Manual Offset (proxy local)"
+msgstr "Manual Offset (proxy local)"
+
+msgid "Direct offset applied in proxy local space before auto center / clamp"
+msgstr "Direct offset applied in proxy local space before auto center / clamp"
+
+msgid "Manual Scale (proxy local)"
+msgstr "Manual Scale (proxy local)"
+
+msgid "(NDMF) Allow Center Offset when Bounds Skipped"
+msgstr "(NDMF) Allow Center Offset when Bounds Skipped"
+
+msgid "Alignment Auto-Initialized"
+msgstr "Alignment Auto-Initialized"
+
+msgid "(Debug) Log Preview Alignment to Console"
+msgstr "(Debug) Log Preview Alignment to Console"
+
+msgid "Auto Apply Offset/Scale"
+msgstr "Auto Apply Offset/Scale"
+
+msgid "Manual Only / Auto Offset / Auto Scale / Auto Offset+Scale"
+msgstr "Manual Only / Auto Offset / Auto Scale / Auto Offset+Scale"
 msgid "(NDMF) Enable Lattice Preview"
 msgstr "(NDMF) Enable Lattice Preview"
 
@@ -131,3 +178,10 @@ msgstr "Reset Lattice Cage"
 
 
 
+msgid "Offset"
+msgstr "Offset"
+
+msgid "Scale"
+msgstr "Scale"
+msgid "Position/scale here only move the editing cage in the Scene view. They do not change the deform target\'s bounds or final mesh deformation."
+msgstr "Position/scale here only move the editing cage in the Scene view. They do not change the deform target's bounds or final mesh deformation."

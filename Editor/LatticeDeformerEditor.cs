@@ -1,8 +1,10 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
+using nadena.dev.ndmf.preview;
 using UnityEditor;
 using UnityEditor.EditorTools;
 using UnityEngine;
+using Net._32Ba.LatticeDeformationTool;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
@@ -15,19 +17,45 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SerializedProperty _recalcNormalsProp;
         private SerializedProperty _recalcTangentsProp;
         private SerializedProperty _recalcBoundsProp;
+        private SerializedProperty _alignModeProp;
+        private SerializedProperty _clampMulXYProp;
+        private SerializedProperty _clampMinXYProp;
+        private SerializedProperty _clampMulZProp;
+        private SerializedProperty _clampMinZProp;
+        private SerializedProperty _allowCenterOffsetProp;
+        private SerializedProperty _alignAutoInitializedProp;
+        private SerializedProperty _manualOffsetProp;
+        private SerializedProperty _manualScaleProp;
+        private bool _manualScaleUniform = true;
+        private Vector3 _uniformScaleBuffer = Vector3.one;
+        private static bool s_linkManualScale = true;
+        private static GUIContent s_linkOn;
+        private static GUIContent s_linkOff;
+        private static readonly GUIContent[] s_xyzLabels = { new GUIContent("X"), new GUIContent("Y"), new GUIContent("Z") };
 
         private static bool s_showOptions = false;
         private static bool s_showAdvancedSettings = false;
+        private static bool s_showAlignSettings = false;
         private static readonly Dictionary<int, Vector3Int> s_pendingGridSizes = new();
 
         private void OnEnable()
         {
+            EnsureLinkIcons();
             _settingsProp = serializedObject.FindProperty("_settings");
             _skinnedRendererProp = serializedObject.FindProperty("_skinnedMeshRenderer");
             _meshFilterProp = serializedObject.FindProperty("_meshFilter");
             _recalcNormalsProp = serializedObject.FindProperty("_recalculateNormals");
             _recalcTangentsProp = serializedObject.FindProperty("_recalculateTangents");
             _recalcBoundsProp = serializedObject.FindProperty("_recalculateBounds");
+            _alignModeProp = serializedObject.FindProperty("_alignMode");
+            _clampMulXYProp = serializedObject.FindProperty("_centerClampMulXY");
+            _clampMinXYProp = serializedObject.FindProperty("_centerClampMinXY");
+            _clampMulZProp = serializedObject.FindProperty("_centerClampMulZ");
+            _clampMinZProp = serializedObject.FindProperty("_centerClampMinZ");
+            _allowCenterOffsetProp = serializedObject.FindProperty("_allowCenterOffsetWhenBoundsSkipped");
+            _alignAutoInitializedProp = serializedObject.FindProperty("_alignAutoInitialized");
+            _manualOffsetProp = serializedObject.FindProperty("_manualOffsetProxy");
+            _manualScaleProp = serializedObject.FindProperty("_manualScaleProxy");
 
             AutoAssignLocalRendererReferences();
             InitializePendingGridSizes();
@@ -82,8 +110,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 DrawSettingsExcludingGrid();
                 EditorGUI.indentLevel--;
             }
+
+            // Alignment subsection at same level as advanced settings
+            DrawAlignmentSettings();
+
             EditorGUI.indentLevel--;
-            EditorGUILayout.Space();
 
             EditorGUILayout.Space();
             s_showOptions = EditorGUILayout.BeginFoldoutHeaderGroup(s_showOptions, LatticeLocalization.Tr("Mesh Rebuild Options"));
@@ -477,6 +508,126 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             EditorGUILayout.Space();
+        }
+
+        private void DrawAlignmentSettings()
+        {
+            s_showAlignSettings = EditorGUILayout.Foldout(s_showAlignSettings, LatticeLocalization.Tr("Lattice Cage Alignment"), true);
+            if (!s_showAlignSettings)
+            {
+                return;
+            }
+
+            EditorGUI.indentLevel++;
+
+            EditorGUILayout.HelpBox(
+                LatticeLocalization.Tr("Position/scale here only move the editing cage in the Scene view. They do not change the deform target's bounds or final mesh deformation."),
+                MessageType.Info);
+
+            if (_manualOffsetProp != null)
+            {
+                EditorGUILayout.PropertyField(_manualOffsetProp,
+                    new GUIContent(LatticeLocalization.Tr("Offset"),
+                        LatticeLocalization.Tr("Direct offset applied in proxy local space before alignment")));
+            }
+
+            if (_manualScaleProp != null)
+            {
+                DrawLinkedScaleField(_manualScaleProp, ref s_linkManualScale, LatticeLocalization.Tr("Scale"));
+            }
+
+            bool debugAlign = LatticePreviewUtility.DebugAlignLogs;
+            bool nextDebug = EditorGUILayout.ToggleLeft(
+                new GUIContent(LatticeLocalization.Tr("(Debug) Log Preview Alignment to Console")),
+                debugAlign);
+            if (nextDebug != debugAlign)
+            {
+                LatticePreviewUtility.DebugAlignLogs = nextDebug;
+                LatticePreviewUtility.LogAlign("Toggle", $"DebugAlignLogs set to {nextDebug}");
+            }
+
+            EditorGUI.indentLevel--;
+        }
+
+        private static void DrawLinkedScaleField(SerializedProperty prop, ref bool link, string label)
+        {
+            if (prop == null || prop.propertyType != SerializedPropertyType.Vector3)
+            {
+                return;
+            }
+
+            EnsureLinkIcons();
+
+            var value = prop.vector3Value;
+            var rect = EditorGUILayout.GetControlRect();
+            var labelContent = new GUIContent(label);
+
+            EditorGUI.BeginProperty(rect, labelContent, prop);
+            rect = EditorGUI.PrefixLabel(rect, labelContent);
+
+            const float linkWidth = 20f;
+            var linkRect = new Rect(rect.x, rect.y, linkWidth, rect.height);
+            var fieldsRect = new Rect(linkRect.xMax + 2f, rect.y, rect.width - linkWidth - 2f, rect.height);
+
+            if (GUI.Button(linkRect, link ? s_linkOn : s_linkOff, GUIStyle.none))
+            {
+                link = !link;
+            }
+
+            float[] vals = { value.x, value.y, value.z };
+            EditorGUI.BeginChangeCheck();
+            EditorGUI.MultiFloatField(fieldsRect, s_xyzLabels, vals);
+            if (EditorGUI.EndChangeCheck())
+            {
+                if (link)
+                {
+                    vals[1] = vals[2] = vals[0];
+                }
+
+                value = new Vector3(
+                    Mathf.Max(0.0001f, vals[0]),
+                    Mathf.Max(0.0001f, vals[1]),
+                    Mathf.Max(0.0001f, vals[2]));
+                prop.vector3Value = value;
+            }
+
+            EditorGUI.EndProperty();
+        }
+
+        private static Bounds DivBoundsByScale(Bounds b, Vector3 scale)
+        {
+            var center = new Vector3(
+                scale.x != 0f ? b.center.x / scale.x : b.center.x,
+                scale.y != 0f ? b.center.y / scale.y : b.center.y,
+                scale.z != 0f ? b.center.z / scale.z : b.center.z);
+
+            var size = new Vector3(
+                scale.x != 0f ? b.size.x / Mathf.Abs(scale.x) : b.size.x,
+                scale.y != 0f ? b.size.y / Mathf.Abs(scale.y) : b.size.y,
+                scale.z != 0f ? b.size.z / Mathf.Abs(scale.z) : b.size.z);
+
+            return new Bounds(center, size);
+        }
+
+        private static void EnsureLinkIcons()
+        {
+            if (s_linkOn == null)
+            {
+                s_linkOn = EditorGUIUtility.IconContent("Linked");
+                if (s_linkOn == null || s_linkOn.image == null)
+                {
+                    s_linkOn = new GUIContent("≡", "Link axes");
+                }
+            }
+
+            if (s_linkOff == null)
+            {
+                s_linkOff = EditorGUIUtility.IconContent("Unlinked");
+                if (s_linkOff == null || s_linkOff.image == null)
+                {
+                    s_linkOff = new GUIContent("≠", "Unlink axes");
+                }
+            }
         }
     }
 }

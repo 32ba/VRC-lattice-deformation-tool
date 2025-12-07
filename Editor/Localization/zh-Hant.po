@@ -88,6 +88,47 @@ msgstr "網格重建選項"
 msgid "(NDMF) Disable Lattice Preview"
 msgstr "(NDMF) Disable Lattice Preview"
 
+# Alignment settings
+msgid "Lattice Cage Alignment"
+msgstr "格架籠對齊"
+
+msgid "(NDMF) Alignment Mode"
+msgstr "(NDMF) 對齊模式"
+
+msgid "Mode1: Transform only\nMode2: Transform + Center offset (clamped)\nMode3: Bounds remap + Center offset"
+msgstr "模式1: 僅Transform\n模式2: Transform + 中心偏移(限制)\n模式3: Bounds重映射 + 中心偏移"
+
+msgid "Manual Offset (proxy local)"
+msgstr "手動偏移 (代理區域)"
+
+msgid "Direct offset applied in proxy local space before auto center / clamp"
+msgstr "在自動中心/限制前套用於代理區域的偏移"
+
+msgid "Manual Scale (proxy local)"
+msgstr "手動縮放 (代理區域)"
+
+msgid "(NDMF) Allow Center Offset when Bounds Skipped"
+msgstr "(NDMF) 略過Bounds時允許中心偏移"
+
+msgid "Alignment Auto-Initialized"
+msgstr "對齊已自動初始化"
+
+msgid "(Debug) Log Preview Alignment to Console"
+msgstr "(Debug) 將預覽對齊輸出到控制台"
+
+msgid "Auto Apply Offset/Scale"
+msgstr "自動套用偏移/縮放"
+
+msgid "Manual Only / Auto Offset / Auto Scale / Auto Offset+Scale"
+msgstr "僅手動 / 自動偏移 / 自動縮放 / 自動偏移+縮放"
+
+# Scale axis labels
+msgid "X"
+msgstr "X"
+msgid "Y"
+msgstr "Y"
+msgid "Z"
+msgstr "Z"
 msgid "(NDMF) Enable Lattice Preview"
 msgstr "(NDMF) Enable Lattice Preview"
 
@@ -128,3 +169,30 @@ msgstr "重設晶格籠"
 
 
 
+msgid "Choose how preview proxy is mapped: Mode1=Transform, Mode2=Transform+Center offset, Mode3=Bounds remap"
+msgstr "選擇預覽代理的對齊方式：模式1=僅變換，模式2=變換+中心偏移，模式3=包圍盒重新映射"
+
+msgid "Mode 1"
+msgstr "模式1"
+
+msgid "Mode 2"
+msgstr "模式2"
+
+msgid "Mode 3"
+msgstr "模式3"
+
+msgid "Transform only (uses proxy transform, no bounds remap)"
+msgstr "僅變換（使用代理的Transform，不做包圍盒重新映射）"
+
+msgid "Transform + center offset (adds center delta)"
+msgstr "變換+中心偏移（加上中心差值）"
+
+msgid "Bounds remap (maps lattice bounds to proxy bounds)"
+msgstr "包圍盒重新映射（將格籠包圍盒映射到代理包圍盒）"
+msgid "Offset"
+msgstr "偏移"
+
+msgid "Scale"
+msgstr "縮放"
+msgid "Position/scale here only move the editing cage in the Scene view. They do not change the deform target\'s bounds or final mesh deformation."
+msgstr "此處的位移/縮放僅移動場景檢視中的編輯籠，不會改變變形目標的包圍盒或最終變形。"

@@ -88,6 +88,47 @@ msgstr "메시 재구성 옵션"
 msgid "(NDMF) Disable Lattice Preview"
 msgstr "(NDMF) Disable Lattice Preview"
 
+# Alignment settings
+msgid "Lattice Cage Alignment"
+msgstr "라티스 케이지 정렬"
+
+msgid "(NDMF) Alignment Mode"
+msgstr "(NDMF) 정렬 모드"
+
+msgid "Mode1: Transform only\nMode2: Transform + Center offset (clamped)\nMode3: Bounds remap + Center offset"
+msgstr "Mode1: Transform만 사용\nMode2: Transform + 중심 오프셋(클램프)\nMode3: Bounds 리맵 + 중심 오프셋"
+
+msgid "Manual Offset (proxy local)"
+msgstr "수동 오프셋 (프록시 로컬)"
+
+msgid "Direct offset applied in proxy local space before auto center / clamp"
+msgstr "자동 센터/클램프 전에 프록시 로컬 공간에 직접 적용되는 오프셋"
+
+msgid "Manual Scale (proxy local)"
+msgstr "수동 스케일 (프록시 로컬)"
+
+msgid "(NDMF) Allow Center Offset when Bounds Skipped"
+msgstr "(NDMF) Bounds를 건너뛸 때도 중심 오프셋 허용"
+
+msgid "Alignment Auto-Initialized"
+msgstr "정렬 자동 초기화됨"
+
+msgid "(Debug) Log Preview Alignment to Console"
+msgstr "(Debug) 프리뷰 정렬을 콘솔에 로그"
+
+msgid "Auto Apply Offset/Scale"
+msgstr "오프셋/스케일 자동 적용"
+
+msgid "Manual Only / Auto Offset / Auto Scale / Auto Offset+Scale"
+msgstr "수동만 / 오프셋 자동 / 스케일 자동 / 오프셋+스케일 자동"
+
+# Scale axis labels
+msgid "X"
+msgstr "X"
+msgid "Y"
+msgstr "Y"
+msgid "Z"
+msgstr "Z"
 msgid "(NDMF) Enable Lattice Preview"
 msgstr "(NDMF) Enable Lattice Preview"
 
@@ -128,3 +169,30 @@ msgstr "래티스 케이지 초기화"
 
 
 
+msgid "Choose how preview proxy is mapped: Mode1=Transform, Mode2=Transform+Center offset, Mode3=Bounds remap"
+msgstr "프리뷰 프록시를 어떻게 맞출지 선택: 모드1=트랜스폼, 모드2=트랜스폼+센터 오프셋, 모드3=바운즈 리맵"
+
+msgid "Mode 1"
+msgstr "모드 1"
+
+msgid "Mode 2"
+msgstr "모드 2"
+
+msgid "Mode 3"
+msgstr "모드 3"
+
+msgid "Transform only (uses proxy transform, no bounds remap)"
+msgstr "트랜스폼만 사용(프록시 트랜스폼 적용, 바운즈 리맵 없음)"
+
+msgid "Transform + center offset (adds center delta)"
+msgstr "트랜스폼 + 중심 오프셋(센터 차이를 추가)"
+
+msgid "Bounds remap (maps lattice bounds to proxy bounds)"
+msgstr "바운즈 리맵(라티스 바운즈를 프록시 바운즈에 매핑)"
+msgid "Offset"
+msgstr "오프셋"
+
+msgid "Scale"
+msgstr "스케일"
+msgid "Position/scale here only move the editing cage in the Scene view. They do not change the deform target\'s bounds or final mesh deformation."
+msgstr "여기서 설정한 위치/스케일은 씬 뷰의 편집용 케이지만 이동합니다. 변형 대상 메시의 바운즈나 최종 변형에는 영향을 주지 않습니다."

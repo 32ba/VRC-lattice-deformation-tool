@@ -159,6 +159,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         continue;
                     }
 
+                    LatticePreviewUtility.RegisterProxy(original, proxy);
+
                     var target = new Target
                     {
                         OriginalRenderer = original,
@@ -206,6 +208,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     {
                         continue;
                     }
+
+                    LatticePreviewUtility.ClearProxy(target.OriginalRenderer);
 
                     if (target.ProxyMeshFilter != null)
                     {
@@ -292,6 +296,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     return null;
                 }
+
+                LatticePreviewUtility.RegisterProxy(original, proxy);
 
                 var target = new Target
                 {
