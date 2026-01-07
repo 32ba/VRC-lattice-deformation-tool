@@ -82,8 +82,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 proxy = method.Invoke(session, new object[] { original }) as Renderer;
                 return proxy != null;
             }
-            catch
+            catch (Exception ex)
             {
+                if (LatticePreviewUtility.DebugAlignLogs)
+                {
+                    Debug.LogWarning($"[LatticeProxyUtility] Failed to invoke proxy lookup: {ex.Message}");
+                }
                 return false;
             }
         }
@@ -108,8 +112,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         _ => null
                     };
                 }
-                catch
+                catch (Exception ex)
                 {
+                    if (LatticePreviewUtility.DebugAlignLogs)
+                    {
+                        Debug.LogWarning($"[LatticeProxyUtility] Failed to get member value: {ex.Message}");
+                    }
                     continue;
                 }
 
@@ -158,8 +166,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     value = method.Invoke(session, null);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    if (LatticePreviewUtility.DebugAlignLogs)
+                    {
+                        Debug.LogWarning($"[LatticeProxyUtility] Failed to invoke method '{method.Name}': {ex.Message}");
+                    }
                     continue;
                 }
 
@@ -291,8 +303,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 return prop.GetValue(null);
             }
-            catch
+            catch (Exception ex)
             {
+                if (LatticePreviewUtility.DebugAlignLogs)
+                {
+                    Debug.LogWarning($"[LatticeProxyUtility] Failed to get current session: {ex.Message}");
+                }
                 return null;
             }
         }
@@ -315,9 +331,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         return type;
                     }
                 }
-                catch
+                catch (Exception)
                 {
-                    // ignore
+                    // Expected: Some assemblies may not allow type resolution
                 }
             }
 
