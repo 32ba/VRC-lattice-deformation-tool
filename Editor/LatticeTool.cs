@@ -242,7 +242,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             var useProxy = LatticePreviewUtility.UsePreviewAlignedCage &&
                            srcRenderer != null &&
-                           NDMFPreviewProxyUtility.TryGetProxyRenderer(srcRenderer, out proxyRenderer) &&
+                           LatticePreviewUtility.TryGetRegisteredProxy(srcRenderer, out proxyRenderer) &&
                            proxyRenderer != null;
 
             var proxyTransform = useProxy ? proxyRenderer.transform : sourceTransform;

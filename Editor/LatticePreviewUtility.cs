@@ -92,17 +92,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (UsePreviewAlignedCage)
             {
                 var renderer = deformer.GetComponent<Renderer>();
-                if (renderer != null)
+                if (renderer != null && TryGetRegisteredProxy(renderer, out var proxy) && proxy != null)
                 {
-                    if (TryGetRegisteredProxy(renderer, out var proxy) && proxy != null)
-                    {
-                        return proxy.transform;
-                    }
-
-                    if (NDMFPreviewProxyUtility.TryGetProxyRenderer(renderer, out proxy) && proxy != null)
-                    {
-                        return proxy.transform;
-                    }
+                    return proxy.transform;
                 }
             }
 
@@ -127,7 +119,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return sourceBounds;
             }
 
-            if (!NDMFPreviewProxyUtility.TryGetProxyRenderer(renderer, out var proxy) || proxy == null)
+            if (!TryGetRegisteredProxy(renderer, out var proxy) || proxy == null)
             {
                 return sourceBounds;
             }
@@ -232,7 +224,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Debug.Log($"[LatticeAlign] {tag}: {msg}");
         }
 
-        private static bool TryGetRegisteredProxy(Renderer original, out Renderer proxy)
+        /// <summary>
+        /// Attempts to get a proxy renderer that was registered via the preview filter.
+        /// This is the primary method for looking up proxy renderers without reflection.
+        /// </summary>
+        internal static bool TryGetRegisteredProxy(Renderer original, out Renderer proxy)
         {
             return s_latestProxyMap.TryGetValue(original, out proxy);
         }
