@@ -352,8 +352,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 previewMesh.UploadMeshData(false);
                 return previewMesh;
             }
-            catch
+            catch (System.Exception ex)
             {
+                Debug.LogWarning($"[LatticeDeformer] Failed to generate preview mesh: {ex.Message}");
                 return null;
             }
         }

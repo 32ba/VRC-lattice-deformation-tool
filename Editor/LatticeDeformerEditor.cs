@@ -594,21 +594,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorGUI.EndProperty();
         }
 
-        private static Bounds DivBoundsByScale(Bounds b, Vector3 scale)
-        {
-            var center = new Vector3(
-                scale.x != 0f ? b.center.x / scale.x : b.center.x,
-                scale.y != 0f ? b.center.y / scale.y : b.center.y,
-                scale.z != 0f ? b.center.z / scale.z : b.center.z);
-
-            var size = new Vector3(
-                scale.x != 0f ? b.size.x / Mathf.Abs(scale.x) : b.size.x,
-                scale.y != 0f ? b.size.y / Mathf.Abs(scale.y) : b.size.y,
-                scale.z != 0f ? b.size.z / Mathf.Abs(scale.z) : b.size.z);
-
-            return new Bounds(center, size);
-        }
-
         private static void EnsureLinkIcons()
         {
             if (s_linkOn == null)
