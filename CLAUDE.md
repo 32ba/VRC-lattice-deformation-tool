@@ -64,3 +64,17 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 - `com.unity.mathematics` 1.2.6
 - `com.unity.burst` 1.8.12
 - `com.unity.collections` 1.2.4
+
+## Claude Code へのルール
+
+### タスク終了時の CLAUDE.md 更新
+
+タスク完了時、以下の変更があった場合は **必ず CLAUDE.md を更新** してください：
+
+- 新しいディレクトリやモジュールの追加
+- 依存関係の変更（package.json の更新）
+- 重要な設計パターンや規約の導入
+- ビルド・テスト手順の変更
+- その他、今後の開発で知っておくべき情報
+
+更新時は既存のフォーマットに従い、簡潔かつ正確に記述してください。
