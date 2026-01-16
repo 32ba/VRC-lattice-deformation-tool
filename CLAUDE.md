@@ -9,11 +9,13 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 ## プロジェクト構造
 
 ```
-├── Editor/           # Unity エディタ拡張コード
-│   ├── Localization/ # 多言語対応（日本語/英語）
-│   └── VRChat/       # VRChat 固有の機能
-├── Runtime/          # ランタイムコンポーネント（MonoBehaviour, ScriptableObject）
-└── package.json      # VPM パッケージ定義
+├── Editor/              # Unity エディタ拡張コード
+│   ├── Localization/    # 多言語対応（日本語/英語/韓国語/中国語）
+│   ├── Plugins/         # 外部DLL（Math.NET Numerics）
+│   ├── WeightTransfer/  # ボーンウェイト再計算モジュール
+│   └── VRChat/          # VRChat 固有の機能
+├── Runtime/             # ランタイムコンポーネント（MonoBehaviour, ScriptableObject）
+└── package.json         # VPM パッケージ定義
 ```
 
 ## 開発ガイドライン
@@ -38,6 +40,14 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 - プレビュー機能は `IRenderFilter` を実装
 - ビルドパイプラインは NDMF プラグインとして登録
 - 変形処理は非破壊的に行い、元メッシュは変更しない
+- ボーンウェイト再計算はビルド時に自動実行（オプション）
+
+### ボーンウェイト再計算（Weight Transfer）
+
+SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" に基づく実装：
+- **Stage 1**: 変形後の頂点位置から元メッシュ上の最近傍点を探索し、距離・法線閾値でウェイトを転写
+- **Stage 2**: 転写できなかった頂点にラプラシアンベースの補間（Inpainting）を適用
+- 設定は `LatticeDeformer` の Inspector UI で調整可能
 
 ### ローカライゼーション
 
@@ -64,6 +74,7 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 - `com.unity.mathematics` 1.2.6
 - `com.unity.burst` 1.8.12
 - `com.unity.collections` 1.2.4
+- `MathNet.Numerics` 5.0.0 (Editor DLL, MIT License) - ボーンウェイト再計算用スパース行列演算
 
 ## Claude Code へのルール
 
