@@ -61,7 +61,7 @@ jobs:
           
       # Zip the Package for release
       - name: Create Package Zip
-        run: zip -r "${{ github.workspace }}/${{ steps.set_env.outputs.zipFile }}" . -x '.*' '*/.*'
+        run: zip -r "${{ github.workspace }}/${{ steps.set_env.outputs.zipFile }}" . -x '.*' '*/.*' 'CLAUDE.md' 'CLAUDE.md.meta'
 
       - name: Prepare Unity Package Layout
         run: |
@@ -79,6 +79,8 @@ jobs:
             --exclude '.gitmodules' \
             --exclude '.gitignore' \
             --exclude '.gitattributes' \
+            --exclude 'CLAUDE.md' \
+            --exclude 'CLAUDE.md.meta' \
             --exclude 'metaList' \
             --exclude "$ZIP_FILE" \
             --exclude "$UNITYPACKAGE_FILE" \
