@@ -1,5 +1,6 @@
 using nadena.dev.ndmf;
 using Net._32Ba.LatticeDeformationTool;
+using Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -87,6 +88,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (!string.IsNullOrEmpty(ownerName))
             {
                 exportMesh.name = ownerName + "_LatticeBaked";
+            }
+
+            // Recalculate bone weights if enabled and using SkinnedMeshRenderer
+            if (deformer.RecalculateBoneWeights && skinnedMesh != null && sourceMesh.boneWeights != null && sourceMesh.boneWeights.Length > 0)
+            {
+                var settingsData = deformer.WeightTransferSettings;
+                var settings = new WeightTransferSettings
+                {
+                    maxTransferDistance = settingsData.maxTransferDistance,
+                    normalAngleThreshold = settingsData.normalAngleThreshold,
+                    enableInpainting = settingsData.enableInpainting,
+                    maxIterations = settingsData.maxIterations,
+                    tolerance = settingsData.tolerance
+                };
+
+                var result = RobustWeightTransfer.Transfer(sourceMesh, sourceMesh.boneWeights, exportMesh, settings);
+                if (result.success)
+                {
+                    exportMesh.boneWeights = result.weights;
+                    Debug.Log($"[LatticeDeformer] Weight transfer completed for {ownerName}: {result.transferredCount} transferred, {result.inpaintedCount} inpainted out of {result.totalVertices} vertices.");
+                }
+                else
+                {
+                    Debug.LogWarning($"[LatticeDeformer] Weight transfer failed for {ownerName}: {result.errorMessage}");
+                }
             }
 
             exportMesh.UploadMeshData(false);
