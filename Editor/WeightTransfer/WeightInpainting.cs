@@ -1,14 +1,15 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using MathNet.Numerics.LinearAlgebra;
-using MathNet.Numerics.LinearAlgebra.Double;
+using Unity.Collections;
+using Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 {
     /// <summary>
     /// Implements Laplacian-based weight inpainting for vertices that couldn't be transferred.
     /// Uses the biharmonic energy minimization approach from "Robust Skin Weights Transfer via Weight Inpainting".
+    /// Optimized with Burst-compiled sparse matrix solver.
     /// </summary>
     public class WeightInpainting
     {
@@ -20,7 +21,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
         // Adjacency data
         private List<int>[] _adjacency;
-        private Matrix<double> _laplacian;
+
+        // Sparse Laplacian data (COO format for construction)
+        private Dictionary<(int, int), double> _laplacianEntries;
 
         /// <summary>
         /// Creates a new weight inpainting solver.
@@ -34,7 +37,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             _vertexCount = vertices.Length;
 
             BuildAdjacency();
-            BuildCotangentLaplacian();
+            BuildCotangentLaplacianSparse();
         }
 
         /// <summary>
@@ -70,15 +73,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         }
 
         /// <summary>
-        /// Build cotangent Laplacian matrix.
+        /// Build cotangent Laplacian matrix in sparse format.
         /// L_ij = (cot(alpha_ij) + cot(beta_ij)) / 2 for adjacent vertices
         /// L_ii = -sum(L_ij)
         /// </summary>
-        private void BuildCotangentLaplacian()
+        private void BuildCotangentLaplacianSparse()
         {
-            // Build sparse matrix using coordinate format first
-            var triplets = new List<(int, int, double)>();
-
             // Edge to opposite vertices mapping for cotangent weights
             var edgeToOppositeVertices = new Dictionary<(int, int), List<int>>();
 
@@ -97,8 +97,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 AddOppositeVertex(edgeToOppositeVertices, i2, i0, i1);
             }
 
-            // Compute cotangent weights
-            var offDiagonal = new double[_vertexCount, _vertexCount];
+            // Compute cotangent weights and store in sparse format
+            _laplacianEntries = new Dictionary<(int, int), double>();
+            var diagSum = new double[_vertexCount];
 
             foreach (var kvp in edgeToOppositeVertices)
             {
@@ -116,24 +117,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 // Clamp to avoid numerical issues
                 weight = Math.Max(weight, 1e-6);
 
-                offDiagonal[i, j] = weight;
-                offDiagonal[j, i] = weight;
+                // Store off-diagonal entries (negative of weight)
+                _laplacianEntries[(i, j)] = -weight;
+                _laplacianEntries[(j, i)] = -weight;
+
+                // Accumulate diagonal
+                diagSum[i] += weight;
+                diagSum[j] += weight;
             }
 
-            // Build matrix with diagonal entries
-            var builder = Matrix<double>.Build;
-            _laplacian = builder.Dense(_vertexCount, _vertexCount);
-
+            // Store diagonal entries
             for (int i = 0; i < _vertexCount; i++)
             {
-                double diagSum = 0;
-                foreach (int j in _adjacency[i])
-                {
-                    double w = offDiagonal[i, j];
-                    _laplacian[i, j] = -w;
-                    diagSum += w;
-                }
-                _laplacian[i, i] = diagSum;
+                _laplacianEntries[(i, i)] = diagSum[i];
             }
         }
 
@@ -175,7 +171,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         }
 
         /// <summary>
-        /// Performs weight inpainting using Laplacian interpolation.
+        /// Performs weight inpainting using Laplacian interpolation with Burst-compiled sparse solver.
         /// </summary>
         public void Inpaint(BoneWeight[] weights, float[] confidence, int boneCount)
         {
@@ -220,100 +216,152 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             var boneList = new List<int>(usedBones);
             boneList.Sort();
 
-            // Create mapping from vertex index to unknown index
-            var unknownIndexMap = new Dictionary<int, int>();
+            // Create O(1) lookup maps
+            var unknownIndexMap = new Dictionary<int, int>(unknownIndices.Count);
             for (int i = 0; i < unknownIndices.Count; i++)
             {
                 unknownIndexMap[unknownIndices[i]] = i;
             }
 
-            // Solve for each bone separately
-            var boneWeightResults = new double[unknownIndices.Count, boneList.Count];
+            var knownIndexMap = new Dictionary<int, int>(knownIndices.Count);
+            for (int i = 0; i < knownIndices.Count; i++)
+            {
+                knownIndexMap[knownIndices[i]] = i;
+            }
 
-            // Build submatrices: L_uu (unknown-unknown) and L_uk (unknown-known)
+            // Build sparse submatrices: L_uu (unknown-unknown) and L_uk (unknown-known)
             int nu = unknownIndices.Count;
             int nk = knownIndices.Count;
 
-            var L_uu = Matrix<double>.Build.Dense(nu, nu);
-            var L_uk = Matrix<double>.Build.Dense(nu, nk);
+            // Collect entries for sparse matrix construction
+            var L_uu_entries = new List<(int, int, double)>();
+            var L_uk_entries = new List<(int, int, double)>();
+            var diagSums = new double[nu];
 
             for (int ui = 0; ui < nu; ui++)
             {
                 int i = unknownIndices[ui];
-                double diagSum = 0;
 
                 foreach (int j in _adjacency[i])
                 {
-                    double w = -_laplacian[i, j]; // Note: off-diagonal is negative in Laplacian
+                    // Get Laplacian weight (off-diagonal is negative in our storage)
+                    if (!_laplacianEntries.TryGetValue((i, j), out double negW))
+                        continue;
+                    double w = -negW; // Convert back to positive weight
 
                     if (unknownIndexMap.TryGetValue(j, out int uj))
                     {
-                        L_uu[ui, uj] = -w;
-                        diagSum += w;
+                        // j is unknown - add to L_uu
+                        L_uu_entries.Add((ui, uj, -w));
+                        diagSums[ui] += w;
+                    }
+                    else if (knownIndexMap.TryGetValue(j, out int kj))
+                    {
+                        // j is known - add to L_uk
+                        L_uk_entries.Add((ui, kj, -w));
+                        diagSums[ui] += w;
+                    }
+                }
+            }
+
+            // Add diagonal entries with regularization
+            for (int ui = 0; ui < nu; ui++)
+            {
+                L_uu_entries.Add((ui, ui, diagSums[ui] + 1e-8));
+            }
+
+            // Build sparse matrices using Burst-compatible format
+            var L_uu = NativeSparseMatrixCSR.FromIndexed(nu, nu, L_uu_entries, Allocator.TempJob);
+            var L_uk = NativeSparseMatrixCSR.FromIndexed(nu, nk, L_uk_entries, Allocator.TempJob);
+
+            // Allocate native arrays for solving
+            var knownWeightsArray = new NativeArray<double>(nk, Allocator.TempJob);
+            var rhsArray = new NativeArray<double>(nu, Allocator.TempJob);
+            var solutionArray = new NativeArray<double>(nu, Allocator.TempJob);
+            var tempArray = new NativeArray<double>(nu, Allocator.TempJob);
+
+            try
+            {
+                // Solve for each bone
+                var boneWeightResults = new double[nu, boneList.Count];
+
+                for (int boneIdx = 0; boneIdx < boneList.Count; boneIdx++)
+                {
+                    int bone = boneList[boneIdx];
+
+                    // Get known weights for this bone
+                    for (int ki = 0; ki < nk; ki++)
+                    {
+                        knownWeightsArray[ki] = GetBoneWeight(weights[knownIndices[ki]], bone);
+                    }
+
+                    // RHS: -L_uk * knownWeights
+                    BurstLinearAlgebra.SpMV(ref L_uk, knownWeightsArray, rhsArray);
+                    for (int i = 0; i < nu; i++)
+                    {
+                        rhsArray[i] = -rhsArray[i];
+                    }
+
+                    // Skip if RHS is essentially zero (bone not used in known vertices)
+                    double rhsNorm = BurstLinearAlgebra.Norm(rhsArray);
+                    if (rhsNorm < 1e-10)
+                    {
+                        // No contribution from this bone - leave as zero
+                        continue;
+                    }
+
+                    // Initialize solution to zero
+                    BurstLinearAlgebra.Zero(solutionArray);
+
+                    // Solve L_uu * x = rhs using Burst BiCGStab
+                    var result = BurstBiCGStab.Solve(ref L_uu, rhsArray, solutionArray, _maxIterations, _tolerance);
+
+                    if (result.Converged)
+                    {
+                        for (int ui = 0; ui < nu; ui++)
+                        {
+                            boneWeightResults[ui, boneIdx] = Math.Max(0, solutionArray[ui]);
+                        }
                     }
                     else
                     {
-                        // j is a known vertex
-                        int kj = knownIndices.IndexOf(j);
-                        if (kj >= 0)
-                        {
-                            L_uk[ui, kj] = -w;
-                            diagSum += w;
-                        }
+                        // Fallback: use simple neighbor averaging for this bone
+                        FallbackNeighborAveraging(unknownIndices, knownIndices, weights, bone, boneWeightResults, boneIdx);
                     }
                 }
-                L_uu[ui, ui] = diagSum;
-            }
 
-            // Add small regularization for numerical stability
-            for (int i = 0; i < nu; i++)
+                // Convert results back to BoneWeight format
+                ConvertToBoneWeights(unknownIndices, boneList, boneWeightResults, weights);
+            }
+            finally
             {
-                L_uu[i, i] += 1e-8;
+                // Dispose all native arrays
+                L_uu.Dispose();
+                L_uk.Dispose();
+                knownWeightsArray.Dispose();
+                rhsArray.Dispose();
+                solutionArray.Dispose();
+                tempArray.Dispose();
             }
+        }
 
-            // Solve for each bone
-            for (int boneIdx = 0; boneIdx < boneList.Count; boneIdx++)
-            {
-                int bone = boneList[boneIdx];
+        private void ConvertToBoneWeights(
+            List<int> unknownIndices,
+            List<int> boneList,
+            double[,] boneWeightResults,
+            BoneWeight[] weights)
+        {
+            int nu = unknownIndices.Count;
 
-                // Get known weights for this bone
-                var knownWeights = Vector<double>.Build.Dense(nk);
-                for (int ki = 0; ki < nk; ki++)
-                {
-                    knownWeights[ki] = GetBoneWeight(weights[knownIndices[ki]], bone);
-                }
+            // Preallocate to avoid per-vertex allocations
+            var boneWeightPairs = new List<(int bone, double weight)>(boneList.Count);
 
-                // RHS: -L_uk * knownWeights
-                var rhs = -L_uk * knownWeights;
-
-                // Solve L_uu * x = rhs
-                try
-                {
-                    var solution = L_uu.Solve(rhs);
-
-                    for (int ui = 0; ui < nu; ui++)
-                    {
-                        boneWeightResults[ui, boneIdx] = Math.Max(0, solution[ui]);
-                    }
-                }
-                catch (Exception e)
-                {
-                    Debug.LogWarning($"WeightInpainting: Failed to solve for bone {bone}: {e.Message}");
-                    // Fallback: use average of neighboring known weights
-                    for (int ui = 0; ui < nu; ui++)
-                    {
-                        boneWeightResults[ui, boneIdx] = 0;
-                    }
-                }
-            }
-
-            // Convert results back to BoneWeight format
             for (int ui = 0; ui < nu; ui++)
             {
                 int vertIdx = unknownIndices[ui];
 
                 // Collect weights for this vertex
-                var boneWeightPairs = new List<(int bone, double weight)>();
+                boneWeightPairs.Clear();
                 for (int bi = 0; bi < boneList.Count; bi++)
                 {
                     double w = boneWeightResults[ui, bi];
@@ -330,14 +378,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 var bw = new BoneWeight();
                 double totalWeight = 0;
 
-                for (int i = 0; i < Math.Min(4, boneWeightPairs.Count); i++)
+                int count = Math.Min(4, boneWeightPairs.Count);
+                for (int i = 0; i < count; i++)
                 {
                     totalWeight += boneWeightPairs[i].weight;
                 }
 
                 if (totalWeight > 0)
                 {
-                    for (int i = 0; i < Math.Min(4, boneWeightPairs.Count); i++)
+                    for (int i = 0; i < count; i++)
                     {
                         float normalizedWeight = (float)(boneWeightPairs[i].weight / totalWeight);
                         switch (i)
@@ -373,6 +422,36 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             if (bw.boneIndex2 == boneIndex) return bw.weight2;
             if (bw.boneIndex3 == boneIndex) return bw.weight3;
             return 0;
+        }
+
+        private void FallbackNeighborAveraging(
+            List<int> unknownIndices,
+            List<int> knownIndices,
+            BoneWeight[] weights,
+            int bone,
+            double[,] boneWeightResults,
+            int boneIdx)
+        {
+            var knownSet = new HashSet<int>(knownIndices);
+
+            for (int ui = 0; ui < unknownIndices.Count; ui++)
+            {
+                int vertIdx = unknownIndices[ui];
+                double sum = 0;
+                int count = 0;
+
+                // Average weights from known neighbors
+                foreach (int neighbor in _adjacency[vertIdx])
+                {
+                    if (knownSet.Contains(neighbor))
+                    {
+                        sum += GetBoneWeight(weights[neighbor], bone);
+                        count++;
+                    }
+                }
+
+                boneWeightResults[ui, boneIdx] = count > 0 ? sum / count : 0;
+            }
         }
     }
 }

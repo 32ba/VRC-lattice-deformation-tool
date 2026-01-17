@@ -13,7 +13,6 @@
   ],
   "overrideReferences": true,
   "precompiledReferences": [
-    "MathNet.Numerics.dll",
     "System.Collections.Immutable.dll"
   ]
 }

@@ -1,5 +1,7 @@
 using System;
+using System.Diagnostics;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 {
@@ -105,6 +107,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             // Confidence mask: 1.0 = transferred, 0.0 = needs inpainting
             var confidenceMask = new float[vertexCount];
 
+            var sw = Stopwatch.StartNew();
+
             // Stage 1: Initial transfer
             Stage1Transfer(
                 sourceMesh,
@@ -115,6 +119,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 result.weights,
                 confidenceMask,
                 ref result.transferredCount);
+
+            var stage1Time = sw.ElapsedMilliseconds;
+            sw.Restart();
 
             // Stage 2: Weight inpainting (if enabled and needed)
             if (settings.enableInpainting && result.transferredCount < vertexCount)
@@ -128,7 +135,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                     settings,
                     ref result.inpaintedCount);
             }
-            else
+
+            var stage2Time = sw.ElapsedMilliseconds;
+            Debug.Log($"[WeightTransfer] Stage1: {stage1Time}ms, Stage2: {stage2Time}ms");
+
+            if (!settings.enableInpainting || result.transferredCount >= vertexCount)
             {
                 // Fill non-transferred vertices with zero weights
                 for (int i = 0; i < vertexCount; i++)
@@ -163,6 +174,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
         /// <summary>
         /// Stage 1: Initial weight transfer based on closest point on source mesh.
+        /// Uses batch processing with Burst jobs for performance.
         /// </summary>
         private static void Stage1Transfer(
             Mesh sourceMesh,
@@ -184,15 +196,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 float maxDistSq = settings.maxTransferDistance * settings.maxTransferDistance;
                 float normalThresholdCos = Mathf.Cos(settings.normalAngleThreshold * Mathf.Deg2Rad);
 
+                // Use batch processing for all vertices at once
+                var queryResults = spatialQuery.FindClosestPointsBatch(targetVertices);
+
                 for (int i = 0; i < targetVertices.Length; i++)
                 {
+                    var queryResult = queryResults[i];
                     var targetPos = targetVertices[i];
                     var targetNormal = targetNormals != null && i < targetNormals.Length
                         ? targetNormals[i]
                         : Vector3.up;
-
-                    // Find closest point on source mesh
-                    var queryResult = spatialQuery.FindClosestPoint(targetPos);
 
                     if (!queryResult.found)
                     {

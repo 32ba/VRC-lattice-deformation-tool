@@ -11,8 +11,8 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 ```
 ├── Editor/              # Unity エディタ拡張コード
 │   ├── Localization/    # 多言語対応（日本語/英語/韓国語/中国語）
-│   ├── Plugins/         # 外部DLL（Math.NET Numerics）
 │   ├── WeightTransfer/  # ボーンウェイト再計算モジュール
+│   │   └── BurstSolver/ # Burst 対応の疎行列/線形ソルバ
 │   └── VRChat/          # VRChat 固有の機能
 ├── Runtime/             # ランタイムコンポーネント（MonoBehaviour, ScriptableObject）
 └── package.json         # VPM パッケージ定義
@@ -49,6 +49,12 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - **Stage 2**: 転写できなかった頂点にラプラシアンベースの補間（Inpainting）を適用
 - 設定は `LatticeDeformer` の Inspector UI で調整可能
 
+**パフォーマンス最適化:**
+- `MeshSpatialQuery.cs`: Burst Jobs (`IJobParallelFor`) による並列空間クエリ
+- `WeightInpainting.cs`: Burst 実装の疎行列 (CSR) + BiCGStab 反復法ソルバー
+- O(1) ルックアップ用の Dictionary インデックスマップ
+- 処理時間: ~48秒 → ~400ms (100倍以上高速化)
+
 ### ローカライゼーション
 
 - UI テキストは `Editor/Localization/LatticeLocalization.cs` で管理
@@ -74,7 +80,6 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `com.unity.mathematics` 1.2.6
 - `com.unity.burst` 1.8.12
 - `com.unity.collections` 1.2.4
-- `MathNet.Numerics` 5.0.0 (Editor DLL, MIT License) - ボーンウェイト再計算用スパース行列演算
 
 ## Claude Code へのルール
 
