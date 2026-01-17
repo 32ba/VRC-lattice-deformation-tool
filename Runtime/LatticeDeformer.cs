@@ -26,6 +26,8 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private bool _recalculateNormals = true;
         [SerializeField] private bool _recalculateTangents = false;
         [SerializeField] private bool _recalculateBounds = true;
+        [SerializeField] private bool _recalculateBoneWeights = false;
+        [SerializeField] private WeightTransferSettingsData _weightTransferSettings = new WeightTransferSettingsData();
         [SerializeField, HideInInspector] private bool _hasInitializedFromSource = false;
         [SerializeField, HideInInspector] private Mesh _serializedSourceMesh;
 
@@ -62,6 +64,26 @@ namespace Net._32Ba.LatticeDeformationTool
         public Mesh RuntimeMesh => _runtimeMesh;
 
         public Mesh SourceMesh => _sourceMesh;
+
+        // Bone weight recalculation settings
+        public bool RecalculateBoneWeights
+        {
+            get => _recalculateBoneWeights;
+            set => _recalculateBoneWeights = value;
+        }
+
+        public WeightTransferSettingsData WeightTransferSettings
+        {
+            get
+            {
+                if (_weightTransferSettings == null)
+                {
+                    _weightTransferSettings = new WeightTransferSettingsData();
+                }
+                return _weightTransferSettings;
+            }
+            set => _weightTransferSettings = value ?? new WeightTransferSettingsData();
+        }
 
         // Alignment settings accessors
         public LatticeAlignMode AlignMode

@@ -17,6 +17,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SerializedProperty _recalcNormalsProp;
         private SerializedProperty _recalcTangentsProp;
         private SerializedProperty _recalcBoundsProp;
+        private SerializedProperty _recalcBoneWeightsProp;
+        private SerializedProperty _weightTransferSettingsProp;
         private SerializedProperty _alignModeProp;
         private SerializedProperty _clampMulXYProp;
         private SerializedProperty _clampMinXYProp;
@@ -26,7 +28,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SerializedProperty _alignAutoInitializedProp;
         private SerializedProperty _manualOffsetProp;
         private SerializedProperty _manualScaleProp;
-        private bool _manualScaleUniform = true;
         private Vector3 _uniformScaleBuffer = Vector3.one;
         private static bool s_linkManualScale = true;
         private static GUIContent s_linkOn;
@@ -36,6 +37,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_showOptions = false;
         private static bool s_showAdvancedSettings = false;
         private static bool s_showAlignSettings = false;
+        private static bool s_showWeightTransferSettings = false;
         private static readonly Dictionary<int, Vector3Int> s_pendingGridSizes = new();
 
         private void OnEnable()
@@ -47,6 +49,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _recalcNormalsProp = serializedObject.FindProperty("_recalculateNormals");
             _recalcTangentsProp = serializedObject.FindProperty("_recalculateTangents");
             _recalcBoundsProp = serializedObject.FindProperty("_recalculateBounds");
+            _recalcBoneWeightsProp = serializedObject.FindProperty("_recalculateBoneWeights");
+            _weightTransferSettingsProp = serializedObject.FindProperty("_weightTransferSettings");
             _alignModeProp = serializedObject.FindProperty("_alignMode");
             _clampMulXYProp = serializedObject.FindProperty("_centerClampMulXY");
             _clampMinXYProp = serializedObject.FindProperty("_centerClampMinXY");
@@ -138,6 +142,35 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 EditorGUI.indentLevel--;
             }
             EditorGUILayout.EndFoldoutHeaderGroup();
+
+            // Bone weight recalculation (only for SkinnedMeshRenderer)
+            bool hasSkinnedRenderer = _skinnedRendererProp != null &&
+                !_skinnedRendererProp.hasMultipleDifferentValues &&
+                _skinnedRendererProp.objectReferenceValue != null;
+
+            using (new EditorGUI.DisabledScope(!hasSkinnedRenderer))
+            {
+                EditorGUILayout.PropertyField(_recalcBoneWeightsProp, LatticeLocalization.Content("Recalculate Bone Weights"));
+            }
+
+            if (!hasSkinnedRenderer && _recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue)
+            {
+                EditorGUILayout.HelpBox(LatticeLocalization.Tr("Bone weight recalculation requires a SkinnedMeshRenderer."), MessageType.Info);
+            }
+
+            // Weight transfer settings (when bone weight recalculation is enabled)
+            if (_recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue && hasSkinnedRenderer)
+            {
+                EditorGUI.indentLevel++;
+                s_showWeightTransferSettings = EditorGUILayout.Foldout(s_showWeightTransferSettings, LatticeLocalization.Tr("Weight Transfer Settings"), true);
+                if (s_showWeightTransferSettings && _weightTransferSettingsProp != null)
+                {
+                    EditorGUI.indentLevel++;
+                    DrawWeightTransferSettings();
+                    EditorGUI.indentLevel--;
+                }
+                EditorGUI.indentLevel--;
+            }
 
             bool modified = serializedObject.ApplyModifiedProperties();
             if (modified)
@@ -508,6 +541,67 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             EditorGUILayout.Space();
+        }
+
+        private void DrawWeightTransferSettings()
+        {
+            if (_weightTransferSettingsProp == null)
+            {
+                return;
+            }
+
+            // Stage 1 settings
+            EditorGUILayout.LabelField(LatticeLocalization.Tr("Stage 1: Initial Transfer"), EditorStyles.boldLabel);
+
+            var maxDistProp = _weightTransferSettingsProp.FindPropertyRelative("maxTransferDistance");
+            if (maxDistProp != null)
+            {
+                EditorGUILayout.PropertyField(
+                    maxDistProp,
+                    LatticeLocalization.Content(
+                        "Max Transfer Distance",
+                        "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."));
+            }
+
+            var normalThresholdProp = _weightTransferSettingsProp.FindPropertyRelative("normalAngleThreshold");
+            if (normalThresholdProp != null)
+            {
+                EditorGUILayout.PropertyField(
+                    normalThresholdProp,
+                    LatticeLocalization.Content(
+                        "Normal Angle Threshold",
+                        "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."));
+            }
+
+            EditorGUILayout.Space(4);
+
+            // Stage 2 settings
+            EditorGUILayout.LabelField(LatticeLocalization.Tr("Stage 2: Weight Inpainting"), EditorStyles.boldLabel);
+
+            var enableInpaintingProp = _weightTransferSettingsProp.FindPropertyRelative("enableInpainting");
+            if (enableInpaintingProp != null)
+            {
+                EditorGUILayout.PropertyField(enableInpaintingProp, LatticeLocalization.Content("Enable Inpainting"));
+
+                if (enableInpaintingProp.boolValue)
+                {
+                    EditorGUI.indentLevel++;
+
+                    var maxIterProp = _weightTransferSettingsProp.FindPropertyRelative("maxIterations");
+                    if (maxIterProp != null)
+                    {
+                        EditorGUILayout.PropertyField(maxIterProp, LatticeLocalization.Content("Max Iterations"));
+                    }
+
+                    var toleranceProp = _weightTransferSettingsProp.FindPropertyRelative("tolerance");
+                    if (toleranceProp != null)
+                    {
+                        EditorGUILayout.PropertyField(toleranceProp, LatticeLocalization.Content("Tolerance"));
+                    }
+
+                    EditorGUI.indentLevel--;
+                }
+            }
         }
 
         private void DrawAlignmentSettings()

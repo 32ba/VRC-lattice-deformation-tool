@@ -3,9 +3,16 @@
   "rootNamespace": "Net._32Ba.LatticeDeformationTool.Editor",
   "references": [
     "net.32ba.lattice-deformation-tool",
-    "nadena.dev.ndmf"
+    "nadena.dev.ndmf",
+    "Unity.Mathematics",
+    "Unity.Collections",
+    "Unity.Burst"
   ],
   "includePlatforms": [
     "Editor"
+  ],
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "System.Collections.Immutable.dll"
   ]
 }

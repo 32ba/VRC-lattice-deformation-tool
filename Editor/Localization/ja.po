@@ -196,3 +196,40 @@ msgid "Scale"
 msgstr "スケール"
 msgid "Position/scale here only move the editing cage in the Scene view. They do not change the deform target\'s bounds or final mesh deformation."
 msgstr "ここで設定する位置・スケールはシーン上の編集用ケージだけを動かします。変形対象メッシュのバウンズや最終変形には影響しません。"
+
+# Weight Transfer Settings
+msgid "Recalculate Bone Weights"
+msgstr "ボーンウェイトを再計算"
+
+msgid "Weight Transfer Settings"
+msgstr "ウェイト転写設定"
+
+msgid "Stage 1: Initial Transfer"
+msgstr "Stage 1: 初期転写"
+
+msgid "Max Transfer Distance"
+msgstr "最大転写距離"
+
+msgid "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."
+msgstr "誤った面に吸い付く場合は、この値か法線角度閾値を下げて、より厳密に一致させてください。"
+
+msgid "Normal Angle Threshold"
+msgstr "法線角度閾値"
+
+msgid "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."
+msgstr "誤った面に吸い付く場合は、この値か最大転写距離を下げて、より厳密に一致させてください。"
+
+msgid "Stage 2: Weight Inpainting"
+msgstr "Stage 2: ウェイト補間"
+
+msgid "Enable Inpainting"
+msgstr "補間を有効化"
+
+msgid "Max Iterations"
+msgstr "最大反復回数"
+
+msgid "Tolerance"
+msgstr "収束判定閾値"
+
+msgid "Bone weight recalculation requires a SkinnedMeshRenderer."
+msgstr "ボーンウェイト再計算にはSkinnedMeshRendererが必要です。"
