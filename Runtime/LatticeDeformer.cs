@@ -289,7 +289,8 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            var meshBounds = _sourceMesh.bounds;
+            // Get the actual bounds from the Renderer (in world space) and convert to local space
+            var meshBounds = GetRendererBoundsInLocalSpace();
             settings.LocalBounds = meshBounds;
 
             if (resetControlPoints)
@@ -311,6 +312,34 @@ namespace Net._32Ba.LatticeDeformationTool
                 }
             }
 #endif
+        }
+
+        private Bounds GetRendererBoundsInLocalSpace()
+        {
+            Renderer renderer = null;
+
+            if (_skinnedMeshRenderer != null)
+            {
+                renderer = _skinnedMeshRenderer;
+            }
+            else if (_meshFilter != null)
+            {
+                renderer = _meshFilter.GetComponent<MeshRenderer>();
+            }
+
+            if (renderer != null)
+            {
+                // Get world space bounds from the renderer
+                var worldBounds = renderer.bounds;
+
+                // Transform to local space of this LatticeDeformer
+                var localBounds = TransformBounds(transform.worldToLocalMatrix, worldBounds);
+
+                return localBounds;
+            }
+
+            // Fallback to mesh asset bounds if no renderer is found
+            return _sourceMesh != null ? _sourceMesh.bounds : new Bounds(Vector3.zero, Vector3.one);
         }
 
         private void EnsureSettings()
