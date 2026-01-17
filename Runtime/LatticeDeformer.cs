@@ -343,46 +343,23 @@ namespace Net._32Ba.LatticeDeformationTool
                 return new Bounds(Vector3.zero, Vector3.one);
             }
 
-            // Get the appropriate bounds for the renderer type
-            Bounds meshBounds;
-            Transform boundsTransform;
-
+            // Return bounds in MeshTransform's local space (not deformer's local space)
+            // The Editor tool expects bounds in MeshTransform coordinates
             if (_skinnedMeshRenderer != null)
             {
-                // For SkinnedMeshRenderer, use localBounds which is already in renderer's local space
-                // and accounts for rootBone positioning
-                meshBounds = _skinnedMeshRenderer.localBounds;
-                boundsTransform = _skinnedMeshRenderer.transform;
+                // For SkinnedMeshRenderer, use localBounds which accounts for rootBone positioning
+                // and is in the renderer's local space
+                return _skinnedMeshRenderer.localBounds;
             }
-            else if (_meshFilter != null)
+
+            if (_meshFilter != null)
             {
-                // For MeshFilter, use mesh asset bounds in GameObject's local space
-                meshBounds = _sourceMesh.bounds;
-                boundsTransform = _meshFilter.transform;
-            }
-            else
-            {
-                // Fallback to mesh asset bounds
+                // For MeshFilter, use mesh asset bounds which are in the GameObject's local space
                 return _sourceMesh.bounds;
             }
 
-            if (boundsTransform == transform)
-            {
-                // If the LatticeDeformer is on the same GameObject as the renderer,
-                // the bounds are already in the correct local space
-                return meshBounds;
-            }
-
-            // Transform bounds from renderer's local space -> world space -> deformer local space
-            // Step 1: Renderer local -> World
-            var boundsToWorld = boundsTransform.localToWorldMatrix;
-            var worldBounds = TransformBounds(boundsToWorld, meshBounds);
-
-            // Step 2: World -> Deformer local
-            var worldToLocal = transform.worldToLocalMatrix;
-            var localBounds = TransformBounds(worldToLocal, worldBounds);
-
-            return localBounds;
+            // Fallback to mesh asset bounds
+            return _sourceMesh.bounds;
         }
 
         private void EnsureSettings()
