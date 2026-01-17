@@ -346,20 +346,26 @@ namespace Net._32Ba.LatticeDeformationTool
             // Get the mesh asset bounds (in mesh local space)
             var meshBounds = _sourceMesh.bounds;
 
-            // Get the renderer's transform (where the mesh is rendered)
-            Transform meshTransform = MeshTransform;
+            // For SkinnedMeshRenderer, bounds are in rootBone's local space
+            // For MeshFilter, bounds are in the GameObject's local space
+            Transform boundsTransform = MeshTransform;
 
-            if (meshTransform == transform)
+            if (_skinnedMeshRenderer != null && _skinnedMeshRenderer.rootBone != null)
             {
-                // If the LatticeDeformer is on the same GameObject as the renderer,
+                boundsTransform = _skinnedMeshRenderer.rootBone;
+            }
+
+            if (boundsTransform == transform)
+            {
+                // If the LatticeDeformer is on the same GameObject/bone as the bounds reference,
                 // the mesh bounds are already in the correct local space
                 return meshBounds;
             }
 
-            // Transform mesh bounds from mesh local space -> world space -> deformer local space
-            // Step 1: Mesh local -> World
-            var meshToWorld = meshTransform.localToWorldMatrix;
-            var worldBounds = TransformBounds(meshToWorld, meshBounds);
+            // Transform mesh bounds from bounds space -> world space -> deformer local space
+            // Step 1: Bounds local -> World
+            var boundsToWorld = boundsTransform.localToWorldMatrix;
+            var worldBounds = TransformBounds(boundsToWorld, meshBounds);
 
             // Step 2: World -> Deformer local
             var worldToLocal = transform.worldToLocalMatrix;
