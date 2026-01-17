@@ -338,30 +338,34 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private Bounds GetRendererBoundsInLocalSpace()
         {
-            Renderer renderer = null;
-
-            if (_skinnedMeshRenderer != null)
+            if (_sourceMesh == null)
             {
-                renderer = _skinnedMeshRenderer;
-            }
-            else if (_meshFilter != null)
-            {
-                renderer = _meshFilter.GetComponent<MeshRenderer>();
+                return new Bounds(Vector3.zero, Vector3.one);
             }
 
-            if (renderer != null)
+            // Get the mesh asset bounds (in mesh local space)
+            var meshBounds = _sourceMesh.bounds;
+
+            // Get the renderer's transform (where the mesh is rendered)
+            Transform meshTransform = MeshTransform;
+
+            if (meshTransform == transform)
             {
-                // Get world space bounds from the renderer
-                var worldBounds = renderer.bounds;
-
-                // Transform to local space of this LatticeDeformer
-                var localBounds = TransformBounds(transform.worldToLocalMatrix, worldBounds);
-
-                return localBounds;
+                // If the LatticeDeformer is on the same GameObject as the renderer,
+                // the mesh bounds are already in the correct local space
+                return meshBounds;
             }
 
-            // Fallback to mesh asset bounds if no renderer is found
-            return _sourceMesh != null ? _sourceMesh.bounds : new Bounds(Vector3.zero, Vector3.one);
+            // Transform mesh bounds from mesh local space -> world space -> deformer local space
+            // Step 1: Mesh local -> World
+            var meshToWorld = meshTransform.localToWorldMatrix;
+            var worldBounds = TransformBounds(meshToWorld, meshBounds);
+
+            // Step 2: World -> Deformer local
+            var worldToLocal = transform.worldToLocalMatrix;
+            var localBounds = TransformBounds(worldToLocal, worldBounds);
+
+            return localBounds;
         }
 
         private void EnsureSettings()
