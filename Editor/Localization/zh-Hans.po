@@ -196,3 +196,9 @@ msgid "Scale"
 msgstr "缩放"
 msgid "Position/scale here only move the editing cage in the Scene view. They do not change the deform target\'s bounds or final mesh deformation."
 msgstr "此处设置的位置/缩放仅影响场景视图中的编辑笼，不会改变变形目标的包围盒或最终变形结果。"
+
+msgid "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."
+msgstr "如果权重粘到错误的表面，请尝试降低此值或法线角度阈值，让匹配更严格。"
+
+msgid "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."
+msgstr "如果权重粘到错误的表面，请尝试降低此值或最大转移距离，让匹配更严格。"

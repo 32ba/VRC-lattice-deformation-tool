@@ -185,3 +185,9 @@ msgid "Scale"
 msgstr "Scale"
 msgid "Position/scale here only move the editing cage in the Scene view. They do not change the deform target\'s bounds or final mesh deformation."
 msgstr "Position/scale here only move the editing cage in the Scene view. They do not change the deform target's bounds or final mesh deformation."
+
+msgid "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."
+msgstr "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."
+
+msgid "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."
+msgstr "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."

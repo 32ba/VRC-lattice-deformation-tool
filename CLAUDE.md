@@ -58,7 +58,8 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 ### ローカライゼーション
 
 - UI テキストは `Editor/Localization/LatticeLocalization.cs` で管理
-- 日本語と英語の両方をサポート
+- 日本語と英語、韓国語、中国語(簡体字/繁体字) に対応
+- 新しいテキスト追加時は必ず全言語での翻訳を追加すること
 
 ### パフォーマンス考慮事項
 

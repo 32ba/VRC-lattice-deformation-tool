@@ -196,3 +196,9 @@ msgid "Scale"
 msgstr "스케일"
 msgid "Position/scale here only move the editing cage in the Scene view. They do not change the deform target\'s bounds or final mesh deformation."
 msgstr "여기서 설정한 위치/스케일은 씬 뷰의 편집용 케이지만 이동합니다. 변형 대상 메시의 바운즈나 최종 변형에는 영향을 주지 않습니다."
+
+msgid "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."
+msgstr "가중치가 잘못된 표면에 붙는다면, 이 값이나 법선 각도 임계값을 낮춰 더 엄격하게 맞춰보세요."
+
+msgid "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."
+msgstr "가중치가 잘못된 표면에 붙는다면, 이 값이나 최대 전송 거리를 낮춰 더 엄격하게 맞춰보세요."

@@ -556,13 +556,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var maxDistProp = _weightTransferSettingsProp.FindPropertyRelative("maxTransferDistance");
             if (maxDistProp != null)
             {
-                EditorGUILayout.PropertyField(maxDistProp, LatticeLocalization.Content("Max Transfer Distance"));
+                EditorGUILayout.PropertyField(
+                    maxDistProp,
+                    LatticeLocalization.Content(
+                        "Max Transfer Distance",
+                        "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."));
             }
 
             var normalThresholdProp = _weightTransferSettingsProp.FindPropertyRelative("normalAngleThreshold");
             if (normalThresholdProp != null)
             {
-                EditorGUILayout.PropertyField(normalThresholdProp, LatticeLocalization.Content("Normal Angle Threshold"));
+                EditorGUILayout.PropertyField(
+                    normalThresholdProp,
+                    LatticeLocalization.Content(
+                        "Normal Angle Threshold",
+                        "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."));
             }
 
             EditorGUILayout.Space(4);

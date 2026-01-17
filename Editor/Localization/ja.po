@@ -210,8 +210,14 @@ msgstr "Stage 1: 初期転写"
 msgid "Max Transfer Distance"
 msgstr "最大転写距離"
 
+msgid "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."
+msgstr "誤った面に吸い付く場合は、この値か法線角度閾値を下げて、より厳密に一致させてください。"
+
 msgid "Normal Angle Threshold"
 msgstr "法線角度閾値"
+
+msgid "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."
+msgstr "誤った面に吸い付く場合は、この値か最大転写距離を下げて、より厳密に一致させてください。"
 
 msgid "Stage 2: Weight Inpainting"
 msgstr "Stage 2: ウェイト補間"

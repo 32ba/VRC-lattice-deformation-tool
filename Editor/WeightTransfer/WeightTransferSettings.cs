@@ -11,9 +11,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
     public class WeightTransferSettings
     {
         [Header("Stage 1: Initial Transfer")]
-        [Tooltip("Maximum distance for weight transfer. Vertices farther than this will be marked for inpainting.")]
+        [Tooltip("Maximum transfer distance as a fraction of the target mesh bounds diagonal (paper default: 0.05). May expand based on deformation magnitude.")]
         [Range(0.001f, 1.0f)]
-        public float maxTransferDistance = 0.1f;
+        public float maxTransferDistance = 0.05f;
 
         [Tooltip("Maximum angle difference between source and target normals (in degrees).")]
         [Range(0f, 180f)]

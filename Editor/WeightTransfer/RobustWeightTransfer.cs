@@ -11,6 +11,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
     /// </summary>
     public static class RobustWeightTransfer
     {
+        private const float DefaultMaxTransferDistanceRatio = 0.05f;
+        private const float DeformationPercentile = 0.95f;
+        private const float DeformationMargin = 1.2f;
+
         /// <summary>
         /// Result of weight transfer operation.
         /// </summary>
@@ -193,11 +197,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             // Build spatial query structure for source mesh
             using (var spatialQuery = new MeshSpatialQuery(sourceVertices, sourceTriangles, sourceNormals))
             {
-                float maxDistSq = settings.maxTransferDistance * settings.maxTransferDistance;
+                float maxTransferDistance = ResolveMaxTransferDistance(settings, sourceVertices, targetVertices);
+                float safeMaxTransferDistance = Mathf.Max(maxTransferDistance, 1e-6f);
+                float maxDistSq = safeMaxTransferDistance * safeMaxTransferDistance;
                 float normalThresholdCos = Mathf.Cos(settings.normalAngleThreshold * Mathf.Deg2Rad);
 
                 // Use batch processing for all vertices at once
-                var queryResults = spatialQuery.FindClosestPointsBatch(targetVertices, settings.maxTransferDistance);
+                var queryResults = spatialQuery.FindClosestPointsBatch(targetVertices, safeMaxTransferDistance);
 
                 for (int i = 0; i < targetVertices.Length; i++)
                 {
@@ -237,7 +243,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                         queryResult.barycentricCoords);
 
                     // Compute confidence based on distance and normal alignment
-                    float distConfidence = 1f - Mathf.Sqrt(distSq) / settings.maxTransferDistance;
+                    float distConfidence = 1f - Mathf.Sqrt(distSq) / safeMaxTransferDistance;
                     float normalDenominator = 1f - normalThresholdCos;
                     float normalConfidence = normalDenominator <= 1e-6f
                         ? 1f
@@ -363,6 +369,79 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 dict[boneIndex] += weight;
             else
                 dict[boneIndex] = weight;
+        }
+
+        private static float ResolveMaxTransferDistance(
+            WeightTransferSettings settings,
+            Vector3[] sourceVertices,
+            Vector3[] targetVertices)
+        {
+            float ratio = settings != null ? settings.maxTransferDistance : DefaultMaxTransferDistanceRatio;
+            if (ratio <= 0f)
+            {
+                ratio = DefaultMaxTransferDistanceRatio;
+            }
+
+            float boundsDiagonal = CalculateBoundsDiagonal(targetVertices);
+            float baseDistance = boundsDiagonal <= Mathf.Epsilon
+                ? ratio
+                : ratio * boundsDiagonal;
+
+            float deformationDistance = CalculatePercentileDisplacement(
+                sourceVertices,
+                targetVertices,
+                DeformationPercentile);
+            if (deformationDistance > Mathf.Epsilon)
+            {
+                baseDistance = Mathf.Max(baseDistance, deformationDistance * DeformationMargin);
+            }
+
+            return baseDistance;
+        }
+
+        private static float CalculateBoundsDiagonal(Vector3[] vertices)
+        {
+            if (vertices == null || vertices.Length == 0)
+            {
+                return 0f;
+            }
+
+            var bounds = new Bounds(vertices[0], Vector3.zero);
+            for (int i = 1; i < vertices.Length; i++)
+            {
+                bounds.Encapsulate(vertices[i]);
+            }
+
+            return bounds.size.magnitude;
+        }
+
+        private static float CalculatePercentileDisplacement(
+            Vector3[] sourceVertices,
+            Vector3[] targetVertices,
+            float percentile)
+        {
+            if (sourceVertices == null || targetVertices == null)
+            {
+                return 0f;
+            }
+
+            int count = Mathf.Min(sourceVertices.Length, targetVertices.Length);
+            if (count == 0)
+            {
+                return 0f;
+            }
+
+            var distances = new float[count];
+            for (int i = 0; i < count; i++)
+            {
+                distances[i] = (targetVertices[i] - sourceVertices[i]).magnitude;
+            }
+
+            Array.Sort(distances);
+
+            float clampedPercentile = Mathf.Clamp01(percentile);
+            int index = Mathf.Clamp(Mathf.FloorToInt((count - 1) * clampedPercentile), 0, count - 1);
+            return distances[index];
         }
     }
 }
