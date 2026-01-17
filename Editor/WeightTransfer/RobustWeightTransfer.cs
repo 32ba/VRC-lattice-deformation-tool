@@ -197,7 +197,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 float normalThresholdCos = Mathf.Cos(settings.normalAngleThreshold * Mathf.Deg2Rad);
 
                 // Use batch processing for all vertices at once
-                var queryResults = spatialQuery.FindClosestPointsBatch(targetVertices);
+                var queryResults = spatialQuery.FindClosestPointsBatch(targetVertices, settings.maxTransferDistance);
 
                 for (int i = 0; i < targetVertices.Length; i++)
                 {
@@ -238,7 +238,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
                     // Compute confidence based on distance and normal alignment
                     float distConfidence = 1f - Mathf.Sqrt(distSq) / settings.maxTransferDistance;
-                    float normalConfidence = (normalDot - normalThresholdCos) / (1f - normalThresholdCos);
+                    float normalDenominator = 1f - normalThresholdCos;
+                    float normalConfidence = normalDenominator <= 1e-6f
+                        ? 1f
+                        : (normalDot - normalThresholdCos) / normalDenominator;
                     outConfidence[i] = distConfidence * normalConfidence;
 
                     transferredCount++;

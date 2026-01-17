@@ -255,8 +255,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         /// <summary>
         /// Finds the closest point on the mesh surface to the given position.
         /// </summary>
-        public QueryResult FindClosestPoint(Vector3 queryPoint)
+        public QueryResult FindClosestPoint(Vector3 queryPoint, float maxSearchDistance = -1f)
         {
+            int maxRadius = GetMaxSearchRadius(maxSearchDistance);
             var result = new QueryResult
             {
                 found = false,
@@ -266,7 +267,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             var queryCell = WorldToCell(queryPoint);
 
             // Search in expanding radius
-            for (int radius = 0; radius <= 8; radius++)
+            for (int radius = 0; radius <= maxRadius; radius++)
             {
                 bool foundInRadius = false;
 
@@ -432,15 +433,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         /// <summary>
         /// Finds closest points for multiple query points using parallel Burst jobs.
         /// </summary>
-        public QueryResult[] FindClosestPointsBatch(Vector3[] queryPoints)
+        public QueryResult[] FindClosestPointsBatch(Vector3[] queryPoints, float maxSearchDistance = -1f)
         {
+            int maxRadius = GetMaxSearchRadius(maxSearchDistance);
             // For small batches, use sequential processing
             if (queryPoints.Length < 100)
             {
                 var results = new QueryResult[queryPoints.Length];
                 for (int i = 0; i < queryPoints.Length; i++)
                 {
-                    results[i] = FindClosestPoint(queryPoints[i]);
+                    results[i] = FindClosestPoint(queryPoints[i], maxSearchDistance);
                 }
                 return results;
             }
@@ -470,6 +472,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 gridDimensions = _gridDimensions,
                 boundsMin = new float3(_boundsMin.x, _boundsMin.y, _boundsMin.z),
                 cellSize = _cellSize,
+                maxRadius = maxRadius,
                 results = nativeResults
             };
 
@@ -503,6 +506,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             public int3 gridDimensions;
             public float3 boundsMin;
             public float cellSize;
+            public int maxRadius;
 
             [WriteOnly] public NativeArray<QueryResultNative> results;
 
@@ -518,7 +522,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 int3 queryCell = WorldToCell(queryPoint);
 
                 // Search in expanding radius
-                for (int radius = 0; radius <= 8; radius++)
+                for (int radius = 0; radius <= maxRadius; radius++)
                 {
                     bool foundInRadius = false;
 
@@ -707,6 +711,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 if (_gridTriangleIndices.IsCreated) _gridTriangleIndices.Dispose();
                 _nativeDataInitialized = false;
             }
+        }
+
+        private int GetMaxSearchRadius(float maxSearchDistance)
+        {
+            if (maxSearchDistance <= 0f)
+            {
+                return 8;
+            }
+
+            return Mathf.Max(1, Mathf.CeilToInt(maxSearchDistance / _cellSize));
         }
     }
 }
