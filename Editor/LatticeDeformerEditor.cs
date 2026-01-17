@@ -28,7 +28,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SerializedProperty _alignAutoInitializedProp;
         private SerializedProperty _manualOffsetProp;
         private SerializedProperty _manualScaleProp;
-        private bool _manualScaleUniform = true;
         private Vector3 _uniformScaleBuffer = Vector3.one;
         private static bool s_linkManualScale = true;
         private static GUIContent s_linkOn;
@@ -130,35 +129,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 EditorGUILayout.PropertyField(_recalcTangentsProp);
                 EditorGUILayout.PropertyField(_recalcBoundsProp);
 
-                // Bone weight recalculation (only for SkinnedMeshRenderer)
-                bool hasSkinnedRenderer = _skinnedRendererProp != null &&
-                    !_skinnedRendererProp.hasMultipleDifferentValues &&
-                    _skinnedRendererProp.objectReferenceValue != null;
-
-                using (new EditorGUI.DisabledScope(!hasSkinnedRenderer))
-                {
-                    EditorGUILayout.PropertyField(_recalcBoneWeightsProp, LatticeLocalization.Content("Recalculate Bone Weights"));
-                }
-
-                if (!hasSkinnedRenderer && _recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue)
-                {
-                    EditorGUILayout.HelpBox(LatticeLocalization.Tr("Bone weight recalculation requires a SkinnedMeshRenderer."), MessageType.Info);
-                }
-
-                // Weight transfer settings (when bone weight recalculation is enabled)
-                if (_recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue && hasSkinnedRenderer)
-                {
-                    EditorGUI.indentLevel++;
-                    s_showWeightTransferSettings = EditorGUILayout.Foldout(s_showWeightTransferSettings, LatticeLocalization.Tr("Weight Transfer Settings"), true);
-                    if (s_showWeightTransferSettings && _weightTransferSettingsProp != null)
-                    {
-                        EditorGUI.indentLevel++;
-                        DrawWeightTransferSettings();
-                        EditorGUI.indentLevel--;
-                    }
-                    EditorGUI.indentLevel--;
-                }
-
                 EditorGUILayout.Space();
                 bool previewEnabled = LatticeDeformerPreviewFilter.PreviewToggleEnabled;
                 string previewLabel = previewEnabled
@@ -172,6 +142,35 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 EditorGUI.indentLevel--;
             }
             EditorGUILayout.EndFoldoutHeaderGroup();
+
+            // Bone weight recalculation (only for SkinnedMeshRenderer)
+            bool hasSkinnedRenderer = _skinnedRendererProp != null &&
+                !_skinnedRendererProp.hasMultipleDifferentValues &&
+                _skinnedRendererProp.objectReferenceValue != null;
+
+            using (new EditorGUI.DisabledScope(!hasSkinnedRenderer))
+            {
+                EditorGUILayout.PropertyField(_recalcBoneWeightsProp, LatticeLocalization.Content("Recalculate Bone Weights"));
+            }
+
+            if (!hasSkinnedRenderer && _recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue)
+            {
+                EditorGUILayout.HelpBox(LatticeLocalization.Tr("Bone weight recalculation requires a SkinnedMeshRenderer."), MessageType.Info);
+            }
+
+            // Weight transfer settings (when bone weight recalculation is enabled)
+            if (_recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue && hasSkinnedRenderer)
+            {
+                EditorGUI.indentLevel++;
+                s_showWeightTransferSettings = EditorGUILayout.Foldout(s_showWeightTransferSettings, LatticeLocalization.Tr("Weight Transfer Settings"), true);
+                if (s_showWeightTransferSettings && _weightTransferSettingsProp != null)
+                {
+                    EditorGUI.indentLevel++;
+                    DrawWeightTransferSettings();
+                    EditorGUI.indentLevel--;
+                }
+                EditorGUI.indentLevel--;
+            }
 
             bool modified = serializedObject.ApplyModifiedProperties();
             if (modified)
