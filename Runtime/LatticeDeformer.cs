@@ -32,7 +32,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, HideInInspector] private Mesh _serializedSourceMesh;
 
         // Preview alignment (per-instance)
-        [SerializeField, HideInInspector] private LatticeAlignMode _alignMode = LatticeAlignMode.Mode3_BoundsRemap;
+        [SerializeField, HideInInspector] private LatticeAlignMode _alignMode = LatticeAlignMode.Mode1_TransformOnly;
         [SerializeField, HideInInspector] private float _centerClampMulXY = 0f;
         [SerializeField, HideInInspector] private float _centerClampMinXY = 0f;
         [SerializeField, HideInInspector] private float _centerClampMulZ = 0f;
