@@ -96,7 +96,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
             var targetVertices = targetMesh.vertices;
             var targetNormals = targetMesh.normals;
-            var targetTriangles = targetMesh.triangles;
+            var targetTriangles = GetAllTriangles(targetMesh);
             int vertexCount = targetVertices.Length;
 
             var result = new TransferResult
@@ -107,6 +107,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 inpaintedCount = 0,
                 success = true
             };
+
+            if (sourceWeights.Length == vertexCount)
+            {
+                Array.Copy(sourceWeights, result.weights, vertexCount);
+            }
 
             // Confidence mask: 1.0 = transferred, 0.0 = needs inpainting
             var confidenceMask = new float[vertexCount];
@@ -128,7 +133,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             sw.Restart();
 
             // Stage 2: Weight inpainting (if enabled and needed)
-            if (settings.enableInpainting && result.transferredCount < vertexCount)
+            if (settings.enableInpainting && result.transferredCount < vertexCount && targetTriangles.Length > 0)
             {
                 Stage2Inpainting(
                     targetVertices,
@@ -153,6 +158,37 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                         result.weights[i] = new BoneWeight();
                     }
                 }
+            }
+
+            int fallbackCount = 0;
+            if (sourceWeights.Length == vertexCount)
+            {
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    var bw = result.weights[i];
+                    if (bw.weight0 <= 0f && bw.weight1 <= 0f && bw.weight2 <= 0f && bw.weight3 <= 0f)
+                    {
+                        result.weights[i] = sourceWeights[i];
+                        fallbackCount++;
+                    }
+                }
+            }
+            else
+            {
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    var bw = result.weights[i];
+                    if (bw.weight0 <= 0f && bw.weight1 <= 0f && bw.weight2 <= 0f && bw.weight3 <= 0f)
+                    {
+                        result.weights[i] = new BoneWeight { boneIndex0 = 0, weight0 = 1f };
+                        fallbackCount++;
+                    }
+                }
+            }
+
+            if (fallbackCount > 0)
+            {
+                Debug.LogWarning($"[WeightTransfer] {fallbackCount} vertices had zero weights; fell back to safe defaults.");
             }
 
             return result;
@@ -192,7 +228,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         {
             var sourceVertices = sourceMesh.vertices;
             var sourceNormals = sourceMesh.normals;
-            var sourceTriangles = sourceMesh.triangles;
+            var sourceTriangles = GetAllTriangles(sourceMesh);
 
             // Build spatial query structure for source mesh
             using (var spatialQuery = new MeshSpatialQuery(sourceVertices, sourceTriangles, sourceNormals))
@@ -253,6 +289,42 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                     transferredCount++;
                 }
             }
+        }
+
+        private static int[] GetAllTriangles(Mesh mesh)
+        {
+            if (mesh == null)
+            {
+                return Array.Empty<int>();
+            }
+
+            int subMeshCount = mesh.subMeshCount;
+            if (subMeshCount <= 1)
+            {
+                return mesh.triangles ?? Array.Empty<int>();
+            }
+
+            var triangles = new System.Collections.Generic.List<int>();
+            for (int i = 0; i < subMeshCount; i++)
+            {
+                if (mesh.GetTopology(i) != MeshTopology.Triangles)
+                {
+                    continue;
+                }
+
+                var sub = mesh.GetTriangles(i);
+                if (sub != null && sub.Length > 0)
+                {
+                    triangles.AddRange(sub);
+                }
+            }
+
+            if (triangles.Count > 0)
+            {
+                return triangles.ToArray();
+            }
+
+            return mesh.triangles ?? Array.Empty<int>();
         }
 
         /// <summary>
