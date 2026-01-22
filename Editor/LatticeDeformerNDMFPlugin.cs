@@ -58,6 +58,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var skinnedMesh = deformer.GetComponent<SkinnedMeshRenderer>();
             var meshFilter = deformer.GetComponent<MeshFilter>();
 
+            var bakedMesh = deformer.Deform(false) ?? deformer.RuntimeMesh;
+            if (bakedMesh == null)
+            {
+                return;
+            }
+
             var sourceMesh = deformer.SourceMesh;
             if (sourceMesh == null)
             {
@@ -72,12 +78,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             if (sourceMesh == null)
-            {
-                return;
-            }
-
-            var bakedMesh = deformer.Deform(false) ?? deformer.RuntimeMesh;
-            if (bakedMesh == null)
             {
                 return;
             }
