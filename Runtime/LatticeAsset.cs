@@ -17,6 +17,7 @@ namespace Net._32Ba.LatticeDeformationTool
     public class LatticeAsset : ISerializationCallbackReceiver
     {
         private const int k_MinAxisResolution = 2;
+        private const int k_MaxRelaxIterations = 16;
 
         [SerializeField]
         private Vector3Int _gridSize = new Vector3Int(3, 3, 3);
@@ -50,8 +51,6 @@ namespace Net._32Ba.LatticeDeformationTool
             get => _interpolation;
             set => _interpolation = value;
         }
-
-        public bool UseJobsAndBurst => true;
 
         public int ControlPointCount => _gridSize.x * _gridSize.y * _gridSize.z;
 
@@ -186,7 +185,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            iterations = Mathf.Min(iterations, 16);
+            iterations = Mathf.Min(iterations, k_MaxRelaxIterations);
 
             var working = _controlPointsLocal;
             var buffer = new Vector3[count];

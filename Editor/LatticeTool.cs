@@ -38,6 +38,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static PivotRotation? s_previousPivotRotation;
         private static Vector3Int s_lastGridSize = Vector3Int.one;
 
+        // Constants for bounds comparison and validation
+        private const float k_BoundsTolerance = 0.02f;
+        private const float k_MaxVolumeRatio = 4f;
+        private const float k_HandleSizeMultiplier = 0.08f;
+
         static LatticeDeformerTool()
         {
             LatticeLocalization.LanguageChanged += OnLanguageChanged;
@@ -257,12 +262,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var sourceBounds = settings.LocalBounds;
             var proxyBoundsMesh = useProxy ? LatticePreviewUtility.GetMeshLocalBounds(proxyRenderer) : sourceBounds;
             var proxyBoundsRenderer = useProxy ? LatticePreviewUtility.GetRendererLocalBounds(proxyRenderer) : sourceBounds;
-            var proxyBounds = useProxy ? ChooseLargerBounds(proxyBoundsMesh, proxyBoundsRenderer) : sourceBounds;
+            var proxyBounds = useProxy ? LatticeBoundsUtility.Encapsulate(proxyBoundsMesh, proxyBoundsRenderer) : sourceBounds;
             var proxyBoundsUnscaled = useProxy
-                ? DivBoundsByScale(proxyBounds, proxyTransform != null ? proxyTransform.lossyScale : Vector3.one)
+                ? LatticeBoundsUtility.DivideByScale(proxyBounds, proxyTransform != null ? proxyTransform.lossyScale : Vector3.one)
                 : proxyBounds;
-            const float k_BoundsTolerance = 0.02f;
-            const float k_MaxVolumeRatio = 4f; // if proxy bounds are >4x volume, treat as unreliable
             var proxyVolume = proxyBoundsUnscaled.size.x * proxyBoundsUnscaled.size.y * proxyBoundsUnscaled.size.z;
             var sourceVolume = sourceBounds.size.x * sourceBounds.size.y * sourceBounds.size.z;
             bool proxyTooBig = proxyVolume > 0f && sourceVolume > 0f && (proxyVolume / sourceVolume) > k_MaxVolumeRatio;
@@ -278,7 +281,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 mode == LatticeDeformer.LatticeAlignMode.Mode3_BoundsRemap &&
                 !proxyTooBig &&
                 !hasManualAdjust &&
-                !AreBoundsApproximatelyEqual(sourceBounds, proxyBoundsUnscaled, k_BoundsTolerance);
+                !LatticeBoundsUtility.AreApproximatelyEqual(sourceBounds, proxyBoundsUnscaled, k_BoundsTolerance);
 
             var needBoundsMap = useBoundsRemap;
 
@@ -350,7 +353,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     {
                         int index = Index(x, y, z);
                         var local = settings.GetControlPointLocal(index);
-                        var mappedLocal = (useProxy && needBoundsMap) ? MapPointBetweenBounds(local, sourceBounds, proxyBoundsUnscaled) : local;
+                        var mappedLocal = (useProxy && needBoundsMap) ? LatticeBoundsUtility.MapPointBetweenBounds(local, sourceBounds, proxyBoundsUnscaled) : local;
                         var proxyLocal = sourceToProxy.MultiplyPoint3x4(mappedLocal) + rootOffsetProxyLocal + centerOffsetProxyLocal;
                         proxyLocal = Vector3.Scale(proxyLocal, LatticePreviewUtility.GetManualScaleProxy(deformer));
 
@@ -420,7 +423,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
 
                 var worldPosition = worldPositions[index];
-                float handleSize = HandleUtility.GetHandleSize(worldPosition) * 0.08f;
+                float handleSize = HandleUtility.GetHandleSize(worldPosition) * k_HandleSizeMultiplier;
 
                 bool isSelected = s_selectedControls.Contains(index);
                 bool isMirrorPartner = false;
@@ -516,7 +519,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                 {
                                     var proxyLocalAdjusted = proxyLocal - centerOffsetProxyLocal;
                                     var mappedSource = needBoundsMap
-                                        ? MapPointBetweenBounds(proxyLocalAdjusted, proxyBoundsUnscaled, sourceBounds)
+                                        ? LatticeBoundsUtility.MapPointBetweenBounds(proxyLocalAdjusted, proxyBoundsUnscaled, sourceBounds)
                                         : proxyLocalAdjusted;
                                     mappedSource -= rootOffsetProxyLocal;
                                     storedLocal = proxyToSource.MultiplyPoint3x4(mappedSource);
@@ -541,7 +544,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                     if (useProxy)
                                     {
                                         deltaSource = needBoundsMap
-                                            ? MapDeltaBetweenBounds(deltaProxy, proxyBoundsUnscaled, sourceBounds)
+                                            ? LatticeBoundsUtility.MapDeltaBetweenBounds(deltaProxy, proxyBoundsUnscaled, sourceBounds)
                                             : deltaProxy;
                                         // Remove root offset contribution before mapping back
                                         deltaSource = proxyToSource.MultiplyVector(deltaSource);
@@ -701,65 +704,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return symmetryIndex != index;
         }
 
-        private static Vector3 MapPointBetweenBounds(Vector3 point, Bounds from, Bounds to)
-        {
-            var fromSize = from.size;
-            var toSize = to.size;
-
-            float nx = fromSize.x != 0f ? (point.x - from.min.x) / fromSize.x : 0f;
-            float ny = fromSize.y != 0f ? (point.y - from.min.y) / fromSize.y : 0f;
-            float nz = fromSize.z != 0f ? (point.z - from.min.z) / fromSize.z : 0f;
-
-            return new Vector3(
-                to.min.x + nx * toSize.x,
-                to.min.y + ny * toSize.y,
-                to.min.z + nz * toSize.z);
-        }
-
-        private static Vector3 MapDeltaBetweenBounds(Vector3 delta, Bounds from, Bounds to)
-        {
-            var fromSize = from.size;
-            var toSize = to.size;
-
-            float sx = fromSize.x != 0f ? toSize.x / fromSize.x : 0f;
-            float sy = fromSize.y != 0f ? toSize.y / fromSize.y : 0f;
-            float sz = fromSize.z != 0f ? toSize.z / fromSize.z : 0f;
-
-            return new Vector3(delta.x * sx, delta.y * sy, delta.z * sz);
-        }
-
-        private static Bounds DivBoundsByScale(Bounds b, Vector3 scale)
-        {
-            var center = new Vector3(
-                scale.x != 0f ? b.center.x / scale.x : b.center.x,
-                scale.y != 0f ? b.center.y / scale.y : b.center.y,
-                scale.z != 0f ? b.center.z / scale.z : b.center.z);
-
-            var size = new Vector3(
-                scale.x != 0f ? b.size.x / Mathf.Abs(scale.x) : b.size.x,
-                scale.y != 0f ? b.size.y / Mathf.Abs(scale.y) : b.size.y,
-                scale.z != 0f ? b.size.z / Mathf.Abs(scale.z) : b.size.z);
-
-            return new Bounds(center, size);
-        }
-
-        private static bool AreBoundsApproximatelyEqual(Bounds a, Bounds b, float relativeTolerance)
-        {
-            float tolX = Mathf.Abs(a.size.x) * relativeTolerance + 1e-5f;
-            float tolY = Mathf.Abs(a.size.y) * relativeTolerance + 1e-5f;
-            float tolZ = Mathf.Abs(a.size.z) * relativeTolerance + 1e-5f;
-
-            return Mathf.Abs(a.size.x - b.size.x) <= tolX &&
-                   Mathf.Abs(a.size.y - b.size.y) <= tolY &&
-                   Mathf.Abs(a.size.z - b.size.z) <= tolZ;
-        }
-
-        private static Bounds ChooseLargerBounds(Bounds a, Bounds b)
-        {
-            var min = Vector3.Min(a.min, b.min);
-            var max = Vector3.Max(a.max, b.max);
-            return new Bounds((min + max) * 0.5f, max - min);
-        }
 
         private static string FormatBounds(Bounds b)
         {
