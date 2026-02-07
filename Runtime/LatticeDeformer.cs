@@ -20,6 +20,11 @@ namespace Net._32Ba.LatticeDeformationTool
             Mode3_BoundsRemap = 2
         }
 
+        /// <summary>
+        /// Batch size for Unity Jobs parallel processing.
+        /// </summary>
+        private const int k_JobBatchSize = 64;
+
         [SerializeField] private LatticeAsset _settings = new LatticeAsset();
         [SerializeField] private SkinnedMeshRenderer _skinnedMeshRenderer;
         [SerializeField] private MeshFilter _meshFilter;
@@ -518,7 +523,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 Result = outputNative
             };
 
-            job.Schedule(entries.Length, 64).Complete();
+            job.Schedule(entries.Length, k_JobBatchSize).Complete();
 
             var vertices = new Vector3[entries.Length];
             outputNative.CopyToManaged(vertices);
@@ -546,7 +551,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 Entries = entriesNative
             };
 
-            job.Schedule(restVertices.Length, 64).Complete();
+            job.Schedule(restVertices.Length, k_JobBatchSize).Complete();
 
             var entries = new LatticeCacheEntry[entriesNative.Length];
             entriesNative.CopyToManaged(entries);
@@ -608,95 +613,6 @@ namespace Net._32Ba.LatticeDeformationTool
 
             _cache.Populate(gridSize, bounds, settings.Interpolation, vertexCount, entries, restVertices);
             return true;
-        }
-
-        private static Vector3 CalculateNormalizedCoordinate(Bounds bounds, Vector3 point)
-        {
-            var size = bounds.size;
-            var min = bounds.min;
-
-            float nx = size.x > Mathf.Epsilon ? (point.x - min.x) / size.x : 0f;
-            float ny = size.y > Mathf.Epsilon ? (point.y - min.y) / size.y : 0f;
-            float nz = size.z > Mathf.Epsilon ? (point.z - min.z) / size.z : 0f;
-
-            return new Vector3(Mathf.Clamp01(nx), Mathf.Clamp01(ny), Mathf.Clamp01(nz));
-        }
-
-        private static LatticeCacheEntry BuildTrilinearEntry(Vector3Int gridSize, Vector3 barycentric)
-        {
-            var grid = new int3(gridSize.x, gridSize.y, gridSize.z);
-
-            float3 scaled = new float3(
-                math.clamp(barycentric.x * (grid.x - 1), 0f, grid.x - 1),
-                math.clamp(barycentric.y * (grid.y - 1), 0f, grid.y - 1),
-                math.clamp(barycentric.z * (grid.z - 1), 0f, grid.z - 1));
-
-            int ix = math.min((int)math.floor(scaled.x), grid.x - 2);
-            int iy = math.min((int)math.floor(scaled.y), grid.y - 2);
-            int iz = math.min((int)math.floor(scaled.z), grid.z - 2);
-
-            float tx = math.saturate(scaled.x - ix);
-            float ty = math.saturate(scaled.y - iy);
-            float tz = math.saturate(scaled.z - iz);
-
-            int nx = grid.x;
-            int ny = grid.y;
-
-            int Index(int x, int y, int z) => x + y * nx + z * nx * ny;
-
-            int c000 = Index(ix, iy, iz);
-            int c100 = Index(ix + 1, iy, iz);
-            int c010 = Index(ix, iy + 1, iz);
-            int c110 = Index(ix + 1, iy + 1, iz);
-            int c001 = Index(ix, iy, iz + 1);
-            int c101 = Index(ix + 1, iy, iz + 1);
-            int c011 = Index(ix, iy + 1, iz + 1);
-            int c111 = Index(ix + 1, iy + 1, iz + 1);
-
-            float tx1 = 1f - tx;
-            float ty1 = 1f - ty;
-            float tz1 = 1f - tz;
-
-            float w000 = tx1 * ty1 * tz1;
-            float w100 = tx * ty1 * tz1;
-            float w010 = tx1 * ty * tz1;
-            float w110 = tx * ty * tz1;
-            float w001 = tx1 * ty1 * tz;
-            float w101 = tx * ty1 * tz;
-            float w011 = tx1 * ty * tz;
-            float w111 = tx * ty * tz;
-
-            return new LatticeCacheEntry
-            {
-                Corner0 = c000,
-                Corner1 = c100,
-                Corner2 = c010,
-                Corner3 = c110,
-                Corner4 = c001,
-                Corner5 = c101,
-                Corner6 = c011,
-                Corner7 = c111,
-                Weights0 = new float4(w000, w100, w010, w110),
-                Weights1 = new float4(w001, w101, w011, w111),
-                Barycentric = new float3(tx, ty, tz)
-            };
-        }
-
-        private static Bounds TransformBounds(Matrix4x4 matrix, Bounds bounds)
-        {
-            var center = matrix.MultiplyPoint3x4(bounds.center);
-            var extents = bounds.extents;
-
-            var axisX = matrix.MultiplyVector(new Vector3(extents.x, 0f, 0f));
-            var axisY = matrix.MultiplyVector(new Vector3(0f, extents.y, 0f));
-            var axisZ = matrix.MultiplyVector(new Vector3(0f, 0f, extents.z));
-
-            var halfSize = new Vector3(
-                Mathf.Abs(axisX.x) + Mathf.Abs(axisY.x) + Mathf.Abs(axisZ.x),
-                Mathf.Abs(axisX.y) + Mathf.Abs(axisY.y) + Mathf.Abs(axisZ.y),
-                Mathf.Abs(axisX.z) + Mathf.Abs(axisY.z) + Mathf.Abs(axisZ.z));
-
-            return new Bounds(center, halfSize * 2f);
         }
 
         [BurstCompile]
