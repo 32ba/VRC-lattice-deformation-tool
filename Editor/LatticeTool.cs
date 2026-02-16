@@ -268,11 +268,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             bool proxyTooBig = proxyVolume > 0f && sourceVolume > 0f && (proxyVolume / sourceVolume) > k_MaxVolumeRatio;
 
             var mode = LatticePreviewUtility.GetAlignMode(deformer);
+            // Bounds remap is applied only when user has not provided manual offset/scale (to avoid double application).
+            var manualOffset = LatticePreviewUtility.GetManualOffsetProxy(deformer);
+            var manualScale = LatticePreviewUtility.GetManualScaleProxy(deformer);
+            bool hasManualAdjust = manualOffset != Vector3.zero || manualScale != Vector3.one;
 
             bool useBoundsRemap =
                 useProxy &&
                 mode == LatticeDeformer.LatticeAlignMode.Mode3_BoundsRemap &&
                 !proxyTooBig &&
+                !hasManualAdjust &&
                 !AreBoundsApproximatelyEqual(sourceBounds, proxyBoundsUnscaled, k_BoundsTolerance);
 
             var needBoundsMap = useBoundsRemap;
@@ -306,6 +311,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     Mathf.Clamp(centerOffsetProxyLocal.y, -clampVec.y, clampVec.y),
                     Mathf.Clamp(centerOffsetProxyLocal.z, -clampVec.z, clampVec.z));
             }
+
+            // Apply manual offset (proxy local)
+            centerOffsetProxyLocal += manualOffset;
 
             // Root bone/world offset (affects Skinned meshes when armature position differs)
             Vector3 rootOffsetWorld = Vector3.zero;
@@ -352,7 +360,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (LatticePreviewUtility.DebugAlignLogs && useProxy)
             {
                 LatticePreviewUtility.LogAlign("Bounds",
-                    $"mode={mode}, sourceBounds={FormatBounds(sourceBounds)}, proxyBounds={FormatBounds(proxyBounds)}, proxyBoundsUnscaled={FormatBounds(proxyBoundsUnscaled)}, needBoundsMap={needBoundsMap}, proxyTooBig={proxyTooBig}, srcScale={(sourceTransform != null ? sourceTransform.lossyScale : Vector3.one)}, proxyScale={(proxyTransform != null ? proxyTransform.lossyScale : Vector3.one)}, rootOffsetWorld={rootOffsetWorld}, centerOffsetProxyLocal=({centerOffsetProxyLocal.x:F4},{centerOffsetProxyLocal.y:F4},{centerOffsetProxyLocal.z:F4})");
+                    $"mode={mode}, sourceBounds={FormatBounds(sourceBounds)}, proxyBounds={FormatBounds(proxyBounds)}, proxyBoundsUnscaled={FormatBounds(proxyBoundsUnscaled)}, needBoundsMap={needBoundsMap}, proxyTooBig={proxyTooBig}, hasManualAdjust={hasManualAdjust}, srcScale={(sourceTransform != null ? sourceTransform.lossyScale : Vector3.one)}, proxyScale={(proxyTransform != null ? proxyTransform.lossyScale : Vector3.one)}, rootOffsetWorld={rootOffsetWorld}, centerOffsetProxyLocal=({centerOffsetProxyLocal.x:F4},{centerOffsetProxyLocal.y:F4},{centerOffsetProxyLocal.z:F4})");
             }
             var gridSize = settings.GridSize;
             int nx = Mathf.Max(1, gridSize.x);
@@ -374,6 +382,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         var correctedLocal = hasSkinningCorrection ? skinningLocal.MultiplyPoint3x4(local) : local;
                         var mappedLocal = (useProxy && needBoundsMap) ? MapPointBetweenBounds(correctedLocal, sourceBounds, proxyBoundsUnscaled) : correctedLocal;
                         var proxyLocal = sourceToProxy.MultiplyPoint3x4(mappedLocal) + rootOffsetProxyLocal + centerOffsetProxyLocal;
+                        proxyLocal = Vector3.Scale(proxyLocal, LatticePreviewUtility.GetManualScaleProxy(deformer));
 
                         worldPositions[index] = proxyTransform != null ? proxyTransform.TransformPoint(proxyLocal) : proxyLocal;
                     }
@@ -385,7 +394,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (MirrorEditing)
             {
-                // Compute mirror plane bounds with skinning correction and center offset
+                // Include manual scale and offsets in mirror plane bounds
                 var mirrorBounds = (useProxy && needBoundsMap) ? proxyBoundsUnscaled : sourceBounds;
                 if (hasSkinningCorrection && !(useProxy && needBoundsMap))
                 {
@@ -395,6 +404,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         mirrorBounds.size.y * skinningLocal.GetColumn(1).magnitude,
                         mirrorBounds.size.z * skinningLocal.GetColumn(2).magnitude);
                 }
+                var mirrorScale = LatticePreviewUtility.GetManualScaleProxy(deformer);
+                mirrorBounds.size = Vector3.Scale(mirrorBounds.size, mirrorScale);
                 mirrorBounds.center += centerOffsetProxyLocal;
                 DrawMirrorPlane(mirrorBounds, proxyTransform);
             }
@@ -531,6 +542,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                 var proxyLocal = proxyTransform != null
                                 ? proxyTransform.InverseTransformPoint(newWorldPosition)
                                 : newWorldPosition;
+                                // remove manual scale before mapping back
+                                var scaleProxy = LatticePreviewUtility.GetManualScaleProxy(deformer);
+                                proxyLocal = new Vector3(
+                                    scaleProxy.x != 0f ? proxyLocal.x / scaleProxy.x : proxyLocal.x,
+                                    scaleProxy.y != 0f ? proxyLocal.y / scaleProxy.y : proxyLocal.y,
+                                    scaleProxy.z != 0f ? proxyLocal.z / scaleProxy.z : proxyLocal.z);
 
                                 Vector3 storedLocal;
                                 if (useProxy)
@@ -855,6 +872,40 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // skinningLocal transforms from source-local to corrected source-local
             // so that: sourceToWorld * skinningLocal * point ≈ meshToWorldViaBone * point
             return worldToSource * meshToWorldViaBone;
+        }
+
+        private static void AutoInitAlignment(LatticeDeformer deformer, Bounds sourceBounds, Vector3 centerOffsetProxyLocal, bool computeOffset, bool computeScale)
+        {
+            if (deformer == null)
+            {
+                return;
+            }
+
+            const float eps = 1e-4f;
+            var ext = sourceBounds.extents;
+            if (computeOffset)
+            {
+                deformer.ManualOffsetProxy = centerOffsetProxyLocal;
+                deformer.AllowCenterOffsetWhenBoundsSkipped = true;
+            }
+
+            if (computeScale)
+            {
+                // Compute scale ratio from proxy vs source bounds sizes if available
+                // Here we reuse centerOffsetProxyLocal magnitude relative to bounds as heuristic fallback
+                float absX = Mathf.Abs(centerOffsetProxyLocal.x);
+                float absY = Mathf.Abs(centerOffsetProxyLocal.y);
+                float absZ = Mathf.Abs(centerOffsetProxyLocal.z);
+
+                float sx = ext.x > eps ? (absX / (ext.x + eps) + 1f) : 1f;
+                float sy = ext.y > eps ? (absY / (ext.y + eps) + 1f) : 1f;
+                float sz = ext.z > eps ? (absZ / (ext.z + eps) + 1f) : 1f;
+
+                deformer.ManualScaleProxy = new Vector3(sx, sy, sz);
+            }
+
+            deformer.AlignAutoInitialized = true;
+            EditorUtility.SetDirty(deformer);
         }
 
         private static Vector3 MirrorPointAxis(Vector3 localPoint, Bounds bounds, MirrorAxis axis)
