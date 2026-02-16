@@ -325,6 +325,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
             var rootOffsetProxyLocal = useProxy ? worldToProxy.MultiplyVector(rootOffsetWorld) : Vector3.zero;
 
+            // Skinning offset: compensate for discrepancy between renderer Transform position
+            // and actual bone+bindPose rendering position (e.g. after Modular Avatar position reset).
+            // The offset is always computed from the source renderer's bones/bindPoses, then converted
+            // to the display-local space (proxy-local when useProxy, source-local otherwise).
+            Vector3 skinningOffsetLocal = Vector3.zero;
+            if (srcRenderer is SkinnedMeshRenderer srcSkinnedForOffset)
+            {
+                var worldToDisplayLocal = useProxy ? worldToProxy : worldToSource;
+                skinningOffsetLocal = ComputeSkinningOffsetLocal(
+                    srcSkinnedForOffset, sourceBounds, sourceToWorld, worldToDisplayLocal);
+            }
+
+            if (LatticePreviewUtility.DebugAlignLogs && skinningOffsetLocal != Vector3.zero)
+            {
+                LatticePreviewUtility.LogAlign("SkinningOffset",
+                    $"useProxy={useProxy}, skinningOffsetLocal=({skinningOffsetLocal.x:F4},{skinningOffsetLocal.y:F4},{skinningOffsetLocal.z:F4})");
+            }
+
             // Auto-initialize clamp values once per instance based on observed offset
             // Auto alignment is now manual (via button); no automatic recalculation here.
 
@@ -351,7 +369,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         int index = Index(x, y, z);
                         var local = settings.GetControlPointLocal(index);
                         var mappedLocal = (useProxy && needBoundsMap) ? MapPointBetweenBounds(local, sourceBounds, proxyBoundsUnscaled) : local;
-                        var proxyLocal = sourceToProxy.MultiplyPoint3x4(mappedLocal) + rootOffsetProxyLocal + centerOffsetProxyLocal;
+                        var proxyLocal = sourceToProxy.MultiplyPoint3x4(mappedLocal) + rootOffsetProxyLocal + centerOffsetProxyLocal + skinningOffsetLocal;
                         proxyLocal = Vector3.Scale(proxyLocal, LatticePreviewUtility.GetManualScaleProxy(deformer));
 
                         worldPositions[index] = proxyTransform != null ? proxyTransform.TransformPoint(proxyLocal) : proxyLocal;
@@ -368,7 +386,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var mirrorBounds = (useProxy && needBoundsMap) ? proxyBoundsUnscaled : sourceBounds;
                 var mirrorScale = LatticePreviewUtility.GetManualScaleProxy(deformer);
                 mirrorBounds.size = Vector3.Scale(mirrorBounds.size, mirrorScale);
-                mirrorBounds.center += centerOffsetProxyLocal;
+                mirrorBounds.center += centerOffsetProxyLocal + skinningOffsetLocal;
                 DrawMirrorPlane(mirrorBounds, proxyTransform);
             }
 
@@ -514,7 +532,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                 Vector3 storedLocal;
                                 if (useProxy)
                                 {
-                                    var proxyLocalAdjusted = proxyLocal - centerOffsetProxyLocal;
+                                    var proxyLocalAdjusted = proxyLocal - centerOffsetProxyLocal - skinningOffsetLocal;
                                     var mappedSource = needBoundsMap
                                         ? MapPointBetweenBounds(proxyLocalAdjusted, proxyBoundsUnscaled, sourceBounds)
                                         : proxyLocalAdjusted;
@@ -524,7 +542,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                 }
                                 else
                                 {
-                                    storedLocal = proxyToSource.MultiplyPoint3x4(proxyLocal);
+                                    storedLocal = proxyToSource.MultiplyPoint3x4(proxyLocal) - skinningOffsetLocal;
                                     settings.SetControlPointLocal(selectedIndex, storedLocal);
                                 }
 
@@ -778,6 +796,57 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 default:
                     return null;
             }
+        }
+
+        /// <summary>
+        /// Computes the offset between where the SkinnedMeshRenderer's Transform places the mesh
+        /// and where the bone+bindPose actually renders it. This discrepancy occurs when Modular Avatar
+        /// resets the renderer's Transform position while retargeting bones.
+        /// Returns the offset in the space defined by worldToDisplayLocal (source-local or proxy-local).
+        /// </summary>
+        private static Vector3 ComputeSkinningOffsetLocal(
+            SkinnedMeshRenderer skinnedRenderer, Bounds sourceBounds,
+            Matrix4x4 sourceToWorld, Matrix4x4 worldToDisplayLocal)
+        {
+            var mesh = skinnedRenderer.sharedMesh;
+            if (mesh == null) return Vector3.zero;
+
+            var bones = skinnedRenderer.bones;
+            var bindposes = mesh.bindposes;
+            if (bones == null || bones.Length == 0 || bindposes == null || bindposes.Length == 0)
+                return Vector3.zero;
+
+            // Find rootBone index in bones array; fallback to bone 0
+            int boneIdx = 0;
+            var rootBone = skinnedRenderer.rootBone;
+            if (rootBone != null)
+            {
+                for (int i = 0; i < bones.Length; i++)
+                {
+                    if (bones[i] == rootBone)
+                    {
+                        boneIdx = i;
+                        break;
+                    }
+                }
+            }
+
+            if (boneIdx >= bindposes.Length || bones[boneIdx] == null)
+                return Vector3.zero;
+
+            // Where the bone actually places the mesh center in world space
+            var meshToWorldViaBone = bones[boneIdx].localToWorldMatrix * bindposes[boneIdx];
+            var actualCenter = meshToWorldViaBone.MultiplyPoint3x4(sourceBounds.center);
+
+            // Where the renderer's Transform would place the mesh center
+            var expectedCenter = sourceToWorld.MultiplyPoint3x4(sourceBounds.center);
+
+            var offsetWorld = actualCenter - expectedCenter;
+            if (offsetWorld.sqrMagnitude < 0.0001f)
+                return Vector3.zero;
+
+            // Convert world-space offset vector to display-local space
+            return worldToDisplayLocal.MultiplyVector(offsetWorld);
         }
 
         private static void AutoInitAlignment(LatticeDeformer deformer, Bounds sourceBounds, Vector3 centerOffsetProxyLocal, bool computeOffset, bool computeScale)
