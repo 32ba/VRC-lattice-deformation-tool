@@ -328,18 +328,41 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Skinning correction: full matrix to compensate for discrepancy between renderer Transform
             // and actual bone+bindPose placement (handles both position and scale from MA).
             // The matrix transforms source-local → corrected source-local.
+            // When proxy is available, prefer proxy bones so the cage aligns with the visible
+            // proxy mesh (whose bones may differ from source after NDMF/MA modifications).
             Matrix4x4 skinningLocal = Matrix4x4.identity;
             Matrix4x4 skinningLocalInv = Matrix4x4.identity;
             bool hasSkinningCorrection = false;
-            if (srcRenderer is SkinnedMeshRenderer srcSkinnedForOffset)
             {
-                var m = ComputeSkinningCorrectionMatrix(
-                    srcSkinnedForOffset, sourceBounds, sourceToWorld, worldToSource);
-                if (m.HasValue)
+                var skinningTarget = (useProxy && proxyRenderer is SkinnedMeshRenderer proxySkinned2)
+                    ? proxySkinned2
+                    : (srcRenderer as SkinnedMeshRenderer);
+                if (skinningTarget != null)
                 {
-                    skinningLocal = m.Value;
-                    skinningLocalInv = m.Value.inverse;
-                    hasSkinningCorrection = true;
+                    var m = ComputeSkinningCorrectionMatrix(
+                        skinningTarget, sourceBounds, sourceToWorld, worldToSource);
+                    if (m.HasValue)
+                    {
+                        skinningLocal = m.Value;
+                        skinningLocalInv = m.Value.inverse;
+                        hasSkinningCorrection = true;
+                    }
+                }
+            }
+
+            // When skinning correction is active, disable bounds remap (Mode3) to avoid
+            // double-correction — the correction matrix already handles position/scale.
+            // For Mode3 with proxy, add a center offset to replace the disabled bounds remap.
+            if (hasSkinningCorrection)
+            {
+                needBoundsMap = false;
+
+                if (useProxy && !hasManualAdjust
+                    && mode == LatticeDeformer.LatticeAlignMode.Mode3_BoundsRemap)
+                {
+                    var correctedCenterProxy = sourceToProxy.MultiplyPoint3x4(
+                        skinningLocal.MultiplyPoint3x4(sourceBounds.center));
+                    centerOffsetProxyLocal += proxyBoundsUnscaled.center - correctedCenterProxy;
                 }
             }
 
