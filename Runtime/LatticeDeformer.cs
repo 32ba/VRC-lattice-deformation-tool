@@ -39,8 +39,6 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, HideInInspector] private float _centerClampMinZ = 0f;
         [SerializeField, HideInInspector] private bool _allowCenterOffsetWhenBoundsSkipped = false;
         [SerializeField, HideInInspector] private bool _alignAutoInitialized = false;
-        [SerializeField, HideInInspector] private Vector3 _manualOffsetProxy = Vector3.zero;
-        [SerializeField, HideInInspector] private Vector3 _manualScaleProxy = Vector3.one;
         [NonSerialized] private LatticeDeformerCache _cache = new LatticeDeformerCache();
         [NonSerialized] private Mesh _runtimeMesh;
         [NonSerialized] private Mesh _sourceMesh;
@@ -126,23 +124,6 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             get => _alignAutoInitialized;
             set => _alignAutoInitialized = value;
-        }
-
-        public Vector3 ManualOffsetProxy
-        {
-            get => _manualOffsetProxy;
-            set => _manualOffsetProxy = value;
-        }
-
-        public Vector3 ManualScaleProxy
-        {
-            get => _manualScaleProxy;
-            set
-            {
-                _manualScaleProxy.x = Mathf.Max(0.0001f, value.x);
-                _manualScaleProxy.y = Mathf.Max(0.0001f, value.y);
-                _manualScaleProxy.z = Mathf.Max(0.0001f, value.z);
-            }
         }
 
         public Transform MeshTransform

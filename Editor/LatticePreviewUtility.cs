@@ -72,12 +72,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         public static bool GetAllowCenterOffsetWhenSkipped(LatticeDeformer deformer) =>
             deformer != null && deformer.AllowCenterOffsetWhenBoundsSkipped;
 
-        public static Vector3 GetManualOffsetProxy(LatticeDeformer deformer) =>
-            deformer != null ? deformer.ManualOffsetProxy : Vector3.zero;
-
-        public static Vector3 GetManualScaleProxy(LatticeDeformer deformer) =>
-            deformer != null ? deformer.ManualScaleProxy : Vector3.one;
-
         /// <summary>
         /// Returns the transform used for lattice editing. If preview alignment is enabled and a proxy
         /// renderer exists, its transform is used; otherwise the deformer.MeshTransform is returned.
