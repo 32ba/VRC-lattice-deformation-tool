@@ -216,7 +216,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            var settings = deformer.Settings;
+            var settings = deformer.EditingSettings;
             if (settings == null)
             {
                 return;

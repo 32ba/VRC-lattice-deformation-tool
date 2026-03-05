@@ -287,3 +287,15 @@ msgstr "顯示位移熱力圖"
 
 msgid "Dot Size"
 msgstr "點大小"
+
+msgid "Lattice Layer"
+msgstr "晶格層"
+
+msgid "Bounds and interpolation are shared by the Lattice layer. Only control-point-related settings are shown for additional layers."
+msgstr "邊界（Bounds）與插值由 Lattice layer 共用。額外圖層僅顯示控制點相關設定。"
+
+msgid "Grid divisions are shared by the Lattice layer. Switch Editing Layer to Lattice Layer to change structure."
+msgstr "網格分段由 Lattice layer 共用。若要變更結構，請將 Editing Layer 切換為 Lattice Layer。"
+
+msgid "The selected layer does not match the Lattice layer structure and is currently ignored during deformation. Use Add/Duplicate from the layer panel or reset the layer."
+msgstr "所選圖層與 Lattice layer 結構不相符，目前在變形時會被忽略。請在圖層面板使用 Add/Duplicate，或重設該圖層。"

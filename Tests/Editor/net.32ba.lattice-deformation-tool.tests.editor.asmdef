@@ -1,0 +1,12 @@
+{
+  "name": "net.32ba.lattice-deformation-tool.tests.editor",
+  "references": [
+    "net.32ba.lattice-deformation-tool"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

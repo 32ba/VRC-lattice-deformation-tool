@@ -318,3 +318,15 @@ msgstr "変位ヒートマップを表示"
 
 msgid "Dot Size"
 msgstr "ドットサイズ"
+
+msgid "Lattice Layer"
+msgstr "ラティスレイヤー"
+
+msgid "Bounds and interpolation are shared by the Lattice layer. Only control-point-related settings are shown for additional layers."
+msgstr "Bounds と補間設定はラティスレイヤーで共有されます。追加レイヤーでは制御点関連の設定のみ表示されます。"
+
+msgid "Grid divisions are shared by the Lattice layer. Switch Editing Layer to Lattice Layer to change structure."
+msgstr "グリッド分割はラティスレイヤーで共有されます。構造を変更するには Editing Layer を Lattice Layer に切り替えてください。"
+
+msgid "The selected layer does not match the Lattice layer structure and is currently ignored during deformation. Use Add/Duplicate from the layer panel or reset the layer."
+msgstr "選択中のレイヤーはラティスレイヤー構造と一致しないため、現在の変形では無視されます。レイヤーパネルの Add/Duplicate を使うか、レイヤーをリセットしてください。"

@@ -397,17 +397,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 var settings = deformer.Settings;
                 settings?.EnsureInitialized();
-
-                ReadOnlySpan<Vector3> controlPoints = ReadOnlySpan<Vector3>.Empty;
-                if (settings != null)
-                {
-                    controlPoints = settings.ControlPointsLocal;
-                }
-                int hash = 17;
-                foreach (var point in controlPoints)
-                {
-                    hash = HashCode.Combine(hash, point.x, point.y, point.z);
-                }
+                int layeredHash = deformer.ComputeLayeredStateHash();
+                int controlPointCount = settings != null ? settings.ControlPointCount : 0;
 
                 var snapshot = new LatticePreviewState(
                     settings?.GridSize ?? Vector3Int.zero,
@@ -415,8 +406,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     settings?.Interpolation ?? LatticeInterpolationMode.Trilinear,
                     settings != null,
                     deformer.SourceMesh != null ? deformer.SourceMesh.GetInstanceID() : 0,
-                    hash,
-                    controlPoints.Length);
+                    layeredHash,
+                    controlPointCount);
 
                 return snapshot;
             }

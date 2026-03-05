@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
@@ -7,8 +8,50 @@ using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool
 {
-[DisallowMultipleComponent]
-[ExecuteAlways]
+    [Serializable]
+    public sealed class LatticeLayer
+    {
+        [SerializeField] private string _name = "Layer";
+        [SerializeField] private bool _enabled = true;
+        [SerializeField] private float _weight = 1f;
+        [SerializeField] private LatticeAsset _settings = new LatticeAsset();
+
+        public string Name
+        {
+            get => string.IsNullOrWhiteSpace(_name) ? "Layer" : _name;
+            set => _name = string.IsNullOrWhiteSpace(value) ? "Layer" : value;
+        }
+
+        public bool Enabled
+        {
+            get => _enabled;
+            set => _enabled = value;
+        }
+
+        public float Weight
+        {
+            get => _weight;
+            set => _weight = Mathf.Clamp01(value);
+        }
+
+        public LatticeAsset Settings
+        {
+            get
+            {
+                if (_settings == null)
+                {
+                    _settings = new LatticeAsset();
+                }
+
+                _settings.EnsureInitialized();
+                return _settings;
+            }
+            set => _settings = value ?? new LatticeAsset();
+        }
+    }
+
+    [DisallowMultipleComponent]
+    [ExecuteAlways]
     public class LatticeDeformer : MonoBehaviour
     {
         public static bool SuppressRestoreOnDisable { get; set; } = false;
@@ -21,6 +64,8 @@ namespace Net._32Ba.LatticeDeformationTool
         }
 
         [SerializeField] private LatticeAsset _settings = new LatticeAsset();
+        [SerializeField] private List<LatticeLayer> _layers = new List<LatticeLayer>();
+        [SerializeField, HideInInspector] private int _activeLayerIndex = -1;
         [SerializeField] private SkinnedMeshRenderer _skinnedMeshRenderer;
         [SerializeField] private MeshFilter _meshFilter;
         [SerializeField] private bool _recalculateNormals = true;
@@ -47,6 +92,9 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private Vector3[] _controlBuffer = Array.Empty<Vector3>();
 
+        /// <summary>
+        /// Base layer settings (legacy serialized field). Kept for backward compatibility.
+        /// </summary>
         public LatticeAsset Settings
         {
             get
@@ -57,10 +105,51 @@ namespace Net._32Ba.LatticeDeformationTool
             set
             {
                 _settings = value ?? new LatticeAsset();
+                SyncLayerStructuresToBase(resetControlPoints: false);
                 _hasInitializedFromSource = false;
                 InvalidateCache();
             }
         }
+
+        public IReadOnlyList<LatticeLayer> Layers
+        {
+            get
+            {
+                EnsureLayers();
+                return _layers;
+            }
+        }
+
+        /// <summary>
+        /// -1 = Base layer (_settings), 0..N-1 = Additional layer in _layers.
+        /// </summary>
+        public int ActiveLayerIndex
+        {
+            get
+            {
+                EnsureLayers();
+                return _activeLayerIndex;
+            }
+            set
+            {
+                EnsureLayers();
+                int maxIndex = _layers.Count - 1;
+                _activeLayerIndex = Mathf.Clamp(value, -1, maxIndex);
+            }
+        }
+
+        public bool IsEditingBaseLayer => ActiveLayerIndex < 0;
+
+        public LatticeAsset EditingSettings
+        {
+            get
+            {
+                EnsureSettings();
+                EnsureLayers();
+                return GetSettingsForLayerIndex(_activeLayerIndex) ?? _settings;
+            }
+        }
+
         public Mesh RuntimeMesh => _runtimeMesh;
 
         public Mesh SourceMesh => _sourceMesh;
@@ -83,6 +172,174 @@ namespace Net._32Ba.LatticeDeformationTool
                 return _weightTransferSettings;
             }
             set => _weightTransferSettings = value ?? new WeightTransferSettingsData();
+        }
+
+        public int AddLayer(string layerName = null)
+        {
+            EnsureSettings();
+            EnsureLayers();
+
+            var layer = new LatticeLayer
+            {
+                Name = string.IsNullOrWhiteSpace(layerName) ? GenerateNextLayerName() : layerName,
+                Enabled = true,
+                Weight = 1f,
+                Settings = CreateNeutralLayerSettings(_settings)
+            };
+
+            _layers.Add(layer);
+            _activeLayerIndex = _layers.Count - 1;
+
+            return _activeLayerIndex;
+        }
+
+        public int DuplicateLayer(int index)
+        {
+            EnsureLayers();
+            if (!TryGetLayer(index, out var sourceLayer))
+            {
+                return -1;
+            }
+
+            var duplicate = new LatticeLayer
+            {
+                Name = sourceLayer.Name + " Copy",
+                Enabled = sourceLayer.Enabled,
+                Weight = sourceLayer.Weight,
+                Settings = CloneSettings(sourceLayer.Settings)
+            };
+
+            int insertAt = Mathf.Clamp(index + 1, 0, _layers.Count);
+            _layers.Insert(insertAt, duplicate);
+            _activeLayerIndex = insertAt;
+
+            return _activeLayerIndex;
+        }
+
+        public bool RemoveLayer(int index)
+        {
+            EnsureLayers();
+            if (index < 0 || index >= _layers.Count)
+            {
+                return false;
+            }
+
+            _layers.RemoveAt(index);
+
+            if (_layers.Count == 0)
+            {
+                _activeLayerIndex = -1;
+                return true;
+            }
+
+            if (_activeLayerIndex == index)
+            {
+                _activeLayerIndex = Mathf.Min(index, _layers.Count - 1);
+            }
+            else if (_activeLayerIndex > index)
+            {
+                _activeLayerIndex--;
+            }
+
+            return true;
+        }
+
+        public bool MoveLayer(int index, int targetIndex)
+        {
+            EnsureLayers();
+            if (index < 0 || index >= _layers.Count)
+            {
+                return false;
+            }
+
+            targetIndex = Mathf.Clamp(targetIndex, 0, _layers.Count - 1);
+            if (targetIndex == index)
+            {
+                return true;
+            }
+
+            var layer = _layers[index];
+            _layers.RemoveAt(index);
+            _layers.Insert(targetIndex, layer);
+
+            if (_activeLayerIndex == index)
+            {
+                _activeLayerIndex = targetIndex;
+            }
+            else if (index < _activeLayerIndex && targetIndex >= _activeLayerIndex)
+            {
+                _activeLayerIndex--;
+            }
+            else if (index > _activeLayerIndex && targetIndex <= _activeLayerIndex)
+            {
+                _activeLayerIndex++;
+            }
+
+            return true;
+        }
+
+        public bool IsLayerStructurallyCompatible(int index)
+        {
+            EnsureSettings();
+            EnsureLayers();
+
+            if (!TryGetLayer(index, out var layer))
+            {
+                return false;
+            }
+
+            return IsLayerStructurallyCompatible(_settings, layer.Settings);
+        }
+
+        public void SyncLayerStructuresToBase(bool resetControlPoints)
+        {
+            EnsureSettings();
+            EnsureLayers();
+
+            if (_layers == null || _layers.Count == 0)
+            {
+                return;
+            }
+
+            for (int i = 0; i < _layers.Count; i++)
+            {
+                if (_layers[i] == null)
+                {
+                    _layers[i] = new LatticeLayer();
+                }
+
+                var layerSettings = _layers[i].Settings;
+                bool incompatible = !IsLayerStructurallyCompatible(_settings, layerSettings);
+                if (resetControlPoints || incompatible)
+                {
+                    _layers[i].Settings = CreateNeutralLayerSettings(_settings);
+                }
+            }
+        }
+
+        public int ComputeLayeredStateHash()
+        {
+            EnsureSettings();
+            EnsureLayers();
+
+            int hash = 17;
+            hash = HashCode.Combine(hash, HashAssetState(_settings));
+            hash = HashCode.Combine(hash, _layers.Count);
+
+            foreach (var layer in _layers)
+            {
+                if (layer == null)
+                {
+                    hash = HashCode.Combine(hash, 0);
+                    continue;
+                }
+
+                hash = HashCode.Combine(hash, layer.Enabled);
+                hash = HashCode.Combine(hash, layer.Weight);
+                hash = HashCode.Combine(hash, HashAssetState(layer.Settings));
+            }
+
+            return hash;
         }
 
         // Alignment settings accessors
@@ -191,8 +448,10 @@ namespace Net._32Ba.LatticeDeformationTool
         private void OnEnable()
         {
             EnsureSettings();
+            EnsureLayers();
             CacheSourceMesh();
             TryAutoConfigureSettings();
+            TryMigrateLegacyBaseToLayerStructure();
         }
 
         private void OnDisable()
@@ -222,6 +481,11 @@ namespace Net._32Ba.LatticeDeformationTool
 
             CacheSourceMesh();
             TryAutoConfigureSettings();
+            if (TryMigrateLegacyBaseToLayerStructure())
+            {
+                settings = _settings;
+            }
+
             if (_sourceMesh == null)
             {
                 return null;
@@ -229,7 +493,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
             if (!EnsureCache(settings))
             {
-                    return null;
+                return null;
             }
 
             var mesh = AcquireRuntimeMesh(assignToRenderer);
@@ -241,6 +505,7 @@ namespace Net._32Ba.LatticeDeformationTool
             int cpCount = settings.ControlPointCount;
             EnsureControlBuffer(cpCount);
             CollectControlPointsLocal(settings, _controlBuffer.AsSpan());
+            ApplyLayerContributions(settings, _controlBuffer);
 
             var entries = _cache.Entries;
             if (entries == null || entries.Length == 0)
@@ -305,6 +570,7 @@ namespace Net._32Ba.LatticeDeformationTool
         public void InitializeFromSource(bool resetControlPoints)
         {
             EnsureSettings();
+            EnsureLayers();
             var settings = _settings;
             if (settings == null || _sourceMesh == null)
             {
@@ -318,6 +584,8 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 settings.ResetControlPoints();
             }
+
+            SyncLayerStructuresToBase(resetControlPoints);
 
             _hasInitializedFromSource = true;
             InvalidateCache();
@@ -343,33 +611,6 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             _settings.EnsureInitialized();
-        }
-
-        private static Bounds CalculateMeshVertexBounds(Mesh mesh)
-        {
-            if (mesh == null || mesh.vertexCount <= 0)
-            {
-                return default;
-            }
-
-            var vertices = mesh.vertices;
-            if (vertices == null || vertices.Length == 0)
-            {
-                return mesh.bounds;
-            }
-
-            var min = vertices[0];
-            var max = vertices[0];
-
-            for (int i = 1; i < vertices.Length; i++)
-            {
-                min = Vector3.Min(min, vertices[i]);
-                max = Vector3.Max(max, vertices[i]);
-            }
-
-            var bounds = new Bounds(min, Vector3.zero);
-            bounds.SetMinMax(min, max);
-            return bounds;
         }
 
         private void CacheSourceMesh()
@@ -436,6 +677,237 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             InitializeFromSource(true);
+        }
+
+        private bool TryMigrateLegacyBaseToLayerStructure()
+        {
+            EnsureSettings();
+            EnsureLayers();
+
+            if (_layers == null || _layers.Count > 0)
+            {
+                return false;
+            }
+
+            if (_settings == null || !_settings.HasCustomizedControlPoints())
+            {
+                return false;
+            }
+
+            var legacySettings = CloneSettings(_settings);
+            _settings = CreateNeutralLayerSettings(legacySettings);
+
+            _layers.Add(new LatticeLayer
+            {
+                Name = "Lattice Layer",
+                Enabled = true,
+                Weight = 1f,
+                Settings = legacySettings
+            });
+
+            _activeLayerIndex = 0;
+            _hasInitializedFromSource = true;
+            InvalidateCache();
+
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                UnityEditor.EditorUtility.SetDirty(this);
+
+                if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(this))
+                {
+                    UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(this);
+                }
+            }
+#endif
+            return true;
+        }
+
+        private LatticeAsset GetSettingsForLayerIndex(int layerIndex)
+        {
+            if (layerIndex < 0)
+            {
+                return _settings;
+            }
+
+            if (!TryGetLayer(layerIndex, out var layer))
+            {
+                return _settings;
+            }
+
+            return layer.Settings;
+        }
+
+        private bool TryGetLayer(int index, out LatticeLayer layer)
+        {
+            layer = null;
+            if (_layers == null || index < 0 || index >= _layers.Count)
+            {
+                return false;
+            }
+
+            layer = _layers[index];
+            return layer != null;
+        }
+
+        private string GenerateNextLayerName()
+        {
+            EnsureLayers();
+
+            int number = 1;
+            while (true)
+            {
+                string candidate = $"Layer {number}";
+                bool exists = false;
+                for (int i = 0; i < _layers.Count; i++)
+                {
+                    if (_layers[i] != null && string.Equals(_layers[i].Name, candidate, StringComparison.OrdinalIgnoreCase))
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+
+                if (!exists)
+                {
+                    return candidate;
+                }
+
+                number++;
+            }
+        }
+
+        private static LatticeAsset CreateNeutralLayerSettings(LatticeAsset source)
+        {
+            var cloned = CloneSettings(source);
+            cloned.ResetControlPoints();
+            return cloned;
+        }
+
+        private static LatticeAsset CloneSettings(LatticeAsset source)
+        {
+            var cloned = new LatticeAsset();
+            if (source == null)
+            {
+                cloned.EnsureInitialized();
+                return cloned;
+            }
+
+            cloned.GridSize = source.GridSize;
+            cloned.LocalBounds = source.LocalBounds;
+            cloned.Interpolation = source.Interpolation;
+            cloned.EnsureInitialized();
+
+            int count = Mathf.Min(cloned.ControlPointCount, source.ControlPointCount);
+            for (int i = 0; i < count; i++)
+            {
+                cloned.SetControlPointLocal(i, source.GetControlPointLocal(i));
+            }
+
+            return cloned;
+        }
+
+        private static bool IsLayerStructurallyCompatible(LatticeAsset baseSettings, LatticeAsset layerSettings)
+        {
+            if (baseSettings == null || layerSettings == null)
+            {
+                return false;
+            }
+
+            if (baseSettings.GridSize != layerSettings.GridSize)
+            {
+                return false;
+            }
+
+            if (!ApproximatelyEquals(baseSettings.LocalBounds, layerSettings.LocalBounds))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool ApproximatelyEquals(Bounds lhs, Bounds rhs)
+        {
+            const float epsilon = 1e-5f;
+            return (lhs.center - rhs.center).sqrMagnitude <= epsilon * epsilon &&
+                   (lhs.size - rhs.size).sqrMagnitude <= epsilon * epsilon;
+        }
+
+        private static Vector3 GetNeutralControlPoint(Bounds bounds, Vector3Int grid, int index)
+        {
+            int nx = Mathf.Max(1, grid.x);
+            int ny = Mathf.Max(1, grid.y);
+            int nz = Mathf.Max(1, grid.z);
+
+            int plane = nx * ny;
+            int z = index / plane;
+            int y = (index / nx) % ny;
+            int x = index % nx;
+
+            float wx = nx > 1 ? (float)x / (nx - 1) : 0f;
+            float wy = ny > 1 ? (float)y / (ny - 1) : 0f;
+            float wz = nz > 1 ? (float)z / (nz - 1) : 0f;
+
+            return bounds.min + Vector3.Scale(bounds.size, new Vector3(wx, wy, wz));
+        }
+
+        private void ApplyLayerContributions(LatticeAsset baseSettings, Vector3[] destination)
+        {
+            EnsureLayers();
+            if (_layers == null || _layers.Count == 0 || baseSettings == null || destination == null || destination.Length == 0)
+            {
+                return;
+            }
+
+            var grid = baseSettings.GridSize;
+            var bounds = baseSettings.LocalBounds;
+
+            for (int i = 0; i < _layers.Count; i++)
+            {
+                var layer = _layers[i];
+                if (layer == null || !layer.Enabled || layer.Weight <= 0f)
+                {
+                    continue;
+                }
+
+                var layerSettings = layer.Settings;
+                if (!IsLayerStructurallyCompatible(baseSettings, layerSettings))
+                {
+                    continue;
+                }
+
+                var layerPoints = layerSettings.ControlPointsLocal;
+                if (layerPoints.Length != destination.Length)
+                {
+                    continue;
+                }
+
+                float weight = layer.Weight;
+                for (int cp = 0; cp < destination.Length; cp++)
+                {
+                    var neutral = GetNeutralControlPoint(bounds, grid, cp);
+                    destination[cp] += (layerPoints[cp] - neutral) * weight;
+                }
+            }
+        }
+
+        private static int HashAssetState(LatticeAsset settings)
+        {
+            if (settings == null)
+            {
+                return 0;
+            }
+
+            int hash = HashCode.Combine(settings.GridSize, settings.LocalBounds.center, settings.LocalBounds.size, (int)settings.Interpolation);
+            var points = settings.ControlPointsLocal;
+            foreach (var point in points)
+            {
+                hash = HashCode.Combine(hash, point.x, point.y, point.z);
+            }
+
+            hash = HashCode.Combine(hash, points.Length);
+            return hash;
         }
 
         private Mesh AcquireRuntimeMesh(bool assignToRenderer)
