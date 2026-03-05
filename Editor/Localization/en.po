@@ -191,3 +191,88 @@ msgstr "If weights stick to the wrong surface, try lowering this value or the No
 
 msgid "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."
 msgstr "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."
+
+# Brush Deformation Tool
+msgid "Brush Tool"
+msgstr "Brush Tool"
+
+msgid "Brush Deformer"
+msgstr "Brush Deformer"
+
+msgid "Brush Deformation"
+msgstr "Brush Deformation"
+
+msgid "Brush Mode"
+msgstr "Brush Mode"
+
+msgid "Normal"
+msgstr "Normal"
+
+msgid "Move"
+msgstr "Move"
+
+msgid "Brush Radius"
+msgstr "Brush Radius"
+
+msgid "Brush Strength"
+msgstr "Brush Strength"
+
+msgid "Brush Falloff"
+msgstr "Brush Falloff"
+
+msgid "Invert Brush"
+msgstr "Invert Brush"
+
+msgid "Enable Mirror"
+msgstr "Enable Mirror"
+
+msgid "Mirror Axis"
+msgstr "Mirror Axis"
+
+msgid "Clear All"
+msgstr "Clear All"
+
+msgid "Brush Deform"
+msgstr "Brush Deform"
+
+msgid "Brush Smooth"
+msgstr "Brush Smooth"
+
+msgid "Open Brush Editor"
+msgstr "Open Brush Editor"
+
+msgid "Vertex Count"
+msgstr "Vertex Count"
+
+msgid "Has Displacements"
+msgstr "Has Displacements"
+
+msgid "Yes"
+msgstr "Yes"
+
+msgid "No"
+msgstr "No"
+
+msgid "Clear All Displacements"
+msgstr "Clear All Displacements"
+
+msgid "Alt+Scroll: Radius / Shift+Scroll: Strength"
+msgstr "Alt+Scroll: Radius / Shift+Scroll: Strength"
+
+msgid "Linear"
+msgstr "Linear"
+
+msgid "Constant"
+msgstr "Constant"
+
+msgid "Visualization"
+msgstr "Visualization"
+
+msgid "Show Affected Vertices"
+msgstr "Show Affected Vertices"
+
+msgid "Show Displacement Heatmap"
+msgstr "Show Displacement Heatmap"
+
+msgid "Dot Size"
+msgstr "Dot Size"

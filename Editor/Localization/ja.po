@@ -233,3 +233,88 @@ msgstr "収束判定閾値"
 
 msgid "Bone weight recalculation requires a SkinnedMeshRenderer."
 msgstr "ボーンウェイト再計算にはSkinnedMeshRendererが必要です。"
+
+# ブラシ変形ツール
+msgid "Brush Tool"
+msgstr "ブラシツール"
+
+msgid "Brush Deformer"
+msgstr "ブラシデフォーマー"
+
+msgid "Brush Deformation"
+msgstr "ブラシ変形"
+
+msgid "Brush Mode"
+msgstr "ブラシモード"
+
+msgid "Normal"
+msgstr "法線"
+
+msgid "Move"
+msgstr "移動"
+
+msgid "Brush Radius"
+msgstr "ブラシ半径"
+
+msgid "Brush Strength"
+msgstr "ブラシ強度"
+
+msgid "Brush Falloff"
+msgstr "ブラシ減衰"
+
+msgid "Invert Brush"
+msgstr "ブラシ反転"
+
+msgid "Enable Mirror"
+msgstr "ミラーを有効化"
+
+msgid "Mirror Axis"
+msgstr "ミラー軸"
+
+msgid "Clear All"
+msgstr "すべてクリア"
+
+msgid "Brush Deform"
+msgstr "ブラシ変形"
+
+msgid "Brush Smooth"
+msgstr "ブラシスムーズ"
+
+msgid "Open Brush Editor"
+msgstr "ブラシエディターを開く"
+
+msgid "Vertex Count"
+msgstr "頂点数"
+
+msgid "Has Displacements"
+msgstr "変形データあり"
+
+msgid "Yes"
+msgstr "はい"
+
+msgid "No"
+msgstr "いいえ"
+
+msgid "Clear All Displacements"
+msgstr "すべての変形をクリア"
+
+msgid "Alt+Scroll: Radius / Shift+Scroll: Strength"
+msgstr "Alt+スクロール: 半径 / Shift+スクロール: 強度"
+
+msgid "Linear"
+msgstr "リニア"
+
+msgid "Constant"
+msgstr "一定"
+
+msgid "Visualization"
+msgstr "可視化"
+
+msgid "Show Affected Vertices"
+msgstr "影響頂点を表示"
+
+msgid "Show Displacement Heatmap"
+msgstr "変位ヒートマップを表示"
+
+msgid "Dot Size"
+msgstr "ドットサイズ"

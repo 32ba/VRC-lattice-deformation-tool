@@ -202,3 +202,88 @@ msgstr "如果權重黏到錯誤的表面，請嘗試降低此值或法線角度
 
 msgid "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."
 msgstr "如果權重黏到錯誤的表面，請嘗試降低此值或最大轉移距離，讓匹配更嚴格。"
+
+# 筆刷變形工具
+msgid "Brush Tool"
+msgstr "筆刷工具"
+
+msgid "Brush Deformer"
+msgstr "筆刷變形器"
+
+msgid "Brush Deformation"
+msgstr "筆刷變形"
+
+msgid "Brush Mode"
+msgstr "筆刷模式"
+
+msgid "Normal"
+msgstr "法線"
+
+msgid "Move"
+msgstr "移動"
+
+msgid "Brush Radius"
+msgstr "筆刷半徑"
+
+msgid "Brush Strength"
+msgstr "筆刷強度"
+
+msgid "Brush Falloff"
+msgstr "筆刷衰減"
+
+msgid "Invert Brush"
+msgstr "反轉筆刷"
+
+msgid "Enable Mirror"
+msgstr "啟用鏡像"
+
+msgid "Mirror Axis"
+msgstr "鏡像軸"
+
+msgid "Clear All"
+msgstr "全部清除"
+
+msgid "Brush Deform"
+msgstr "筆刷變形"
+
+msgid "Brush Smooth"
+msgstr "筆刷平滑"
+
+msgid "Open Brush Editor"
+msgstr "開啟筆刷編輯器"
+
+msgid "Vertex Count"
+msgstr "頂點數"
+
+msgid "Has Displacements"
+msgstr "存在變形資料"
+
+msgid "Yes"
+msgstr "是"
+
+msgid "No"
+msgstr "否"
+
+msgid "Clear All Displacements"
+msgstr "清除所有變形"
+
+msgid "Alt+Scroll: Radius / Shift+Scroll: Strength"
+msgstr "Alt+滾輪: 半徑 / Shift+滾輪: 強度"
+
+msgid "Linear"
+msgstr "線性"
+
+msgid "Constant"
+msgstr "恆定"
+
+msgid "Visualization"
+msgstr "可視化"
+
+msgid "Show Affected Vertices"
+msgstr "顯示受影響頂點"
+
+msgid "Show Displacement Heatmap"
+msgstr "顯示位移熱力圖"
+
+msgid "Dot Size"
+msgstr "點大小"
