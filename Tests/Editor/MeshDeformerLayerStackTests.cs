@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
-    public sealed class LatticeDeformerLayerStackTests
+    public sealed class MeshDeformerLayerStackTests
     {
         private const float Epsilon = 1e-4f;
         private static readonly BindingFlags s_privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
