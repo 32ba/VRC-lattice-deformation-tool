@@ -325,6 +325,49 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
             var rootOffsetProxyLocal = useProxy ? worldToProxy.MultiplyVector(rootOffsetWorld) : Vector3.zero;
 
+            // Skinning correction: full matrix to compensate for discrepancy between renderer Transform
+            // and actual bone+bindPose placement (handles both position and scale from MA).
+            // The matrix transforms source-local → corrected source-local.
+            // When proxy is available, prefer proxy bones so the cage aligns with the visible
+            // proxy mesh (whose bones may differ from source after NDMF/MA modifications).
+            Matrix4x4 skinningLocal = Matrix4x4.identity;
+            Matrix4x4 skinningLocalInv = Matrix4x4.identity;
+            bool hasSkinningCorrection = false;
+            {
+                var skinningTarget = (useProxy && proxyRenderer is SkinnedMeshRenderer proxySkinned2)
+                    ? proxySkinned2
+                    : (srcRenderer as SkinnedMeshRenderer);
+                if (skinningTarget != null)
+                {
+                    var m = ComputeSkinningCorrectionMatrix(
+                        skinningTarget, sourceBounds, sourceToWorld, worldToSource);
+                    if (m.HasValue)
+                    {
+                        skinningLocal = m.Value;
+                        skinningLocalInv = m.Value.inverse;
+                        hasSkinningCorrection = true;
+                    }
+                }
+            }
+
+            // When skinning correction is active, disable bounds remap (Mode3) to avoid
+            // double-correction — the correction matrix already handles position/scale.
+            if (hasSkinningCorrection)
+            {
+                needBoundsMap = false;
+            }
+
+            if (LatticePreviewUtility.DebugAlignLogs && hasSkinningCorrection)
+            {
+                var off = skinningLocal.MultiplyPoint3x4(sourceBounds.center) - sourceBounds.center;
+                var scl = new Vector3(
+                    skinningLocal.GetColumn(0).magnitude,
+                    skinningLocal.GetColumn(1).magnitude,
+                    skinningLocal.GetColumn(2).magnitude);
+                LatticePreviewUtility.LogAlign("SkinningCorrection",
+                    $"useProxy={useProxy}, offset=({off.x:F4},{off.y:F4},{off.z:F4}), scale=({scl.x:F4},{scl.y:F4},{scl.z:F4})");
+            }
+
             // Auto-initialize clamp values once per instance based on observed offset
             // Auto alignment is now manual (via button); no automatic recalculation here.
 
@@ -350,7 +393,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     {
                         int index = Index(x, y, z);
                         var local = settings.GetControlPointLocal(index);
-                        var mappedLocal = (useProxy && needBoundsMap) ? MapPointBetweenBounds(local, sourceBounds, proxyBoundsUnscaled) : local;
+                        var correctedLocal = hasSkinningCorrection ? skinningLocal.MultiplyPoint3x4(local) : local;
+                        var mappedLocal = (useProxy && needBoundsMap) ? MapPointBetweenBounds(correctedLocal, sourceBounds, proxyBoundsUnscaled) : correctedLocal;
                         var proxyLocal = sourceToProxy.MultiplyPoint3x4(mappedLocal) + rootOffsetProxyLocal + centerOffsetProxyLocal;
                         proxyLocal = Vector3.Scale(proxyLocal, LatticePreviewUtility.GetManualScaleProxy(deformer));
 
@@ -366,6 +410,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 // Include manual scale and offsets in mirror plane bounds
                 var mirrorBounds = (useProxy && needBoundsMap) ? proxyBoundsUnscaled : sourceBounds;
+                if (hasSkinningCorrection && !(useProxy && needBoundsMap))
+                {
+                    mirrorBounds.center = skinningLocal.MultiplyPoint3x4(mirrorBounds.center);
+                    mirrorBounds.size = new Vector3(
+                        mirrorBounds.size.x * skinningLocal.GetColumn(0).magnitude,
+                        mirrorBounds.size.y * skinningLocal.GetColumn(1).magnitude,
+                        mirrorBounds.size.z * skinningLocal.GetColumn(2).magnitude);
+                }
                 var mirrorScale = LatticePreviewUtility.GetManualScaleProxy(deformer);
                 mirrorBounds.size = Vector3.Scale(mirrorBounds.size, mirrorScale);
                 mirrorBounds.center += centerOffsetProxyLocal;
@@ -520,11 +572,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                         : proxyLocalAdjusted;
                                     mappedSource -= rootOffsetProxyLocal;
                                     storedLocal = proxyToSource.MultiplyPoint3x4(mappedSource);
+                                    if (hasSkinningCorrection) storedLocal = skinningLocalInv.MultiplyPoint3x4(storedLocal);
                                     settings.SetControlPointLocal(selectedIndex, storedLocal);
                                 }
                                 else
                                 {
                                     storedLocal = proxyToSource.MultiplyPoint3x4(proxyLocal);
+                                    if (hasSkinningCorrection) storedLocal = skinningLocalInv.MultiplyPoint3x4(storedLocal);
                                     settings.SetControlPointLocal(selectedIndex, storedLocal);
                                 }
 
@@ -550,6 +604,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                     {
                                         deltaSource = proxyToSource.MultiplyVector(deltaProxy);
                                     }
+                                    // Convert delta from corrected space to stored (uncorrected) space
+                                    if (hasSkinningCorrection) deltaSource = skinningLocalInv.MultiplyVector(deltaSource);
 
                                     switch (CurrentMirrorBehavior)
                                     {
@@ -778,6 +834,58 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 default:
                     return null;
             }
+        }
+
+        /// <summary>
+        /// Computes a correction matrix (source-local → corrected source-local) that accounts for
+        /// the discrepancy between the renderer's Transform and the actual bone+bindPose placement.
+        /// This handles both position offsets (MA position reset) and scale differences (MA Scale Adjuster).
+        /// Returns null if no significant correction is needed.
+        /// </summary>
+        private static Matrix4x4? ComputeSkinningCorrectionMatrix(
+            SkinnedMeshRenderer skinnedRenderer, Bounds sourceBounds,
+            Matrix4x4 sourceToWorld, Matrix4x4 worldToSource)
+        {
+            var mesh = skinnedRenderer.sharedMesh;
+            if (mesh == null) return null;
+
+            var bones = skinnedRenderer.bones;
+            var bindposes = mesh.bindposes;
+            if (bones == null || bones.Length == 0 || bindposes == null || bindposes.Length == 0)
+                return null;
+
+            // Find rootBone index in bones array; fallback to bone 0
+            int boneIdx = 0;
+            var rootBone = skinnedRenderer.rootBone;
+            if (rootBone != null)
+            {
+                for (int i = 0; i < bones.Length; i++)
+                {
+                    if (bones[i] == rootBone)
+                    {
+                        boneIdx = i;
+                        break;
+                    }
+                }
+            }
+
+            if (boneIdx >= bindposes.Length || bones[boneIdx] == null)
+                return null;
+
+            var meshToWorldViaBone = bones[boneIdx].localToWorldMatrix * bindposes[boneIdx];
+
+            // Check significance: compare center and a corner to detect both position and scale differences
+            var actualCenter = meshToWorldViaBone.MultiplyPoint3x4(sourceBounds.center);
+            var expectedCenter = sourceToWorld.MultiplyPoint3x4(sourceBounds.center);
+            var actualCorner = meshToWorldViaBone.MultiplyPoint3x4(sourceBounds.max);
+            var expectedCorner = sourceToWorld.MultiplyPoint3x4(sourceBounds.max);
+            if ((actualCenter - expectedCenter).sqrMagnitude < 0.0001f &&
+                (actualCorner - expectedCorner).sqrMagnitude < 0.0001f)
+                return null;
+
+            // skinningLocal transforms from source-local to corrected source-local
+            // so that: sourceToWorld * skinningLocal * point ≈ meshToWorldViaBone * point
+            return worldToSource * meshToWorldViaBone;
         }
 
         private static void AutoInitAlignment(LatticeDeformer deformer, Bounds sourceBounds, Vector3 centerOffsetProxyLocal, bool computeOffset, bool computeScale)
