@@ -10,7 +10,7 @@ using Net._32Ba.LatticeDeformationTool;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
-    [EditorTool("Brush Tool", typeof(BrushDeformer))]
+    [EditorTool("Brush Tool", typeof(LatticeDeformer))]
     public sealed class BrushDeformerTool : EditorTool
     {
         internal enum BrushMode
@@ -44,7 +44,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Vector3[] _meshNormals;
         private int[] _meshTriangles;
         private List<HashSet<int>> _adjacency;
-        private bool _isPainting;
         private Vector2 _lastMousePosition;
 
         private static MethodInfo s_intersectRayMeshMethod;
@@ -201,23 +200,32 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
+        public override bool IsAvailable()
+        {
+            var deformer = target as LatticeDeformer;
+            if (deformer == null && Selection.activeGameObject != null)
+            {
+                deformer = Selection.activeGameObject.GetComponent<LatticeDeformer>();
+            }
+
+            return deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush;
+        }
+
         public override void OnActivated()
         {
             Undo.undoRedoPerformed += OnUndoRedo;
-            _isPainting = false;
             SceneView.RepaintAll();
         }
 
         public override void OnWillBeDeactivated()
         {
             Undo.undoRedoPerformed -= OnUndoRedo;
-            _isPainting = false;
             InvalidateCache();
         }
 
         private void OnUndoRedo()
         {
-            if (target is BrushDeformer deformer)
+            if (target is LatticeDeformer deformer)
             {
                 bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
                 deformer.Deform(assignToRenderer);
@@ -233,12 +241,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            if (target is not BrushDeformer deformer)
+            if (target is not LatticeDeformer deformer)
             {
                 return;
             }
 
+            if (deformer.ActiveLayerType != MeshDeformerLayerType.Brush)
+            {
+                Handles.Label(deformer.transform.position, LatticeLocalization.Tr("Active layer is not a Brush layer."));
+                return;
+            }
+
             var sourceMesh = deformer.SourceMesh;
+            if (sourceMesh == null)
+            {
+                deformer.Deform(false);
+                sourceMesh = deformer.SourceMesh;
+            }
+
             if (sourceMesh == null)
             {
                 return;
@@ -321,7 +341,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
                 else if (evt.type == EventType.MouseDown && evt.button == 0)
                 {
-                    _isPainting = true;
                     _lastMousePosition = evt.mousePosition;
 
                     Undo.RecordObject(deformer, GetUndoLabel());
@@ -332,7 +351,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
                 else if (evt.type == EventType.MouseUp && evt.button == 0)
                 {
-                    _isPainting = false;
                     evt.Use();
                 }
             }
@@ -341,7 +359,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 // Even without hit, handle mouse up to stop painting
                 if (evt.type == EventType.MouseUp && evt.button == 0)
                 {
-                    _isPainting = false;
                 }
             }
 
@@ -358,7 +375,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private void ApplyBrush(BrushDeformer deformer, Transform meshTransform, Vector3 localHitPoint, Vector3 localHitNormal, Event evt)
+        private void ApplyBrush(LatticeDeformer deformer, Transform meshTransform, Vector3 localHitPoint, Vector3 localHitNormal, Event evt)
         {
             if (_meshVertices == null || _meshVertices.Length == 0)
             {
@@ -403,7 +420,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _lastMousePosition = evt.mousePosition;
         }
 
-        private bool ApplyNormalBrush(BrushDeformer deformer, Vector3 localHitPoint, float radiusSq, float strength, float direction)
+        private bool ApplyNormalBrush(LatticeDeformer deformer, Vector3 localHitPoint, float radiusSq, float strength, float direction)
         {
             bool modified = false;
             int vertexCount = _meshVertices.Length;
@@ -429,7 +446,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return modified;
         }
 
-        private bool ApplyMoveBrush(BrushDeformer deformer, Transform meshTransform, Vector3 localHitPoint, float radiusSq, float strength, Event evt)
+        private bool ApplyMoveBrush(LatticeDeformer deformer, Transform meshTransform, Vector3 localHitPoint, float radiusSq, float strength, Event evt)
         {
             // Compute mouse delta in world space, then convert to local
             var mouseDelta = evt.delta;
@@ -469,7 +486,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return modified;
         }
 
-        private bool ApplySmoothBrush(BrushDeformer deformer, Vector3 localHitPoint, float radiusSq, float strength)
+        private bool ApplySmoothBrush(LatticeDeformer deformer, Vector3 localHitPoint, float radiusSq, float strength)
         {
             EnsureAdjacencyBuilt();
 
@@ -513,7 +530,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return modified;
         }
 
-        private void ApplyMirror(BrushDeformer deformer, Vector3 localHitPoint, float radiusSq, float strength, float direction)
+        private void ApplyMirror(LatticeDeformer deformer, Vector3 localHitPoint, float radiusSq, float strength, float direction)
         {
             if (_meshVertices == null || _meshVertices.Length == 0) return;
 
@@ -670,7 +687,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _adjacency = null;
         }
 
-        private void DrawAffectedVertices(BrushDeformer deformer, Vector3 localHitPoint, Transform meshTransform)
+        private void DrawAffectedVertices(LatticeDeformer deformer, Vector3 localHitPoint, Transform meshTransform)
         {
             float radiusSq = s_brushRadius * s_brushRadius;
             int vertexCount = _meshVertices.Length;
@@ -697,7 +714,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private void DrawDisplacementHeatmap(BrushDeformer deformer, Transform meshTransform)
+        private void DrawDisplacementHeatmap(LatticeDeformer deformer, Transform meshTransform)
         {
             if (_meshVertices == null) return;
 
@@ -813,9 +830,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        internal static void ClearAllDisplacements(BrushDeformer deformer)
+        internal static void ClearAllDisplacements(LatticeDeformer deformer)
         {
             if (deformer == null) return;
+            if (deformer.ActiveLayerType != MeshDeformerLayerType.Brush) return;
             Undo.RecordObject(deformer, LatticeLocalization.Tr("Clear All"));
             deformer.ClearDisplacements();
             bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
@@ -836,6 +854,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (ToolManager.activeToolType != typeof(BrushDeformerTool))
             {
                 GUILayout.Label(LatticeLocalization.Content("Brush Tool"), EditorStyles.miniLabel);
+                return;
+            }
+
+            var selectedDeformer = Selection.activeGameObject != null
+                ? Selection.activeGameObject.GetComponent<LatticeDeformer>()
+                : null;
+            if (selectedDeformer == null || selectedDeformer.ActiveLayerType != MeshDeformerLayerType.Brush)
+            {
+                EditorGUILayout.HelpBox(LatticeLocalization.Tr("Select a Mesh Deformer with an active Brush layer to edit."), MessageType.Info);
                 return;
             }
 
@@ -934,8 +961,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         : null;
                     if (activeToolObj != null)
                     {
-                        var deformer = activeToolObj.GetComponent<BrushDeformer>();
-                        if (deformer != null)
+                        var deformer = activeToolObj.GetComponent<LatticeDeformer>();
+                        if (deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush)
                         {
                             BrushDeformerTool.ClearAllDisplacements(deformer);
                         }

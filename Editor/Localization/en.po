@@ -288,3 +288,6 @@ msgstr "Grid divisions are shared by the Lattice layer. Switch Editing Layer to 
 
 msgid "The selected layer does not match the Lattice layer structure and is currently ignored during deformation. Use Add/Duplicate from the layer panel or reset the layer."
 msgstr "The selected layer does not match the Lattice layer structure and is currently ignored during deformation. Use Add/Duplicate from the layer panel or reset the layer."
+
+msgid "No deformation layers are available."
+msgstr "No deformation layers are available."

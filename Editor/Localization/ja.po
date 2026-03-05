@@ -330,3 +330,6 @@ msgstr "グリッド分割はラティスレイヤーで共有されます。構
 
 msgid "The selected layer does not match the Lattice layer structure and is currently ignored during deformation. Use Add/Duplicate from the layer panel or reset the layer."
 msgstr "選択中のレイヤーはラティスレイヤー構造と一致しないため、現在の変形では無視されます。レイヤーパネルの Add/Duplicate を使うか、レイヤーをリセットしてください。"
+
+msgid "No deformation layers are available."
+msgstr "利用可能な変形レイヤーがありません。"

@@ -180,6 +180,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
+        public override bool IsAvailable()
+        {
+            var deformer = target as LatticeDeformer;
+            if (deformer == null && Selection.activeGameObject != null)
+            {
+                deformer = Selection.activeGameObject.GetComponent<LatticeDeformer>();
+            }
+
+            return deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Lattice;
+        }
+
         public override void OnActivated()
         {
             s_previousPivotRotation = Tools.pivotRotation;
@@ -213,6 +224,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (target is not LatticeDeformer deformer)
             {
+                return;
+            }
+
+            if (deformer.ActiveLayerType != MeshDeformerLayerType.Lattice)
+            {
+                Handles.Label(deformer.transform.position, LatticeLocalization.Tr("Active layer is not a Lattice layer."));
                 return;
             }
 

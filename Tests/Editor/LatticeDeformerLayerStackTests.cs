@@ -1,4 +1,6 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -7,34 +9,52 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     public sealed class LatticeDeformerLayerStackTests
     {
         private const float Epsilon = 1e-4f;
+        private static readonly BindingFlags s_privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
 
         [Test]
-        public void AddLayer_CreatesNeutralLayerWithoutChangingBase()
+        public void DefaultLayer_IsCreatedAsLatticeLayer()
         {
-            var fixture = CreateFixture("AddLayer_CreatesNeutralLayerWithoutChangingBase");
+            var fixture = CreateFixture("DefaultLayer_IsCreatedAsLatticeLayer");
             try
             {
                 var deformer = fixture.Deformer;
-                var baseSettings = deformer.Settings;
-                var baseSnapshot = baseSettings.ControlPointsLocal.ToArray();
+                Assert.That(deformer.Layers.Count, Is.GreaterThanOrEqualTo(1));
+                Assert.That(deformer.ActiveLayerIndex, Is.EqualTo(0));
+                Assert.That(deformer.Layers[0].Name, Is.EqualTo("Lattice Layer"));
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void AddLayer_CreatesNeutralLayerWithoutChangingActiveLayerSettings()
+        {
+            var fixture = CreateFixture("AddLayer_CreatesNeutralLayerWithoutChangingActiveLayerSettings");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var primary = deformer.Layers[0].Settings;
+                var primarySnapshot = primary.ControlPointsLocal.ToArray();
 
                 int layerIndex = deformer.AddLayer("Layer A");
 
-                Assert.That(layerIndex, Is.EqualTo(0));
-                Assert.That(deformer.Layers.Count, Is.EqualTo(1));
+                Assert.That(layerIndex, Is.EqualTo(1));
+                Assert.That(deformer.Layers.Count, Is.EqualTo(2));
 
-                var layerSettings = deformer.Layers[0].Settings;
-                Assert.That(layerSettings, Is.Not.SameAs(baseSettings));
-                Assert.That(layerSettings.GridSize, Is.EqualTo(baseSettings.GridSize));
-                Assert.That(layerSettings.Interpolation, Is.EqualTo(baseSettings.Interpolation));
-                AssertApproximately(baseSettings.LocalBounds.center, layerSettings.LocalBounds.center);
-                AssertApproximately(baseSettings.LocalBounds.size, layerSettings.LocalBounds.size);
+                var layerSettings = deformer.Layers[1].Settings;
+                Assert.That(layerSettings, Is.Not.SameAs(primary));
+                Assert.That(layerSettings.GridSize, Is.EqualTo(primary.GridSize));
+                Assert.That(layerSettings.Interpolation, Is.EqualTo(primary.Interpolation));
+                AssertApproximately(primary.LocalBounds.center, layerSettings.LocalBounds.center);
+                AssertApproximately(primary.LocalBounds.size, layerSettings.LocalBounds.size);
 
-                for (int i = 0; i < baseSettings.ControlPointCount; i++)
+                for (int i = 0; i < primary.ControlPointCount; i++)
                 {
-                    Vector3 neutral = GetNeutralControlPoint(baseSettings.LocalBounds, baseSettings.GridSize, i);
+                    Vector3 neutral = GetNeutralControlPoint(primary.LocalBounds, primary.GridSize, i);
                     AssertApproximately(neutral, layerSettings.GetControlPointLocal(i), Epsilon);
-                    AssertApproximately(baseSnapshot[i], baseSettings.GetControlPointLocal(i), Epsilon);
+                    AssertApproximately(primarySnapshot[i], primary.GetControlPointLocal(i), Epsilon);
                 }
             }
             finally
@@ -50,15 +70,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             try
             {
                 var deformer = fixture.Deformer;
-                var baseSettings = deformer.Settings;
-
-                deformer.AddLayer("Layer A");
+                var layerSettings = deformer.Layers[0].Settings;
                 var layer = deformer.Layers[0];
 
                 const int controlPointIndex = 0;
                 var delta = new Vector3(0f, 0.2f, 0f);
-                var neutral = layer.Settings.GetControlPointLocal(controlPointIndex);
-                layer.Settings.SetControlPointLocal(controlPointIndex, neutral + delta);
+                var original = layerSettings.GetControlPointLocal(controlPointIndex);
+                layerSettings.SetControlPointLocal(controlPointIndex, original + delta);
                 layer.Weight = 0.5f;
 
                 var runtimeMesh = deformer.Deform(false);
@@ -68,16 +86,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var sourceVertices = deformer.SourceMesh.vertices;
                 var deformedVertices = runtimeMesh.vertices;
 
-                int minCornerIndex = FindCornerVertexIndex(sourceVertices, baseSettings.LocalBounds.min);
-                int maxCornerIndex = FindCornerVertexIndex(sourceVertices, baseSettings.LocalBounds.max);
+                int minCornerIndex = FindCornerVertexIndex(sourceVertices, layerSettings.LocalBounds.min);
+                int maxCornerIndex = FindCornerVertexIndex(sourceVertices, layerSettings.LocalBounds.max);
 
                 Assert.That(minCornerIndex, Is.GreaterThanOrEqualTo(0));
                 Assert.That(maxCornerIndex, Is.GreaterThanOrEqualTo(0));
 
                 var expectedMoved = sourceVertices[minCornerIndex] + delta * layer.Weight;
                 AssertApproximately(expectedMoved, deformedVertices[minCornerIndex], 2e-3f);
-
-                // Opposite corner is not affected by CP(0,0,0) in trilinear interpolation.
                 AssertApproximately(sourceVertices[maxCornerIndex], deformedVertices[maxCornerIndex], 2e-3f);
             }
             finally
@@ -87,29 +103,100 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void SyncLayerStructuresToBase_ResetsIncompatibleLayerShape()
+        public void Layers_CanUseIndependentGridSettings()
         {
-            var fixture = CreateFixture("SyncLayerStructuresToBase_ResetsIncompatibleLayerShape");
+            var fixture = CreateFixture("Layers_CanUseIndependentGridSettings");
             try
             {
                 var deformer = fixture.Deformer;
                 deformer.AddLayer("Layer A");
 
-                var baseSettings = deformer.Settings;
-                baseSettings.ResizeGrid(new Vector3Int(3, 4, 5));
-                deformer.SyncLayerStructuresToBase(resetControlPoints: false);
+                var layer0 = deformer.Layers[0].Settings;
+                var layer1 = deformer.Layers[1].Settings;
 
-                var layerSettings = deformer.Layers[0].Settings;
-                Assert.That(layerSettings.GridSize, Is.EqualTo(baseSettings.GridSize));
-                Assert.That(layerSettings.ControlPointCount, Is.EqualTo(baseSettings.ControlPointCount));
-                AssertApproximately(baseSettings.LocalBounds.center, layerSettings.LocalBounds.center);
-                AssertApproximately(baseSettings.LocalBounds.size, layerSettings.LocalBounds.size);
+                var layer0Grid = layer0.GridSize;
+                var layer1Grid = new Vector3Int(4, 3, 2);
+                layer1.ResizeGrid(layer1Grid);
 
-                for (int i = 0; i < layerSettings.ControlPointCount; i++)
-                {
-                    Vector3 neutral = GetNeutralControlPoint(layerSettings.LocalBounds, layerSettings.GridSize, i);
-                    AssertApproximately(neutral, layerSettings.GetControlPointLocal(i), Epsilon);
-                }
+                Assert.That(layer0.GridSize, Is.EqualTo(layer0Grid));
+                Assert.That(layer1.GridSize, Is.EqualTo(layer1Grid));
+
+                var runtimeMesh = deformer.Deform(false);
+                Assert.That(runtimeMesh, Is.Not.Null);
+                Assert.That(runtimeMesh.vertexCount, Is.EqualTo(deformer.SourceMesh.vertexCount));
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BrushLayer_AppliesWeightedVertexDisplacement()
+        {
+            var fixture = CreateFixture("BrushLayer_AppliesWeightedVertexDisplacement");
+            try
+            {
+                var deformer = fixture.Deformer;
+                int brushLayerIndex = deformer.AddLayer("Brush Layer", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushLayerIndex;
+                deformer.EnsureDisplacementCapacity();
+
+                Assert.That(deformer.DisplacementCount, Is.EqualTo(deformer.SourceMesh.vertexCount));
+
+                const int vertexIndex = 0;
+                var brushDelta = new Vector3(0.12f, -0.04f, 0.03f);
+                deformer.SetDisplacement(vertexIndex, brushDelta);
+                deformer.Layers[brushLayerIndex].Weight = 0.25f;
+
+                var runtimeMesh = deformer.Deform(false);
+                Assert.That(runtimeMesh, Is.Not.Null);
+
+                var sourceVertices = deformer.SourceMesh.vertices;
+                var deformedVertices = runtimeMesh.vertices;
+                var expected = sourceVertices[vertexIndex] + brushDelta * 0.25f;
+                AssertApproximately(expected, deformedVertices[vertexIndex], 2e-3f);
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void LatticeAndBrushLayers_AreComposed()
+        {
+            var fixture = CreateFixture("LatticeAndBrushLayers_AreComposed");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var latticeLayer = deformer.Layers[0];
+                var latticeSettings = latticeLayer.Settings;
+
+                const int latticeControlIndex = 0;
+                var latticeDelta = new Vector3(0f, 0.18f, 0f);
+                latticeSettings.SetControlPointLocal(
+                    latticeControlIndex,
+                    latticeSettings.GetControlPointLocal(latticeControlIndex) + latticeDelta);
+
+                int brushLayerIndex = deformer.AddLayer("Brush Layer", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushLayerIndex;
+                deformer.EnsureDisplacementCapacity();
+                deformer.Layers[brushLayerIndex].Weight = 0.5f;
+
+                var sourceVertices = deformer.SourceMesh.vertices;
+                int minCornerIndex = FindCornerVertexIndex(sourceVertices, latticeSettings.LocalBounds.min);
+                Assert.That(minCornerIndex, Is.GreaterThanOrEqualTo(0));
+
+                var brushDelta = new Vector3(0.1f, 0f, 0f);
+                deformer.SetDisplacement(minCornerIndex, brushDelta);
+
+                var runtimeMesh = deformer.Deform(false);
+                Assert.That(runtimeMesh, Is.Not.Null);
+
+                var deformedVertices = runtimeMesh.vertices;
+                var expected = sourceVertices[minCornerIndex] + latticeDelta + brushDelta * 0.5f;
+                AssertApproximately(expected, deformedVertices[minCornerIndex], 2e-3f);
             }
             finally
             {
@@ -124,17 +211,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             try
             {
                 var deformer = fixture.Deformer;
-                var settings = deformer.Settings;
-
+                var legacySettings = CloneSettings(deformer.Settings);
                 const int controlPointIndex = 0;
-                var legacyPoint = settings.GetControlPointLocal(controlPointIndex) + new Vector3(0.05f, 0.1f, 0f);
-                settings.SetControlPointLocal(controlPointIndex, legacyPoint);
+                var legacyPoint = legacySettings.GetControlPointLocal(controlPointIndex) + new Vector3(0.05f, 0.1f, 0f);
+                legacySettings.SetControlPointLocal(controlPointIndex, legacyPoint);
 
-                Assert.That(deformer.Layers.Count, Is.EqualTo(0));
-
-                var beforeMigration = deformer.Deform(false);
-                Assert.That(beforeMigration, Is.Not.Null);
-                var beforeVertices = beforeMigration.vertices;
+                SetPrivateField(deformer, "_settings", legacySettings);
+                SetPrivateField(deformer, "_layers", new List<LatticeLayer>());
+                SetPrivateField(deformer, "_activeLayerIndex", -1);
+                SetPrivateField(deformer, "_layerModelVersion", 0);
 
                 deformer.enabled = false;
                 deformer.enabled = true;
@@ -142,22 +227,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(deformer.Layers.Count, Is.EqualTo(1));
                 Assert.That(deformer.ActiveLayerIndex, Is.EqualTo(0));
                 Assert.That(deformer.Layers[0].Name, Is.EqualTo("Lattice Layer"));
-
-                var baseAfterMigration = deformer.Settings;
-                Vector3 neutral = GetNeutralControlPoint(baseAfterMigration.LocalBounds, baseAfterMigration.GridSize, controlPointIndex);
-                AssertApproximately(neutral, baseAfterMigration.GetControlPointLocal(controlPointIndex), Epsilon);
-
-                var migratedLayerPoint = deformer.Layers[0].Settings.GetControlPointLocal(controlPointIndex);
-                AssertApproximately(legacyPoint, migratedLayerPoint, Epsilon);
-
-                var afterMigration = deformer.Deform(false);
-                Assert.That(afterMigration, Is.Not.Null);
-                var afterVertices = afterMigration.vertices;
-                Assert.That(afterVertices.Length, Is.EqualTo(beforeVertices.Length));
-                for (int i = 0; i < beforeVertices.Length; i++)
-                {
-                    AssertApproximately(beforeVertices[i], afterVertices[i], 2e-3f);
-                }
+                AssertApproximately(legacyPoint, deformer.Layers[0].Settings.GetControlPointLocal(controlPointIndex), Epsilon);
             }
             finally
             {
@@ -190,6 +260,36 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             mesh.name = "LatticeLayerStackTestMesh";
             Object.DestroyImmediate(tempPrimitive);
             return mesh;
+        }
+
+        private static LatticeAsset CloneSettings(LatticeAsset source)
+        {
+            var cloned = new LatticeAsset();
+            if (source == null)
+            {
+                cloned.EnsureInitialized();
+                return cloned;
+            }
+
+            cloned.GridSize = source.GridSize;
+            cloned.LocalBounds = source.LocalBounds;
+            cloned.Interpolation = source.Interpolation;
+            cloned.EnsureInitialized();
+
+            int count = Mathf.Min(cloned.ControlPointCount, source.ControlPointCount);
+            for (int i = 0; i < count; i++)
+            {
+                cloned.SetControlPointLocal(i, source.GetControlPointLocal(i));
+            }
+
+            return cloned;
+        }
+
+        private static void SetPrivateField(object instance, string fieldName, object value)
+        {
+            var field = instance.GetType().GetField(fieldName, s_privateInstance);
+            Assert.That(field, Is.Not.Null, $"Private field not found: {fieldName}");
+            field.SetValue(instance, value);
         }
 
         private static int FindCornerVertexIndex(Vector3[] vertices, Vector3 corner)
