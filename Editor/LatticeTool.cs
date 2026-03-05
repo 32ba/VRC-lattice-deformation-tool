@@ -352,18 +352,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             // When skinning correction is active, disable bounds remap (Mode3) to avoid
             // double-correction — the correction matrix already handles position/scale.
-            // For Mode3 with proxy, add a center offset to replace the disabled bounds remap.
             if (hasSkinningCorrection)
             {
                 needBoundsMap = false;
-
-                if (useProxy && !hasManualAdjust
-                    && mode == LatticeDeformer.LatticeAlignMode.Mode3_BoundsRemap)
-                {
-                    var correctedCenterProxy = sourceToProxy.MultiplyPoint3x4(
-                        skinningLocal.MultiplyPoint3x4(sourceBounds.center));
-                    centerOffsetProxyLocal += proxyBoundsUnscaled.center - correctedCenterProxy;
-                }
             }
 
             if (LatticePreviewUtility.DebugAlignLogs && hasSkinningCorrection)
