@@ -311,7 +311,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            var meshBounds = _sourceMesh.bounds;
+            var meshBounds = CalculateMeshVertexBounds(_sourceMesh);
             settings.LocalBounds = meshBounds;
 
             if (resetControlPoints)
@@ -343,6 +343,33 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             _settings.EnsureInitialized();
+        }
+
+        private static Bounds CalculateMeshVertexBounds(Mesh mesh)
+        {
+            if (mesh == null || mesh.vertexCount <= 0)
+            {
+                return default;
+            }
+
+            var vertices = mesh.vertices;
+            if (vertices == null || vertices.Length == 0)
+            {
+                return mesh.bounds;
+            }
+
+            var min = vertices[0];
+            var max = vertices[0];
+
+            for (int i = 1; i < vertices.Length; i++)
+            {
+                min = Vector3.Min(min, vertices[i]);
+                max = Vector3.Max(max, vertices[i]);
+            }
+
+            var bounds = new Bounds(min, Vector3.zero);
+            bounds.SetMinMax(min, max);
+            return bounds;
         }
 
         private void CacheSourceMesh()
