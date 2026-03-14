@@ -271,6 +271,9 @@ msgstr "接続のみ"
 msgid "Surface Distance"
 msgstr "表面距離"
 
+msgid "Backface Culling"
+msgstr "背面カリング"
+
 msgid "Enable Mirror"
 msgstr "ミラーを有効化"
 
@@ -438,3 +441,33 @@ msgstr "マスクをクリア"
 
 msgid "Brush Mask"
 msgstr "ブラシマスク"
+
+# 貫通検出
+msgid "Show Penetration"
+msgstr "貫通表示"
+
+msgid "Reference Mesh"
+msgstr "参照メッシュ"
+
+# 減衰タイプ
+msgid "Sphere"
+msgstr "球体"
+
+msgid "Gaussian"
+msgstr "ガウシアン"
+
+msgid "Smooth"
+msgstr "スムーズ"
+
+# レイヤー操作
+msgid "Paste"
+msgstr "ペースト"
+
+msgid "Paste Layer"
+msgstr "レイヤーを貼り付け"
+
+msgid "Duplicate"
+msgstr "複製"
+
+msgid "Duplicate Layer"
+msgstr "レイヤーを複製"

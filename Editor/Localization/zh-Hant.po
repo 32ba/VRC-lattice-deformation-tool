@@ -240,6 +240,9 @@ msgstr "僅連接面"
 msgid "Surface Distance"
 msgstr "表面距離"
 
+msgid "Backface Culling"
+msgstr "背面剔除"
+
 msgid "Enable Mirror"
 msgstr "啟用鏡像"
 
@@ -407,3 +410,33 @@ msgstr "清除遮罩"
 
 msgid "Brush Mask"
 msgstr "筆刷遮罩"
+
+# 穿透偵測
+msgid "Show Penetration"
+msgstr "顯示穿透"
+
+msgid "Reference Mesh"
+msgstr "參考網格"
+
+# 衰減類型
+msgid "Sphere"
+msgstr "球體"
+
+msgid "Gaussian"
+msgstr "高斯"
+
+msgid "Smooth"
+msgstr "平滑"
+
+# 圖層操作
+msgid "Paste"
+msgstr "貼上"
+
+msgid "Paste Layer"
+msgstr "貼上圖層"
+
+msgid "Duplicate"
+msgstr "複製"
+
+msgid "Duplicate Layer"
+msgstr "複製圖層"

@@ -44,6 +44,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_showAlignSettings = false;
         private static bool s_showWeightTransferSettings = false;
         private static readonly Dictionary<long, Vector3Int> s_pendingGridSizes = new();
+        private static string s_copiedLayerJson = null;
+        private static MeshDeformerLayerType s_copiedLayerType;
 
         private void OnEnable()
         {
@@ -583,6 +585,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                             return instance.DuplicateLayer(instance.ActiveLayerIndex) >= 0;
                         });
                     }
+
+                    if (GUILayout.Button(LatticeLocalization.Tr("Copy")))
+                    {
+                        CopyLayer(deformer, deformer.ActiveLayerIndex);
+                    }
+                }
+
+                using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(s_copiedLayerJson)))
+                {
+                    if (GUILayout.Button(LatticeLocalization.Tr("Paste")))
+                    {
+                        PasteLayer(deformer);
+                    }
                 }
             }
 
@@ -852,6 +867,29 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             SyncActiveToolToLayer(deformer);
             LatticePreviewUtility.RequestSceneRepaint();
             SceneView.RepaintAll();
+        }
+
+        private void CopyLayer(LatticeDeformer deformer, int layerIndex)
+        {
+            var layers = deformer.Layers;
+            if (layerIndex < 0 || layerIndex >= layers.Count) return;
+            var layer = layers[layerIndex];
+            if (layer == null) return;
+            s_copiedLayerJson = JsonUtility.ToJson(layer);
+            s_copiedLayerType = layer.Type;
+        }
+
+        private void PasteLayer(LatticeDeformer deformer)
+        {
+            if (string.IsNullOrEmpty(s_copiedLayerJson)) return;
+
+            var newLayer = new LatticeLayer();
+            JsonUtility.FromJsonOverwrite(s_copiedLayerJson, newLayer);
+
+            PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Paste Layer"), instance =>
+            {
+                return instance.InsertLayer(newLayer) >= 0;
+            });
         }
 
         private static void SyncActiveToolToLayer(LatticeDeformer deformer)

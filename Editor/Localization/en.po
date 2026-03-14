@@ -229,6 +229,9 @@ msgstr "Connected Only"
 msgid "Surface Distance"
 msgstr "Surface Distance"
 
+msgid "Backface Culling"
+msgstr "Backface Culling"
+
 msgid "Enable Mirror"
 msgstr "Enable Mirror"
 
@@ -396,3 +399,33 @@ msgstr "Clear Mask"
 
 msgid "Brush Mask"
 msgstr "Brush Mask"
+
+# Penetration Detection
+msgid "Show Penetration"
+msgstr "Show Penetration"
+
+msgid "Reference Mesh"
+msgstr "Reference Mesh"
+
+# Falloff types
+msgid "Sphere"
+msgstr "Sphere"
+
+msgid "Gaussian"
+msgstr "Gaussian"
+
+msgid "Smooth"
+msgstr "Smooth"
+
+# Layer operations
+msgid "Paste"
+msgstr "Paste"
+
+msgid "Paste Layer"
+msgstr "Paste Layer"
+
+msgid "Duplicate"
+msgstr "Duplicate"
+
+msgid "Duplicate Layer"
+msgstr "Duplicate Layer"

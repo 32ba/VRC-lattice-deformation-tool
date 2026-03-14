@@ -11,7 +11,9 @@ namespace Net._32Ba.LatticeDeformationTool
     {
         Smooth = 0,
         Linear = 1,
-        Constant = 2
+        Constant = 2,
+        Sphere = 3,
+        Gaussian = 4
     }
 
     [DisallowMultipleComponent]
@@ -280,6 +282,10 @@ namespace Net._32Ba.LatticeDeformationTool
                     return s * s * (3f - 2f * s);
                 case BrushFalloffType.Constant:
                     return 1f;
+                case BrushFalloffType.Sphere:
+                    return t < 0.9f ? 1f : math.saturate((1f - t) / 0.1f);
+                case BrushFalloffType.Gaussian:
+                    return math.exp(-3f * t * t);
                 default:
                     return 1f - t;
             }

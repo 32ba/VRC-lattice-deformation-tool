@@ -23,7 +23,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             Smooth = 0,
             Linear = 1,
-            Constant = 2
+            Constant = 2,
+            Sphere = 3,
+            Gaussian = 4
         }
 
         private static GUIContent s_icon;
@@ -818,6 +820,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     return s * s * (3f - 2f * s);
                 case FalloffType.Constant:
                     return 1f;
+                case FalloffType.Sphere:
+                    return t < 0.9f ? 1f : Mathf.Clamp01((1f - t) / 0.1f);
+                case FalloffType.Gaussian:
+                    return Mathf.Exp(-3f * t * t);
                 default:
                     return 1f - t;
             }
@@ -1114,7 +1120,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     {
                         LatticeLocalization.Content("Smooth"),
                         LatticeLocalization.Content("Linear"),
-                        new GUIContent("Constant")
+                        LatticeLocalization.Content("Constant"),
+                        LatticeLocalization.Content("Sphere"),
+                        LatticeLocalization.Content("Gaussian")
                     };
                     int falloffIndex = EditorGUILayout.Popup(
                         LatticeLocalization.Content("Falloff"),

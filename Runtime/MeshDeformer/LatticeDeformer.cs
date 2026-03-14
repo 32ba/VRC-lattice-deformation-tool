@@ -546,6 +546,19 @@ namespace Net._32Ba.LatticeDeformationTool
             return _activeLayerIndex;
         }
 
+        public int InsertLayer(LatticeLayer layer)
+        {
+            if (layer == null)
+            {
+                return -1;
+            }
+
+            EnsureLayers();
+            _layers.Add(layer);
+            _activeLayerIndex = _layers.Count - 1;
+            return _activeLayerIndex;
+        }
+
         public bool RemoveLayer(int index)
         {
             EnsureLayers();

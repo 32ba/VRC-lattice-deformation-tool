@@ -41,6 +41,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static float s_vertexDotSize = 3f;
         private static bool s_connectedOnly = false;
         private static bool s_useSurfaceDistance = false;
+        private static bool s_backfaceCulling = false;
+        private static bool s_showPenetration = false;
+        private static Renderer s_penetrationReference = null;
 
         private Mesh _cachedMesh;
         private Vector3[] _meshVertices;
@@ -52,6 +55,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int _connectedCacheStartVertex = -1;
         private Dictionary<int, float> _geodesicDistanceCache;
         private int _geodesicCacheStartVertex = -1;
+        private HashSet<int> _penetratingVertices;
 
         private static MethodInfo s_intersectRayMeshMethod;
         private static bool s_intersectRayMeshResolved;
@@ -205,6 +209,39 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
+        internal static bool BackfaceCulling
+        {
+            get => s_backfaceCulling;
+            set
+            {
+                if (s_backfaceCulling == value) return;
+                s_backfaceCulling = value;
+                SceneView.RepaintAll();
+            }
+        }
+
+        internal static bool ShowPenetration
+        {
+            get => s_showPenetration;
+            set
+            {
+                if (s_showPenetration == value) return;
+                s_showPenetration = value;
+                SceneView.RepaintAll();
+            }
+        }
+
+        internal static Renderer PenetrationReference
+        {
+            get => s_penetrationReference;
+            set
+            {
+                if (s_penetrationReference == value) return;
+                s_penetrationReference = value;
+                SceneView.RepaintAll();
+            }
+        }
+
         internal static GUIContent[] AxisOptions => new[]
         {
             LatticeLocalization.Content("X"),
@@ -337,6 +374,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 DrawVertexMaskVisualization(deformer, meshTransform);
             }
 
+            // Penetration detection
+            if (s_showPenetration)
+            {
+                UpdatePenetrationDetection(deformer);
+                DrawPenetrationHighlight(meshTransform);
+            }
+
             // Raycast to find brush center on mesh surface
             var mouseRay = HandleUtility.GUIPointToWorldRay(evt.mousePosition);
             bool hitSurface = IntersectRayMesh(mouseRay, sourceMesh, meshTransform.localToWorldMatrix, out var hit);
@@ -437,7 +481,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             deformer.EnsureDisplacementCapacity();
 
             float radiusSq = s_brushRadius * s_brushRadius;
-            float strength = s_brushStrength * 0.01f;
+            float effectiveStrength = s_brushStrength;
+            if (evt != null && evt.control)
+            {
+                effectiveStrength *= 0.1f;
+            }
+            float strength = effectiveStrength * 0.01f;
             float direction = s_invertBrush ? -1f : 1f;
             bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
 
@@ -481,11 +530,34 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             bool modified = false;
             int vertexCount = _meshVertices.Length;
 
+            // Pre-compute camera forward in local space for backface culling
+            Vector3 localCameraForward = Vector3.forward;
+            if (s_backfaceCulling)
+            {
+                var cam = SceneView.lastActiveSceneView != null ? SceneView.lastActiveSceneView.camera : null;
+                if (cam != null)
+                {
+                    var deformerTransform = deformer.MeshTransform;
+                    if (deformerTransform != null)
+                    {
+                        localCameraForward = deformerTransform.InverseTransformDirection(cam.transform.forward);
+                    }
+                }
+            }
+
             for (int i = 0; i < vertexCount; i++)
             {
                 if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
                 {
                     continue;
+                }
+
+                if (s_backfaceCulling && _meshNormals != null && i < _meshNormals.Length)
+                {
+                    if (Vector3.Dot(_meshNormals[i], localCameraForward) > 0f)
+                    {
+                        continue;
+                    }
                 }
 
                 float falloff;
@@ -542,6 +614,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Convert world delta to local space
             var localDelta = meshTransform.InverseTransformVector(worldDelta);
 
+            // Pre-compute camera forward in local space for backface culling
+            Vector3 localCameraForward = Vector3.forward;
+            if (s_backfaceCulling && meshTransform != null)
+            {
+                localCameraForward = meshTransform.InverseTransformDirection(camera.transform.forward);
+            }
+
             bool modified = false;
             int vertexCount = _meshVertices.Length;
 
@@ -550,6 +629,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
                 {
                     continue;
+                }
+
+                if (s_backfaceCulling && _meshNormals != null && i < _meshNormals.Length)
+                {
+                    if (Vector3.Dot(_meshNormals[i], localCameraForward) > 0f)
+                    {
+                        continue;
+                    }
                 }
 
                 float falloff;
@@ -591,6 +678,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             bool modified = false;
             int vertexCount = _meshVertices.Length;
 
+            // Pre-compute camera forward in local space for backface culling
+            Vector3 localCameraForward = Vector3.forward;
+            if (s_backfaceCulling)
+            {
+                var cam = SceneView.lastActiveSceneView != null ? SceneView.lastActiveSceneView.camera : null;
+                if (cam != null)
+                {
+                    var deformerTransform = deformer.MeshTransform;
+                    if (deformerTransform != null)
+                    {
+                        localCameraForward = deformerTransform.InverseTransformDirection(cam.transform.forward);
+                    }
+                }
+            }
+
             // Snapshot current displacements for reading during averaging
             var currentDisplacements = new Vector3[vertexCount];
             Array.Copy(deformer.Displacements, currentDisplacements, vertexCount);
@@ -602,6 +704,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
                 {
                     continue;
+                }
+
+                if (s_backfaceCulling && _meshNormals != null && i < _meshNormals.Length)
+                {
+                    if (Vector3.Dot(_meshNormals[i], localCameraForward) > 0f)
+                    {
+                        continue;
+                    }
                 }
 
                 float falloff;
@@ -665,11 +775,34 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             float targetValue = s_invertBrush ? 1f : 0f;
             bool modified = false;
 
+            // Pre-compute camera forward in local space for backface culling
+            Vector3 localCameraForward = Vector3.forward;
+            if (s_backfaceCulling)
+            {
+                var cam = SceneView.lastActiveSceneView != null ? SceneView.lastActiveSceneView.camera : null;
+                if (cam != null)
+                {
+                    var deformerTransform = deformer.MeshTransform;
+                    if (deformerTransform != null)
+                    {
+                        localCameraForward = deformerTransform.InverseTransformDirection(cam.transform.forward);
+                    }
+                }
+            }
+
             for (int i = 0; i < _meshVertices.Length; i++)
             {
                 if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
                 {
                     continue;
+                }
+
+                if (s_backfaceCulling && _meshNormals != null && i < _meshNormals.Length)
+                {
+                    if (Vector3.Dot(_meshNormals[i], localCameraForward) > 0f)
+                    {
+                        continue;
+                    }
                 }
 
                 float falloff;
@@ -938,6 +1071,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _meshNormals = null;
             _meshTriangles = null;
             _adjacency = null;
+            _penetratingVertices = null;
             ClearConnectedVerticesCache();
             ClearGeodesicDistanceCache();
         }
@@ -1069,6 +1203,68 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Handles.color = dotColor;
                 float dotRadius = HandleUtility.GetHandleSize(worldPos) * 0.004f * (1f + protection * 2f);
                 Handles.DrawSolidDisc(worldPos, camForward, dotRadius);
+            }
+        }
+
+        private void UpdatePenetrationDetection(LatticeDeformer deformer)
+        {
+            if (!s_showPenetration || s_penetrationReference == null || _meshVertices == null)
+            {
+                _penetratingVertices = null;
+                return;
+            }
+
+            Mesh refMesh = null;
+            if (s_penetrationReference is SkinnedMeshRenderer smr)
+            {
+                refMesh = smr.sharedMesh;
+            }
+            else if (s_penetrationReference is MeshRenderer mr)
+            {
+                var mf = mr.GetComponent<MeshFilter>();
+                if (mf != null) refMesh = mf.sharedMesh;
+            }
+
+            if (refMesh == null)
+            {
+                _penetratingVertices = null;
+                return;
+            }
+
+            // Compute transform from deformer space to reference space
+            var deformerTransform = deformer.MeshTransform;
+            var refTransform = s_penetrationReference.transform;
+            Matrix4x4 deformedToRef = refTransform.worldToLocalMatrix * deformerTransform.localToWorldMatrix;
+
+            // Apply current displacements to get deformed positions
+            var deformedVertices = new Vector3[_meshVertices.Length];
+            for (int i = 0; i < _meshVertices.Length; i++)
+            {
+                deformedVertices[i] = _meshVertices[i] + deformer.GetDisplacement(i);
+            }
+
+            _penetratingVertices = PenetrationDetector.DetectPenetration(deformedVertices, refMesh, deformedToRef);
+        }
+
+        private void DrawPenetrationHighlight(Transform meshTransform)
+        {
+            if (_penetratingVertices == null || _penetratingVertices.Count == 0 || _meshVertices == null)
+            {
+                return;
+            }
+
+            var matrix = meshTransform.localToWorldMatrix;
+            var camForward = Camera.current != null ? Camera.current.transform.forward : Vector3.forward;
+            Handles.color = new Color(1f, 0f, 0f, 0.8f);
+
+            foreach (int i in _penetratingVertices)
+            {
+                if (i < _meshVertices.Length)
+                {
+                    Vector3 worldPos = matrix.MultiplyPoint3x4(_meshVertices[i]);
+                    float dotSize = HandleUtility.GetHandleSize(worldPos) * 0.01f;
+                    Handles.DotHandleCap(0, worldPos, Quaternion.identity, dotSize, EventType.Repaint);
+                }
             }
         }
 
@@ -1342,7 +1538,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     LatticeLocalization.Content("Smooth"),
                     LatticeLocalization.Content("Linear"),
-                    new GUIContent("Constant")
+                    LatticeLocalization.Content("Constant"),
+                    LatticeLocalization.Content("Sphere"),
+                    LatticeLocalization.Content("Gaussian")
                 };
                 int falloffIndex = EditorGUILayout.Popup(
                     LatticeLocalization.Content("Brush Falloff"),
@@ -1367,6 +1565,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 BrushDeformerTool.UseSurfaceDistance = GUILayout.Toggle(
                     BrushDeformerTool.UseSurfaceDistance,
                     LatticeLocalization.Content("Surface Distance"));
+
+                // Backface culling toggle
+                BrushDeformerTool.BackfaceCulling = GUILayout.Toggle(
+                    BrushDeformerTool.BackfaceCulling,
+                    LatticeLocalization.Content("Backface Culling"));
 
                 GUILayout.Space(4f);
 
@@ -1398,6 +1601,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 BrushDeformerTool.VertexDotSize = EditorGUILayout.Slider(
                     LatticeLocalization.Content("Dot Size"),
                     BrushDeformerTool.VertexDotSize, 1f, 8f);
+
+                // Penetration Detection
+                BrushDeformerTool.ShowPenetration = GUILayout.Toggle(
+                    BrushDeformerTool.ShowPenetration,
+                    LatticeLocalization.Content("Show Penetration"));
+                if (BrushDeformerTool.ShowPenetration)
+                {
+                    BrushDeformerTool.PenetrationReference = (Renderer)EditorGUILayout.ObjectField(
+                        LatticeLocalization.Content("Reference Mesh"),
+                        BrushDeformerTool.PenetrationReference,
+                        typeof(Renderer),
+                        true);
+                }
 
                 GUILayout.Space(4f);
 

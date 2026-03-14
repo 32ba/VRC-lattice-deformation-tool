@@ -240,6 +240,9 @@ msgstr "연결된 면만"
 msgid "Surface Distance"
 msgstr "표면 거리"
 
+msgid "Backface Culling"
+msgstr "후면 컬링"
+
 msgid "Enable Mirror"
 msgstr "미러 활성화"
 
@@ -407,3 +410,33 @@ msgstr "마스크 지우기"
 
 msgid "Brush Mask"
 msgstr "브러시 마스크"
+
+# 관통 감지
+msgid "Show Penetration"
+msgstr "관통 표시"
+
+msgid "Reference Mesh"
+msgstr "참조 메시"
+
+# 감쇠 유형
+msgid "Sphere"
+msgstr "구체"
+
+msgid "Gaussian"
+msgstr "가우시안"
+
+msgid "Smooth"
+msgstr "부드러움"
+
+# 레이어 조작
+msgid "Paste"
+msgstr "붙여넣기"
+
+msgid "Paste Layer"
+msgstr "레이어 붙여넣기"
+
+msgid "Duplicate"
+msgstr "복제"
+
+msgid "Duplicate Layer"
+msgstr "레이어 복제"
