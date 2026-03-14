@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Profiling;
+using UnityEngine.Rendering;
 using Net._32Ba.LatticeDeformationTool;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
@@ -25,12 +27,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Gaussian = 4
         }
 
+        internal enum HandleOrientation
+        {
+            Local = 0,
+            Global = 1,
+            Normal = 2
+        }
+
+        internal enum PivotMode
+        {
+            Center = 0,
+            LastSelected = 1
+        }
+
         private static GUIContent s_icon;
         private static TransformMode s_transformMode = TransformMode.Move;
         private static bool s_proportionalEditing = false;
         private static float s_proportionalRadius = 0.1f;
         private static FalloffType s_proportionalFalloff = FalloffType.Smooth;
-        private static float s_vertexDotSize = 3f;
+        private static float s_vertexDotSize = 6f;
+        private static bool s_backfaceCulling = true;
+        private static HandleOrientation s_handleOrientation = HandleOrientation.Local;
+        private static PivotMode s_pivotMode = PivotMode.Center;
+        private static int s_lastSelectedVertex = -1;
+
+        private const float k_PrecisionMultiplier = 0.1f;
 
         private static readonly HashSet<int> s_selectedVertices = new HashSet<int>();
 
@@ -38,6 +59,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private Mesh _cachedMesh;
         private Vector3[] _meshVertices;     // Source mesh vertices (for displacement base)
+        private Vector3[] _meshNormals;      // Source mesh normals (for backface culling / normal orientation)
         private Vector3[] _deformedVertices; // Posed/skinned vertices (for display/selection)
         private int[] _meshTriangles;
 
@@ -55,6 +77,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static readonly Color k_UnselectedVertexColor = new Color(0.2f, 0.8f, 1f, 0.6f);
         private static readonly Color k_SelectedVertexColor = new Color(1f, 1f, 0f, 1f);
         private static readonly Color k_ProportionalRadiusColor = new Color(0.5f, 1f, 0.5f, 0.4f);
+
+        private static Material s_vertexDotMaterial;
+        private static Texture2D s_circleTex;
 
         static VertexSelectionHandler()
         {
@@ -124,6 +149,39 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
+        internal static bool BackfaceCulling
+        {
+            get => s_backfaceCulling;
+            set
+            {
+                if (s_backfaceCulling == value) return;
+                s_backfaceCulling = value;
+                SceneView.RepaintAll();
+            }
+        }
+
+        internal static HandleOrientation CurrentHandleOrientation
+        {
+            get => s_handleOrientation;
+            set
+            {
+                if (s_handleOrientation == value) return;
+                s_handleOrientation = value;
+                SceneView.RepaintAll();
+            }
+        }
+
+        internal static PivotMode CurrentPivotMode
+        {
+            get => s_pivotMode;
+            set
+            {
+                if (s_pivotMode == value) return;
+                s_pivotMode = value;
+                SceneView.RepaintAll();
+            }
+        }
+
         internal static int SelectedVertexCount => s_selectedVertices.Count;
 
         internal void Activate(LatticeDeformer deformer)
@@ -157,6 +215,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal void OnToolGUI(EditorWindow window, LatticeDeformer deformer)
         {
+            Profiler.BeginSample("VertexSelection.OnToolGUI");
             if (Event.current != null && Event.current.commandName == "UndoRedoPerformed")
             {
                 return;
@@ -192,7 +251,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             var evt = Event.current;
 
-            // W/E/R key shortcuts to switch transform mode
+            // W/E/R key shortcuts to switch transform mode, Z to toggle pivot
             if (evt.type == EventType.KeyDown && !evt.alt && !evt.control && !evt.command && !evt.shift)
             {
                 switch (evt.keyCode)
@@ -207,6 +266,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         return;
                     case KeyCode.R:
                         CurrentTransformMode = TransformMode.Scale;
+                        evt.Use();
+                        return;
+                    case KeyCode.Z:
+                        CurrentPivotMode = s_pivotMode == PivotMode.Center
+                            ? PivotMode.LastSelected
+                            : PivotMode.Center;
                         evt.Use();
                         return;
                 }
@@ -231,12 +296,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 DrawTransformHandle(deformer, meshTransform);
             }
 
-            // Draw proportional radius
-            if (s_proportionalEditing && s_selectedVertices.Count > 0)
-            {
-                DrawProportionalRadius(deformer, meshTransform);
-            }
-
             // Handle selection input AFTER transform handles (handles claim hotControl first)
             HandleSelectionInput(deformer, meshTransform, evt);
 
@@ -257,6 +316,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
             }
+            Profiler.EndSample();
         }
 
         private void HandleSelectionInput(LatticeDeformer deformer, Transform meshTransform, Event evt)
@@ -301,6 +361,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         if (nearest >= 0)
                         {
                             s_selectedVertices.Add(nearest);
+                            s_lastSelectedVertex = nearest;
                         }
                     }
                     else if (evt.control || evt.command)
@@ -312,6 +373,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                             {
                                 s_selectedVertices.Remove(nearest);
                             }
+                            else
+                            {
+                                s_lastSelectedVertex = nearest;
+                            }
                         }
                     }
                     else
@@ -321,6 +386,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         if (nearest >= 0)
                         {
                             s_selectedVertices.Add(nearest);
+                            s_lastSelectedVertex = nearest;
                         }
                     }
                 }
@@ -370,27 +436,154 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return SkinnedVertexHelper.LocalToWorld(index, _worldPositions, _deformedVertices, localToWorld);
         }
 
+        private static Texture2D EnsureCircleTexture()
+        {
+            if (s_circleTex == null)
+            {
+                const int size = 32;
+                s_circleTex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+                s_circleTex.hideFlags = HideFlags.HideAndDontSave;
+                s_circleTex.filterMode = FilterMode.Bilinear;
+                float center = (size - 1) * 0.5f;
+                for (int y = 0; y < size; y++)
+                {
+                    for (int x = 0; x < size; x++)
+                    {
+                        float dx = x - center, dy = y - center;
+                        float dist = Mathf.Sqrt(dx * dx + dy * dy) / center;
+                        // Smooth edge with anti-aliasing
+                        float alpha = Mathf.Clamp01(1f - Mathf.Clamp01((dist - 0.7f) / 0.3f));
+                        s_circleTex.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                    }
+                }
+                s_circleTex.Apply();
+            }
+            return s_circleTex;
+        }
+
+        private static Material EnsureVertexDotMaterial()
+        {
+            if (s_vertexDotMaterial == null)
+            {
+                s_vertexDotMaterial = new Material(Shader.Find("Hidden/Internal-Colored"));
+                s_vertexDotMaterial.hideFlags = HideFlags.HideAndDontSave;
+                s_vertexDotMaterial.SetInt("_ZWrite", 0);
+                s_vertexDotMaterial.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+                s_vertexDotMaterial.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+                s_vertexDotMaterial.SetInt("_Cull", (int)CullMode.Off);
+                s_vertexDotMaterial.mainTexture = EnsureCircleTexture();
+            }
+            return s_vertexDotMaterial;
+        }
+
         private void DrawVertices(LatticeDeformer deformer, Transform meshTransform)
         {
+            Profiler.BeginSample("VertexSelection.DrawVertices");
             if (_deformedVertices == null || _deformedVertices.Length == 0)
             {
+                Profiler.EndSample();
                 return;
             }
 
+            var cam = Camera.current;
+            if (cam == null) { Profiler.EndSample(); return; }
+
             var matrix = meshTransform.localToWorldMatrix;
-            var camForward = Camera.current != null ? Camera.current.transform.forward : Vector3.forward;
+            var camRight = cam.transform.right;
+            var camUp = cam.transform.up;
+
             int vertexCount = _deformedVertices.Length;
+            bool showInfluence = s_proportionalEditing && s_selectedVertices.Count > 0;
+
+            // Set up batched GL drawing with depth test
+            var mat = EnsureVertexDotMaterial();
+            mat.SetInt("_ZTest", s_backfaceCulling
+                ? (int)CompareFunction.LessEqual
+                : (int)CompareFunction.Always);
+            mat.SetPass(0);
+
+            // Precompute a uniform dot scale from camera distance to mesh center
+            // instead of calling HandleUtility.GetHandleSize per vertex
+            float baseHandleSize = HandleUtility.GetHandleSize(meshTransform.position);
+            float baseRadius = baseHandleSize * 0.004f;
+
+            Profiler.BeginSample("VertexSelection.DrawVertices.Loop");
+            GL.PushMatrix();
+            GL.MultMatrix(Matrix4x4.identity);
+            GL.Begin(GL.QUADS);
 
             for (int i = 0; i < vertexCount; i++)
             {
                 var worldPos = DeformedToWorld(i, matrix);
                 bool isSelected = s_selectedVertices.Contains(i);
 
-                Handles.color = isSelected ? k_SelectedVertexColor : k_UnselectedVertexColor;
+                Color col;
+                float dotSize;
+                if (isSelected)
+                {
+                    col = k_SelectedVertexColor;
+                    dotSize = s_vertexDotSize * 1.5f;
+                }
+                else if (showInfluence)
+                {
+                    float influence = ComputeProportionalInfluence(i);
+                    if (influence > 0f)
+                    {
+                        col = InfluenceToColor(influence);
+                        dotSize = Mathf.Lerp(s_vertexDotSize * 0.6f, s_vertexDotSize * 1.4f, influence);
+                    }
+                    else
+                    {
+                        col = k_UnselectedVertexColor;
+                        dotSize = s_vertexDotSize;
+                    }
+                }
+                else
+                {
+                    col = k_UnselectedVertexColor;
+                    dotSize = s_vertexDotSize;
+                }
 
-                float dotSize = isSelected ? s_vertexDotSize * 1.5f : s_vertexDotSize;
-                float dotRadius = HandleUtility.GetHandleSize(worldPos) * 0.004f * dotSize;
-                Handles.DrawSolidDisc(worldPos, camForward, dotRadius);
+                float r = baseRadius * dotSize;
+                var right = camRight * r;
+                var up = camUp * r;
+
+                GL.Color(col);
+                GL.TexCoord2(0f, 0f); GL.Vertex(worldPos - right - up);
+                GL.TexCoord2(1f, 0f); GL.Vertex(worldPos + right - up);
+                GL.TexCoord2(1f, 1f); GL.Vertex(worldPos + right + up);
+                GL.TexCoord2(0f, 1f); GL.Vertex(worldPos - right + up);
+            }
+
+            GL.End();
+            GL.PopMatrix();
+            Profiler.EndSample();
+
+            Profiler.EndSample();
+        }
+
+        private static Color InfluenceToColor(float t)
+        {
+            // 0.0 = blue, 0.25 = cyan, 0.5 = green, 0.75 = yellow, 1.0 = red
+            t = Mathf.Clamp01(t);
+            if (t < 0.25f)
+            {
+                float s = t / 0.25f;
+                return new Color(0f, s, 1f, 0.9f);
+            }
+            if (t < 0.5f)
+            {
+                float s = (t - 0.25f) / 0.25f;
+                return new Color(0f, 1f, 1f - s, 0.9f);
+            }
+            if (t < 0.75f)
+            {
+                float s = (t - 0.5f) / 0.25f;
+                return new Color(s, 1f, 0f, 0.9f);
+            }
+            {
+                float s = (t - 0.75f) / 0.25f;
+                return new Color(1f, 1f - s, 0f, 0.9f);
             }
         }
 
@@ -416,18 +609,45 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             centroid /= count;
 
-            var handleRotation = meshTransform.rotation;
+            // Pivot position: centroid or last selected vertex
+            Vector3 pivotPos;
+            if (s_pivotMode == PivotMode.LastSelected && s_lastSelectedVertex >= 0
+                && _deformedVertices != null && s_lastSelectedVertex < _deformedVertices.Length
+                && s_selectedVertices.Contains(s_lastSelectedVertex))
+            {
+                pivotPos = DeformedToWorld(s_lastSelectedVertex, matrix);
+            }
+            else
+            {
+                pivotPos = centroid;
+            }
+
+            // Handle orientation
+            Quaternion handleRotation;
+            switch (s_handleOrientation)
+            {
+                case HandleOrientation.Global:
+                    handleRotation = Quaternion.identity;
+                    break;
+                case HandleOrientation.Normal:
+                    handleRotation = ComputeAverageNormalRotation(meshTransform);
+                    break;
+                case HandleOrientation.Local:
+                default:
+                    handleRotation = meshTransform.rotation;
+                    break;
+            }
 
             switch (s_transformMode)
             {
                 case TransformMode.Move:
-                    DrawMoveHandle(deformer, meshTransform, centroid, handleRotation);
+                    DrawMoveHandle(deformer, meshTransform, pivotPos, handleRotation);
                     break;
                 case TransformMode.Rotate:
-                    DrawRotateHandle(deformer, meshTransform, centroid, handleRotation);
+                    DrawRotateHandle(deformer, meshTransform, pivotPos, handleRotation);
                     break;
                 case TransformMode.Scale:
-                    DrawScaleHandle(deformer, meshTransform, centroid, handleRotation);
+                    DrawScaleHandle(deformer, meshTransform, pivotPos, handleRotation);
                     break;
             }
         }
@@ -447,6 +667,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
 
                     var localDelta = meshTransform.InverseTransformVector(delta);
+                    if (Event.current.shift)
+                        localDelta *= k_PrecisionMultiplier;
                     ApplyMoveDelta(deformer, localDelta);
                 }
             }
@@ -477,6 +699,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 var deltaRotation = newRotation * Quaternion.Inverse(_handleRotation);
                 _handleRotation = newRotation;
+                if (Event.current.shift)
+                    deltaRotation = Quaternion.Slerp(Quaternion.identity, deltaRotation, k_PrecisionMultiplier);
 
                 ApplyRotationDelta(deformer, meshTransform, centroid, deltaRotation);
             }
@@ -510,6 +734,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     _handleScale.y != 0f ? newScale.y / _handleScale.y : 1f,
                     _handleScale.z != 0f ? newScale.z / _handleScale.z : 1f);
                 _handleScale = newScale;
+                if (Event.current.shift)
+                    relativeScale = Vector3.Lerp(Vector3.one, relativeScale, k_PrecisionMultiplier);
 
                 ApplyScaleDelta(deformer, meshTransform, centroid, relativeScale);
             }
@@ -760,25 +986,33 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void DrawProportionalRadius(LatticeDeformer deformer, Transform meshTransform)
         {
-            // Draw a wire sphere around the centroid of selected vertices
-            Vector3 centroid = Vector3.zero;
+            // Draw a wire sphere around the pivot position
             var matrix = meshTransform.localToWorldMatrix;
-            int count = 0;
 
-            foreach (int i in s_selectedVertices)
+            Vector3 pivotWorld;
+            if (s_pivotMode == PivotMode.LastSelected && s_lastSelectedVertex >= 0
+                && _deformedVertices != null && s_lastSelectedVertex < _deformedVertices.Length
+                && s_selectedVertices.Contains(s_lastSelectedVertex))
             {
-                if (_deformedVertices == null || i < 0 || i >= _deformedVertices.Length) continue;
-
-                centroid += DeformedToWorld(i, matrix);
-                count++;
+                pivotWorld = DeformedToWorld(s_lastSelectedVertex, matrix);
             }
-
-            if (count == 0) return;
-            centroid /= count;
+            else
+            {
+                Vector3 centroid = Vector3.zero;
+                int count = 0;
+                foreach (int i in s_selectedVertices)
+                {
+                    if (_deformedVertices == null || i < 0 || i >= _deformedVertices.Length) continue;
+                    centroid += DeformedToWorld(i, matrix);
+                    count++;
+                }
+                if (count == 0) return;
+                pivotWorld = centroid / count;
+            }
 
             var prevMatrix = Handles.matrix;
             Handles.matrix = meshTransform.localToWorldMatrix;
-            var localCentroid = meshTransform.InverseTransformPoint(centroid);
+            var localCentroid = meshTransform.InverseTransformPoint(pivotWorld);
 
             Handles.color = k_ProportionalRadiusColor;
             Handles.DrawWireDisc(localCentroid, Vector3.up, s_proportionalRadius);
@@ -882,7 +1116,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            if (ReferenceEquals(_cachedMesh, mesh) && _meshVertices != null)
+            if (ReferenceEquals(_cachedMesh, mesh) && _meshVertices != null && _meshNormals != null)
             {
                 // Still need to refresh deformed vertices each frame
                 RefreshDeformedVertices(deformer);
@@ -892,6 +1126,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _cachedMesh = mesh;
             _meshVertices = mesh.vertices;
             _meshTriangles = mesh.triangles;
+            _meshNormals = mesh.normals;
+            if (_meshNormals == null || _meshNormals.Length != _meshVertices.Length)
+            {
+                mesh.RecalculateNormals();
+                _meshNormals = mesh.normals;
+            }
             RefreshDeformedVertices(deformer);
         }
 
@@ -936,8 +1176,63 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             _cachedMesh = null;
             _meshVertices = null;
+            _meshNormals = null;
             _deformedVertices = null;
             _meshTriangles = null;
+        }
+
+        private Quaternion ComputeAverageNormalRotation(Transform meshTransform)
+        {
+            if (_meshNormals == null || s_selectedVertices.Count == 0)
+                return meshTransform.rotation;
+
+            Vector3 avgNormal = Vector3.zero;
+            foreach (int i in s_selectedVertices)
+            {
+                if (i >= 0 && i < _meshNormals.Length)
+                    avgNormal += _meshNormals[i];
+            }
+
+            if (avgNormal.sqrMagnitude < 1e-6f)
+                return meshTransform.rotation;
+
+            avgNormal = meshTransform.TransformDirection(avgNormal.normalized);
+
+            // Build rotation with Z aligned to average normal
+            // Use world up as hint, fall back to world right if normal is nearly vertical
+            var up = Mathf.Abs(Vector3.Dot(avgNormal, Vector3.up)) > 0.9f ? Vector3.right : Vector3.up;
+            return Quaternion.LookRotation(avgNormal, up);
+        }
+
+        private static void ResetSelectedVertices(LatticeDeformer deformer)
+        {
+            if (deformer == null || s_selectedVertices.Count == 0) return;
+
+            Undo.RecordObject(deformer, LatticeLocalization.Tr("Reset Selected Vertices"));
+            deformer.EnsureDisplacementCapacity();
+
+            foreach (int i in s_selectedVertices)
+            {
+                deformer.SetDisplacement(i, Vector3.zero);
+            }
+
+            bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
+            deformer.Deform(assignToRenderer);
+            LatticePrefabUtility.MarkModified(deformer);
+            LatticePreviewUtility.RequestSceneRepaint();
+        }
+
+        private static void ResetAllVertices(LatticeDeformer deformer)
+        {
+            if (deformer == null) return;
+
+            Undo.RecordObject(deformer, LatticeLocalization.Tr("Reset All Vertices"));
+            deformer.ClearDisplacements();
+
+            bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
+            deformer.Deform(assignToRenderer);
+            LatticePrefabUtility.MarkModified(deformer);
+            LatticePreviewUtility.RequestSceneRepaint();
         }
 
         internal static void ClearSelection()
@@ -1024,6 +1319,29 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
             VertexSelectionHandler.CurrentTransformMode = (VertexSelectionHandler.TransformMode)modeIndex;
 
+            // Handle orientation selector
+            var orientContent = new GUIContent[]
+            {
+                LatticeLocalization.Content("Local"),
+                LatticeLocalization.Content("Global"),
+                LatticeLocalization.Content("Normal")
+            };
+            GUILayout.Label(LatticeLocalization.Content("Handle Orientation"), EditorStyles.miniLabel);
+            int orientIndex = GUILayout.Toolbar((int)VertexSelectionHandler.CurrentHandleOrientation, orientContent);
+            orientIndex = Mathf.Clamp(orientIndex, 0, orientContent.Length - 1);
+            VertexSelectionHandler.CurrentHandleOrientation = (VertexSelectionHandler.HandleOrientation)orientIndex;
+
+            // Pivot mode selector
+            var pivotContent = new GUIContent[]
+            {
+                LatticeLocalization.Content("Center"),
+                LatticeLocalization.Content("Last Selected")
+            };
+            GUILayout.Label(LatticeLocalization.Content("Pivot"), EditorStyles.miniLabel);
+            int pivotIndex = GUILayout.Toolbar((int)VertexSelectionHandler.CurrentPivotMode, pivotContent);
+            pivotIndex = Mathf.Clamp(pivotIndex, 0, pivotContent.Length - 1);
+            VertexSelectionHandler.CurrentPivotMode = (VertexSelectionHandler.PivotMode)pivotIndex;
+
             GUILayout.Space(4f);
 
             // Proportional editing
@@ -1060,6 +1378,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             VertexSelectionHandler.VertexDotSize = EditorGUILayout.Slider(
                 LatticeLocalization.Content("Dot Size"),
                 VertexSelectionHandler.VertexDotSize, 1f, 8f);
+            VertexSelectionHandler.BackfaceCulling = GUILayout.Toggle(
+                VertexSelectionHandler.BackfaceCulling,
+                LatticeLocalization.Content("Backface Culling"));
 
             GUILayout.Space(4f);
 
@@ -1085,9 +1406,27 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
+            using (new GUILayout.HorizontalScope())
+            {
+                using (new EditorGUI.DisabledScope(VertexSelectionHandler.SelectedVertexCount == 0))
+                {
+                    if (GUILayout.Button(LatticeLocalization.Content("Reset Selected Vertices")))
+                    {
+                        ResetSelectedVertices(deformer);
+                    }
+                }
+
+                if (GUILayout.Button(LatticeLocalization.Content("Reset All Vertices")))
+                {
+                    ResetAllVertices(deformer);
+                }
+            }
+
             GUILayout.Space(2f);
             GUILayout.Label(LatticeLocalization.Tr("W/E/R: Move/Rotate/Scale"), EditorStyles.miniLabel);
             GUILayout.Label(LatticeLocalization.Tr("Shift+Click: Add / Ctrl+Click: Toggle"), EditorStyles.miniLabel);
+            GUILayout.Label(LatticeLocalization.Tr("Shift+Drag: Precision Mode"), EditorStyles.miniLabel);
+            GUILayout.Label(LatticeLocalization.Tr("Z: Toggle Pivot"), EditorStyles.miniLabel);
             if (VertexSelectionHandler.ProportionalEditing)
             {
                 GUILayout.Label(LatticeLocalization.Tr("Alt+Scroll: Proportional Radius"), EditorStyles.miniLabel);

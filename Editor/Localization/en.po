@@ -444,3 +444,34 @@ msgstr "Select a Mesh Deformer to edit."
 
 msgid "Brush"
 msgstr "Brush"
+
+# Vertex Selection Tool
+msgid "Handle Orientation"
+msgstr "Handle Orientation"
+
+msgid "Local"
+msgstr "Local"
+
+msgid "Global"
+msgstr "Global"
+
+msgid "Pivot"
+msgstr "Pivot"
+
+msgid "Center"
+msgstr "Center"
+
+msgid "Last Selected"
+msgstr "Last Selected"
+
+msgid "Shift+Drag: Precision Mode"
+msgstr "Shift+Drag: Precision Mode"
+
+msgid "Z: Toggle Pivot"
+msgstr "Z: Toggle Pivot"
+
+msgid "Reset Selected Vertices"
+msgstr "Reset Selected Vertices"
+
+msgid "Reset All Vertices"
+msgstr "Reset All Vertices"

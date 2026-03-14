@@ -455,3 +455,34 @@ msgstr "편집할 Mesh Deformer를 선택하세요."
 
 msgid "Brush"
 msgstr "브러시"
+
+# 버텍스 선택 도구
+msgid "Handle Orientation"
+msgstr "핸들 방향"
+
+msgid "Local"
+msgstr "로컬"
+
+msgid "Global"
+msgstr "글로벌"
+
+msgid "Pivot"
+msgstr "피벗"
+
+msgid "Center"
+msgstr "중심"
+
+msgid "Last Selected"
+msgstr "마지막 선택"
+
+msgid "Shift+Drag: Precision Mode"
+msgstr "Shift+드래그: 정밀 모드"
+
+msgid "Z: Toggle Pivot"
+msgstr "Z: 피벗 전환"
+
+msgid "Reset Selected Vertices"
+msgstr "선택한 버텍스 초기화"
+
+msgid "Reset All Vertices"
+msgstr "모든 버텍스 초기화"

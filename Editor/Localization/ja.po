@@ -486,3 +486,34 @@ msgstr "編集する Mesh Deformer を選択してください。"
 
 msgid "Brush"
 msgstr "ブラシ"
+
+# 頂点選択ツール
+msgid "Handle Orientation"
+msgstr "ハンドル方向"
+
+msgid "Local"
+msgstr "ローカル"
+
+msgid "Global"
+msgstr "グローバル"
+
+msgid "Pivot"
+msgstr "ピボット"
+
+msgid "Center"
+msgstr "中心"
+
+msgid "Last Selected"
+msgstr "最後に選択"
+
+msgid "Shift+Drag: Precision Mode"
+msgstr "Shift+ドラッグ: 精密モード"
+
+msgid "Z: Toggle Pivot"
+msgstr "Z: ピボット切替"
+
+msgid "Reset Selected Vertices"
+msgstr "選択した頂点をリセット"
+
+msgid "Reset All Vertices"
+msgstr "すべての頂点をリセット"

@@ -455,3 +455,34 @@ msgstr "請選擇要編輯的 Mesh Deformer。"
 
 msgid "Brush"
 msgstr "筆刷"
+
+# 頂點選取工具
+msgid "Handle Orientation"
+msgstr "手柄方向"
+
+msgid "Local"
+msgstr "本地"
+
+msgid "Global"
+msgstr "全域"
+
+msgid "Pivot"
+msgstr "樞軸"
+
+msgid "Center"
+msgstr "中心"
+
+msgid "Last Selected"
+msgstr "最後選取"
+
+msgid "Shift+Drag: Precision Mode"
+msgstr "Shift+拖曳: 精確模式"
+
+msgid "Z: Toggle Pivot"
+msgstr "Z: 切換樞軸"
+
+msgid "Reset Selected Vertices"
+msgstr "重置選取頂點"
+
+msgid "Reset All Vertices"
+msgstr "重置所有頂點"

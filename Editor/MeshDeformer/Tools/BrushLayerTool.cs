@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 using Net._32Ba.LatticeDeformationTool;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
@@ -26,7 +27,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
 
         private static GUIContent s_icon;
-        private static float s_brushRadius = 0.05f;
+        private static float s_brushRadius = 0.02f;
         private static float s_brushStrength = 0.5f;
         private static BrushFalloffType s_brushFalloff = BrushFalloffType.Smooth;
         private static BrushMode s_brushMode = BrushMode.Normal;
@@ -85,7 +86,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             get => s_brushRadius;
             set
             {
-                s_brushRadius = Mathf.Clamp(value, 0.001f, 1.0f);
+                s_brushRadius = Mathf.Clamp(value, 0.001f, 0.2f);
                 SceneView.RepaintAll();
             }
         }
@@ -276,8 +277,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal void OnToolGUI(EditorWindow window, LatticeDeformer deformer)
         {
+            UnityEngine.Profiling.Profiler.BeginSample("BrushTool.OnToolGUI");
             if (Event.current != null && Event.current.commandName == "UndoRedoPerformed")
             {
+                UnityEngine.Profiling.Profiler.EndSample();
                 return;
             }
 
@@ -500,6 +503,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
             }
+            UnityEngine.Profiling.Profiler.EndSample();
         }
 
         private void ApplyBrush(LatticeDeformer deformer, Transform meshTransform, Vector3 localHitPoint, Vector3 localHitNormal, Event evt)
@@ -1146,19 +1150,81 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ClearGeodesicDistanceCache();
         }
 
+        private static Material s_brushDotMaterial;
+        private static Texture2D s_brushCircleTex;
+
+        private static void BeginBatchedDotDraw()
+        {
+            if (s_brushCircleTex == null)
+            {
+                const int size = 32;
+                s_brushCircleTex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+                s_brushCircleTex.hideFlags = HideFlags.HideAndDontSave;
+                s_brushCircleTex.filterMode = FilterMode.Bilinear;
+                float center = (size - 1) * 0.5f;
+                for (int y = 0; y < size; y++)
+                    for (int x = 0; x < size; x++)
+                    {
+                        float dx = x - center, dy = y - center;
+                        float dist = Mathf.Sqrt(dx * dx + dy * dy) / center;
+                        float alpha = Mathf.Clamp01(1f - Mathf.Clamp01((dist - 0.7f) / 0.3f));
+                        s_brushCircleTex.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+                    }
+                s_brushCircleTex.Apply();
+            }
+
+            if (s_brushDotMaterial == null)
+            {
+                s_brushDotMaterial = new Material(Shader.Find("Hidden/Internal-Colored"));
+                s_brushDotMaterial.hideFlags = HideFlags.HideAndDontSave;
+                s_brushDotMaterial.SetInt("_ZWrite", 0);
+                s_brushDotMaterial.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+                s_brushDotMaterial.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+                s_brushDotMaterial.SetInt("_Cull", (int)CullMode.Off);
+                s_brushDotMaterial.SetInt("_ZTest", (int)CompareFunction.Always);
+                s_brushDotMaterial.mainTexture = s_brushCircleTex;
+            }
+
+            s_brushDotMaterial.SetPass(0);
+            GL.PushMatrix();
+            GL.MultMatrix(Matrix4x4.identity);
+            GL.Begin(GL.QUADS);
+        }
+
+        private static void EndBatchedDotDraw()
+        {
+            GL.End();
+            GL.PopMatrix();
+        }
+
+        private static void DrawBatchedDot(Vector3 worldPos, Color col, float radius, Vector3 camRight, Vector3 camUp)
+        {
+            var right = camRight * radius;
+            var up = camUp * radius;
+            GL.Color(col);
+            GL.TexCoord2(0f, 0f); GL.Vertex(worldPos - right - up);
+            GL.TexCoord2(1f, 0f); GL.Vertex(worldPos + right - up);
+            GL.TexCoord2(1f, 1f); GL.Vertex(worldPos + right + up);
+            GL.TexCoord2(0f, 1f); GL.Vertex(worldPos - right + up);
+        }
+
         private void DrawAffectedVertices(LatticeDeformer deformer, Vector3 localHitPoint, Transform meshTransform)
         {
             float radiusSq = s_brushRadius * s_brushRadius;
             int vertexCount = _meshVertices.Length;
             Color brushColor = GetBrushColor();
             var matrix = meshTransform.localToWorldMatrix;
+            var cam = Camera.current;
+            if (cam == null) return;
+            var camRight = cam.transform.right;
+            var camUp = cam.transform.up;
+            float baseSize = HandleUtility.GetHandleSize(meshTransform.position) * 0.004f;
 
+            BeginBatchedDotDraw();
             for (int i = 0; i < vertexCount; i++)
             {
                 if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
-                {
                     continue;
-                }
 
                 var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
 
@@ -1166,9 +1232,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (s_useSurfaceDistance && _geodesicDistanceCache != null)
                 {
                     if (!_geodesicDistanceCache.TryGetValue(i, out float geodesicDist))
-                    {
                         continue;
-                    }
                     float t = geodesicDist / s_brushRadius;
                     falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
                 }
@@ -1176,20 +1240,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     float distSq = (vertex - localHitPoint).sqrMagnitude;
                     if (distSq > radiusSq) continue;
-
                     float dist = Mathf.Sqrt(distSq);
                     float t = dist / s_brushRadius;
                     falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
                 }
 
-                var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
-                float dotSize = s_vertexDotSize * falloff;
-                if (dotSize < 0.5f) continue;
+                if (falloff < 0.01f) continue;
 
-                Color dotColor = Color.Lerp(new Color(brushColor.r, brushColor.g, brushColor.b, 0.15f), brushColor, falloff);
-                Handles.color = dotColor;
-                Handles.DrawSolidDisc(worldPos, Camera.current != null ? Camera.current.transform.forward : Vector3.forward, HandleUtility.GetHandleSize(worldPos) * 0.004f * dotSize);
+                var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
+                Color dotColor = HeatmapColor(falloff);
+                dotColor.a = 0.4f + 0.5f * falloff;
+                float dotSize = Mathf.Lerp(s_vertexDotSize * 0.6f, s_vertexDotSize * 1.4f, falloff);
+                DrawBatchedDot(worldPos, dotColor, baseSize * dotSize, camRight, camUp);
             }
+            EndBatchedDotDraw();
         }
 
         private void DrawDisplacementHeatmap(LatticeDeformer deformer, Transform meshTransform)
@@ -1213,8 +1277,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (maxMag < 1e-12f) return;
             maxMag = Mathf.Sqrt(maxMag);
 
-            var camForward = Camera.current != null ? Camera.current.transform.forward : Vector3.forward;
+            var cam = Camera.current;
+            if (cam == null) return;
+            var camRight = cam.transform.right;
+            var camUp = cam.transform.up;
+            float baseSize = HandleUtility.GetHandleSize(meshTransform.position) * 0.003f;
 
+            BeginBatchedDotDraw();
             for (int i = 0; i < vertexCount; i++)
             {
                 float mag = displacements[i].magnitude;
@@ -1224,14 +1293,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var vertex = _meshVertices[i] + displacements[i];
                 var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
 
-                // Blue (low) -> Cyan -> Green -> Yellow -> Red (high)
                 Color heatColor = HeatmapColor(normalized);
                 heatColor.a = 0.3f + 0.6f * normalized;
 
-                Handles.color = heatColor;
-                float dotRadius = HandleUtility.GetHandleSize(worldPos) * 0.003f * (1f + normalized * 2f);
-                Handles.DrawSolidDisc(worldPos, camForward, dotRadius);
+                float dotRadius = baseSize * (1f + normalized * 2f);
+                DrawBatchedDot(worldPos, heatColor, dotRadius, camRight, camUp);
             }
+            EndBatchedDotDraw();
         }
 
         private static Color HeatmapColor(float t)
@@ -1257,8 +1325,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             int vertexCount = Mathf.Min(_meshVertices.Length, mask.Length);
             var matrix = meshTransform.localToWorldMatrix;
-            var camForward = Camera.current != null ? Camera.current.transform.forward : Vector3.forward;
+            var cam = Camera.current;
+            if (cam == null) return;
+            var camRight = cam.transform.right;
+            var camUp = cam.transform.up;
+            float baseSize = HandleUtility.GetHandleSize(meshTransform.position) * 0.004f;
 
+            BeginBatchedDotDraw();
             for (int i = 0; i < vertexCount; i++)
             {
                 float maskValue = mask[i];
@@ -1270,10 +1343,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 // Red = protected (mask=0), Green = editable (mask=1)
                 float protection = 1f - maskValue;
                 Color dotColor = Color.Lerp(new Color(0.2f, 1f, 0.2f, 0.4f), new Color(1f, 0.2f, 0.2f, 0.8f), protection);
-                Handles.color = dotColor;
-                float dotRadius = HandleUtility.GetHandleSize(worldPos) * 0.004f * (1f + protection * 2f);
-                Handles.DrawSolidDisc(worldPos, camForward, dotRadius);
+                float dotRadius = baseSize * (1f + protection * 2f);
+                DrawBatchedDot(worldPos, dotColor, dotRadius, camRight, camUp);
             }
+            EndBatchedDotDraw();
         }
 
         private void UpdatePenetrationDetection(LatticeDeformer deformer)
@@ -1566,7 +1639,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Brush Radius slider
             BrushToolHandler.BrushRadius = EditorGUILayout.Slider(
                 LatticeLocalization.Content("Brush Radius"),
-                BrushToolHandler.BrushRadius, 0.001f, 1.0f);
+                BrushToolHandler.BrushRadius, 0.001f, 0.2f);
 
             // Brush Strength slider
             BrushToolHandler.BrushStrength = EditorGUILayout.Slider(
