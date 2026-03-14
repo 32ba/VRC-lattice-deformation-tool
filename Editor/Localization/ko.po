@@ -440,3 +440,18 @@ msgstr "복제"
 
 msgid "Duplicate Layer"
 msgstr "레이어 복제"
+
+msgid "Mesh Deformer"
+msgstr "Mesh Deformer"
+
+msgid "Active Layer"
+msgstr "활성 레이어"
+
+msgid "Vertex Selection"
+msgstr "버텍스 선택"
+
+msgid "Select a Mesh Deformer to edit."
+msgstr "편집할 Mesh Deformer를 선택하세요."
+
+msgid "Brush"
+msgstr "브러시"

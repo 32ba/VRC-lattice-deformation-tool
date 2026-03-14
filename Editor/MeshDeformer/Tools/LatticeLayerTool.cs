@@ -2,16 +2,13 @@
 using System;
 using System.Collections.Generic;
 using UnityEditor;
-using UnityEditor.EditorTools;
-using UnityEditor.Overlays;
 using UnityEngine;
 using UnityEngine.Rendering;
 using Net._32Ba.LatticeDeformationTool;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
-    [EditorTool("Lattice Tool", typeof(LatticeDeformer))]
-    public sealed class LatticeDeformerTool : EditorTool
+    internal sealed class LatticeToolHandler
     {
         internal enum MirrorAxis
         {
@@ -38,7 +35,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static PivotRotation? s_previousPivotRotation;
         private static Vector3Int s_lastGridSize = Vector3Int.one;
 
-        static LatticeDeformerTool()
+        private LatticeDeformer _activeDeformer;
+
+        static LatticeToolHandler()
         {
             LatticeLocalization.LanguageChanged += OnLanguageChanged;
         }
@@ -162,44 +161,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             LatticeLocalization.Content("Antisymmetric")
         };
 
-        public override GUIContent toolbarIcon
+        internal void Activate(LatticeDeformer deformer)
         {
-            get
-            {
-                if (s_icon == null)
-                {
-                    s_icon = EditorGUIUtility.IconContent("EditCollider");
-                }
-
-                if (s_icon != null)
-                {
-                    s_icon.tooltip = LatticeLocalization.Tr("Lattice Tool");
-                }
-
-                return s_icon;
-            }
-        }
-
-        public override bool IsAvailable()
-        {
-            var deformer = target as LatticeDeformer;
-            if (deformer == null && Selection.activeGameObject != null)
-            {
-                deformer = Selection.activeGameObject.GetComponent<LatticeDeformer>();
-            }
-
-            return deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Lattice;
-        }
-
-        public override void OnActivated()
-        {
+            _activeDeformer = deformer;
             s_previousPivotRotation = Tools.pivotRotation;
             Tools.pivotRotation = PivotRotation.Local;
             Undo.undoRedoPerformed += OnUndoRedo;
             SceneView.RepaintAll();
         }
 
-        public override void OnWillBeDeactivated()
+        internal void Deactivate()
         {
             Undo.undoRedoPerformed -= OnUndoRedo;
             ClearSelection();
@@ -208,9 +179,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Tools.pivotRotation = s_previousPivotRotation.Value;
                 s_previousPivotRotation = null;
             }
+            _activeDeformer = null;
         }
 
-        public override void OnToolGUI(EditorWindow window)
+        internal void OnToolGUI(EditorWindow window, LatticeDeformer deformer)
         {
             if (Event.current != null && Event.current.commandName == "UndoRedoPerformed")
             {
@@ -220,11 +192,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (Tools.pivotRotation != PivotRotation.Local)
             {
                 Tools.pivotRotation = PivotRotation.Local;
-            }
-
-            if (target is not LatticeDeformer deformer)
-            {
-                return;
             }
 
             if (deformer.ActiveLayerType != MeshDeformerLayerType.Lattice)
@@ -669,12 +636,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void OnUndoRedo()
         {
-            if (target is not LatticeDeformer deformer)
+            if (_activeDeformer == null)
             {
                 return;
             }
 
-            deformer.Deform(false);
+            _activeDeformer.Deform(false);
 
             LatticePreviewUtility.RequestSceneRepaint();
         }
@@ -1013,98 +980,60 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             return string.Format(LatticeLocalization.Tr("Selected: {0} controls"), s_selectedControls.Count);
         }
-    }
 
-    [Overlay(typeof(SceneView), "Lattice Tool", defaultDisplay = true)]
-    internal sealed class LatticeDeformerToolOverlay : IMGUIOverlay, ITransientOverlay
-    {
-        public bool visible => ToolManager.activeToolType == typeof(LatticeDeformerTool);
-
-        public override void OnGUI()
+        internal static void DrawOverlayGUI(LatticeDeformer deformer)
         {
-            displayName = LatticeLocalization.Tr("Lattice Tool");
+            LatticeToolHandler.ShowIndices = GUILayout.Toggle(LatticeToolHandler.ShowIndices, LatticeLocalization.Content("Show Control IDs"));
 
-            if (ToolManager.activeToolType != typeof(LatticeDeformerTool))
-            {
-                GUILayout.Label(LatticeLocalization.Content("Activate the Lattice Tool to access settings."), EditorStyles.miniLabel);
-                return;
-            }
-
-            using (new GUILayout.VerticalScope(GUILayout.MinWidth(260f)))
-            {
-                GUILayout.Label(LatticeLocalization.Content("Lattice Tool"), EditorStyles.boldLabel);
-
-                DrawLanguageSelector();
-                GUILayout.Space(4f);
-
-                LatticeDeformerTool.ShowIndices = GUILayout.Toggle(LatticeDeformerTool.ShowIndices, LatticeLocalization.Content("Show Control IDs"));
-
-                GUILayout.Label(LatticeLocalization.Content("Control Point Scope"), EditorStyles.miniLabel);
-                int scopeSelection = GUILayout.Toolbar(
-                    LatticeDeformerTool.IncludeInteriorControls ? 1 : 0,
-                    new[]
-                    {
-                        LatticeLocalization.Content("Boundary Only"),
-                        LatticeLocalization.Content("All Controls")
-                    });
-                bool includeInterior = scopeSelection == 1;
-                LatticeDeformerTool.IncludeInteriorControls = includeInterior;
-                GUILayout.Space(2f);
-
-                bool keepControlsVisible = GUILayout.Toggle(
-                    !LatticeDeformerTool.OccludeWithSceneGeometry,
-                    LatticeLocalization.Content("Keep control points visible through objects"));
-                LatticeDeformerTool.OccludeWithSceneGeometry = !keepControlsVisible;
-
-                GUILayout.Space(2f);
-
-                using (new GUILayout.HorizontalScope())
+            GUILayout.Label(LatticeLocalization.Content("Control Point Scope"), EditorStyles.miniLabel);
+            int scopeSelection = GUILayout.Toolbar(
+                LatticeToolHandler.IncludeInteriorControls ? 1 : 0,
+                new[]
                 {
-                    if (GUILayout.Button(LatticeLocalization.Content("Clear Selection"), GUILayout.Width(110f)))
-                    {
-                        LatticeDeformerTool.ClearSelection();
-                    }
+                    LatticeLocalization.Content("Boundary Only"),
+                    LatticeLocalization.Content("All Controls")
+                });
+            bool includeInterior = scopeSelection == 1;
+            LatticeToolHandler.IncludeInteriorControls = includeInterior;
+            GUILayout.Space(2f);
 
-                GUILayout.Label(LatticeDeformerTool.GetSelectionLabel());
+            bool keepControlsVisible = GUILayout.Toggle(
+                !LatticeToolHandler.OccludeWithSceneGeometry,
+                LatticeLocalization.Content("Keep control points visible through objects"));
+            LatticeToolHandler.OccludeWithSceneGeometry = !keepControlsVisible;
+
+            GUILayout.Space(2f);
+
+            using (new GUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button(LatticeLocalization.Content("Clear Selection"), GUILayout.Width(110f)))
+                {
+                    LatticeToolHandler.ClearSelection();
+                }
+
+                GUILayout.Label(LatticeToolHandler.GetSelectionLabel());
             }
 
             GUILayout.Space(4f);
 
-                LatticeDeformerTool.MirrorEditing = GUILayout.Toggle(LatticeDeformerTool.MirrorEditing, LatticeLocalization.Content("Enable Symmetry Editing"));
+            LatticeToolHandler.MirrorEditing = GUILayout.Toggle(LatticeToolHandler.MirrorEditing, LatticeLocalization.Content("Enable Symmetry Editing"));
 
-                using (new EditorGUI.DisabledScope(!LatticeDeformerTool.MirrorEditing))
-                {
-                    int modeSelection = EditorGUILayout.Popup(
-                        LatticeLocalization.Content("Symmetry Mode"),
-                        (int)LatticeDeformerTool.CurrentMirrorBehavior,
-                        LatticeDeformerTool.BehaviorOptions);
-                    modeSelection = Mathf.Clamp(modeSelection, 0, LatticeDeformerTool.BehaviorOptions.Length - 1);
-                    LatticeDeformerTool.CurrentMirrorBehavior = (LatticeDeformerTool.MirrorBehavior)modeSelection;
-
-                    GUILayout.Label(LatticeLocalization.Content("Symmetry Axis"), EditorStyles.miniLabel);
-                    int axisSelection = GUILayout.Toolbar((int)LatticeDeformerTool.CurrentMirrorAxis, LatticeDeformerTool.AxisOptions);
-                    axisSelection = Mathf.Clamp(axisSelection, 0, LatticeDeformerTool.AxisOptions.Length - 1);
-                    LatticeDeformerTool.CurrentMirrorAxis = (LatticeDeformerTool.MirrorAxis)axisSelection;
-                }
-
-                GUILayout.Label(LatticeLocalization.Content("Hold Shift/Ctrl to add/remove controls."), EditorStyles.miniLabel);
-            }
-        }
-
-        private static void DrawLanguageSelector()
-        {
-            using (new EditorGUILayout.HorizontalScope())
+            using (new EditorGUI.DisabledScope(!LatticeToolHandler.MirrorEditing))
             {
-                EditorGUILayout.LabelField(LatticeLocalization.Content("Tool Language"), EditorStyles.miniLabel, GUILayout.Width(130f));
+                int modeSelection = EditorGUILayout.Popup(
+                    LatticeLocalization.Content("Symmetry Mode"),
+                    (int)LatticeToolHandler.CurrentMirrorBehavior,
+                    LatticeToolHandler.BehaviorOptions);
+                modeSelection = Mathf.Clamp(modeSelection, 0, LatticeToolHandler.BehaviorOptions.Length - 1);
+                LatticeToolHandler.CurrentMirrorBehavior = (LatticeToolHandler.MirrorBehavior)modeSelection;
 
-                int current = (int)LatticeLocalization.CurrentLanguage;
-                int next = EditorGUILayout.Popup(current, LatticeLocalization.DisplayNames);
-                if (next != current)
-                {
-                    next = Mathf.Clamp(next, 0, LatticeLocalization.DisplayNames.Length - 1);
-                    LatticeLocalization.CurrentLanguage = (LatticeLocalization.Language)next;
-                }
+                GUILayout.Label(LatticeLocalization.Content("Symmetry Axis"), EditorStyles.miniLabel);
+                int axisSelection = GUILayout.Toolbar((int)LatticeToolHandler.CurrentMirrorAxis, LatticeToolHandler.AxisOptions);
+                axisSelection = Mathf.Clamp(axisSelection, 0, LatticeToolHandler.AxisOptions.Length - 1);
+                LatticeToolHandler.CurrentMirrorAxis = (LatticeToolHandler.MirrorAxis)axisSelection;
             }
+
+            GUILayout.Label(LatticeLocalization.Content("Hold Shift/Ctrl to add/remove controls."), EditorStyles.miniLabel);
         }
     }
 }

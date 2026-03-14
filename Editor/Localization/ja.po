@@ -471,3 +471,18 @@ msgstr "複製"
 
 msgid "Duplicate Layer"
 msgstr "レイヤーを複製"
+
+msgid "Mesh Deformer"
+msgstr "Mesh Deformer"
+
+msgid "Active Layer"
+msgstr "アクティブレイヤー"
+
+msgid "Vertex Selection"
+msgstr "頂点選択"
+
+msgid "Select a Mesh Deformer to edit."
+msgstr "編集する Mesh Deformer を選択してください。"
+
+msgid "Brush"
+msgstr "ブラシ"

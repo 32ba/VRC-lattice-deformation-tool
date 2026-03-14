@@ -133,7 +133,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorGUILayout.Space();
             if (GUILayout.Button(LatticeLocalization.Tr("Open Brush Editor")))
             {
-                ToolManager.SetActiveTool<BrushDeformerTool>();
+                ToolManager.SetActiveTool<MeshDeformerTool>();
                 LatticePreviewUtility.RequestSceneRepaint();
             }
         }

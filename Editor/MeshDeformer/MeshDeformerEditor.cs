@@ -233,14 +233,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 ? LatticeLocalization.Tr("Open Brush Editor")
                 : LatticeLocalization.Tr("Open Lattice Editor")))
             {
-                if (openBrushTool)
-                {
-                    ToolManager.SetActiveTool<BrushDeformerTool>();
-                }
-                else
-                {
-                    ToolManager.SetActiveTool<LatticeDeformerTool>();
-                }
+                ToolManager.SetActiveTool<MeshDeformerTool>();
 
                 LatticePreviewUtility.RequestSceneRepaint();
             }
@@ -894,26 +887,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static void SyncActiveToolToLayer(LatticeDeformer deformer)
         {
-            if (deformer == null)
+            if (deformer == null) return;
+            if (ToolManager.activeToolType == typeof(MeshDeformerTool))
             {
-                return;
-            }
-
-            var activeToolType = ToolManager.activeToolType;
-            bool usingLatticeTool = activeToolType == typeof(LatticeDeformerTool);
-            bool usingBrushTool = activeToolType == typeof(BrushDeformerTool);
-            if (!usingLatticeTool && !usingBrushTool)
-            {
-                return;
-            }
-
-            if (deformer.ActiveLayerType == MeshDeformerLayerType.Brush && usingLatticeTool)
-            {
-                ToolManager.SetActiveTool<BrushDeformerTool>();
-            }
-            else if (deformer.ActiveLayerType == MeshDeformerLayerType.Lattice && usingBrushTool)
-            {
-                ToolManager.SetActiveTool<LatticeDeformerTool>();
+                SceneView.RepaintAll();
             }
         }
 

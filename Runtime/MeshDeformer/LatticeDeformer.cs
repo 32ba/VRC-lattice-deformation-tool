@@ -412,7 +412,7 @@ namespace Net._32Ba.LatticeDeformationTool
             set => _weightTransferSettings = value ?? new WeightTransferSettingsData();
         }
 
-        // Brush-layer compatibility surface for BrushDeformerTool.
+        // Brush-layer compatibility surface for BrushToolHandler.
         public Vector3[] Displacements
         {
             get

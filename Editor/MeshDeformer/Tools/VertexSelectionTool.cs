@@ -2,15 +2,12 @@
 using System;
 using System.Collections.Generic;
 using UnityEditor;
-using UnityEditor.EditorTools;
-using UnityEditor.Overlays;
 using UnityEngine;
 using Net._32Ba.LatticeDeformationTool;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
-    [EditorTool("Vertex Tool", typeof(LatticeDeformer))]
-    public sealed class VertexSelectionTool : EditorTool
+    internal sealed class VertexSelectionHandler
     {
         internal enum TransformMode
         {
@@ -37,8 +34,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static readonly HashSet<int> s_selectedVertices = new HashSet<int>();
 
+        private LatticeDeformer _activeDeformer;
+
         private Mesh _cachedMesh;
-        private Vector3[] _meshVertices;
+        private Vector3[] _meshVertices;     // Source mesh vertices (for displacement base)
+        private Vector3[] _deformedVertices; // Posed/skinned vertices (for display/selection)
         private int[] _meshTriangles;
 
         // Drag-selection
@@ -56,7 +56,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static readonly Color k_SelectedVertexColor = new Color(1f, 1f, 0f, 1f);
         private static readonly Color k_ProportionalRadiusColor = new Color(0.5f, 1f, 0.5f, 0.4f);
 
-        static VertexSelectionTool()
+        static VertexSelectionHandler()
         {
             LatticeLocalization.LanguageChanged += OnLanguageChanged;
         }
@@ -126,54 +126,27 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static int SelectedVertexCount => s_selectedVertices.Count;
 
-        public override GUIContent toolbarIcon
+        internal void Activate(LatticeDeformer deformer)
         {
-            get
-            {
-                if (s_icon == null)
-                {
-                    s_icon = EditorGUIUtility.IconContent("d_EditCollider");
-                }
-
-                if (s_icon != null)
-                {
-                    s_icon.tooltip = LatticeLocalization.Tr("Vertex Tool");
-                }
-
-                return s_icon;
-            }
-        }
-
-        public override bool IsAvailable()
-        {
-            var deformer = target as LatticeDeformer;
-            if (deformer == null && Selection.activeGameObject != null)
-            {
-                deformer = Selection.activeGameObject.GetComponent<LatticeDeformer>();
-            }
-
-            return deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush;
-        }
-
-        public override void OnActivated()
-        {
+            _activeDeformer = deformer;
             Undo.undoRedoPerformed += OnUndoRedo;
             SceneView.RepaintAll();
         }
 
-        public override void OnWillBeDeactivated()
+        internal void Deactivate()
         {
             Undo.undoRedoPerformed -= OnUndoRedo;
             ClearSelection();
             InvalidateCache();
+            _activeDeformer = null;
         }
 
         private void OnUndoRedo()
         {
-            if (target is LatticeDeformer deformer)
+            if (_activeDeformer != null)
             {
                 bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-                deformer.Deform(assignToRenderer);
+                _activeDeformer.Deform(assignToRenderer);
             }
 
             _isTransforming = false;
@@ -182,14 +155,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             SceneView.RepaintAll();
         }
 
-        public override void OnToolGUI(EditorWindow window)
+        internal void OnToolGUI(EditorWindow window, LatticeDeformer deformer)
         {
             if (Event.current != null && Event.current.commandName == "UndoRedoPerformed")
-            {
-                return;
-            }
-
-            if (target is not LatticeDeformer deformer)
             {
                 return;
             }
@@ -218,7 +186,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            RebuildCacheIfNeeded(sourceMesh);
+            RebuildCacheIfNeeded(sourceMesh, deformer);
 
             HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
 
@@ -396,27 +364,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
+        private Vector3 DeformedToWorld(int index, Matrix4x4 localToWorld)
+        {
+            return SkinnedVertexHelper.LocalToWorld(index, _worldPositions, _deformedVertices, localToWorld);
+        }
+
         private void DrawVertices(LatticeDeformer deformer, Transform meshTransform)
         {
-            if (_meshVertices == null || _meshVertices.Length == 0)
+            if (_deformedVertices == null || _deformedVertices.Length == 0)
             {
                 return;
             }
 
             var matrix = meshTransform.localToWorldMatrix;
             var camForward = Camera.current != null ? Camera.current.transform.forward : Vector3.forward;
-            int vertexCount = _meshVertices.Length;
-            var displacements = deformer.Displacements;
+            int vertexCount = _deformedVertices.Length;
 
             for (int i = 0; i < vertexCount; i++)
             {
-                var vertex = _meshVertices[i];
-                if (displacements != null && i < displacements.Length)
-                {
-                    vertex += displacements[i];
-                }
-
-                var worldPos = matrix.MultiplyPoint3x4(vertex);
+                var worldPos = DeformedToWorld(i, matrix);
                 bool isSelected = s_selectedVertices.Contains(i);
 
                 Handles.color = isSelected ? k_SelectedVertexColor : k_UnselectedVertexColor;
@@ -429,23 +395,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void DrawTransformHandle(LatticeDeformer deformer, Transform meshTransform)
         {
-            // Compute centroid of selected vertices in world space
+            // Compute centroid of selected vertices in world space using deformed positions
             Vector3 centroid = Vector3.zero;
-            var displacements = deformer.Displacements;
             var matrix = meshTransform.localToWorldMatrix;
             int count = 0;
 
             foreach (int i in s_selectedVertices)
             {
-                if (i < 0 || i >= _meshVertices.Length) continue;
+                if (_deformedVertices == null || i < 0 || i >= _deformedVertices.Length) continue;
 
-                var vertex = _meshVertices[i];
-                if (displacements != null && i < displacements.Length)
-                {
-                    vertex += displacements[i];
-                }
-
-                centroid += matrix.MultiplyPoint3x4(vertex);
+                centroid += DeformedToWorld(i, matrix);
                 count++;
             }
 
@@ -588,10 +547,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (_isTransforming)
             {
-                var deformer = target as LatticeDeformer;
-                if (deformer != null)
+                if (_activeDeformer != null)
                 {
-                    LatticePrefabUtility.MarkModified(deformer);
+                    LatticePrefabUtility.MarkModified(_activeDeformer);
                 }
             }
 
@@ -627,15 +585,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             foreach (int i in s_selectedVertices)
             {
-                if (i < 0 || i >= _meshVertices.Length) continue;
+                if (_deformedVertices == null || i < 0 || i >= _meshVertices.Length) continue;
 
-                var vertex = _meshVertices[i];
-                if (i < displacements.Length)
-                {
-                    vertex += displacements[i];
-                }
-
-                var worldPos = matrix.MultiplyPoint3x4(vertex);
+                var worldPos = DeformedToWorld(i, matrix);
                 var rotated = deltaRotation * (worldPos - worldCentroid) + worldCentroid;
                 var newLocal = invMatrix.MultiplyPoint3x4(rotated);
                 var newDisplacement = newLocal - _meshVertices[i];
@@ -664,15 +616,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             foreach (int i in s_selectedVertices)
             {
-                if (i < 0 || i >= _meshVertices.Length) continue;
+                if (_deformedVertices == null || i < 0 || i >= _meshVertices.Length) continue;
 
-                var vertex = _meshVertices[i];
-                if (i < displacements.Length)
-                {
-                    vertex += displacements[i];
-                }
-
-                var worldPos = matrix.MultiplyPoint3x4(vertex);
+                var worldPos = DeformedToWorld(i, matrix);
                 var localOffset = invRotation * (worldPos - worldCentroid);
                 localOffset = Vector3.Scale(localOffset, relativeScale);
                 var scaled = worldCentroid + rotation * localOffset;
@@ -709,10 +655,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void ApplyProportionalRotation(LatticeDeformer deformer, Transform meshTransform, Vector3 worldCentroid, Quaternion deltaRotation)
         {
-            if (_meshVertices == null) return;
-
-            var displacements = deformer.Displacements;
-            if (displacements == null) return;
+            if (_meshVertices == null || _deformedVertices == null) return;
 
             var matrix = meshTransform.localToWorldMatrix;
             var invMatrix = meshTransform.worldToLocalMatrix;
@@ -725,13 +668,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 float influence = ComputeProportionalInfluence(i);
                 if (influence <= 0f) continue;
 
-                var vertex = _meshVertices[i];
-                if (i < displacements.Length)
-                {
-                    vertex += displacements[i];
-                }
-
-                var worldPos = matrix.MultiplyPoint3x4(vertex);
+                var worldPos = DeformedToWorld(i, matrix);
                 var rotated = Quaternion.Slerp(Quaternion.identity, deltaRotation, influence) * (worldPos - worldCentroid) + worldCentroid;
                 var newLocal = invMatrix.MultiplyPoint3x4(rotated);
                 var newDisplacement = newLocal - _meshVertices[i];
@@ -741,10 +678,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void ApplyProportionalScale(LatticeDeformer deformer, Transform meshTransform, Vector3 worldCentroid, Vector3 relativeScale)
         {
-            if (_meshVertices == null) return;
-
-            var displacements = deformer.Displacements;
-            if (displacements == null) return;
+            if (_meshVertices == null || _deformedVertices == null) return;
 
             var matrix = meshTransform.localToWorldMatrix;
             var invMatrix = meshTransform.worldToLocalMatrix;
@@ -759,15 +693,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 float influence = ComputeProportionalInfluence(i);
                 if (influence <= 0f) continue;
 
-                var vertex = _meshVertices[i];
-                if (i < displacements.Length)
-                {
-                    vertex += displacements[i];
-                }
-
                 var blendedScale = Vector3.Lerp(Vector3.one, relativeScale, influence);
 
-                var worldPos = matrix.MultiplyPoint3x4(vertex);
+                var worldPos = DeformedToWorld(i, matrix);
                 var localOffset = invRotation * (worldPos - worldCentroid);
                 localOffset = Vector3.Scale(localOffset, blendedScale);
                 var scaled = worldCentroid + rotation * localOffset;
@@ -833,21 +761,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             // Draw a wire sphere around the centroid of selected vertices
             Vector3 centroid = Vector3.zero;
-            var displacements = deformer.Displacements;
             var matrix = meshTransform.localToWorldMatrix;
             int count = 0;
 
             foreach (int i in s_selectedVertices)
             {
-                if (i < 0 || i >= _meshVertices.Length) continue;
+                if (_deformedVertices == null || i < 0 || i >= _deformedVertices.Length) continue;
 
-                var vertex = _meshVertices[i];
-                if (displacements != null && i < displacements.Length)
-                {
-                    vertex += displacements[i];
-                }
-
-                centroid += matrix.MultiplyPoint3x4(vertex);
+                centroid += DeformedToWorld(i, matrix);
                 count++;
             }
 
@@ -887,21 +808,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private int FindVertexAtScreenPos(Vector2 screenPos, Transform meshTransform, LatticeDeformer deformer, float maxScreenDist)
         {
-            if (_meshVertices == null) return -1;
+            var displayVerts = _deformedVertices ?? _meshVertices;
+            if (displayVerts == null) return -1;
 
             int nearest = -1;
             float nearestDist = maxScreenDist;
-            var displacements = deformer.Displacements;
 
-            for (int i = 0; i < _meshVertices.Length; i++)
+            var matrix = meshTransform.localToWorldMatrix;
+            for (int i = 0; i < displayVerts.Length; i++)
             {
-                var vertex = _meshVertices[i];
-                if (displacements != null && i < displacements.Length)
-                {
-                    vertex += displacements[i];
-                }
-
-                Vector3 worldPos = meshTransform.TransformPoint(vertex);
+                Vector3 worldPos = DeformedToWorld(i, matrix);
                 Vector2 guiPos = HandleUtility.WorldToGUIPoint(worldPos);
                 float dist = Vector2.Distance(guiPos, screenPos);
                 if (dist < nearestDist)
@@ -917,19 +833,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private List<int> FindVerticesInScreenRect(Rect screenRect, Transform meshTransform, LatticeDeformer deformer)
         {
             var result = new List<int>();
-            if (_meshVertices == null) return result;
+            if (_deformedVertices == null) return result;
 
-            var displacements = deformer.Displacements;
-
-            for (int i = 0; i < _meshVertices.Length; i++)
+            var matrix = meshTransform.localToWorldMatrix;
+            for (int i = 0; i < _deformedVertices.Length; i++)
             {
-                var vertex = _meshVertices[i];
-                if (displacements != null && i < displacements.Length)
-                {
-                    vertex += displacements[i];
-                }
-
-                Vector3 worldPos = meshTransform.TransformPoint(vertex);
+                Vector3 worldPos = DeformedToWorld(i, matrix);
                 Vector2 guiPos = HandleUtility.WorldToGUIPoint(worldPos);
                 if (screenRect.Contains(guiPos))
                 {
@@ -964,7 +873,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private void RebuildCacheIfNeeded(Mesh mesh)
+        private void RebuildCacheIfNeeded(Mesh mesh, LatticeDeformer deformer = null)
         {
             if (mesh == null)
             {
@@ -974,18 +883,59 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (ReferenceEquals(_cachedMesh, mesh) && _meshVertices != null)
             {
+                // Still need to refresh deformed vertices each frame
+                RefreshDeformedVertices(deformer);
                 return;
             }
 
             _cachedMesh = mesh;
             _meshVertices = mesh.vertices;
             _meshTriangles = mesh.triangles;
+            RefreshDeformedVertices(deformer);
+        }
+
+        // World-space positions computed via bone skinning (null for MeshRenderer).
+        private Vector3[] _worldPositions;
+
+        private void RefreshDeformedVertices(LatticeDeformer deformer)
+        {
+            if (deformer == null || _meshVertices == null)
+            {
+                _deformedVertices = _meshVertices;
+                _worldPositions = null;
+                return;
+            }
+
+            // Get deformed local-space vertices (all layers applied)
+            var runtimeMesh = deformer.RuntimeMesh;
+            if (runtimeMesh != null && runtimeMesh.vertexCount == _meshVertices.Length)
+            {
+                _deformedVertices = runtimeMesh.vertices;
+            }
+            else
+            {
+                int count = _meshVertices.Length;
+                if (_deformedVertices == null || _deformedVertices.Length != count)
+                    _deformedVertices = new Vector3[count];
+
+                var displacements = deformer.Displacements;
+                for (int i = 0; i < count; i++)
+                {
+                    _deformedVertices[i] = _meshVertices[i];
+                    if (displacements != null && i < displacements.Length)
+                        _deformedVertices[i] += displacements[i];
+                }
+            }
+
+            // Compute world-space positions for SkinnedMeshRenderer (null for MeshRenderer)
+            _worldPositions = SkinnedVertexHelper.ComputeWorldPositions(deformer, _deformedVertices);
         }
 
         private void InvalidateCache()
         {
             _cachedMesh = null;
             _meshVertices = null;
+            _deformedVertices = null;
             _meshTriangles = null;
         }
 
@@ -1058,135 +1008,88 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             return string.Format(LatticeLocalization.Tr("Selected: {0} vertices"), s_selectedVertices.Count);
         }
-    }
 
-    [Overlay(typeof(SceneView), "Vertex Tool", defaultDisplay = true)]
-    internal sealed class VertexSelectionToolOverlay : IMGUIOverlay, ITransientOverlay
-    {
-        public bool visible => ToolManager.activeToolType == typeof(VertexSelectionTool);
-
-        public override void OnGUI()
+        internal static void DrawOverlayGUI(LatticeDeformer deformer)
         {
-            displayName = LatticeLocalization.Tr("Vertex Tool");
-
-            if (ToolManager.activeToolType != typeof(VertexSelectionTool))
+            // Transform mode selector
+            var modeContent = new GUIContent[]
             {
-                GUILayout.Label(LatticeLocalization.Content("Vertex Tool"), EditorStyles.miniLabel);
-                return;
-            }
+                LatticeLocalization.Content("Move"),
+                LatticeLocalization.Content("Rotate"),
+                LatticeLocalization.Content("Scale")
+            };
+            GUILayout.Label(LatticeLocalization.Content("Transform Mode"), EditorStyles.miniLabel);
+            int modeIndex = GUILayout.Toolbar((int)VertexSelectionHandler.CurrentTransformMode, modeContent);
+            modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
+            VertexSelectionHandler.CurrentTransformMode = (VertexSelectionHandler.TransformMode)modeIndex;
 
-            var selectedDeformer = Selection.activeGameObject != null
-                ? Selection.activeGameObject.GetComponent<LatticeDeformer>()
-                : null;
-            if (selectedDeformer == null || selectedDeformer.ActiveLayerType != MeshDeformerLayerType.Brush)
+            GUILayout.Space(4f);
+
+            // Proportional editing
+            VertexSelectionHandler.ProportionalEditing = GUILayout.Toggle(
+                VertexSelectionHandler.ProportionalEditing,
+                LatticeLocalization.Content("Proportional Editing"));
+
+            using (new EditorGUI.DisabledScope(!VertexSelectionHandler.ProportionalEditing))
             {
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr("Select a Mesh Deformer with an active Brush layer to edit."), MessageType.Info);
-                return;
-            }
+                VertexSelectionHandler.ProportionalRadius = EditorGUILayout.Slider(
+                    LatticeLocalization.Content("Proportional Radius"),
+                    VertexSelectionHandler.ProportionalRadius, 0.001f, 5.0f);
 
-            using (new GUILayout.VerticalScope(GUILayout.MinWidth(260f)))
-            {
-                GUILayout.Label(LatticeLocalization.Content("Vertex Tool"), EditorStyles.boldLabel);
-
-                DrawLanguageSelector();
-                GUILayout.Space(4f);
-
-                // Transform mode selector
-                var modeContent = new GUIContent[]
+                var falloffContent = new GUIContent[]
                 {
-                    LatticeLocalization.Content("Move"),
-                    LatticeLocalization.Content("Rotate"),
-                    LatticeLocalization.Content("Scale")
+                    LatticeLocalization.Content("Smooth"),
+                    LatticeLocalization.Content("Linear"),
+                    LatticeLocalization.Content("Constant"),
+                    LatticeLocalization.Content("Sphere"),
+                    LatticeLocalization.Content("Gaussian")
                 };
-                GUILayout.Label(LatticeLocalization.Content("Transform Mode"), EditorStyles.miniLabel);
-                int modeIndex = GUILayout.Toolbar((int)VertexSelectionTool.CurrentTransformMode, modeContent);
-                modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
-                VertexSelectionTool.CurrentTransformMode = (VertexSelectionTool.TransformMode)modeIndex;
+                int falloffIndex = EditorGUILayout.Popup(
+                    LatticeLocalization.Content("Falloff"),
+                    (int)VertexSelectionHandler.ProportionalFalloffType,
+                    falloffContent);
+                falloffIndex = Mathf.Clamp(falloffIndex, 0, falloffContent.Length - 1);
+                VertexSelectionHandler.ProportionalFalloffType = (VertexSelectionHandler.FalloffType)falloffIndex;
+            }
 
-                GUILayout.Space(4f);
+            GUILayout.Space(4f);
 
-                // Proportional editing
-                VertexSelectionTool.ProportionalEditing = GUILayout.Toggle(
-                    VertexSelectionTool.ProportionalEditing,
-                    LatticeLocalization.Content("Proportional Editing"));
+            // Visualization
+            GUILayout.Label(LatticeLocalization.Content("Visualization"), EditorStyles.boldLabel);
+            VertexSelectionHandler.VertexDotSize = EditorGUILayout.Slider(
+                LatticeLocalization.Content("Dot Size"),
+                VertexSelectionHandler.VertexDotSize, 1f, 8f);
 
-                using (new EditorGUI.DisabledScope(!VertexSelectionTool.ProportionalEditing))
+            GUILayout.Space(4f);
+
+            // Selection info and actions
+            GUILayout.Label(LatticeLocalization.Content("Selection"), EditorStyles.boldLabel);
+            GUILayout.Label(VertexSelectionHandler.GetSelectionLabel(), EditorStyles.miniLabel);
+
+            using (new GUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button(LatticeLocalization.Content("Select All")))
                 {
-                    VertexSelectionTool.ProportionalRadius = EditorGUILayout.Slider(
-                        LatticeLocalization.Content("Proportional Radius"),
-                        VertexSelectionTool.ProportionalRadius, 0.001f, 5.0f);
-
-                    var falloffContent = new GUIContent[]
-                    {
-                        LatticeLocalization.Content("Smooth"),
-                        LatticeLocalization.Content("Linear"),
-                        LatticeLocalization.Content("Constant"),
-                        LatticeLocalization.Content("Sphere"),
-                        LatticeLocalization.Content("Gaussian")
-                    };
-                    int falloffIndex = EditorGUILayout.Popup(
-                        LatticeLocalization.Content("Falloff"),
-                        (int)VertexSelectionTool.ProportionalFalloffType,
-                        falloffContent);
-                    falloffIndex = Mathf.Clamp(falloffIndex, 0, falloffContent.Length - 1);
-                    VertexSelectionTool.ProportionalFalloffType = (VertexSelectionTool.FalloffType)falloffIndex;
+                    VertexSelectionHandler.SelectAll(deformer);
                 }
 
-                GUILayout.Space(4f);
-
-                // Visualization
-                GUILayout.Label(LatticeLocalization.Content("Visualization"), EditorStyles.boldLabel);
-                VertexSelectionTool.VertexDotSize = EditorGUILayout.Slider(
-                    LatticeLocalization.Content("Dot Size"),
-                    VertexSelectionTool.VertexDotSize, 1f, 8f);
-
-                GUILayout.Space(4f);
-
-                // Selection info and actions
-                GUILayout.Label(LatticeLocalization.Content("Selection"), EditorStyles.boldLabel);
-                GUILayout.Label(VertexSelectionTool.GetSelectionLabel(), EditorStyles.miniLabel);
-
-                using (new GUILayout.HorizontalScope())
+                if (GUILayout.Button(LatticeLocalization.Content("Select None")))
                 {
-                    if (GUILayout.Button(LatticeLocalization.Content("Select All")))
-                    {
-                        VertexSelectionTool.SelectAll(selectedDeformer);
-                    }
-
-                    if (GUILayout.Button(LatticeLocalization.Content("Select None")))
-                    {
-                        VertexSelectionTool.ClearSelection();
-                    }
-
-                    if (GUILayout.Button(LatticeLocalization.Content("Invert")))
-                    {
-                        VertexSelectionTool.InvertSelection(selectedDeformer);
-                    }
+                    VertexSelectionHandler.ClearSelection();
                 }
 
-                GUILayout.Space(2f);
-                GUILayout.Label(LatticeLocalization.Tr("W/E/R: Move/Rotate/Scale"), EditorStyles.miniLabel);
-                GUILayout.Label(LatticeLocalization.Tr("Shift+Click: Add / Ctrl+Click: Toggle"), EditorStyles.miniLabel);
-                if (VertexSelectionTool.ProportionalEditing)
+                if (GUILayout.Button(LatticeLocalization.Content("Invert")))
                 {
-                    GUILayout.Label(LatticeLocalization.Tr("Alt+Scroll: Proportional Radius"), EditorStyles.miniLabel);
+                    VertexSelectionHandler.InvertSelection(deformer);
                 }
             }
-        }
 
-        private static void DrawLanguageSelector()
-        {
-            using (new EditorGUILayout.HorizontalScope())
+            GUILayout.Space(2f);
+            GUILayout.Label(LatticeLocalization.Tr("W/E/R: Move/Rotate/Scale"), EditorStyles.miniLabel);
+            GUILayout.Label(LatticeLocalization.Tr("Shift+Click: Add / Ctrl+Click: Toggle"), EditorStyles.miniLabel);
+            if (VertexSelectionHandler.ProportionalEditing)
             {
-                EditorGUILayout.LabelField(LatticeLocalization.Content("Tool Language"), EditorStyles.miniLabel, GUILayout.Width(130f));
-
-                int current = (int)LatticeLocalization.CurrentLanguage;
-                int next = EditorGUILayout.Popup(current, LatticeLocalization.DisplayNames);
-                if (next != current)
-                {
-                    next = Mathf.Clamp(next, 0, LatticeLocalization.DisplayNames.Length - 1);
-                    LatticeLocalization.CurrentLanguage = (LatticeLocalization.Language)next;
-                }
+                GUILayout.Label(LatticeLocalization.Tr("Alt+Scroll: Proportional Radius"), EditorStyles.miniLabel);
             }
         }
     }

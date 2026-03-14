@@ -440,3 +440,18 @@ msgstr "复制"
 
 msgid "Duplicate Layer"
 msgstr "复制图层"
+
+msgid "Mesh Deformer"
+msgstr "Mesh Deformer"
+
+msgid "Active Layer"
+msgstr "活动图层"
+
+msgid "Vertex Selection"
+msgstr "顶点选择"
+
+msgid "Select a Mesh Deformer to edit."
+msgstr "请选择要编辑的 Mesh Deformer。"
+
+msgid "Brush"
+msgstr "画笔"

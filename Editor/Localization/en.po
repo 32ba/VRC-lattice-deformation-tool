@@ -429,3 +429,18 @@ msgstr "Duplicate"
 
 msgid "Duplicate Layer"
 msgstr "Duplicate Layer"
+
+msgid "Mesh Deformer"
+msgstr "Mesh Deformer"
+
+msgid "Active Layer"
+msgstr "Active Layer"
+
+msgid "Vertex Selection"
+msgstr "Vertex Selection"
+
+msgid "Select a Mesh Deformer to edit."
+msgstr "Select a Mesh Deformer to edit."
+
+msgid "Brush"
+msgstr "Brush"
