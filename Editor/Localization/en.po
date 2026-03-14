@@ -331,3 +331,68 @@ msgstr "Flip Y"
 
 msgid "Flip Z"
 msgstr "Flip Z"
+
+# Vertex Selection Tool
+msgid "Vertex Tool"
+msgstr "Vertex Tool"
+
+msgid "Transform Mode"
+msgstr "Transform Mode"
+
+msgid "Rotate"
+msgstr "Rotate"
+
+msgid "Proportional Editing"
+msgstr "Proportional Editing"
+
+msgid "Proportional Radius"
+msgstr "Proportional Radius"
+
+msgid "Falloff"
+msgstr "Falloff"
+
+msgid "Selection"
+msgstr "Selection"
+
+msgid "Select All"
+msgstr "Select All"
+
+msgid "Select None"
+msgstr "Select None"
+
+msgid "Invert"
+msgstr "Invert"
+
+msgid "Selected: {0} vertices"
+msgstr "Selected: {0} vertices"
+
+msgid "Vertex Move"
+msgstr "Vertex Move"
+
+msgid "Vertex Rotate"
+msgstr "Vertex Rotate"
+
+msgid "Vertex Scale"
+msgstr "Vertex Scale"
+
+msgid "Vertex Transform"
+msgstr "Vertex Transform"
+
+msgid "W/E/R: Move/Rotate/Scale"
+msgstr "W/E/R: Move/Rotate/Scale"
+
+msgid "Shift+Click: Add / Ctrl+Click: Toggle"
+msgstr "Shift+Click: Add / Ctrl+Click: Toggle"
+
+msgid "Alt+Scroll: Proportional Radius"
+msgstr "Alt+Scroll: Proportional Radius"
+
+# Vertex Mask
+msgid "Mask"
+msgstr "Mask"
+
+msgid "Clear Mask"
+msgstr "Clear Mask"
+
+msgid "Brush Mask"
+msgstr "Brush Mask"

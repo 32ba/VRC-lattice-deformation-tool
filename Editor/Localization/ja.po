@@ -373,3 +373,68 @@ msgstr "Y反転"
 
 msgid "Flip Z"
 msgstr "Z反転"
+
+# 頂点選択ツール
+msgid "Vertex Tool"
+msgstr "頂点ツール"
+
+msgid "Transform Mode"
+msgstr "変換モード"
+
+msgid "Rotate"
+msgstr "回転"
+
+msgid "Proportional Editing"
+msgstr "プロポーショナル編集"
+
+msgid "Proportional Radius"
+msgstr "プロポーショナル半径"
+
+msgid "Falloff"
+msgstr "減衰"
+
+msgid "Selection"
+msgstr "選択"
+
+msgid "Select All"
+msgstr "すべて選択"
+
+msgid "Select None"
+msgstr "選択解除"
+
+msgid "Invert"
+msgstr "選択反転"
+
+msgid "Selected: {0} vertices"
+msgstr "選択: {0} 個の頂点"
+
+msgid "Vertex Move"
+msgstr "頂点移動"
+
+msgid "Vertex Rotate"
+msgstr "頂点回転"
+
+msgid "Vertex Scale"
+msgstr "頂点スケール"
+
+msgid "Vertex Transform"
+msgstr "頂点変換"
+
+msgid "W/E/R: Move/Rotate/Scale"
+msgstr "W/E/R: 移動/回転/スケール"
+
+msgid "Shift+Click: Add / Ctrl+Click: Toggle"
+msgstr "Shift+クリック: 追加 / Ctrl+クリック: 切替"
+
+msgid "Alt+Scroll: Proportional Radius"
+msgstr "Alt+スクロール: プロポーショナル半径"
+
+# 頂点マスク
+msgid "Mask"
+msgstr "マスク"
+
+msgid "Clear Mask"
+msgstr "マスクをクリア"
+
+msgid "Brush Mask"
+msgstr "ブラシマスク"

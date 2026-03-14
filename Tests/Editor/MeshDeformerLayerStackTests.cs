@@ -487,6 +487,111 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void VertexMask_BlocksBrushApplication()
+        {
+            var fixture = CreateFixture("VertexMask_BlocksBrushApplication");
+            try
+            {
+                var deformer = fixture.Deformer;
+                int brushLayerIndex = deformer.AddLayer("Brush Layer", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushLayerIndex;
+                deformer.EnsureDisplacementCapacity();
+
+                var layer = deformer.Layers[brushLayerIndex];
+                var sourceVertices = deformer.SourceMesh.vertices;
+                int vertexCount = sourceVertices.Length;
+
+                // Set uniform displacement on all vertices
+                var displacement = new Vector3(0f, 0.5f, 0f);
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    deformer.SetDisplacement(i, displacement);
+                }
+
+                // Set up vertex mask: even indices protected (0), odd indices editable (1)
+                const float weight = 0.8f;
+                layer.Weight = weight;
+                layer.EnsureVertexMaskCapacity(vertexCount);
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    layer.SetVertexMask(i, i % 2 == 0 ? 0f : 1f);
+                }
+
+                var runtimeMesh = deformer.Deform(false);
+                Assert.That(runtimeMesh, Is.Not.Null);
+
+                var deformedVertices = runtimeMesh.vertices;
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    if (i % 2 == 0)
+                    {
+                        // Protected vertices (mask=0) should NOT be displaced
+                        AssertApproximately(sourceVertices[i], deformedVertices[i], 2e-3f);
+                    }
+                    else
+                    {
+                        // Editable vertices (mask=1) should be displaced by displacement * weight
+                        var expected = sourceVertices[i] + displacement * weight;
+                        AssertApproximately(expected, deformedVertices[i], 2e-3f);
+                    }
+                }
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void VertexMask_PartialMask_ScalesDisplacement()
+        {
+            var fixture = CreateFixture("VertexMask_PartialMask_ScalesDisplacement");
+            try
+            {
+                var deformer = fixture.Deformer;
+                int brushLayerIndex = deformer.AddLayer("Brush Layer", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushLayerIndex;
+                deformer.EnsureDisplacementCapacity();
+
+                var layer = deformer.Layers[brushLayerIndex];
+                var sourceVertices = deformer.SourceMesh.vertices;
+                int vertexCount = sourceVertices.Length;
+
+                // Set displacement on all vertices
+                var displacement = new Vector3(0.2f, 0.4f, -0.1f);
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    deformer.SetDisplacement(i, displacement);
+                }
+
+                // Set vertex mask to 0.5 (half protection) on all vertices
+                const float weight = 1f;
+                const float maskValue = 0.5f;
+                layer.Weight = weight;
+                layer.EnsureVertexMaskCapacity(vertexCount);
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    layer.SetVertexMask(i, maskValue);
+                }
+
+                var runtimeMesh = deformer.Deform(false);
+                Assert.That(runtimeMesh, Is.Not.Null);
+
+                var deformedVertices = runtimeMesh.vertices;
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    // Half-masked vertices should be displaced by displacement * weight * 0.5
+                    var expected = sourceVertices[i] + displacement * weight * maskValue;
+                    AssertApproximately(expected, deformedVertices[i], 2e-3f);
+                }
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
         public void GeodesicDistanceCalculator_ComputesCorrectDistances()
         {
             // Linear chain: v0 -- v1 -- v2 -- v3 -- v4

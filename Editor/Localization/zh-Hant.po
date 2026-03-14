@@ -342,3 +342,68 @@ msgstr "Y翻轉"
 
 msgid "Flip Z"
 msgstr "Z翻轉"
+
+# 頂點選取工具
+msgid "Vertex Tool"
+msgstr "頂點工具"
+
+msgid "Transform Mode"
+msgstr "變換模式"
+
+msgid "Rotate"
+msgstr "旋轉"
+
+msgid "Proportional Editing"
+msgstr "比例編輯"
+
+msgid "Proportional Radius"
+msgstr "比例半徑"
+
+msgid "Falloff"
+msgstr "衰減"
+
+msgid "Selection"
+msgstr "選取"
+
+msgid "Select All"
+msgstr "全選"
+
+msgid "Select None"
+msgstr "取消選取"
+
+msgid "Invert"
+msgstr "反選"
+
+msgid "Selected: {0} vertices"
+msgstr "選取: {0} 個頂點"
+
+msgid "Vertex Move"
+msgstr "頂點移動"
+
+msgid "Vertex Rotate"
+msgstr "頂點旋轉"
+
+msgid "Vertex Scale"
+msgstr "頂點縮放"
+
+msgid "Vertex Transform"
+msgstr "頂點變換"
+
+msgid "W/E/R: Move/Rotate/Scale"
+msgstr "W/E/R: 移動/旋轉/縮放"
+
+msgid "Shift+Click: Add / Ctrl+Click: Toggle"
+msgstr "Shift+點擊: 新增 / Ctrl+點擊: 切換"
+
+msgid "Alt+Scroll: Proportional Radius"
+msgstr "Alt+滾輪: 比例半徑"
+
+# 頂點遮罩
+msgid "Mask"
+msgstr "遮罩"
+
+msgid "Clear Mask"
+msgstr "清除遮罩"
+
+msgid "Brush Mask"
+msgstr "筆刷遮罩"

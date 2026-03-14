@@ -17,7 +17,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             Normal = 0,
             Move = 1,
-            Smooth = 2
+            Smooth = 2,
+            Mask = 3
         }
 
         internal enum MirrorAxis
@@ -58,6 +59,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static readonly Color k_NormalBrushColor = new Color(0.3f, 0.5f, 1f, 0.8f);
         private static readonly Color k_SmoothBrushColor = new Color(0.3f, 1f, 0.5f, 0.8f);
         private static readonly Color k_MoveBrushColor = new Color(1f, 0.6f, 0.2f, 0.8f);
+        private static readonly Color k_MaskBrushColor = new Color(1f, 0.3f, 0.3f, 0.8f);
 
         static BrushDeformerTool()
         {
@@ -329,6 +331,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 DrawDisplacementHeatmap(deformer, meshTransform);
             }
 
+            // Draw vertex mask visualization when in Mask mode
+            if (s_brushMode == BrushMode.Mask)
+            {
+                DrawVertexMaskVisualization(deformer, meshTransform);
+            }
+
             // Raycast to find brush center on mesh surface
             var mouseRay = HandleUtility.GUIPointToWorldRay(evt.mousePosition);
             bool hitSurface = IntersectRayMesh(mouseRay, sourceMesh, meshTransform.localToWorldMatrix, out var hit);
@@ -448,6 +456,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 case BrushMode.Smooth:
                     modified = ApplySmoothBrush(deformer, localHitPoint, radiusSq, strength);
                     break;
+
+                case BrushMode.Mask:
+                    modified = ApplyMaskBrush(deformer, localHitPoint, radiusSq);
+                    break;
             }
 
             if (modified)
@@ -501,6 +513,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (normal.sqrMagnitude < 0.001f) normal = Vector3.up;
 
                 var delta = normal * (strength * falloff * direction);
+                float maskValue = GetActiveLayerMaskValue(deformer, i);
+                if (maskValue < 1e-6f) continue;
+                delta *= maskValue;
                 deformer.AddDisplacement(i, delta);
                 modified = true;
             }
@@ -559,6 +574,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
 
                 var delta = localDelta * (strength * falloff * 10f);
+                float maskValue = GetActiveLayerMaskValue(deformer, i);
+                if (maskValue < 1e-6f) continue;
+                delta *= maskValue;
                 deformer.AddDisplacement(i, delta);
                 modified = true;
             }
@@ -620,12 +638,97 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 // Blend toward neighbor average
                 var currentDisp = currentDisplacements[i];
-                var targetDisp = Vector3.Lerp(currentDisp, averageDisp, smoothFactor * falloff);
+                float maskValue = GetActiveLayerMaskValue(deformer, i);
+                if (maskValue < 1e-6f) continue;
+                var targetDisp = Vector3.Lerp(currentDisp, averageDisp, smoothFactor * falloff * maskValue);
                 deformer.SetDisplacement(i, targetDisp);
                 modified = true;
             }
 
             return modified;
+        }
+
+        private bool ApplyMaskBrush(LatticeDeformer deformer, Vector3 localHitPoint, float radiusSq)
+        {
+            if (_meshVertices == null || _meshVertices.Length == 0)
+            {
+                return false;
+            }
+
+            if (!TryGetActiveLayer(deformer, out var layer))
+            {
+                return false;
+            }
+
+            layer.EnsureVertexMaskCapacity(_meshVertices.Length);
+            // When inverted: erase mask (unprotect), otherwise: paint mask (protect)
+            float targetValue = s_invertBrush ? 1f : 0f;
+            bool modified = false;
+
+            for (int i = 0; i < _meshVertices.Length; i++)
+            {
+                if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
+                {
+                    continue;
+                }
+
+                float falloff;
+                if (s_useSurfaceDistance && _geodesicDistanceCache != null)
+                {
+                    if (!_geodesicDistanceCache.TryGetValue(i, out float geodesicDist))
+                    {
+                        continue;
+                    }
+                    float t = geodesicDist / s_brushRadius;
+                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                }
+                else
+                {
+                    var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
+                    float distSq = (vertex - localHitPoint).sqrMagnitude;
+                    if (distSq > radiusSq) continue;
+
+                    float dist = Mathf.Sqrt(distSq);
+                    float t = dist / s_brushRadius;
+                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                }
+
+                float current = layer.GetVertexMask(i);
+                float blend = Mathf.Lerp(current, targetValue, falloff * s_brushStrength);
+                layer.SetVertexMask(i, blend);
+                modified = true;
+            }
+
+            return modified;
+        }
+
+        private static bool TryGetActiveLayer(LatticeDeformer deformer, out LatticeLayer layer)
+        {
+            layer = null;
+            if (deformer == null)
+            {
+                return false;
+            }
+
+            var layers = deformer.Layers;
+            int index = deformer.ActiveLayerIndex;
+            if (index < 0 || index >= layers.Count)
+            {
+                return false;
+            }
+
+            layer = layers[index];
+            return layer != null && layer.Type == MeshDeformerLayerType.Brush;
+        }
+
+        private static float GetActiveLayerMaskValue(LatticeDeformer deformer, int vertexIndex)
+        {
+            if (!TryGetActiveLayer(deformer, out var layer))
+            {
+                return 1f;
+            }
+
+            return layer.GetVertexMask(vertexIndex);
         }
 
         private void ApplyMirror(LatticeDeformer deformer, Vector3 localHitPoint, float radiusSq, float strength, float direction)
@@ -727,6 +830,34 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     // need to be re-derived from the event which is already consumed.
                     break;
                 }
+
+                case BrushMode.Mask:
+                {
+                    if (!TryGetActiveLayer(deformer, out var layer)) break;
+                    layer.EnsureVertexMaskCapacity(vertexCount);
+                    float targetValue = s_invertBrush ? 1f : 0f;
+
+                    for (int i = 0; i < vertexCount; i++)
+                    {
+                        if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
+                        {
+                            continue;
+                        }
+
+                        var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
+                        float distSq = (vertex - mirroredCenter).sqrMagnitude;
+                        if (distSq > radiusSq) continue;
+
+                        float dist = Mathf.Sqrt(distSq);
+                        float t = dist / s_brushRadius;
+                        float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+
+                        float current = layer.GetVertexMask(i);
+                        float blend = Mathf.Lerp(current, targetValue, falloff * s_brushStrength);
+                        layer.SetVertexMask(i, blend);
+                    }
+                    break;
+                }
             }
         }
 
@@ -759,6 +890,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 case BrushMode.Normal: return k_NormalBrushColor;
                 case BrushMode.Smooth: return k_SmoothBrushColor;
                 case BrushMode.Move: return k_MoveBrushColor;
+                case BrushMode.Mask: return k_MaskBrushColor;
                 default: return k_NormalBrushColor;
             }
         }
@@ -768,6 +900,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             switch (s_brushMode)
             {
                 case BrushMode.Smooth: return LatticeLocalization.Tr("Brush Smooth");
+                case BrushMode.Mask: return LatticeLocalization.Tr("Brush Mask");
                 default: return LatticeLocalization.Tr("Brush Deform");
             }
         }
@@ -907,6 +1040,36 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (t < 0.75f)
                 return Color.Lerp(new Color(0.2f, 1f, 0.2f), new Color(1f, 1f, 0f), (t - 0.5f) * 4f);
             return Color.Lerp(new Color(1f, 1f, 0f), new Color(1f, 0.1f, 0f), (t - 0.75f) * 4f);
+        }
+
+        private void DrawVertexMaskVisualization(LatticeDeformer deformer, Transform meshTransform)
+        {
+            if (_meshVertices == null) return;
+            if (!TryGetActiveLayer(deformer, out var layer)) return;
+            if (!layer.HasVertexMask()) return;
+
+            var mask = layer.VertexMask;
+            if (mask == null || mask.Length == 0) return;
+
+            int vertexCount = Mathf.Min(_meshVertices.Length, mask.Length);
+            var matrix = meshTransform.localToWorldMatrix;
+            var camForward = Camera.current != null ? Camera.current.transform.forward : Vector3.forward;
+
+            for (int i = 0; i < vertexCount; i++)
+            {
+                float maskValue = mask[i];
+                if (maskValue > 1f - 1e-6f) continue; // Fully editable, skip
+
+                var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
+                var worldPos = matrix.MultiplyPoint3x4(vertex);
+
+                // Red = protected (mask=0), Green = editable (mask=1)
+                float protection = 1f - maskValue;
+                Color dotColor = Color.Lerp(new Color(0.2f, 1f, 0.2f, 0.4f), new Color(1f, 0.2f, 0.2f, 0.8f), protection);
+                Handles.color = dotColor;
+                float dotRadius = HandleUtility.GetHandleSize(worldPos) * 0.004f * (1f + protection * 2f);
+                Handles.DrawSolidDisc(worldPos, camForward, dotRadius);
+            }
         }
 
         private static bool IntersectRayMesh(Ray ray, Mesh mesh, Matrix4x4 matrix, out RaycastHit hit)
@@ -1103,6 +1266,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             deformer.Deform(assignToRenderer);
             LatticePreviewUtility.RequestSceneRepaint();
         }
+
+        internal static void ClearActiveMask(LatticeDeformer deformer)
+        {
+            if (deformer == null) return;
+            if (!TryGetActiveLayer(deformer, out var layer)) return;
+            Undo.RecordObject(deformer, LatticeLocalization.Tr("Clear Mask"));
+            layer.ClearVertexMask();
+            bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
+            deformer.Deform(assignToRenderer);
+            LatticePreviewUtility.RequestSceneRepaint();
+        }
     }
 
     [Overlay(typeof(SceneView), "Brush Tool", defaultDisplay = true)]
@@ -1141,7 +1315,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     LatticeLocalization.Content("Normal"),
                     LatticeLocalization.Content("Move"),
-                    LatticeLocalization.Content("Smooth")
+                    LatticeLocalization.Content("Smooth"),
+                    LatticeLocalization.Content("Mask")
                 };
                 int modeIndex = EditorGUILayout.Popup(
                     LatticeLocalization.Content("Brush Mode"),
@@ -1238,6 +1413,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         if (deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush)
                         {
                             BrushDeformerTool.ClearAllDisplacements(deformer);
+                        }
+                    }
+                }
+
+                // Clear Mask button (only visible in Mask mode)
+                if (BrushDeformerTool.CurrentBrushMode == BrushDeformerTool.BrushMode.Mask)
+                {
+                    if (GUILayout.Button(LatticeLocalization.Content("Clear Mask")))
+                    {
+                        if (selectedDeformer != null && selectedDeformer.ActiveLayerType == MeshDeformerLayerType.Brush)
+                        {
+                            BrushDeformerTool.ClearActiveMask(selectedDeformer);
                         }
                     }
                 }

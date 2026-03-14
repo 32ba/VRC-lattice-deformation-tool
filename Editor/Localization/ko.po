@@ -342,3 +342,68 @@ msgstr "Y 반전"
 
 msgid "Flip Z"
 msgstr "Z 반전"
+
+# 버텍스 선택 도구
+msgid "Vertex Tool"
+msgstr "버텍스 도구"
+
+msgid "Transform Mode"
+msgstr "변환 모드"
+
+msgid "Rotate"
+msgstr "회전"
+
+msgid "Proportional Editing"
+msgstr "비례 편집"
+
+msgid "Proportional Radius"
+msgstr "비례 반경"
+
+msgid "Falloff"
+msgstr "감쇠"
+
+msgid "Selection"
+msgstr "선택"
+
+msgid "Select All"
+msgstr "모두 선택"
+
+msgid "Select None"
+msgstr "선택 해제"
+
+msgid "Invert"
+msgstr "선택 반전"
+
+msgid "Selected: {0} vertices"
+msgstr "선택: 버텍스 {0}개"
+
+msgid "Vertex Move"
+msgstr "버텍스 이동"
+
+msgid "Vertex Rotate"
+msgstr "버텍스 회전"
+
+msgid "Vertex Scale"
+msgstr "버텍스 스케일"
+
+msgid "Vertex Transform"
+msgstr "버텍스 변환"
+
+msgid "W/E/R: Move/Rotate/Scale"
+msgstr "W/E/R: 이동/회전/스케일"
+
+msgid "Shift+Click: Add / Ctrl+Click: Toggle"
+msgstr "Shift+클릭: 추가 / Ctrl+클릭: 전환"
+
+msgid "Alt+Scroll: Proportional Radius"
+msgstr "Alt+스크롤: 비례 반경"
+
+# 버텍스 마스크
+msgid "Mask"
+msgstr "마스크"
+
+msgid "Clear Mask"
+msgstr "마스크 지우기"
+
+msgid "Brush Mask"
+msgstr "브러시 마스크"

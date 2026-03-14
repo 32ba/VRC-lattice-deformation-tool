@@ -29,6 +29,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private MeshDeformerLayerType _type = MeshDeformerLayerType.Lattice;
         [SerializeField] private LatticeAsset _settings = new LatticeAsset();
         [SerializeField, HideInInspector] private Vector3[] _brushDisplacements = Array.Empty<Vector3>();
+        [SerializeField, HideInInspector] private float[] _vertexMask = Array.Empty<float>();
         [SerializeField] private BlendShapeOutputMode _blendShapeOutput = BlendShapeOutputMode.Disabled;
         [SerializeField] private string _blendShapeName = "";
 
@@ -164,6 +165,84 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             _brushDisplacements[index] += delta;
+        }
+
+        public float[] VertexMask
+        {
+            get => _vertexMask ?? (_vertexMask = Array.Empty<float>());
+            set => _vertexMask = value ?? Array.Empty<float>();
+        }
+
+        public void EnsureVertexMaskCapacity(int vertexCount)
+        {
+            vertexCount = Mathf.Max(0, vertexCount);
+            if (_vertexMask == null || _vertexMask.Length != vertexCount)
+            {
+                var previous = _vertexMask;
+                _vertexMask = new float[vertexCount];
+                // Initialize to 1.0 (fully editable)
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    _vertexMask[i] = 1f;
+                }
+
+                if (previous != null)
+                {
+                    int copyLen = Mathf.Min(previous.Length, vertexCount);
+                    Array.Copy(previous, _vertexMask, copyLen);
+                }
+            }
+        }
+
+        public float GetVertexMask(int index)
+        {
+            if (_vertexMask == null || index < 0 || index >= _vertexMask.Length)
+            {
+                return 1f; // Default: fully editable
+            }
+
+            return _vertexMask[index];
+        }
+
+        public void SetVertexMask(int index, float value)
+        {
+            if (_vertexMask == null || index < 0 || index >= _vertexMask.Length)
+            {
+                return;
+            }
+
+            _vertexMask[index] = Mathf.Clamp01(value);
+        }
+
+        public void ClearVertexMask()
+        {
+            if (_vertexMask == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < _vertexMask.Length; i++)
+            {
+                _vertexMask[i] = 1f;
+            }
+        }
+
+        public bool HasVertexMask()
+        {
+            if (_vertexMask == null || _vertexMask.Length == 0)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < _vertexMask.Length; i++)
+            {
+                if (_vertexMask[i] < 1f - 1e-6f)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 
@@ -455,6 +534,10 @@ namespace Net._32Ba.LatticeDeformationTool
             };
             duplicate.SetType(sourceLayer.Type);
             duplicate.BrushDisplacements = (Vector3[])sourceLayer.BrushDisplacements.Clone();
+            if (sourceLayer.VertexMask.Length > 0)
+            {
+                duplicate.VertexMask = (float[])sourceLayer.VertexMask.Clone();
+            }
 
             int insertAt = Mathf.Clamp(index + 1, 0, _layers.Count);
             _layers.Insert(insertAt, duplicate);
@@ -873,6 +956,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 {
                     case MeshDeformerLayerType.Brush:
                         hash = HashCode.Combine(hash, HashDisplacementState(layer.BrushDisplacements));
+                        hash = HashCode.Combine(hash, HashMaskState(layer.VertexMask));
                         break;
                     default:
                         hash = HashCode.Combine(hash, HashAssetState(layer.Settings));
@@ -1128,9 +1212,12 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             float weight = layer.Weight;
+            var mask = layer.VertexMask;
+            bool hasMask = mask != null && mask.Length == sourceVertices.Length;
             for (int vertex = 0; vertex < deformedVertices.Length; vertex++)
             {
-                deformedVertices[vertex] += displacements[vertex] * weight;
+                float maskValue = hasMask ? mask[vertex] : 1f;
+                deformedVertices[vertex] += displacements[vertex] * weight * maskValue;
             }
         }
 
@@ -1186,9 +1273,12 @@ namespace Net._32Ba.LatticeDeformationTool
                     }
 
                     float weight = layer.Weight;
+                    var mask = layer.VertexMask;
+                    bool hasMask = mask != null && mask.Length == vertexCount;
                     for (int v = 0; v < vertexCount; v++)
                     {
-                        deltaVertices[v] = displacements[v] * weight;
+                        float maskValue = hasMask ? mask[v] : 1f;
+                        deltaVertices[v] = displacements[v] * weight * maskValue;
                     }
 
                     break;
@@ -1654,6 +1744,23 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             hash = HashCode.Combine(hash, displacements.Length);
+            return hash;
+        }
+
+        private static int HashMaskState(float[] mask)
+        {
+            if (mask == null || mask.Length == 0)
+            {
+                return 0;
+            }
+
+            int hash = 31;
+            for (int i = 0; i < mask.Length; i++)
+            {
+                hash = HashCode.Combine(hash, mask[i]);
+            }
+
+            hash = HashCode.Combine(hash, mask.Length);
             return hash;
         }
 
