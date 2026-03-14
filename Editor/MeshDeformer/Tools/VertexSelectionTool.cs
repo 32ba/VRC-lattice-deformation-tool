@@ -222,12 +222,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             // Handle selection input
-            HandleSelectionInput(deformer, meshTransform, evt);
-
             // Draw vertex dots
             DrawVertices(deformer, meshTransform);
 
-            // Draw and handle transform
+            // Draw and handle transform BEFORE selection input so handles get priority
             if (s_selectedVertices.Count > 0)
             {
                 DrawTransformHandle(deformer, meshTransform);
@@ -238,6 +236,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 DrawProportionalRadius(deformer, meshTransform);
             }
+
+            // Handle selection input AFTER transform handles (handles claim hotControl first)
+            HandleSelectionInput(deformer, meshTransform, evt);
 
             // Draw rect selection
             if (_isDraggingSelection)

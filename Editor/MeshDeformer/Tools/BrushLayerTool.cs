@@ -355,39 +355,86 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var mouseRay = HandleUtility.GUIPointToWorldRay(evt.mousePosition);
             bool hitSurface;
             RaycastHit hit;
-            Matrix4x4 raycastMatrix;
-            if (SkinnedVertexHelper.TryGetBakedMeshForRaycast(deformer, out var bakedMesh, out var bakedMatrix))
+            bool usedBakedMesh = SkinnedVertexHelper.TryGetBakedMeshForRaycast(
+                deformer, out var bakedMesh, out var bakedMatrix);
+
+            if (usedBakedMesh)
             {
                 hitSurface = IntersectRayMesh(mouseRay, bakedMesh, bakedMatrix, out hit);
-                raycastMatrix = bakedMatrix;
             }
             else
             {
                 hitSurface = IntersectRayMesh(mouseRay, sourceMesh, meshTransform.localToWorldMatrix, out hit);
-                raycastMatrix = meshTransform.localToWorldMatrix;
             }
 
             if (hitSurface)
             {
-                // Convert hit point to source mesh local space for brush distance calculations
-                var localHitPoint = meshTransform.InverseTransformPoint(hit.point);
-                var localHitNormal = meshTransform.InverseTransformDirection(hit.normal).normalized;
+                // Convert hit to source mesh local space for brush calculations.
+                // For baked meshes, use triangle index + barycentric coords to map back
+                // to source mesh space (since baked positions differ from bind pose).
+                Vector3 localHitPoint;
+                Vector3 localHitNormal;
 
-                // Draw brush disc at the world hit position using the raycast transform
+                if (usedBakedMesh && hit.triangleIndex >= 0 && _meshTriangles != null &&
+                    hit.triangleIndex * 3 + 2 < _meshTriangles.Length)
+                {
+                    int triBase = hit.triangleIndex * 3;
+                    int i0 = _meshTriangles[triBase];
+                    int i1 = _meshTriangles[triBase + 1];
+                    int i2 = _meshTriangles[triBase + 2];
+                    var bary = hit.barycentricCoordinate;
+
+                    // Interpolate in source mesh local space
+                    var v0 = _meshVertices[i0] + deformer.GetDisplacement(i0);
+                    var v1 = _meshVertices[i1] + deformer.GetDisplacement(i1);
+                    var v2 = _meshVertices[i2] + deformer.GetDisplacement(i2);
+                    localHitPoint = v0 * bary.x + v1 * bary.y + v2 * bary.z;
+
+                    if (_meshNormals != null && _meshNormals.Length > Mathf.Max(i0, Mathf.Max(i1, i2)))
+                    {
+                        localHitNormal = (_meshNormals[i0] * bary.x +
+                                          _meshNormals[i1] * bary.y +
+                                          _meshNormals[i2] * bary.z).normalized;
+                    }
+                    else
+                    {
+                        localHitNormal = meshTransform.InverseTransformDirection(hit.normal).normalized;
+                    }
+                }
+                else
+                {
+                    localHitPoint = meshTransform.InverseTransformPoint(hit.point);
+                    localHitNormal = meshTransform.InverseTransformDirection(hit.normal).normalized;
+                }
+
+                // Draw brush disc at the world hit position
                 var prevMatrix = Handles.matrix;
-                Handles.matrix = raycastMatrix;
-                var drawLocalHit = raycastMatrix.inverse.MultiplyPoint3x4(hit.point);
-                var drawLocalNormal = raycastMatrix.inverse.MultiplyVector(hit.normal).normalized;
+                if (usedBakedMesh)
+                {
+                    Handles.matrix = bakedMatrix;
+                    var drawLocal = bakedMatrix.inverse.MultiplyPoint3x4(hit.point);
+                    var drawNormal = bakedMatrix.inverse.MultiplyVector(hit.normal).normalized;
 
-                Color brushColor = GetBrushColor();
-                Handles.color = brushColor;
-                Handles.DrawWireDisc(drawLocalHit, drawLocalNormal, s_brushRadius);
+                    Color brushColor = GetBrushColor();
+                    Handles.color = brushColor;
+                    Handles.DrawWireDisc(drawLocal, drawNormal, s_brushRadius);
+                    Color fillColor = brushColor;
+                    fillColor.a = 0.1f;
+                    Handles.color = fillColor;
+                    Handles.DrawSolidDisc(drawLocal, drawNormal, s_brushRadius);
+                }
+                else
+                {
+                    Handles.matrix = meshTransform.localToWorldMatrix;
 
-                // Draw a second, slightly transparent filled disc for better visibility
-                Color fillColor = brushColor;
-                fillColor.a = 0.1f;
-                Handles.color = fillColor;
-                Handles.DrawSolidDisc(drawLocalHit, drawLocalNormal, s_brushRadius);
+                    Color brushColor = GetBrushColor();
+                    Handles.color = brushColor;
+                    Handles.DrawWireDisc(localHitPoint, localHitNormal, s_brushRadius);
+                    Color fillColor = brushColor;
+                    fillColor.a = 0.1f;
+                    Handles.color = fillColor;
+                    Handles.DrawSolidDisc(localHitPoint, localHitNormal, s_brushRadius);
+                }
 
                 // Draw affected vertex dots within brush radius
                 if (s_showAffectedVertices && _meshVertices != null)
