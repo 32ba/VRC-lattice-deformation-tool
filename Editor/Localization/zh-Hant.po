@@ -234,6 +234,12 @@ msgstr "筆刷衰減"
 msgid "Invert Brush"
 msgstr "反轉筆刷"
 
+msgid "Connected Only"
+msgstr "僅連接面"
+
+msgid "Surface Distance"
+msgstr "表面距離"
+
 msgid "Enable Mirror"
 msgstr "啟用鏡像"
 
@@ -317,3 +323,22 @@ msgstr "匯入 BlendShape"
 
 msgid "Select..."
 msgstr "選擇..."
+
+# 左右操作
+msgid "L/R Operations"
+msgstr "左右操作"
+
+msgid "Split L"
+msgstr "保留左側"
+
+msgid "Split R"
+msgstr "保留右側"
+
+msgid "Flip X"
+msgstr "X翻轉"
+
+msgid "Flip Y"
+msgstr "Y翻轉"
+
+msgid "Flip Z"
+msgstr "Z翻轉"

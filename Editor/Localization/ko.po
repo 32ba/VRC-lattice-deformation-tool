@@ -234,6 +234,12 @@ msgstr "브러시 감쇠"
 msgid "Invert Brush"
 msgstr "브러시 반전"
 
+msgid "Connected Only"
+msgstr "연결된 면만"
+
+msgid "Surface Distance"
+msgstr "표면 거리"
+
 msgid "Enable Mirror"
 msgstr "미러 활성화"
 
@@ -317,3 +323,22 @@ msgstr "BlendShape 가져오기"
 
 msgid "Select..."
 msgstr "선택..."
+
+# 좌우 조작
+msgid "L/R Operations"
+msgstr "좌우 조작"
+
+msgid "Split L"
+msgstr "왼쪽 분리"
+
+msgid "Split R"
+msgstr "오른쪽 분리"
+
+msgid "Flip X"
+msgstr "X 반전"
+
+msgid "Flip Y"
+msgstr "Y 반전"
+
+msgid "Flip Z"
+msgstr "Z 반전"

@@ -223,6 +223,12 @@ msgstr "Brush Falloff"
 msgid "Invert Brush"
 msgstr "Invert Brush"
 
+msgid "Connected Only"
+msgstr "Connected Only"
+
+msgid "Surface Distance"
+msgstr "Surface Distance"
+
 msgid "Enable Mirror"
 msgstr "Enable Mirror"
 
@@ -306,3 +312,22 @@ msgstr "Import BlendShape"
 
 msgid "Select..."
 msgstr "Select..."
+
+# L/R Operations
+msgid "L/R Operations"
+msgstr "L/R Operations"
+
+msgid "Split L"
+msgstr "Split L"
+
+msgid "Split R"
+msgstr "Split R"
+
+msgid "Flip X"
+msgstr "Flip X"
+
+msgid "Flip Y"
+msgstr "Flip Y"
+
+msgid "Flip Z"
+msgstr "Flip Z"

@@ -577,6 +577,245 @@ namespace Net._32Ba.LatticeDeformationTool
             return _layers.Count - 1;
         }
 
+        /// <summary>
+        /// Splits a layer's deformation data by zeroing out one side of the given axis.
+        /// For brush layers, vertices on the zeroed side have their displacements cleared.
+        /// For lattice layers, control points on the zeroed side are reset to their default positions.
+        /// </summary>
+        /// <param name="layerIndex">Index of the layer to split</param>
+        /// <param name="axis">0=X, 1=Y, 2=Z</param>
+        /// <param name="keepPositiveSide">true keeps the positive side, false keeps the negative side</param>
+        public void SplitLayerByAxis(int layerIndex, int axis, bool keepPositiveSide)
+        {
+            EnsureLayers();
+            if (!TryGetLayer(layerIndex, out var layer))
+            {
+                return;
+            }
+
+            CacheSourceMesh();
+
+            if (layer.Type == MeshDeformerLayerType.Brush)
+            {
+                if (_sourceMesh == null)
+                {
+                    return;
+                }
+
+                var displacements = layer.BrushDisplacements;
+                var vertices = _sourceMesh.vertices;
+                if (displacements == null || vertices == null || displacements.Length != vertices.Length)
+                {
+                    return;
+                }
+
+                for (int i = 0; i < vertices.Length; i++)
+                {
+                    float coord = axis == 0 ? vertices[i].x : axis == 1 ? vertices[i].y : vertices[i].z;
+                    bool isPositive = coord >= 0f;
+                    if (isPositive != keepPositiveSide)
+                    {
+                        layer.SetBrushDisplacement(i, Vector3.zero);
+                    }
+                }
+            }
+            else // Lattice
+            {
+                var settings = layer.Settings;
+                if (settings == null)
+                {
+                    return;
+                }
+
+                var gridSize = settings.GridSize;
+                int axisSize = axis == 0 ? gridSize.x : axis == 1 ? gridSize.y : gridSize.z;
+                int mid = axisSize / 2;
+
+                var boundsMin = settings.LocalBounds.min;
+                var boundsSize = settings.LocalBounds.size;
+
+                for (int z = 0; z < gridSize.z; z++)
+                {
+                    for (int y = 0; y < gridSize.y; y++)
+                    {
+                        for (int x = 0; x < gridSize.x; x++)
+                        {
+                            int axisCoord = axis == 0 ? x : axis == 1 ? y : z;
+                            bool isPositive = axisCoord >= mid;
+                            if (isPositive != keepPositiveSide)
+                            {
+                                // Compute neutral/default position from bounds
+                                float wx = gridSize.x > 1 ? (float)x / (gridSize.x - 1) : 0f;
+                                float wy = gridSize.y > 1 ? (float)y / (gridSize.y - 1) : 0f;
+                                float wz = gridSize.z > 1 ? (float)z / (gridSize.z - 1) : 0f;
+                                var neutralPos = boundsMin + Vector3.Scale(boundsSize, new Vector3(wx, wy, wz));
+
+                                int index = x + y * gridSize.x + z * gridSize.x * gridSize.y;
+                                settings.SetControlPointLocal(index, neutralPos);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Flips a layer's deformation data across the given axis.
+        /// For brush layers, swaps displacements between mirrored vertex pairs and negates the axis component.
+        /// For lattice layers, mirrors control point offsets across the axis.
+        /// </summary>
+        /// <param name="layerIndex">Index of the layer to flip</param>
+        /// <param name="axis">0=X, 1=Y, 2=Z</param>
+        public void FlipLayerByAxis(int layerIndex, int axis)
+        {
+            EnsureLayers();
+            if (!TryGetLayer(layerIndex, out var layer))
+            {
+                return;
+            }
+
+            CacheSourceMesh();
+
+            if (layer.Type == MeshDeformerLayerType.Brush)
+            {
+                if (_sourceMesh == null)
+                {
+                    return;
+                }
+
+                var displacements = layer.BrushDisplacements;
+                var vertices = _sourceMesh.vertices;
+                if (displacements == null || vertices == null || displacements.Length != vertices.Length)
+                {
+                    return;
+                }
+
+                int vertexCount = vertices.Length;
+                var newDisplacements = new Vector3[vertexCount];
+                var matched = new bool[vertexCount];
+
+                // Build mirror map: for each vertex, find its mirror counterpart
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    if (matched[i])
+                    {
+                        continue;
+                    }
+
+                    var pos = vertices[i];
+                    var mirrorPos = pos;
+                    if (axis == 0) mirrorPos.x = -mirrorPos.x;
+                    else if (axis == 1) mirrorPos.y = -mirrorPos.y;
+                    else mirrorPos.z = -mirrorPos.z;
+
+                    // Find nearest mirror vertex
+                    int mirrorIndex = -1;
+                    float bestDistSq = float.MaxValue;
+                    for (int j = 0; j < vertexCount; j++)
+                    {
+                        float distSq = (vertices[j] - mirrorPos).sqrMagnitude;
+                        if (distSq < bestDistSq)
+                        {
+                            bestDistSq = distSq;
+                            mirrorIndex = j;
+                        }
+                    }
+
+                    // Tolerance check (1mm)
+                    if (mirrorIndex < 0 || bestDistSq > 0.001f * 0.001f)
+                    {
+                        // No mirror found, negate axis component in place
+                        var d = displacements[i];
+                        if (axis == 0) d.x = -d.x;
+                        else if (axis == 1) d.y = -d.y;
+                        else d.z = -d.z;
+                        newDisplacements[i] = d;
+                        matched[i] = true;
+                        continue;
+                    }
+
+                    // Swap and negate axis component
+                    var di = displacements[i];
+                    var dj = displacements[mirrorIndex];
+
+                    if (axis == 0) { di.x = -di.x; dj.x = -dj.x; }
+                    else if (axis == 1) { di.y = -di.y; dj.y = -dj.y; }
+                    else { di.z = -di.z; dj.z = -dj.z; }
+
+                    newDisplacements[i] = dj;
+                    newDisplacements[mirrorIndex] = di;
+                    matched[i] = true;
+                    matched[mirrorIndex] = true;
+                }
+
+                // Apply
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    layer.SetBrushDisplacement(i, newDisplacements[i]);
+                }
+            }
+            else // Lattice
+            {
+                var settings = layer.Settings;
+                if (settings == null)
+                {
+                    return;
+                }
+
+                var gridSize = settings.GridSize;
+                var boundsMin = settings.LocalBounds.min;
+                var boundsSize = settings.LocalBounds.size;
+
+                // Collect all control point offsets (delta from default)
+                var offsets = new Vector3[gridSize.x, gridSize.y, gridSize.z];
+                for (int z = 0; z < gridSize.z; z++)
+                {
+                    for (int y = 0; y < gridSize.y; y++)
+                    {
+                        for (int x = 0; x < gridSize.x; x++)
+                        {
+                            int index = x + y * gridSize.x + z * gridSize.x * gridSize.y;
+                            var current = settings.GetControlPointLocal(index);
+
+                            float wx = gridSize.x > 1 ? (float)x / (gridSize.x - 1) : 0f;
+                            float wy = gridSize.y > 1 ? (float)y / (gridSize.y - 1) : 0f;
+                            float wz = gridSize.z > 1 ? (float)z / (gridSize.z - 1) : 0f;
+                            var neutral = boundsMin + Vector3.Scale(boundsSize, new Vector3(wx, wy, wz));
+
+                            offsets[x, y, z] = current - neutral;
+                        }
+                    }
+                }
+
+                // Apply flipped
+                for (int z = 0; z < gridSize.z; z++)
+                {
+                    for (int y = 0; y < gridSize.y; y++)
+                    {
+                        for (int x = 0; x < gridSize.x; x++)
+                        {
+                            int mx = axis == 0 ? gridSize.x - 1 - x : x;
+                            int my = axis == 1 ? gridSize.y - 1 - y : y;
+                            int mz = axis == 2 ? gridSize.z - 1 - z : z;
+
+                            var offset = offsets[mx, my, mz];
+                            if (axis == 0) offset.x = -offset.x;
+                            else if (axis == 1) offset.y = -offset.y;
+                            else offset.z = -offset.z;
+
+                            float wx = gridSize.x > 1 ? (float)x / (gridSize.x - 1) : 0f;
+                            float wy = gridSize.y > 1 ? (float)y / (gridSize.y - 1) : 0f;
+                            float wz = gridSize.z > 1 ? (float)z / (gridSize.z - 1) : 0f;
+                            var neutral = boundsMin + Vector3.Scale(boundsSize, new Vector3(wx, wy, wz));
+
+                            int index = x + y * gridSize.x + z * gridSize.x * gridSize.y;
+                            settings.SetControlPointLocal(index, neutral + offset);
+                        }
+                    }
+                }
+            }
+        }
+
         public string[] GetSourceBlendShapeNames()
         {
             if (_sourceMesh == null)

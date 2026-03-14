@@ -1,7 +1,8 @@
 {
   "name": "net.32ba.lattice-deformation-tool.tests.editor",
   "references": [
-    "net.32ba.lattice-deformation-tool"
+    "net.32ba.lattice-deformation-tool",
+    "net.32ba.lattice-deformation-tool.editor"
   ],
   "includePlatforms": [
     "Editor"

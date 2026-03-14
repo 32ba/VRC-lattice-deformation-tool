@@ -586,6 +586,58 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
+            // L/R Operations
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField(LatticeLocalization.Tr("L/R Operations"), EditorStyles.boldLabel);
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button(LatticeLocalization.Tr("Split L")))
+                {
+                    PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Split Layer Left"), instance =>
+                    {
+                        instance.SplitLayerByAxis(instance.ActiveLayerIndex, 0, false);
+                        return true;
+                    });
+                }
+                if (GUILayout.Button(LatticeLocalization.Tr("Split R")))
+                {
+                    PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Split Layer Right"), instance =>
+                    {
+                        instance.SplitLayerByAxis(instance.ActiveLayerIndex, 0, true);
+                        return true;
+                    });
+                }
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button(LatticeLocalization.Tr("Flip X")))
+                {
+                    PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Flip Layer X"), instance =>
+                    {
+                        instance.FlipLayerByAxis(instance.ActiveLayerIndex, 0);
+                        return true;
+                    });
+                }
+                if (GUILayout.Button(LatticeLocalization.Tr("Flip Y")))
+                {
+                    PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Flip Layer Y"), instance =>
+                    {
+                        instance.FlipLayerByAxis(instance.ActiveLayerIndex, 1);
+                        return true;
+                    });
+                }
+                if (GUILayout.Button(LatticeLocalization.Tr("Flip Z")))
+                {
+                    PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Flip Layer Z"), instance =>
+                    {
+                        instance.FlipLayerByAxis(instance.ActiveLayerIndex, 2);
+                        return true;
+                    });
+                }
+            }
+
             // Import BlendShape section
             DrawImportBlendShapeUI(deformer);
         }

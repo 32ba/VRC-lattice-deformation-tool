@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using System.Reflection;
+using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -398,6 +399,133 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
+        [Test]
+        public void SplitLayerByAxis_ZerosCorrectSide()
+        {
+            var fixture = CreateFixture("SplitLayerByAxis_ZerosCorrectSide");
+            try
+            {
+                var deformer = fixture.Deformer;
+                int brushLayerIndex = deformer.AddLayer("Brush Layer", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushLayerIndex;
+                deformer.EnsureDisplacementCapacity();
+
+                var layer = deformer.Layers[brushLayerIndex];
+                var vertices = deformer.SourceMesh.vertices;
+                int vertexCount = vertices.Length;
+
+                // Set displacement on every vertex
+                var displacement = new Vector3(0.1f, 0.2f, -0.05f);
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    deformer.SetDisplacement(i, displacement);
+                }
+
+                // Split: keep positive X side
+                deformer.SplitLayerByAxis(brushLayerIndex, 0, true);
+
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    var d = layer.GetBrushDisplacement(i);
+                    if (vertices[i].x >= 0f)
+                    {
+                        // Positive side should retain displacement
+                        AssertApproximately(displacement, d, Epsilon);
+                    }
+                    else
+                    {
+                        // Negative side should be zeroed
+                        AssertApproximately(Vector3.zero, d, Epsilon);
+                    }
+                }
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void FlipLayerByAxis_SwapsMirroredVertices()
+        {
+            var fixture = CreateFixtureWithSymmetricMesh("FlipLayerByAxis_SwapsMirroredVertices");
+            try
+            {
+                var deformer = fixture.Deformer;
+                int brushLayerIndex = deformer.AddLayer("Brush Layer", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushLayerIndex;
+                deformer.EnsureDisplacementCapacity();
+
+                var layer = deformer.Layers[brushLayerIndex];
+                var vertices = deformer.SourceMesh.vertices;
+
+                // The symmetric mesh has:
+                //   vertex 0 at ( 1, 0, 0)
+                //   vertex 1 at (-1, 0, 0)
+                //   vertex 2 at ( 0, 1, 0)
+                //   vertex 3 at ( 0,-1, 0)
+                // Set displacement only on vertex 0 (positive X side)
+                var displacementA = new Vector3(0.3f, 0.1f, -0.05f);
+                layer.SetBrushDisplacement(0, displacementA);
+
+                // Flip X axis
+                deformer.FlipLayerByAxis(brushLayerIndex, 0);
+
+                // After flip, vertex 0's displacement should have moved to vertex 1
+                // with X component negated
+                var expectedAtMirror = new Vector3(-displacementA.x, displacementA.y, displacementA.z);
+                AssertApproximately(expectedAtMirror, layer.GetBrushDisplacement(1), Epsilon);
+
+                // Vertex 0 originally had displacement, but its mirror (vertex 1) had zero,
+                // so vertex 0 should now have the negated-X version of zero = zero
+                AssertApproximately(Vector3.zero, layer.GetBrushDisplacement(0), Epsilon);
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void GeodesicDistanceCalculator_ComputesCorrectDistances()
+        {
+            // Linear chain: v0 -- v1 -- v2 -- v3 -- v4
+            // Each edge has length 1 (vertices spaced 1 unit apart on X axis)
+            var vertices = new[]
+            {
+                new Vector3(0f, 0f, 0f),
+                new Vector3(1f, 0f, 0f),
+                new Vector3(2f, 0f, 0f),
+                new Vector3(3f, 0f, 0f),
+                new Vector3(4f, 0f, 0f)
+            };
+
+            var adjacency = new List<HashSet<int>>
+            {
+                new HashSet<int> { 1 },          // v0 connects to v1
+                new HashSet<int> { 0, 2 },       // v1 connects to v0, v2
+                new HashSet<int> { 1, 3 },       // v2 connects to v1, v3
+                new HashSet<int> { 2, 4 },       // v3 connects to v2, v4
+                new HashSet<int> { 3 }            // v4 connects to v3
+            };
+
+            var distances = GeodesicDistanceCalculator.ComputeDistances(0, 3.5f, adjacency, vertices);
+
+            // v0..v3 should be reachable (distances 0, 1, 2, 3)
+            Assert.That(distances.ContainsKey(0), Is.True, "Start vertex should be in results");
+            Assert.That(distances[0], Is.EqualTo(0f).Within(Epsilon));
+            Assert.That(distances.ContainsKey(1), Is.True, "v1 should be reachable");
+            Assert.That(distances[1], Is.EqualTo(1f).Within(Epsilon));
+            Assert.That(distances.ContainsKey(2), Is.True, "v2 should be reachable");
+            Assert.That(distances[2], Is.EqualTo(2f).Within(Epsilon));
+            Assert.That(distances.ContainsKey(3), Is.True, "v3 should be reachable");
+            Assert.That(distances[3], Is.EqualTo(3f).Within(Epsilon));
+
+            // v4 is at distance 4, which exceeds maxDistance 3.5 -- should NOT be included
+            Assert.That(distances.ContainsKey(4), Is.False,
+                "v4 at distance 4 should not be included (maxDistance = 3.5)");
+        }
+
         private static TestFixture CreateFixture(string name)
         {
             var root = new GameObject(name);
@@ -434,6 +562,35 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 sourceMesh.AddBlendShapeFrame(blendShapeNames[s], 100f, deltas, null, null);
             }
+
+            filter.sharedMesh = sourceMesh;
+
+            var deformer = root.AddComponent<LatticeDeformer>();
+            deformer.Reset();
+            var warmupMesh = deformer.Deform(false);
+            Assert.That(warmupMesh, Is.Not.Null);
+
+            return new TestFixture(root, sourceMesh, deformer);
+        }
+
+        private static TestFixture CreateFixtureWithSymmetricMesh(string name)
+        {
+            var root = new GameObject(name);
+            var filter = root.AddComponent<MeshFilter>();
+            root.AddComponent<MeshRenderer>();
+
+            // Create a simple mesh with symmetric vertex positions across X axis
+            var sourceMesh = new Mesh { name = "SymmetricTestMesh" };
+            sourceMesh.vertices = new[]
+            {
+                new Vector3( 1f, 0f, 0f), // 0: positive X
+                new Vector3(-1f, 0f, 0f), // 1: negative X (mirror of 0)
+                new Vector3( 0f, 1f, 0f), // 2: on axis (self-mirror)
+                new Vector3( 0f,-1f, 0f)  // 3: on axis (self-mirror)
+            };
+            sourceMesh.triangles = new[] { 0, 2, 1, 1, 3, 0 };
+            sourceMesh.RecalculateNormals();
+            sourceMesh.RecalculateBounds();
 
             filter.sharedMesh = sourceMesh;
 

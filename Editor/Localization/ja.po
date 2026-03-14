@@ -265,6 +265,12 @@ msgstr "ブラシ減衰"
 msgid "Invert Brush"
 msgstr "ブラシ反転"
 
+msgid "Connected Only"
+msgstr "接続のみ"
+
+msgid "Surface Distance"
+msgstr "表面距離"
+
 msgid "Enable Mirror"
 msgstr "ミラーを有効化"
 
@@ -348,3 +354,22 @@ msgstr "BlendShape のインポート"
 
 msgid "Select..."
 msgstr "選択..."
+
+# 左右操作
+msgid "L/R Operations"
+msgstr "左右操作"
+
+msgid "Split L"
+msgstr "左を残す"
+
+msgid "Split R"
+msgstr "右を残す"
+
+msgid "Flip X"
+msgstr "X反転"
+
+msgid "Flip Y"
+msgstr "Y反転"
+
+msgid "Flip Z"
+msgstr "Z反転"

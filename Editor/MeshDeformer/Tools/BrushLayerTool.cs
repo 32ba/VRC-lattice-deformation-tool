@@ -38,6 +38,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_showAffectedVertices = true;
         private static bool s_showDisplacementHeatmap = true;
         private static float s_vertexDotSize = 3f;
+        private static bool s_connectedOnly = false;
+        private static bool s_useSurfaceDistance = false;
 
         private Mesh _cachedMesh;
         private Vector3[] _meshVertices;
@@ -45,6 +47,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int[] _meshTriangles;
         private List<HashSet<int>> _adjacency;
         private Vector2 _lastMousePosition;
+        private HashSet<int> _connectedVerticesCache;
+        private int _connectedCacheStartVertex = -1;
+        private Dictionary<int, float> _geodesicDistanceCache;
+        private int _geodesicCacheStartVertex = -1;
 
         private static MethodInfo s_intersectRayMeshMethod;
         private static bool s_intersectRayMeshResolved;
@@ -171,6 +177,28 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             set
             {
                 s_vertexDotSize = Mathf.Clamp(value, 1f, 8f);
+                SceneView.RepaintAll();
+            }
+        }
+
+        internal static bool ConnectedOnly
+        {
+            get => s_connectedOnly;
+            set
+            {
+                if (s_connectedOnly == value) return;
+                s_connectedOnly = value;
+                SceneView.RepaintAll();
+            }
+        }
+
+        internal static bool UseSurfaceDistance
+        {
+            get => s_useSurfaceDistance;
+            set
+            {
+                if (s_useSurfaceDistance == value) return;
+                s_useSurfaceDistance = value;
                 SceneView.RepaintAll();
             }
         }
@@ -328,6 +356,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 // Draw affected vertex dots within brush radius
                 if (s_showAffectedVertices && _meshVertices != null)
                 {
+                    // Update geodesic cache for preview visualization during hover
+                    if (s_useSurfaceDistance)
+                    {
+                        UpdateGeodesicDistanceCache(localHitPoint);
+                    }
+
                     DrawAffectedVertices(deformer, localHitPoint, meshTransform);
                 }
 
@@ -343,6 +377,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     _lastMousePosition = evt.mousePosition;
 
+                    // Build connected vertices cache at stroke start
+                    UpdateConnectedVerticesCache(localHitPoint);
+
+                    // Build geodesic distance cache at stroke start
+                    UpdateGeodesicDistanceCache(localHitPoint);
+
                     Undo.RecordObject(deformer, GetUndoLabel());
                     deformer.EnsureDisplacementCapacity();
 
@@ -351,6 +391,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
                 else if (evt.type == EventType.MouseUp && evt.button == 0)
                 {
+                    ClearConnectedVerticesCache();
+                    ClearGeodesicDistanceCache();
                     evt.Use();
                 }
             }
@@ -359,6 +401,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 // Even without hit, handle mouse up to stop painting
                 if (evt.type == EventType.MouseUp && evt.button == 0)
                 {
+                    ClearConnectedVerticesCache();
+                    ClearGeodesicDistanceCache();
                 }
             }
 
@@ -427,13 +471,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             for (int i = 0; i < vertexCount; i++)
             {
-                var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
-                float distSq = (vertex - localHitPoint).sqrMagnitude;
-                if (distSq > radiusSq) continue;
+                if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
+                {
+                    continue;
+                }
 
-                float dist = Mathf.Sqrt(distSq);
-                float t = dist / s_brushRadius;
-                float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                float falloff;
+                if (s_useSurfaceDistance && _geodesicDistanceCache != null)
+                {
+                    if (!_geodesicDistanceCache.TryGetValue(i, out float geodesicDist))
+                    {
+                        continue; // Not reachable via surface
+                    }
+                    float t = geodesicDist / s_brushRadius;
+                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                }
+                else
+                {
+                    var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
+                    float distSq = (vertex - localHitPoint).sqrMagnitude;
+                    if (distSq > radiusSq) continue;
+
+                    float dist = Mathf.Sqrt(distSq);
+                    float t = dist / s_brushRadius;
+                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                }
 
                 var normal = _meshNormals[i].normalized;
                 if (normal.sqrMagnitude < 0.001f) normal = Vector3.up;
@@ -470,13 +532,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             for (int i = 0; i < vertexCount; i++)
             {
-                var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
-                float distSq = (vertex - localHitPoint).sqrMagnitude;
-                if (distSq > radiusSq) continue;
+                if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
+                {
+                    continue;
+                }
 
-                float dist = Mathf.Sqrt(distSq);
-                float t = dist / s_brushRadius;
-                float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                float falloff;
+                if (s_useSurfaceDistance && _geodesicDistanceCache != null)
+                {
+                    if (!_geodesicDistanceCache.TryGetValue(i, out float geodesicDist))
+                    {
+                        continue; // Not reachable via surface
+                    }
+                    float t = geodesicDist / s_brushRadius;
+                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                }
+                else
+                {
+                    var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
+                    float distSq = (vertex - localHitPoint).sqrMagnitude;
+                    if (distSq > radiusSq) continue;
+
+                    float dist = Mathf.Sqrt(distSq);
+                    float t = dist / s_brushRadius;
+                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                }
 
                 var delta = localDelta * (strength * falloff * 10f);
                 deformer.AddDisplacement(i, delta);
@@ -501,13 +581,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             for (int i = 0; i < vertexCount; i++)
             {
-                var vertex = _meshVertices[i] + currentDisplacements[i];
-                float distSq = (vertex - localHitPoint).sqrMagnitude;
-                if (distSq > radiusSq) continue;
+                if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
+                {
+                    continue;
+                }
 
-                float dist = Mathf.Sqrt(distSq);
-                float t = dist / s_brushRadius;
-                float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                float falloff;
+                if (s_useSurfaceDistance && _geodesicDistanceCache != null)
+                {
+                    if (!_geodesicDistanceCache.TryGetValue(i, out float geodesicDist))
+                    {
+                        continue; // Not reachable via surface
+                    }
+                    float t = geodesicDist / s_brushRadius;
+                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                }
+                else
+                {
+                    var vertex = _meshVertices[i] + currentDisplacements[i];
+                    float distSq = (vertex - localHitPoint).sqrMagnitude;
+                    if (distSq > radiusSq) continue;
+
+                    float dist = Mathf.Sqrt(distSq);
+                    float t = dist / s_brushRadius;
+                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                }
 
                 // Compute average displacement of neighbors
                 var neighbors = _adjacency[i];
@@ -538,12 +636,29 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var mirroredCenter = MirrorPosition(localHitPoint);
             int vertexCount = _meshVertices.Length;
 
+            // Build connected vertices cache for the mirrored side
+            HashSet<int> mirrorConnected = null;
+            if (s_connectedOnly)
+            {
+                EnsureAdjacencyBuilt();
+                int mirrorNearest = FindNearestVertex(mirroredCenter);
+                if (mirrorNearest >= 0)
+                {
+                    mirrorConnected = FindConnectedVertices(mirrorNearest, s_brushRadius);
+                }
+            }
+
             switch (s_brushMode)
             {
                 case BrushMode.Normal:
                 {
                     for (int i = 0; i < vertexCount; i++)
                     {
+                        if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
+                        {
+                            continue;
+                        }
+
                         var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
                         float distSq = (vertex - mirroredCenter).sqrMagnitude;
                         if (distSq > radiusSq) continue;
@@ -572,6 +687,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                     for (int i = 0; i < vertexCount; i++)
                     {
+                        if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
+                        {
+                            continue;
+                        }
+
                         var vertex = _meshVertices[i] + currentDisplacements[i];
                         float distSq = (vertex - mirroredCenter).sqrMagnitude;
                         if (distSq > radiusSq) continue;
@@ -685,6 +805,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _meshNormals = null;
             _meshTriangles = null;
             _adjacency = null;
+            ClearConnectedVerticesCache();
+            ClearGeodesicDistanceCache();
         }
 
         private void DrawAffectedVertices(LatticeDeformer deformer, Vector3 localHitPoint, Transform meshTransform)
@@ -696,13 +818,32 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             for (int i = 0; i < vertexCount; i++)
             {
-                var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
-                float distSq = (vertex - localHitPoint).sqrMagnitude;
-                if (distSq > radiusSq) continue;
+                if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
+                {
+                    continue;
+                }
 
-                float dist = Mathf.Sqrt(distSq);
-                float t = dist / s_brushRadius;
-                float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
+
+                float falloff;
+                if (s_useSurfaceDistance && _geodesicDistanceCache != null)
+                {
+                    if (!_geodesicDistanceCache.TryGetValue(i, out float geodesicDist))
+                    {
+                        continue;
+                    }
+                    float t = geodesicDist / s_brushRadius;
+                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                }
+                else
+                {
+                    float distSq = (vertex - localHitPoint).sqrMagnitude;
+                    if (distSq > radiusSq) continue;
+
+                    float dist = Mathf.Sqrt(distSq);
+                    float t = dist / s_brushRadius;
+                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                }
 
                 var worldPos = matrix.MultiplyPoint3x4(vertex);
                 float dotSize = s_vertexDotSize * falloff;
@@ -830,6 +971,128 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
+        private int FindNearestVertex(Vector3 localPoint)
+        {
+            if (_meshVertices == null || _meshVertices.Length == 0)
+            {
+                return -1;
+            }
+
+            int nearest = -1;
+            float nearestDistSq = float.MaxValue;
+            for (int i = 0; i < _meshVertices.Length; i++)
+            {
+                float distSq = (_meshVertices[i] - localPoint).sqrMagnitude;
+                if (distSq < nearestDistSq)
+                {
+                    nearestDistSq = distSq;
+                    nearest = i;
+                }
+            }
+
+            return nearest;
+        }
+
+        private HashSet<int> FindConnectedVertices(int startVertex, float maxDistance)
+        {
+            var connected = new HashSet<int>();
+            if (_adjacency == null || startVertex < 0 || startVertex >= _adjacency.Count)
+            {
+                return connected;
+            }
+
+            var queue = new Queue<int>();
+            queue.Enqueue(startVertex);
+            connected.Add(startVertex);
+
+            while (queue.Count > 0)
+            {
+                int current = queue.Dequeue();
+                if (!(_adjacency[current] is { } neighbors))
+                {
+                    continue;
+                }
+
+                foreach (int neighbor in neighbors)
+                {
+                    if (connected.Contains(neighbor))
+                    {
+                        continue;
+                    }
+
+                    // Only include vertices within brush radius (Euclidean check for performance)
+                    float distSq = (_meshVertices[neighbor] - _meshVertices[startVertex]).sqrMagnitude;
+                    if (distSq <= maxDistance * maxDistance)
+                    {
+                        connected.Add(neighbor);
+                        queue.Enqueue(neighbor);
+                    }
+                }
+            }
+
+            return connected;
+        }
+
+        private void UpdateConnectedVerticesCache(Vector3 localHitPoint)
+        {
+            if (!s_connectedOnly)
+            {
+                _connectedVerticesCache = null;
+                _connectedCacheStartVertex = -1;
+                return;
+            }
+
+            EnsureAdjacencyBuilt();
+
+            int nearestVertex = FindNearestVertex(localHitPoint);
+            if (nearestVertex < 0)
+            {
+                _connectedVerticesCache = null;
+                _connectedCacheStartVertex = -1;
+                return;
+            }
+
+            // Only rebuild cache if the start vertex changed
+            if (nearestVertex != _connectedCacheStartVertex)
+            {
+                _connectedCacheStartVertex = nearestVertex;
+                _connectedVerticesCache = FindConnectedVertices(nearestVertex, s_brushRadius);
+            }
+        }
+
+        private void ClearConnectedVerticesCache()
+        {
+            _connectedVerticesCache = null;
+            _connectedCacheStartVertex = -1;
+        }
+
+        private void UpdateGeodesicDistanceCache(Vector3 localHitPoint)
+        {
+            if (!s_useSurfaceDistance)
+            {
+                _geodesicDistanceCache = null;
+                _geodesicCacheStartVertex = -1;
+                return;
+            }
+
+            EnsureAdjacencyBuilt();
+            int nearest = FindNearestVertex(localHitPoint);
+            if (nearest < 0 || nearest == _geodesicCacheStartVertex)
+            {
+                return;
+            }
+
+            _geodesicCacheStartVertex = nearest;
+            _geodesicDistanceCache = GeodesicDistanceCalculator.ComputeDistances(
+                nearest, s_brushRadius, _adjacency, _meshVertices);
+        }
+
+        private void ClearGeodesicDistanceCache()
+        {
+            _geodesicDistanceCache = null;
+            _geodesicCacheStartVertex = -1;
+        }
+
         internal static void ClearAllDisplacements(LatticeDeformer deformer)
         {
             if (deformer == null) return;
@@ -919,6 +1182,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 BrushDeformerTool.InvertBrush = GUILayout.Toggle(
                     BrushDeformerTool.InvertBrush,
                     LatticeLocalization.Content("Invert Brush"));
+
+                // Connected only toggle
+                BrushDeformerTool.ConnectedOnly = GUILayout.Toggle(
+                    BrushDeformerTool.ConnectedOnly,
+                    LatticeLocalization.Content("Connected Only"));
+
+                // Surface distance toggle
+                BrushDeformerTool.UseSurfaceDistance = GUILayout.Toggle(
+                    BrushDeformerTool.UseSurfaceDistance,
+                    LatticeLocalization.Content("Surface Distance"));
 
                 GUILayout.Space(4f);
 
