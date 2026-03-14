@@ -141,6 +141,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     DrawGridSizeControls(activeDeformer);
                     DrawSettingsExcludingGrid(activeSettingsProp, allowStructureEdits: true);
                 }
+
+                // BlendShape Output settings (for active layer)
+                DrawBlendShapeOutputSettings(activeDeformer);
+
                 EditorGUI.indentLevel--;
             }
 
@@ -581,6 +585,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
                 }
             }
+
+            // Import BlendShape section
+            DrawImportBlendShapeUI(deformer);
         }
 
         private void InitializeLayerReorderableList()
@@ -1155,6 +1162,107 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 scale.z != 0f ? b.size.z / Mathf.Abs(scale.z) : b.size.z);
 
             return new Bounds(center, size);
+        }
+
+        private void DrawBlendShapeOutputSettings(LatticeDeformer deformer)
+        {
+            if (deformer == null || _layersProp == null || _activeLayerIndexProp == null)
+            {
+                return;
+            }
+
+            int activeIndex = _activeLayerIndexProp.intValue;
+            if (activeIndex < 0 || activeIndex >= _layersProp.arraySize)
+            {
+                return;
+            }
+
+            var layerProp = _layersProp.GetArrayElementAtIndex(activeIndex);
+            if (layerProp == null)
+            {
+                return;
+            }
+
+            EditorGUILayout.Space(4);
+
+            // BlendShape Output
+            var blendShapeOutputProp = layerProp.FindPropertyRelative("_blendShapeOutput");
+            if (blendShapeOutputProp != null)
+            {
+                EditorGUILayout.PropertyField(blendShapeOutputProp, new GUIContent(LatticeLocalization.Tr("BlendShape Output")));
+
+                if (blendShapeOutputProp.intValue == (int)BlendShapeOutputMode.OutputAsBlendShape)
+                {
+                    EditorGUI.indentLevel++;
+                    var blendShapeNameProp = layerProp.FindPropertyRelative("_blendShapeName");
+                    if (blendShapeNameProp != null)
+                    {
+                        EditorGUILayout.PropertyField(blendShapeNameProp, new GUIContent(LatticeLocalization.Tr("BlendShape Name")));
+
+                        // Show effective name hint if blank
+                        if (string.IsNullOrWhiteSpace(blendShapeNameProp.stringValue))
+                        {
+                            var layerNameProp = layerProp.FindPropertyRelative("_name");
+                            string effectiveName = layerNameProp != null && !string.IsNullOrWhiteSpace(layerNameProp.stringValue)
+                                ? layerNameProp.stringValue
+                                : "Layer";
+                            EditorGUILayout.HelpBox(
+                                string.Format(LatticeLocalization.Tr("BlendShape will be named: {0}"), effectiveName),
+                                MessageType.Info);
+                        }
+                    }
+                    EditorGUI.indentLevel--;
+                }
+            }
+        }
+
+        private void DrawImportBlendShapeUI(LatticeDeformer deformer)
+        {
+            if (deformer == null)
+            {
+                return;
+            }
+
+            var blendShapeNames = deformer.GetSourceBlendShapeNames();
+            if (blendShapeNames == null || blendShapeNames.Length == 0)
+            {
+                return;
+            }
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.PrefixLabel(LatticeLocalization.Tr("Import BlendShape"));
+
+            if (EditorGUILayout.DropdownButton(new GUIContent(LatticeLocalization.Tr("Select...")), FocusType.Keyboard))
+            {
+                var menu = new GenericMenu();
+                for (int i = 0; i < blendShapeNames.Length; i++)
+                {
+                    int index = i;
+                    menu.AddItem(new GUIContent(blendShapeNames[i]), false, () =>
+                    {
+                        Undo.RecordObject(deformer, "Import BlendShape");
+                        int newLayerIndex = deformer.ImportBlendShapeAsLayer(index);
+                        if (newLayerIndex >= 0)
+                        {
+                            EditorUtility.SetDirty(deformer);
+                            LatticePrefabUtility.MarkModified(deformer);
+
+                            serializedObject.Update();
+                            InitializePendingGridSizes();
+
+                            bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
+                            deformer.InvalidateCache();
+                            deformer.Deform(assignRuntimeMesh);
+                            LatticePreviewUtility.RequestSceneRepaint();
+                            SceneView.RepaintAll();
+                        }
+                    });
+                }
+                menu.ShowAsContext();
+            }
+
+            EditorGUILayout.EndHorizontal();
         }
 
         private static void EnsureLinkIcons()

@@ -205,6 +205,169 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void BlendShapeOutput_ProducesCorrectDeltaFrames()
+        {
+            var fixture = CreateFixture("BlendShapeOutput_ProducesCorrectDeltaFrames");
+            try
+            {
+                var deformer = fixture.Deformer;
+
+                int brushLayerIndex = deformer.AddLayer("Brush Layer", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushLayerIndex;
+                deformer.EnsureDisplacementCapacity();
+
+                var sourceVertices = deformer.SourceMesh.vertices;
+                int vertexCount = sourceVertices.Length;
+                var brushDelta = new Vector3(0.1f, 0.2f, -0.05f);
+                const float weight = 0.75f;
+
+                deformer.SetDisplacement(0, brushDelta);
+                deformer.SetDisplacement(1, brushDelta * 2f);
+
+                var layer = deformer.Layers[brushLayerIndex];
+                layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                layer.BlendShapeName = "TestShape";
+                layer.Weight = weight;
+
+                // Release cached runtime mesh so Deform creates a fresh one
+                ReleaseRuntimeMesh(deformer);
+
+                var runtimeMesh = deformer.Deform(false);
+                Assert.That(runtimeMesh, Is.Not.Null);
+
+                int sourceBlendShapeCount = deformer.SourceMesh.blendShapeCount;
+                Assert.That(runtimeMesh.blendShapeCount, Is.EqualTo(sourceBlendShapeCount + 1));
+
+                int shapeIndex = runtimeMesh.blendShapeCount - 1;
+                Assert.That(runtimeMesh.GetBlendShapeName(shapeIndex), Is.EqualTo("TestShape"));
+
+                var frameDeltas = new Vector3[vertexCount];
+                var frameNormals = new Vector3[vertexCount];
+                var frameTangents = new Vector3[vertexCount];
+                runtimeMesh.GetBlendShapeFrameVertices(shapeIndex, 0, frameDeltas, frameNormals, frameTangents);
+
+                AssertApproximately(brushDelta * weight, frameDeltas[0], 2e-3f);
+                AssertApproximately(brushDelta * 2f * weight, frameDeltas[1], 2e-3f);
+                AssertApproximately(Vector3.zero, frameDeltas[2], 2e-3f);
+
+                // Vertices should NOT be directly modified by a BlendShape output layer
+                var deformedVertices = runtimeMesh.vertices;
+                AssertApproximately(sourceVertices[0], deformedVertices[0], 2e-3f);
+                AssertApproximately(sourceVertices[1], deformedVertices[1], 2e-3f);
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BlendShapeOutput_DisabledMode_AppliesDirectly()
+        {
+            var fixture = CreateFixture("BlendShapeOutput_DisabledMode_AppliesDirectly");
+            try
+            {
+                var deformer = fixture.Deformer;
+
+                int brushLayerIndex = deformer.AddLayer("Brush Layer", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushLayerIndex;
+                deformer.EnsureDisplacementCapacity();
+
+                var brushDelta = new Vector3(0.15f, -0.08f, 0.04f);
+                const float weight = 0.5f;
+                deformer.SetDisplacement(0, brushDelta);
+
+                var layer = deformer.Layers[brushLayerIndex];
+                layer.BlendShapeOutput = BlendShapeOutputMode.Disabled;
+                layer.Weight = weight;
+
+                // Release cached runtime mesh so Deform creates a fresh one
+                ReleaseRuntimeMesh(deformer);
+
+                var runtimeMesh = deformer.Deform(false);
+                Assert.That(runtimeMesh, Is.Not.Null);
+
+                int sourceBlendShapeCount = deformer.SourceMesh.blendShapeCount;
+                Assert.That(runtimeMesh.blendShapeCount, Is.EqualTo(sourceBlendShapeCount),
+                    "BlendShape count should not increase when output mode is Disabled");
+
+                var sourceVertices = deformer.SourceMesh.vertices;
+                var deformedVertices = runtimeMesh.vertices;
+                var expected = sourceVertices[0] + brushDelta * weight;
+                AssertApproximately(expected, deformedVertices[0], 2e-3f);
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void ImportBlendShapeAsLayer_CreatesMatchingBrushLayer()
+        {
+            var fixture = CreateFixtureWithBlendShapes(
+                "ImportBlendShapeAsLayer_CreatesMatchingBrushLayer",
+                new[] { "ShapeA" });
+            try
+            {
+                var deformer = fixture.Deformer;
+                int vertexCount = deformer.SourceMesh.vertexCount;
+
+                // Retrieve the original deltas from the source mesh
+                var expectedDeltas = new Vector3[vertexCount];
+                var tempNormals = new Vector3[vertexCount];
+                var tempTangents = new Vector3[vertexCount];
+                deformer.SourceMesh.GetBlendShapeFrameVertices(0, 0, expectedDeltas, tempNormals, tempTangents);
+
+                int layerCountBefore = deformer.Layers.Count;
+                int newLayerIndex = deformer.ImportBlendShapeAsLayer(0);
+
+                Assert.That(newLayerIndex, Is.GreaterThanOrEqualTo(0));
+                Assert.That(deformer.Layers.Count, Is.EqualTo(layerCountBefore + 1));
+
+                var newLayer = deformer.Layers[newLayerIndex];
+                Assert.That(newLayer.Name, Is.EqualTo("ShapeA"));
+                Assert.That(newLayer.Type, Is.EqualTo(MeshDeformerLayerType.Brush));
+                Assert.That(newLayer.Weight, Is.EqualTo(1f));
+                Assert.That(newLayer.BrushDisplacementCount, Is.EqualTo(vertexCount));
+
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    AssertApproximately(expectedDeltas[i], newLayer.GetBrushDisplacement(i), Epsilon);
+                }
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void GetSourceBlendShapeNames_ReturnsCorrectNames()
+        {
+            var shapeNames = new[] { "Smile", "Blink", "Pout" };
+            var fixture = CreateFixtureWithBlendShapes(
+                "GetSourceBlendShapeNames_ReturnsCorrectNames",
+                shapeNames);
+            try
+            {
+                var deformer = fixture.Deformer;
+                var result = deformer.GetSourceBlendShapeNames();
+
+                Assert.That(result, Is.Not.Null);
+                Assert.That(result.Length, Is.EqualTo(shapeNames.Length));
+                for (int i = 0; i < shapeNames.Length; i++)
+                {
+                    Assert.That(result[i], Is.EqualTo(shapeNames[i]));
+                }
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
         public void LegacyBaseData_IsMigratedToLatticeLayer_OnEnable()
         {
             var fixture = CreateFixture("LegacyBaseData_IsMigratedToLatticeLayer_OnEnable");
@@ -250,6 +413,49 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(warmupMesh, Is.Not.Null);
 
             return new TestFixture(root, sourceMesh, deformer);
+        }
+
+        private static TestFixture CreateFixtureWithBlendShapes(string name, string[] blendShapeNames)
+        {
+            var root = new GameObject(name);
+            var filter = root.AddComponent<MeshFilter>();
+            root.AddComponent<MeshRenderer>();
+
+            var sourceMesh = CreateRuntimeCubeMesh();
+
+            int vertexCount = sourceMesh.vertexCount;
+            for (int s = 0; s < blendShapeNames.Length; s++)
+            {
+                var deltas = new Vector3[vertexCount];
+                for (int v = 0; v < vertexCount; v++)
+                {
+                    deltas[v] = new Vector3(0.01f * (s + 1) * (v + 1), 0.02f * (s + 1), -0.005f * (v + 1));
+                }
+
+                sourceMesh.AddBlendShapeFrame(blendShapeNames[s], 100f, deltas, null, null);
+            }
+
+            filter.sharedMesh = sourceMesh;
+
+            var deformer = root.AddComponent<LatticeDeformer>();
+            deformer.Reset();
+            var warmupMesh = deformer.Deform(false);
+            Assert.That(warmupMesh, Is.Not.Null);
+
+            return new TestFixture(root, sourceMesh, deformer);
+        }
+
+        private static void ReleaseRuntimeMesh(LatticeDeformer deformer)
+        {
+            var field = typeof(LatticeDeformer).GetField("_runtimeMesh", s_privateInstance);
+            Assert.That(field, Is.Not.Null, "Private field not found: _runtimeMesh");
+            var mesh = field.GetValue(deformer) as Mesh;
+            if (mesh != null)
+            {
+                Object.DestroyImmediate(mesh);
+            }
+
+            field.SetValue(deformer, null);
         }
 
         private static Mesh CreateRuntimeCubeMesh()

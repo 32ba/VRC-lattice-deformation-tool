@@ -14,6 +14,12 @@ namespace Net._32Ba.LatticeDeformationTool
         Brush = 1
     }
 
+    public enum BlendShapeOutputMode
+    {
+        Disabled = 0,
+        OutputAsBlendShape = 1
+    }
+
     [Serializable]
     public sealed class LatticeLayer
     {
@@ -23,6 +29,8 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private MeshDeformerLayerType _type = MeshDeformerLayerType.Lattice;
         [SerializeField] private LatticeAsset _settings = new LatticeAsset();
         [SerializeField, HideInInspector] private Vector3[] _brushDisplacements = Array.Empty<Vector3>();
+        [SerializeField] private BlendShapeOutputMode _blendShapeOutput = BlendShapeOutputMode.Disabled;
+        [SerializeField] private string _blendShapeName = "";
 
         public string Name
         {
@@ -63,6 +71,20 @@ namespace Net._32Ba.LatticeDeformationTool
             }
             set => _settings = value ?? new LatticeAsset();
         }
+
+        public BlendShapeOutputMode BlendShapeOutput
+        {
+            get => _blendShapeOutput;
+            set => _blendShapeOutput = value;
+        }
+
+        public string BlendShapeName
+        {
+            get => _blendShapeName;
+            set => _blendShapeName = value ?? "";
+        }
+
+        public string EffectiveBlendShapeName => string.IsNullOrWhiteSpace(_blendShapeName) ? Name : _blendShapeName;
 
         public Vector3[] BrushDisplacements
         {
@@ -503,6 +525,80 @@ namespace Net._32Ba.LatticeDeformationTool
             return true;
         }
 
+        public int ImportBlendShapeAsLayer(int blendShapeIndex, int frameIndex = 0)
+        {
+            if (_sourceMesh == null)
+            {
+                return -1;
+            }
+
+            int shapeCount = _sourceMesh.blendShapeCount;
+            if (blendShapeIndex < 0 || blendShapeIndex >= shapeCount)
+            {
+                return -1;
+            }
+
+            int frameCount = _sourceMesh.GetBlendShapeFrameCount(blendShapeIndex);
+            if (frameIndex < 0 || frameIndex >= frameCount)
+            {
+                return -1;
+            }
+
+            int vertexCount = _sourceMesh.vertexCount;
+            if (vertexCount == 0)
+            {
+                return -1;
+            }
+
+            var deltaVertices = new Vector3[vertexCount];
+            var deltaNormals = new Vector3[vertexCount];
+            var deltaTangents = new Vector3[vertexCount];
+            _sourceMesh.GetBlendShapeFrameVertices(blendShapeIndex, frameIndex, deltaVertices, deltaNormals, deltaTangents);
+
+            string shapeName = _sourceMesh.GetBlendShapeName(blendShapeIndex);
+
+            var layer = new LatticeLayer();
+            layer.Name = shapeName;
+            layer.SetType(MeshDeformerLayerType.Brush);
+            layer.Weight = 1f;
+
+            layer.EnsureBrushDisplacementCapacity(vertexCount);
+            for (int i = 0; i < vertexCount; i++)
+            {
+                layer.SetBrushDisplacement(i, deltaVertices[i]);
+            }
+
+            if (_layers == null)
+            {
+                _layers = new List<LatticeLayer>();
+            }
+
+            _layers.Add(layer);
+            return _layers.Count - 1;
+        }
+
+        public string[] GetSourceBlendShapeNames()
+        {
+            if (_sourceMesh == null)
+            {
+                return Array.Empty<string>();
+            }
+
+            int count = _sourceMesh.blendShapeCount;
+            if (count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var names = new string[count];
+            for (int i = 0; i < count; i++)
+            {
+                names[i] = _sourceMesh.GetBlendShapeName(i);
+            }
+
+            return names;
+        }
+
         public bool IsLayerStructurallyCompatible(int index)
         {
             EnsureLayers();
@@ -696,10 +792,16 @@ namespace Net._32Ba.LatticeDeformationTool
 
             EnsureBrushLayerDisplacementCapacity(vertices.Length);
 
+            // --- Pass 1: Direct deformation layers (existing behavior) ---
             for (int i = 0; i < _layers.Count; i++)
             {
                 var layer = _layers[i];
                 if (layer == null || !layer.Enabled || layer.Weight <= 0f)
+                {
+                    continue;
+                }
+
+                if (layer.BlendShapeOutput != BlendShapeOutputMode.Disabled)
                 {
                     continue;
                 }
@@ -730,6 +832,23 @@ namespace Net._32Ba.LatticeDeformationTool
             if (_recalculateBounds)
             {
                 mesh.RecalculateBounds();
+            }
+
+            // --- Pass 2: BlendShape output layers ---
+            for (int i = 0; i < _layers.Count; i++)
+            {
+                var layer = _layers[i];
+                if (layer == null || !layer.Enabled || layer.Weight <= 0f)
+                {
+                    continue;
+                }
+
+                if (layer.BlendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape)
+                {
+                    continue;
+                }
+
+                TryAddBlendShapeFrame(mesh, layer, sourceVertices, vertices);
             }
 
             mesh.UploadMeshData(false);
@@ -805,6 +924,67 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 deformedVertices[vertex] += (layerVertices[vertex] - sourceVertices[vertex]) * weight;
             }
+        }
+
+        private void TryAddBlendShapeFrame(Mesh mesh, LatticeLayer layer, Vector3[] sourceVertices, Vector3[] baseVertices)
+        {
+            if (mesh == null || layer == null || sourceVertices == null || baseVertices == null)
+            {
+                return;
+            }
+
+            int vertexCount = sourceVertices.Length;
+            var deltaVertices = new Vector3[vertexCount];
+
+            switch (layer.Type)
+            {
+                case MeshDeformerLayerType.Brush:
+                {
+                    var displacements = layer.BrushDisplacements;
+                    if (displacements == null || displacements.Length != vertexCount)
+                    {
+                        return;
+                    }
+
+                    float weight = layer.Weight;
+                    for (int v = 0; v < vertexCount; v++)
+                    {
+                        deltaVertices[v] = displacements[v] * weight;
+                    }
+
+                    break;
+                }
+                default:
+                {
+                    var layerSettings = layer.Settings;
+                    if (layerSettings == null || !EnsureCache(layerSettings))
+                    {
+                        return;
+                    }
+
+                    var entries = _cache.Entries;
+                    if (entries == null || entries.Length != vertexCount)
+                    {
+                        return;
+                    }
+
+                    int cpCount = layerSettings.ControlPointCount;
+                    EnsureControlBuffer(cpCount);
+                    CollectControlPointsLocal(layerSettings, _controlBuffer.AsSpan());
+
+                    var layerVertices = DeformWithJobs(entries, _controlBuffer);
+                    float weight = layer.Weight;
+                    for (int v = 0; v < vertexCount; v++)
+                    {
+                        deltaVertices[v] = (layerVertices[v] - sourceVertices[v]) * weight;
+                    }
+
+                    break;
+                }
+            }
+
+            string shapeName = layer.EffectiveBlendShapeName;
+            mesh.AddBlendShapeFrame(shapeName, 100f, deltaVertices, null, null);
         }
 
         public void RestoreOriginalMesh()

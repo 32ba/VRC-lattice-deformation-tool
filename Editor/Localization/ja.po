@@ -333,3 +333,18 @@ msgstr "選択中のレイヤーはラティスレイヤー構造と一致しな
 
 msgid "No deformation layers are available."
 msgstr "利用可能な変形レイヤーがありません。"
+
+msgid "BlendShape Output"
+msgstr "BlendShape 出力"
+
+msgid "BlendShape Name"
+msgstr "BlendShape 名"
+
+msgid "BlendShape will be named: {0}"
+msgstr "BlendShape 名: {0}"
+
+msgid "Import BlendShape"
+msgstr "BlendShape のインポート"
+
+msgid "Select..."
+msgstr "選択..."

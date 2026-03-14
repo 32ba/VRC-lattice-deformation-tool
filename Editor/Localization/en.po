@@ -291,3 +291,18 @@ msgstr "The selected layer does not match the Lattice layer structure and is cur
 
 msgid "No deformation layers are available."
 msgstr "No deformation layers are available."
+
+msgid "BlendShape Output"
+msgstr "BlendShape Output"
+
+msgid "BlendShape Name"
+msgstr "BlendShape Name"
+
+msgid "BlendShape will be named: {0}"
+msgstr "BlendShape will be named: {0}"
+
+msgid "Import BlendShape"
+msgstr "Import BlendShape"
+
+msgid "Select..."
+msgstr "Select..."

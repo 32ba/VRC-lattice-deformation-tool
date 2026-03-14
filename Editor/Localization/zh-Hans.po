@@ -302,3 +302,18 @@ msgstr "所选图层与 Lattice layer 结构不匹配，当前在变形时会被
 
 msgid "No deformation layers are available."
 msgstr "没有可用的变形图层。"
+
+msgid "BlendShape Output"
+msgstr "BlendShape 输出"
+
+msgid "BlendShape Name"
+msgstr "BlendShape 名称"
+
+msgid "BlendShape will be named: {0}"
+msgstr "BlendShape 将命名为: {0}"
+
+msgid "Import BlendShape"
+msgstr "导入 BlendShape"
+
+msgid "Select..."
+msgstr "选择..."
