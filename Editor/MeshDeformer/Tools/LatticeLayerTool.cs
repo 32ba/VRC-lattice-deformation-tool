@@ -35,6 +35,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static PivotRotation? s_previousPivotRotation;
         private static Vector3Int s_lastGridSize = Vector3Int.one;
 
+        // Overlay foldout states
+        private static bool s_showSymmetrySection = false;
+
         private LatticeDeformer _activeDeformer;
 
         static LatticeToolHandler()
@@ -983,8 +986,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static void DrawOverlayGUI(LatticeDeformer deformer)
         {
-            LatticeToolHandler.ShowIndices = GUILayout.Toggle(LatticeToolHandler.ShowIndices, LatticeLocalization.Content("Show Control IDs"));
-
             GUILayout.Label(LatticeLocalization.Content("Control Point Scope"), EditorStyles.miniLabel);
             int scopeSelection = GUILayout.Toolbar(
                 LatticeToolHandler.IncludeInteriorControls ? 1 : 0,
@@ -997,10 +998,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             LatticeToolHandler.IncludeInteriorControls = includeInterior;
             GUILayout.Space(2f);
 
-            bool keepControlsVisible = GUILayout.Toggle(
-                !LatticeToolHandler.OccludeWithSceneGeometry,
-                LatticeLocalization.Content("Keep control points visible through objects"));
-            LatticeToolHandler.OccludeWithSceneGeometry = !keepControlsVisible;
+            // Compact toggles (horizontal)
+            using (new GUILayout.HorizontalScope())
+            {
+                LatticeToolHandler.ShowIndices = GUILayout.Toggle(LatticeToolHandler.ShowIndices, LatticeLocalization.Content("Show Control IDs"));
+
+                bool keepControlsVisible = GUILayout.Toggle(
+                    !LatticeToolHandler.OccludeWithSceneGeometry,
+                    LatticeLocalization.Content("Keep control points visible through objects"));
+                LatticeToolHandler.OccludeWithSceneGeometry = !keepControlsVisible;
+            }
 
             GUILayout.Space(2f);
 
@@ -1014,23 +1021,28 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 GUILayout.Label(LatticeToolHandler.GetSelectionLabel());
             }
 
-            GUILayout.Space(4f);
-
-            LatticeToolHandler.MirrorEditing = GUILayout.Toggle(LatticeToolHandler.MirrorEditing, LatticeLocalization.Content("Enable Symmetry Editing"));
-
-            using (new EditorGUI.DisabledScope(!LatticeToolHandler.MirrorEditing))
+            // --- Symmetry section (foldout) ---
+            s_showSymmetrySection = EditorGUILayout.Foldout(s_showSymmetrySection, LatticeLocalization.Tr("Enable Symmetry Editing"), true);
+            if (s_showSymmetrySection)
             {
-                int modeSelection = EditorGUILayout.Popup(
-                    LatticeLocalization.Content("Symmetry Mode"),
-                    (int)LatticeToolHandler.CurrentMirrorBehavior,
-                    LatticeToolHandler.BehaviorOptions);
-                modeSelection = Mathf.Clamp(modeSelection, 0, LatticeToolHandler.BehaviorOptions.Length - 1);
-                LatticeToolHandler.CurrentMirrorBehavior = (LatticeToolHandler.MirrorBehavior)modeSelection;
+                EditorGUI.indentLevel++;
+                LatticeToolHandler.MirrorEditing = GUILayout.Toggle(LatticeToolHandler.MirrorEditing, LatticeLocalization.Content("Enable Symmetry Editing"));
 
-                GUILayout.Label(LatticeLocalization.Content("Symmetry Axis"), EditorStyles.miniLabel);
-                int axisSelection = GUILayout.Toolbar((int)LatticeToolHandler.CurrentMirrorAxis, LatticeToolHandler.AxisOptions);
-                axisSelection = Mathf.Clamp(axisSelection, 0, LatticeToolHandler.AxisOptions.Length - 1);
-                LatticeToolHandler.CurrentMirrorAxis = (LatticeToolHandler.MirrorAxis)axisSelection;
+                using (new EditorGUI.DisabledScope(!LatticeToolHandler.MirrorEditing))
+                {
+                    int modeSelection = EditorGUILayout.Popup(
+                        LatticeLocalization.Content("Symmetry Mode"),
+                        (int)LatticeToolHandler.CurrentMirrorBehavior,
+                        LatticeToolHandler.BehaviorOptions);
+                    modeSelection = Mathf.Clamp(modeSelection, 0, LatticeToolHandler.BehaviorOptions.Length - 1);
+                    LatticeToolHandler.CurrentMirrorBehavior = (LatticeToolHandler.MirrorBehavior)modeSelection;
+
+                    GUILayout.Label(LatticeLocalization.Content("Symmetry Axis"), EditorStyles.miniLabel);
+                    int axisSelection = GUILayout.Toolbar((int)LatticeToolHandler.CurrentMirrorAxis, LatticeToolHandler.AxisOptions);
+                    axisSelection = Mathf.Clamp(axisSelection, 0, LatticeToolHandler.AxisOptions.Length - 1);
+                    LatticeToolHandler.CurrentMirrorAxis = (LatticeToolHandler.MirrorAxis)axisSelection;
+                }
+                EditorGUI.indentLevel--;
             }
 
             GUILayout.Label(LatticeLocalization.Content("Hold Shift/Ctrl to add/remove controls."), EditorStyles.miniLabel);

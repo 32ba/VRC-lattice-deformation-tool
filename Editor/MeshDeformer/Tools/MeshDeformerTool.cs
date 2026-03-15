@@ -94,6 +94,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private ActiveHandler DetermineHandler(LatticeDeformer deformer)
         {
+            if (deformer.Layers.Count == 0)
+                return ActiveHandler.None;
             if (deformer.ActiveLayerType == MeshDeformerLayerType.Lattice)
                 return ActiveHandler.Lattice;
             return s_brushSubMode == BrushSubMode.VertexSelection
@@ -166,12 +168,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             using (new GUILayout.VerticalScope(GUILayout.MinWidth(260f)))
             {
-                GUILayout.Label(LatticeLocalization.Content("Mesh Deformer"), EditorStyles.boldLabel);
-                DrawLanguageSelector();
-                GUILayout.Space(4f);
-
                 // Layer selector
                 DrawLayerSelector(selectedDeformer);
+
+                if (selectedDeformer.Layers.Count == 0)
+                {
+                    EditorGUILayout.HelpBox(
+                        LatticeLocalization.Tr("No deformation layers. Add a layer from the Inspector."),
+                        MessageType.Info);
+                    return;
+                }
+
                 GUILayout.Space(4f);
 
                 // Sub-mode selector for brush layers
@@ -228,23 +235,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private static void DrawLanguageSelector()
-        {
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                EditorGUILayout.LabelField(
-                    LatticeLocalization.Content("Tool Language"),
-                    EditorStyles.miniLabel, GUILayout.Width(130f));
-
-                int current = (int)LatticeLocalization.CurrentLanguage;
-                int next = EditorGUILayout.Popup(current, LatticeLocalization.DisplayNames);
-                if (next != current)
-                {
-                    next = Mathf.Clamp(next, 0, LatticeLocalization.DisplayNames.Length - 1);
-                    LatticeLocalization.CurrentLanguage = (LatticeLocalization.Language)next;
-                }
-            }
-        }
     }
 }
 #endif

@@ -486,3 +486,24 @@ msgstr "선택한 버텍스 초기화"
 
 msgid "Reset All Vertices"
 msgstr "모든 버텍스 초기화"
+
+msgid "Advanced"
+msgstr "고급 설정"
+
+msgid "Normals"
+msgstr "노멀"
+
+msgid "Tangents"
+msgstr "탄젠트"
+
+msgid "Bounds"
+msgstr "바운드"
+
+msgid "Active Layer Settings"
+msgstr "활성 레이어 설정"
+
+msgid "No deformation layers. Add a layer from the Inspector."
+msgstr "변형 레이어가 없습니다. Inspector에서 레이어를 추가하세요."
+
+msgid "Settings"
+msgstr "설정"

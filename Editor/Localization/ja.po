@@ -517,3 +517,24 @@ msgstr "選択した頂点をリセット"
 
 msgid "Reset All Vertices"
 msgstr "すべての頂点をリセット"
+
+msgid "Advanced"
+msgstr "詳細設定"
+
+msgid "Normals"
+msgstr "法線"
+
+msgid "Tangents"
+msgstr "接線"
+
+msgid "Bounds"
+msgstr "境界"
+
+msgid "Active Layer Settings"
+msgstr "アクティブレイヤー設定"
+
+msgid "No deformation layers. Add a layer from the Inspector."
+msgstr "変形レイヤーがありません。Inspectorからレイヤーを追加してください。"
+
+msgid "Settings"
+msgstr "設定"

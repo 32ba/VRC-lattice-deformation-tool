@@ -359,6 +359,11 @@ namespace Net._32Ba.LatticeDeformationTool
             set
             {
                 EnsureLayers();
+                if (_layers.Count == 0)
+                {
+                    _activeLayerIndex = 0;
+                    return;
+                }
                 int maxIndex = _layers.Count - 1;
                 _activeLayerIndex = Mathf.Clamp(value, 0, maxIndex);
             }
@@ -1524,26 +1529,20 @@ namespace Net._32Ba.LatticeDeformationTool
                 }
             }
 
-            if (_layers.Count == 0)
-            {
-                var seed = _settings != null ? CloneSettings(_settings) : new LatticeAsset();
-                seed.EnsureInitialized();
-                _layers.Add(new LatticeLayer
-                {
-                    Name = k_PrimaryLayerName,
-                    Enabled = true,
-                    Weight = 1f,
-                    Settings = seed
-                });
-            }
-
-            if (_layers[0] != null && string.IsNullOrWhiteSpace(_layers[0].Name))
+            if (_layers.Count > 0 && _layers[0] != null && string.IsNullOrWhiteSpace(_layers[0].Name))
             {
                 _layers[0].Name = _layers[0].Type == MeshDeformerLayerType.Brush ? k_BrushLayerName : k_PrimaryLayerName;
             }
 
-            int maxIndex = _layers.Count - 1;
-            _activeLayerIndex = Mathf.Clamp(_activeLayerIndex, 0, maxIndex);
+            if (_layers.Count > 0)
+            {
+                int maxIndex = _layers.Count - 1;
+                _activeLayerIndex = Mathf.Clamp(_activeLayerIndex, 0, maxIndex);
+            }
+            else
+            {
+                _activeLayerIndex = 0;
+            }
 
             if (_sourceMesh != null)
             {

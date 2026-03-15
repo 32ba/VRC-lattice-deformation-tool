@@ -40,9 +40,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static bool s_showOptions = false;
         private static bool s_showLayerStack = true;
-        private static bool s_showAdvancedSettings = false;
         private static bool s_showAlignSettings = false;
         private static bool s_showWeightTransferSettings = false;
+        private static bool s_showLayerSettings = false;
         private static readonly Dictionary<long, Vector3Int> s_pendingGridSizes = new();
         private static string s_copiedLayerJson = null;
         private static MeshDeformerLayerType s_copiedLayerType;
@@ -123,89 +123,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             var activeDeformer = target as LatticeDeformer;
-            var activeSettingsProp = GetActiveSettingsProperty(activeDeformer);
-            bool isBrushLayer = targets.Length == 1 && GetSerializedActiveLayerType() == MeshDeformerLayerType.Brush;
+            bool hasLayers = _layersProp != null && _layersProp.arraySize > 0;
 
-            EditorGUILayout.LabelField(LatticeLocalization.Content("Mesh Deformer Settings"), EditorStyles.boldLabel);
-            EditorGUI.indentLevel++;
-            DrawResetLatticeBoxControls();
-
-            s_showAdvancedSettings = EditorGUILayout.Foldout(s_showAdvancedSettings, LatticeLocalization.Tr("Advanced Layer Settings"), true);
-            if (s_showAdvancedSettings)
-            {
-                EditorGUI.indentLevel++;
-                if (isBrushLayer)
-                {
-                    DrawBrushLayerSettings(activeDeformer);
-                }
-                else
-                {
-                    DrawGridSizeControls(activeDeformer);
-                    DrawSettingsExcludingGrid(activeSettingsProp, allowStructureEdits: true);
-                }
-
-                // BlendShape Output settings (for active layer)
-                DrawBlendShapeOutputSettings(activeDeformer);
-
-                EditorGUI.indentLevel--;
-            }
-
-            // Alignment subsection at same level as advanced settings
-            DrawAlignmentSettings();
-
-            EditorGUI.indentLevel--;
-
-            EditorGUILayout.Space();
-            s_showOptions = EditorGUILayout.BeginFoldoutHeaderGroup(s_showOptions, LatticeLocalization.Tr("Mesh Rebuild Options"));
-            if (s_showOptions)
-            {
-                EditorGUI.indentLevel++;
-                EditorGUILayout.PropertyField(_recalcNormalsProp);
-                EditorGUILayout.PropertyField(_recalcTangentsProp);
-                EditorGUILayout.PropertyField(_recalcBoundsProp);
-
-                EditorGUILayout.Space();
-                bool previewEnabled = LatticeDeformerPreviewFilter.PreviewToggleEnabled;
-                string previewLabel = previewEnabled
-                    ? LatticeLocalization.Tr("(NDMF) Disable Mesh Preview")
-                    : LatticeLocalization.Tr("(NDMF) Enable Mesh Preview");
-                if (GUILayout.Button(previewLabel))
-                {
-                    TogglePreviewForTargets(!previewEnabled);
-                }
-
-                EditorGUI.indentLevel--;
-            }
-            EditorGUILayout.EndFoldoutHeaderGroup();
-
-            // Bone weight recalculation (only for SkinnedMeshRenderer)
-            bool hasSkinnedRenderer = _skinnedRendererProp != null &&
-                !_skinnedRendererProp.hasMultipleDifferentValues &&
-                _skinnedRendererProp.objectReferenceValue != null;
-
-            using (new EditorGUI.DisabledScope(!hasSkinnedRenderer))
-            {
-                EditorGUILayout.PropertyField(_recalcBoneWeightsProp, LatticeLocalization.Content("Recalculate Bone Weights"));
-            }
-
-            if (!hasSkinnedRenderer && _recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue)
-            {
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr("Bone weight recalculation requires a SkinnedMeshRenderer."), MessageType.Info);
-            }
-
-            // Weight transfer settings (when bone weight recalculation is enabled)
-            if (_recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue && hasSkinnedRenderer)
-            {
-                EditorGUI.indentLevel++;
-                s_showWeightTransferSettings = EditorGUILayout.Foldout(s_showWeightTransferSettings, LatticeLocalization.Tr("Weight Transfer Settings"), true);
-                if (s_showWeightTransferSettings && _weightTransferSettingsProp != null)
-                {
-                    EditorGUI.indentLevel++;
-                    DrawWeightTransferSettings();
-                    EditorGUI.indentLevel--;
-                }
-                EditorGUI.indentLevel--;
-            }
+            // --- Build Options ---
+            DrawBuildOptions();
 
             bool modified = serializedObject.ApplyModifiedProperties();
             if (modified)
@@ -228,14 +149,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             EditorGUILayout.Space();
-            bool openBrushTool = targets.Length == 1 && GetSerializedActiveLayerType() == MeshDeformerLayerType.Brush;
-            if (GUILayout.Button(openBrushTool
-                ? LatticeLocalization.Tr("Open Brush Editor")
-                : LatticeLocalization.Tr("Open Lattice Editor")))
+            using (new EditorGUI.DisabledScope(!hasLayers))
             {
-                ToolManager.SetActiveTool<MeshDeformerTool>();
-
-                LatticePreviewUtility.RequestSceneRepaint();
+                bool openBrushTool = hasLayers && GetSerializedActiveLayerType() == MeshDeformerLayerType.Brush;
+                if (GUILayout.Button(openBrushTool
+                    ? LatticeLocalization.Tr("Open Brush Editor")
+                    : LatticeLocalization.Tr("Open Lattice Editor")))
+                {
+                    ToolManager.SetActiveTool<MeshDeformerTool>();
+                    LatticePreviewUtility.RequestSceneRepaint();
+                }
             }
         }
 
@@ -536,6 +459,66 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorGUI.EndDisabledGroup();
         }
 
+        private void DrawBuildOptions()
+        {
+            s_showOptions = EditorGUILayout.BeginFoldoutHeaderGroup(s_showOptions, LatticeLocalization.Tr("Mesh Rebuild Options"));
+            if (s_showOptions)
+            {
+                EditorGUI.indentLevel++;
+
+                // Compact horizontal toggles
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (_recalcNormalsProp != null)
+                        _recalcNormalsProp.boolValue = GUILayout.Toggle(_recalcNormalsProp.boolValue, LatticeLocalization.Tr("Normals"));
+                    if (_recalcTangentsProp != null)
+                        _recalcTangentsProp.boolValue = GUILayout.Toggle(_recalcTangentsProp.boolValue, LatticeLocalization.Tr("Tangents"));
+                    if (_recalcBoundsProp != null)
+                        _recalcBoundsProp.boolValue = GUILayout.Toggle(_recalcBoundsProp.boolValue, LatticeLocalization.Tr("Bounds"));
+                }
+
+                // Bone weight recalculation (only for SkinnedMeshRenderer)
+                bool hasSkinnedRenderer = _skinnedRendererProp != null &&
+                    !_skinnedRendererProp.hasMultipleDifferentValues &&
+                    _skinnedRendererProp.objectReferenceValue != null;
+
+                using (new EditorGUI.DisabledScope(!hasSkinnedRenderer))
+                {
+                    EditorGUILayout.PropertyField(_recalcBoneWeightsProp, LatticeLocalization.Content("Recalculate Bone Weights"));
+                }
+
+                if (!hasSkinnedRenderer && _recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue)
+                {
+                    EditorGUILayout.HelpBox(LatticeLocalization.Tr("Bone weight recalculation requires a SkinnedMeshRenderer."), MessageType.Info);
+                }
+
+                // Weight transfer settings (shown only when bone weight recalculation is enabled)
+                if (_recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue && hasSkinnedRenderer)
+                {
+                    s_showWeightTransferSettings = EditorGUILayout.Foldout(s_showWeightTransferSettings, LatticeLocalization.Tr("Weight Transfer Settings"), true);
+                    if (s_showWeightTransferSettings && _weightTransferSettingsProp != null)
+                    {
+                        EditorGUI.indentLevel++;
+                        DrawWeightTransferSettings();
+                        EditorGUI.indentLevel--;
+                    }
+                }
+
+                EditorGUILayout.Space();
+                bool previewEnabled = LatticeDeformerPreviewFilter.PreviewToggleEnabled;
+                string previewLabel = previewEnabled
+                    ? LatticeLocalization.Tr("(NDMF) Disable Mesh Preview")
+                    : LatticeLocalization.Tr("(NDMF) Enable Mesh Preview");
+                if (GUILayout.Button(previewLabel))
+                {
+                    TogglePreviewForTargets(!previewEnabled);
+                }
+
+                EditorGUI.indentLevel--;
+            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
+        }
+
         private void DrawLayerStackControls(LatticeDeformer deformer)
         {
             if (deformer == null || _layersProp == null || _activeLayerIndexProp == null)
@@ -567,6 +550,28 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _layerReorderableList.DoLayoutList();
             EditorGUI.indentLevel--;
 
+            // Settings content (drawn after list, toggled by foldout inside element)
+            if (_layersProp.arraySize > 0 && s_showLayerSettings)
+            {
+                EditorGUI.indentLevel += 2;
+                bool isBrushLayer = GetSerializedActiveLayerType() == MeshDeformerLayerType.Brush;
+                if (isBrushLayer)
+                {
+                    DrawBrushLayerSettings(deformer);
+                }
+                else
+                {
+                    var activeSettingsProp = GetActiveSettingsProperty(deformer);
+                    DrawResetLatticeBoxControls();
+                    DrawGridSizeControls(deformer);
+                    DrawSettingsExcludingGrid(activeSettingsProp, allowStructureEdits: true);
+                    DrawAlignmentSettings();
+                }
+                DrawBlendShapeOutputSettings(deformer);
+                EditorGUI.indentLevel -= 2;
+                EditorGUILayout.Space(4);
+            }
+
             using (new EditorGUILayout.HorizontalScope())
             {
                 using (new EditorGUI.DisabledScope(_layersProp.arraySize <= 0))
@@ -594,55 +599,55 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
-            // L/R Operations
+            // L/R Operations (dropdown menu)
             EditorGUILayout.Space(4);
-            EditorGUILayout.LabelField(LatticeLocalization.Tr("L/R Operations"), EditorStyles.boldLabel);
-
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button(LatticeLocalization.Tr("Split L")))
+                if (EditorGUILayout.DropdownButton(new GUIContent(LatticeLocalization.Tr("L/R Operations")), FocusType.Keyboard))
                 {
-                    PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Split Layer Left"), instance =>
+                    var menu = new GenericMenu();
+                    menu.AddItem(new GUIContent(LatticeLocalization.Tr("Split L")), false, () =>
                     {
-                        instance.SplitLayerByAxis(instance.ActiveLayerIndex, 0, false);
-                        return true;
+                        PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Split Layer Left"), instance =>
+                        {
+                            instance.SplitLayerByAxis(instance.ActiveLayerIndex, 0, false);
+                            return true;
+                        });
                     });
-                }
-                if (GUILayout.Button(LatticeLocalization.Tr("Split R")))
-                {
-                    PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Split Layer Right"), instance =>
+                    menu.AddItem(new GUIContent(LatticeLocalization.Tr("Split R")), false, () =>
                     {
-                        instance.SplitLayerByAxis(instance.ActiveLayerIndex, 0, true);
-                        return true;
+                        PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Split Layer Right"), instance =>
+                        {
+                            instance.SplitLayerByAxis(instance.ActiveLayerIndex, 0, true);
+                            return true;
+                        });
                     });
-                }
-            }
-
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                if (GUILayout.Button(LatticeLocalization.Tr("Flip X")))
-                {
-                    PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Flip Layer X"), instance =>
+                    menu.AddSeparator("");
+                    menu.AddItem(new GUIContent(LatticeLocalization.Tr("Flip X")), false, () =>
                     {
-                        instance.FlipLayerByAxis(instance.ActiveLayerIndex, 0);
-                        return true;
+                        PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Flip Layer X"), instance =>
+                        {
+                            instance.FlipLayerByAxis(instance.ActiveLayerIndex, 0);
+                            return true;
+                        });
                     });
-                }
-                if (GUILayout.Button(LatticeLocalization.Tr("Flip Y")))
-                {
-                    PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Flip Layer Y"), instance =>
+                    menu.AddItem(new GUIContent(LatticeLocalization.Tr("Flip Y")), false, () =>
                     {
-                        instance.FlipLayerByAxis(instance.ActiveLayerIndex, 1);
-                        return true;
+                        PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Flip Layer Y"), instance =>
+                        {
+                            instance.FlipLayerByAxis(instance.ActiveLayerIndex, 1);
+                            return true;
+                        });
                     });
-                }
-                if (GUILayout.Button(LatticeLocalization.Tr("Flip Z")))
-                {
-                    PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Flip Layer Z"), instance =>
+                    menu.AddItem(new GUIContent(LatticeLocalization.Tr("Flip Z")), false, () =>
                     {
-                        instance.FlipLayerByAxis(instance.ActiveLayerIndex, 2);
-                        return true;
+                        PerformSingleLayerOperation(deformer, LatticeLocalization.Tr("Flip Layer Z"), instance =>
+                        {
+                            instance.FlipLayerByAxis(instance.ActiveLayerIndex, 2);
+                            return true;
+                        });
                     });
+                    menu.ShowAsContext();
                 }
             }
 
@@ -659,11 +664,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             _layerReorderableList = new ReorderableList(serializedObject, _layersProp, draggable: true, displayHeader: true, displayAddButton: true, displayRemoveButton: true);
-            _layerReorderableList.elementHeight = EditorGUIUtility.singleLineHeight * 2f + 8f;
             _layerReorderableList.drawHeaderCallback = rect =>
             {
                 EditorGUI.LabelField(rect, LatticeLocalization.Tr("Deformation Layers"));
             };
+            _layerReorderableList.elementHeightCallback = GetLayerElementHeight;
             _layerReorderableList.drawElementCallback = DrawLayerElement;
             _layerReorderableList.onSelectCallback = list =>
             {
@@ -678,10 +683,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 UpdateActiveLayerIndexAfterReorder(oldIndex, newIndex);
             };
-            _layerReorderableList.onCanRemoveCallback = _ => _layersProp != null && _layersProp.arraySize > 1;
+            _layerReorderableList.onCanRemoveCallback = _ => _layersProp != null && _layersProp.arraySize > 0;
             _layerReorderableList.onRemoveCallback = list =>
             {
-                if (_layersProp == null || _layersProp.arraySize <= 1)
+                if (_layersProp == null || _layersProp.arraySize <= 0)
                 {
                     return;
                 }
@@ -696,6 +701,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 menu.AddItem(new GUIContent(LatticeLocalization.Tr("Add Brush Layer")), false, () => AddLayerViaList(MeshDeformerLayerType.Brush));
                 menu.DropDown(buttonRect);
             };
+        }
+
+        private float GetLayerElementHeight(int index)
+        {
+            float lineH = EditorGUIUtility.singleLineHeight;
+            float baseHeight = lineH * 2f + 6f; // name + weight
+            bool isActive = _activeLayerIndexProp != null && _activeLayerIndexProp.intValue == index;
+            if (isActive)
+            {
+                baseHeight += lineH + 2f; // foldout row
+            }
+            return baseHeight;
         }
 
         private void DrawLayerElement(Rect rect, int index, bool isActive, bool isFocused)
@@ -725,30 +742,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 EditorGUI.DrawRect(rect, activeColor);
             }
 
-            var row1 = new Rect(rect.x, rect.y + 2f, rect.width, EditorGUIUtility.singleLineHeight);
-            var row2 = new Rect(rect.x, row1.yMax + 2f, rect.width, EditorGUIUtility.singleLineHeight);
+            float lineH = EditorGUIUtility.singleLineHeight;
+            var row1 = new Rect(rect.x, rect.y + 2f, rect.width, lineH);
+            var row2 = new Rect(rect.x, row1.yMax + 2f, rect.width, lineH);
 
-            float editWidth = 60f;
-            float enabledWidth = 22f;
-            float typeWidth = 72f;
+            // Row 1: [Enabled] [Name] [Type]
+            float enabledWidth = 18f;
+            float typeWidth = 30f;
 
-            var editRect = new Rect(row1.x, row1.y, editWidth, row1.height);
-            var enabledRect = new Rect(editRect.xMax + 4f, row1.y, enabledWidth, row1.height);
+            var enabledRect = new Rect(row1.x, row1.y, enabledWidth, row1.height);
             var typeRect = new Rect(row1.xMax - typeWidth, row1.y, typeWidth, row1.height);
-            var nameRect = new Rect(enabledRect.xMax + 2f, row1.y, Mathf.Max(20f, typeRect.x - enabledRect.xMax - 6f), row1.height);
-
-            if (isEditing)
-            {
-                GUI.Toggle(editRect, true, LatticeLocalization.Tr("Editing"), "Button");
-            }
-            else if (GUI.Button(editRect, LatticeLocalization.Tr("Edit")))
-            {
-                _activeLayerIndexProp.intValue = index;
-                if (_layerReorderableList != null)
-                {
-                    _layerReorderableList.index = index;
-                }
-            }
+            var nameRect = new Rect(enabledRect.xMax + 2f, row1.y, Mathf.Max(20f, typeRect.x - enabledRect.xMax - 4f), row1.height);
 
             if (enabledProp != null)
             {
@@ -762,16 +766,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (typeProp != null)
             {
-                string typeLabel = typeProp.enumValueIndex == (int)MeshDeformerLayerType.Brush
-                    ? LatticeLocalization.Tr("Brush")
-                    : LatticeLocalization.Tr("Lattice");
-                EditorGUI.LabelField(typeRect, typeLabel, EditorStyles.miniLabel);
+                string typeLabel = typeProp.enumValueIndex == (int)MeshDeformerLayerType.Brush ? "B" : "L";
+                EditorGUI.LabelField(typeRect, typeLabel, EditorStyles.miniBoldLabel);
             }
 
+            // Row 2: Inline weight slider (no label, compact)
             if (weightProp != null)
             {
-                weightProp.floatValue = EditorGUI.Slider(row2, LatticeLocalization.Tr("Weight"), weightProp.floatValue, 0f, 1f);
+                weightProp.floatValue = EditorGUI.Slider(row2, weightProp.floatValue, 0f, 1f);
             }
+
+            // Row 3: Foldout toggle (active layer only, content drawn after list)
+            if (!isEditing) return;
+
+            var row3 = new Rect(rect.x, row2.yMax + 2f, rect.width, lineH);
+            s_showLayerSettings = EditorGUI.Foldout(row3, s_showLayerSettings,
+                LatticeLocalization.Tr("Settings"), true);
         }
 
         private void AddLayerViaList(MeshDeformerLayerType layerType)

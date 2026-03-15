@@ -51,6 +51,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static PivotMode s_pivotMode = PivotMode.Center;
         private static int s_lastSelectedVertex = -1;
 
+        // Overlay foldout states
+        private static bool s_showProportionalSection = false;
+        private static bool s_showVisualizationSection = false;
+
         private const float k_PrecisionMultiplier = 0.1f;
 
         private static readonly HashSet<int> s_selectedVertices = new HashSet<int>();
@@ -1342,50 +1346,58 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             pivotIndex = Mathf.Clamp(pivotIndex, 0, pivotContent.Length - 1);
             VertexSelectionHandler.CurrentPivotMode = (VertexSelectionHandler.PivotMode)pivotIndex;
 
-            GUILayout.Space(4f);
+            GUILayout.Space(2f);
 
-            // Proportional editing
-            VertexSelectionHandler.ProportionalEditing = GUILayout.Toggle(
-                VertexSelectionHandler.ProportionalEditing,
-                LatticeLocalization.Content("Proportional Editing"));
-
-            using (new EditorGUI.DisabledScope(!VertexSelectionHandler.ProportionalEditing))
+            // --- Proportional Editing section (foldout) ---
+            s_showProportionalSection = EditorGUILayout.Foldout(s_showProportionalSection, LatticeLocalization.Tr("Proportional Editing"), true);
+            if (s_showProportionalSection)
             {
-                VertexSelectionHandler.ProportionalRadius = EditorGUILayout.Slider(
-                    LatticeLocalization.Content("Proportional Radius"),
-                    VertexSelectionHandler.ProportionalRadius, 0.001f, 5.0f);
+                EditorGUI.indentLevel++;
+                VertexSelectionHandler.ProportionalEditing = GUILayout.Toggle(
+                    VertexSelectionHandler.ProportionalEditing,
+                    LatticeLocalization.Content("Proportional Editing"));
 
-                var falloffContent = new GUIContent[]
+                using (new EditorGUI.DisabledScope(!VertexSelectionHandler.ProportionalEditing))
                 {
-                    LatticeLocalization.Content("Smooth"),
-                    LatticeLocalization.Content("Linear"),
-                    LatticeLocalization.Content("Constant"),
-                    LatticeLocalization.Content("Sphere"),
-                    LatticeLocalization.Content("Gaussian")
-                };
-                int falloffIndex = EditorGUILayout.Popup(
-                    LatticeLocalization.Content("Falloff"),
-                    (int)VertexSelectionHandler.ProportionalFalloffType,
-                    falloffContent);
-                falloffIndex = Mathf.Clamp(falloffIndex, 0, falloffContent.Length - 1);
-                VertexSelectionHandler.ProportionalFalloffType = (VertexSelectionHandler.FalloffType)falloffIndex;
+                    VertexSelectionHandler.ProportionalRadius = EditorGUILayout.Slider(
+                        LatticeLocalization.Content("Proportional Radius"),
+                        VertexSelectionHandler.ProportionalRadius, 0.001f, 5.0f);
+
+                    var falloffContent = new GUIContent[]
+                    {
+                        LatticeLocalization.Content("Smooth"),
+                        LatticeLocalization.Content("Linear"),
+                        LatticeLocalization.Content("Constant"),
+                        LatticeLocalization.Content("Sphere"),
+                        LatticeLocalization.Content("Gaussian")
+                    };
+                    int falloffIndex = EditorGUILayout.Popup(
+                        LatticeLocalization.Content("Falloff"),
+                        (int)VertexSelectionHandler.ProportionalFalloffType,
+                        falloffContent);
+                    falloffIndex = Mathf.Clamp(falloffIndex, 0, falloffContent.Length - 1);
+                    VertexSelectionHandler.ProportionalFalloffType = (VertexSelectionHandler.FalloffType)falloffIndex;
+                }
+                EditorGUI.indentLevel--;
             }
 
-            GUILayout.Space(4f);
+            // --- Visualization section (foldout) ---
+            s_showVisualizationSection = EditorGUILayout.Foldout(s_showVisualizationSection, LatticeLocalization.Tr("Visualization"), true);
+            if (s_showVisualizationSection)
+            {
+                EditorGUI.indentLevel++;
+                VertexSelectionHandler.VertexDotSize = EditorGUILayout.Slider(
+                    LatticeLocalization.Content("Dot Size"),
+                    VertexSelectionHandler.VertexDotSize, 1f, 8f);
+                VertexSelectionHandler.BackfaceCulling = GUILayout.Toggle(
+                    VertexSelectionHandler.BackfaceCulling,
+                    LatticeLocalization.Content("Backface Culling"));
+                EditorGUI.indentLevel--;
+            }
 
-            // Visualization
-            GUILayout.Label(LatticeLocalization.Content("Visualization"), EditorStyles.boldLabel);
-            VertexSelectionHandler.VertexDotSize = EditorGUILayout.Slider(
-                LatticeLocalization.Content("Dot Size"),
-                VertexSelectionHandler.VertexDotSize, 1f, 8f);
-            VertexSelectionHandler.BackfaceCulling = GUILayout.Toggle(
-                VertexSelectionHandler.BackfaceCulling,
-                LatticeLocalization.Content("Backface Culling"));
-
-            GUILayout.Space(4f);
+            GUILayout.Space(2f);
 
             // Selection info and actions
-            GUILayout.Label(LatticeLocalization.Content("Selection"), EditorStyles.boldLabel);
             GUILayout.Label(VertexSelectionHandler.GetSelectionLabel(), EditorStyles.miniLabel);
 
             using (new GUILayout.HorizontalScope())
@@ -1423,10 +1435,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             GUILayout.Space(2f);
-            GUILayout.Label(LatticeLocalization.Tr("W/E/R: Move/Rotate/Scale"), EditorStyles.miniLabel);
-            GUILayout.Label(LatticeLocalization.Tr("Shift+Click: Add / Ctrl+Click: Toggle"), EditorStyles.miniLabel);
-            GUILayout.Label(LatticeLocalization.Tr("Shift+Drag: Precision Mode"), EditorStyles.miniLabel);
-            GUILayout.Label(LatticeLocalization.Tr("Z: Toggle Pivot"), EditorStyles.miniLabel);
+            GUILayout.Label(LatticeLocalization.Tr("W/E/R: Move/Rotate/Scale") + "  " + LatticeLocalization.Tr("Z: Toggle Pivot"), EditorStyles.miniLabel);
+            GUILayout.Label(LatticeLocalization.Tr("Shift+Click: Add / Ctrl+Click: Toggle") + "  " + LatticeLocalization.Tr("Shift+Drag: Precision Mode"), EditorStyles.miniLabel);
             if (VertexSelectionHandler.ProportionalEditing)
             {
                 GUILayout.Label(LatticeLocalization.Tr("Alt+Scroll: Proportional Radius"), EditorStyles.miniLabel);

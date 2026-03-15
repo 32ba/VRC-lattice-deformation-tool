@@ -486,3 +486,24 @@ msgstr "重置选中顶点"
 
 msgid "Reset All Vertices"
 msgstr "重置所有顶点"
+
+msgid "Advanced"
+msgstr "高级设置"
+
+msgid "Normals"
+msgstr "法线"
+
+msgid "Tangents"
+msgstr "切线"
+
+msgid "Bounds"
+msgstr "边界"
+
+msgid "Active Layer Settings"
+msgstr "活动图层设置"
+
+msgid "No deformation layers. Add a layer from the Inspector."
+msgstr "没有变形图层。请从Inspector添加图层。"
+
+msgid "Settings"
+msgstr "设置"
