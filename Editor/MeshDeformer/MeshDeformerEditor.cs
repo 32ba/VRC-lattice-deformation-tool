@@ -536,10 +536,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                             RebuildLayerList();
                         }
                     }
-                    if (EditorGUILayout.DropdownButton(new GUIContent(LatticeLocalization.Tr("L/R Operations")), FocusType.Keyboard, GUILayout.Width(100)))
-                    {
-                        ShowLROperationsMenu(deformer);
-                    }
+                    // TODO: L/R Operations temporarily disabled
+                    // if (EditorGUILayout.DropdownButton(new GUIContent(LatticeLocalization.Tr("L/R Operations")), FocusType.Keyboard, GUILayout.Width(100)))
+                    // {
+                    //     ShowLROperationsMenu(deformer);
+                    // }
                 }
             }
 
