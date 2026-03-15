@@ -3,517 +3,500 @@ msgstr ""
 "Language: en\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-msgid "Lattice Tool"
-msgstr "Lattice Tool"
-
-msgid "X"
-msgstr "X"
-
-msgid "Y"
-msgstr "Y"
-
-msgid "Z"
-msgstr "Z"
-
-msgid "Copy"
-msgstr "Copy"
-
-msgid "Mirror"
-msgstr "Mirror"
-
-msgid "Antisymmetric"
-msgstr "Antisymmetric"
-
-msgid "Global-space editing disabled"
-msgstr "Global-space editing disabled"
-
-msgid "Move Lattice Controls"
-msgstr "Move Lattice Controls"
-
-msgid "Selected: None"
-msgstr "Selected: None"
-
-msgid "Selected: {0}"
-msgstr "Selected: {0}"
-
-msgid "Selected: {0} controls"
-msgstr "Selected: {0} controls"
-
-msgid "Activate the Lattice Tool to access settings."
-msgstr "Activate the Lattice Tool to access settings."
-
-msgid "Show Control IDs"
-msgstr "Show Control IDs"
-
-msgid "Control Point Scope"
-msgstr "Control Point Scope"
-
-msgid "Boundary Only"
-msgstr "Boundary Only"
-
-msgid "All Controls"
-msgstr "All Controls"
-
-msgid "Keep control points visible through objects"
-msgstr "Keep control points visible through objects"
-
-msgid "Clear Selection"
-msgstr "Clear Selection"
-
-msgid "Enable Symmetry Editing"
-msgstr "Enable Symmetry Editing"
-
-msgid "Symmetry Mode"
-msgstr "Symmetry Mode"
-
-msgid "Symmetry Axis"
-msgstr "Symmetry Axis"
-
-msgid "Hold Shift/Ctrl to add/remove controls."
-msgstr "Hold Shift/Ctrl to add/remove controls."
-
-msgid "Skinned Mesh Source"
-msgstr "Skinned Mesh Source"
-
-msgid "Static Mesh Source"
-msgstr "Static Mesh Source"
-
-msgid "Lattice Cage Settings"
-msgstr "Lattice Cage Settings"
-
-msgid "Advanced Cage Settings"
-msgstr "Advanced Cage Settings"
-
-msgid "Mesh Rebuild Options"
-msgstr "Mesh Rebuild Options"
-
-msgid "(NDMF) Disable Lattice Preview"
-msgstr "(NDMF) Disable Lattice Preview"
-
-# Alignment settings
-msgid "Lattice Cage Alignment"
-msgstr "Lattice Cage Alignment"
-
-msgid "(NDMF) Alignment Mode"
-msgstr "(NDMF) Alignment Mode"
-msgid "Choose how preview proxy is mapped: Mode1=Transform, Mode2=Transform+Center offset, Mode3=Bounds remap"
-msgstr "Choose how preview proxy is mapped: Mode1=Transform, Mode2=Transform+Center offset, Mode3=Bounds remap"
-msgid "Mode 1"
-msgstr "Mode 1"
-msgid "Mode 2"
-msgstr "Mode 2"
-msgid "Mode 3"
-msgstr "Mode 3"
-msgid "Transform only (uses proxy transform, no bounds remap)"
-msgstr "Transform only (uses proxy transform, no bounds remap)"
-msgid "Transform + center offset (adds center delta)"
-msgstr "Transform + center offset (adds center delta)"
-msgid "Bounds remap (maps lattice bounds to proxy bounds)"
-msgstr "Bounds remap (maps lattice bounds to proxy bounds)"
-
-msgid "Mode1: Transform only\nMode2: Transform + Center offset (clamped)\nMode3: Bounds remap + Center offset"
-msgstr "Mode1: Transform only\nMode2: Transform + Center offset (clamped)\nMode3: Bounds remap + Center offset"
-
-msgid "Manual Offset (proxy local)"
-msgstr "Manual Offset (proxy local)"
-
-msgid "Direct offset applied in proxy local space before auto center / clamp"
-msgstr "Direct offset applied in proxy local space before auto center / clamp"
-
-msgid "Manual Scale (proxy local)"
-msgstr "Manual Scale (proxy local)"
-
-msgid "(NDMF) Allow Center Offset when Bounds Skipped"
-msgstr "(NDMF) Allow Center Offset when Bounds Skipped"
-
-msgid "Alignment Auto-Initialized"
-msgstr "Alignment Auto-Initialized"
-
-msgid "(Debug) Log Preview Alignment to Console"
-msgstr "(Debug) Log Preview Alignment to Console"
-
-msgid "Auto Apply Offset/Scale"
-msgstr "Auto Apply Offset/Scale"
-
-msgid "Manual Only / Auto Offset / Auto Scale / Auto Offset+Scale"
-msgstr "Manual Only / Auto Offset / Auto Scale / Auto Offset+Scale"
-msgid "(NDMF) Enable Lattice Preview"
-msgstr "(NDMF) Enable Lattice Preview"
-
-msgid "Open Lattice Editor"
-msgstr "Open Lattice Editor"
-
-msgid "Change Lattice Divisions"
-msgstr "Change Lattice Divisions"
-
-msgid "No Lattice Deformer selected."
-msgstr "No Lattice Deformer selected."
-
-msgid "No Lattice Asset assigned to this deformer."
-msgstr "No Lattice Asset assigned to this deformer."
-
-msgid "Current Grid Divisions"
-msgstr "Current Grid Divisions"
-
-msgid "Pending Grid Divisions"
-msgstr "Pending Grid Divisions"
-
-msgid "Apply"
-msgstr "Apply"
-
-msgid "Revert"
-msgstr "Revert"
-
-msgid "Lattice Deformer"
-msgstr "Lattice Deformer"
-
-msgid "Tool Language"
+# General
+msgid "net.32ba.lattice-deformation-tool.localization.tool-language"
 msgstr "Tool Language"
 
-msgid "Reset Lattice Cage"
-msgstr "Reset Lattice Cage"
-
-
-
-
-
-
-msgid "Offset"
-msgstr "Offset"
-
-msgid "Scale"
-msgstr "Scale"
-msgid "Position/scale here only move the editing cage in the Scene view. They do not change the deform target\'s bounds or final mesh deformation."
-msgstr "Position/scale here only move the editing cage in the Scene view. They do not change the deform target's bounds or final mesh deformation."
-
-msgid "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."
-msgstr "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."
-
-msgid "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."
-msgstr "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."
-
-# Brush Deformation Tool
-msgid "Brush Tool"
-msgstr "Brush Tool"
-
-msgid "Brush Deformer"
-msgstr "Brush Deformer"
-
-msgid "Brush Deformation"
-msgstr "Brush Deformation"
-
-msgid "Brush Mode"
-msgstr "Brush Mode"
-
-msgid "Normal"
-msgstr "Normal"
-
-msgid "Move"
-msgstr "Move"
-
-msgid "Brush Radius"
-msgstr "Brush Radius"
-
-msgid "Brush Strength"
-msgstr "Brush Strength"
-
-msgid "Brush Falloff"
-msgstr "Brush Falloff"
-
-msgid "Invert Brush"
-msgstr "Invert Brush"
-
-msgid "Connected Only"
-msgstr "Connected Only"
-
-msgid "Surface Distance"
-msgstr "Surface Distance"
-
-msgid "Backface Culling"
-msgstr "Backface Culling"
-
-msgid "Enable Mirror"
-msgstr "Enable Mirror"
-
-msgid "Mirror Axis"
-msgstr "Mirror Axis"
-
-msgid "Clear All"
-msgstr "Clear All"
-
-msgid "Brush Deform"
-msgstr "Brush Deform"
-
-msgid "Brush Smooth"
-msgstr "Brush Smooth"
-
-msgid "Open Brush Editor"
-msgstr "Open Brush Editor"
-
-msgid "Vertex Count"
-msgstr "Vertex Count"
-
-msgid "Has Displacements"
-msgstr "Has Displacements"
-
-msgid "Yes"
-msgstr "Yes"
-
-msgid "No"
-msgstr "No"
-
-msgid "Clear All Displacements"
-msgstr "Clear All Displacements"
-
-msgid "Alt+Scroll: Radius / Shift+Scroll: Strength"
-msgstr "Alt+Scroll: Radius / Shift+Scroll: Strength"
-
-msgid "Linear"
-msgstr "Linear"
-
-msgid "Constant"
-msgstr "Constant"
-
-msgid "Visualization"
-msgstr "Visualization"
-
-msgid "Show Affected Vertices"
-msgstr "Show Affected Vertices"
-
-msgid "Show Displacement Heatmap"
-msgstr "Show Displacement Heatmap"
-
-msgid "Dot Size"
-msgstr "Dot Size"
-
-msgid "Lattice Layer"
-msgstr "Lattice Layer"
-
-msgid "Bounds and interpolation are shared by the Lattice layer. Only control-point-related settings are shown for additional layers."
-msgstr "Bounds and interpolation are shared by the Lattice layer. Only control-point-related settings are shown for additional layers."
-
-msgid "Grid divisions are shared by the Lattice layer. Switch Editing Layer to Lattice Layer to change structure."
-msgstr "Grid divisions are shared by the Lattice layer. Switch Editing Layer to Lattice Layer to change structure."
-
-msgid "The selected layer does not match the Lattice layer structure and is currently ignored during deformation. Use Add/Duplicate from the layer panel or reset the layer."
-msgstr "The selected layer does not match the Lattice layer structure and is currently ignored during deformation. Use Add/Duplicate from the layer panel or reset the layer."
-
-msgid "No deformation layers are available."
-msgstr "No deformation layers are available."
-
-msgid "BlendShape Output"
-msgstr "BlendShape Output"
-
-msgid "BlendShape Name"
-msgstr "BlendShape Name"
-
-msgid "BlendShape will be named: {0}"
-msgstr "BlendShape will be named: {0}"
-
-msgid "Import BlendShape"
-msgstr "Import BlendShape"
-
-msgid "Select..."
-msgstr "Select..."
-
-# L/R Operations
-msgid "L/R Operations"
-msgstr "L/R Operations"
-
-msgid "Split L"
-msgstr "Split L"
-
-msgid "Split R"
-msgstr "Split R"
-
-msgid "Flip X"
-msgstr "Flip X"
-
-msgid "Flip Y"
-msgstr "Flip Y"
-
-msgid "Flip Z"
-msgstr "Flip Z"
-
-# Vertex Selection Tool
-msgid "Vertex Tool"
-msgstr "Vertex Tool"
-
-msgid "Transform Mode"
-msgstr "Transform Mode"
-
-msgid "Rotate"
-msgstr "Rotate"
-
-msgid "Proportional Editing"
-msgstr "Proportional Editing"
-
-msgid "Proportional Radius"
-msgstr "Proportional Radius"
-
-msgid "Falloff"
-msgstr "Falloff"
-
-msgid "Selection"
-msgstr "Selection"
-
-msgid "Select All"
-msgstr "Select All"
-
-msgid "Select None"
-msgstr "Select None"
-
-msgid "Invert"
-msgstr "Invert"
-
-msgid "Selected: {0} vertices"
-msgstr "Selected: {0} vertices"
-
-msgid "Vertex Move"
-msgstr "Vertex Move"
-
-msgid "Vertex Rotate"
-msgstr "Vertex Rotate"
-
-msgid "Vertex Scale"
-msgstr "Vertex Scale"
-
-msgid "Vertex Transform"
-msgstr "Vertex Transform"
-
-msgid "W/E/R: Move/Rotate/Scale"
-msgstr "W/E/R: Move/Rotate/Scale"
-
-msgid "Shift+Click: Add / Ctrl+Click: Toggle"
-msgstr "Shift+Click: Add / Ctrl+Click: Toggle"
-
-msgid "Alt+Scroll: Proportional Radius"
-msgstr "Alt+Scroll: Proportional Radius"
-
-# Vertex Mask
-msgid "Mask"
-msgstr "Mask"
-
-msgid "Clear Mask"
-msgstr "Clear Mask"
-
-msgid "Brush Mask"
-msgstr "Brush Mask"
-
-# Penetration Detection
-msgid "Show Penetration"
-msgstr "Show Penetration"
-
-msgid "Reference Mesh"
-msgstr "Reference Mesh"
-
-# Falloff types
-msgid "Sphere"
-msgstr "Sphere"
-
-msgid "Gaussian"
-msgstr "Gaussian"
-
-msgid "Smooth"
-msgstr "Smooth"
-
-# Layer operations
-msgid "Paste"
-msgstr "Paste"
-
-msgid "Paste Layer"
-msgstr "Paste Layer"
-
-msgid "Duplicate"
-msgstr "Duplicate"
-
-msgid "Duplicate Layer"
-msgstr "Duplicate Layer"
-
-msgid "Mesh Deformer"
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer"
 msgstr "Mesh Deformer"
 
-msgid "Active Layer"
-msgstr "Active Layer"
+msgid "net.32ba.lattice-deformation-tool.localization.yes"
+msgstr "Yes"
 
-msgid "Vertex Selection"
-msgstr "Vertex Selection"
+msgid "net.32ba.lattice-deformation-tool.localization.no"
+msgstr "No"
 
-msgid "Select a Mesh Deformer to edit."
-msgstr "Select a Mesh Deformer to edit."
+msgid "net.32ba.lattice-deformation-tool.localization.apply"
+msgstr "Apply"
 
-msgid "Brush"
-msgstr "Brush"
+msgid "net.32ba.lattice-deformation-tool.localization.revert"
+msgstr "Revert"
 
-# Vertex Selection Tool
-msgid "Handle Orientation"
-msgstr "Handle Orientation"
-
-msgid "Local"
-msgstr "Local"
-
-msgid "Global"
-msgstr "Global"
-
-msgid "Pivot"
-msgstr "Pivot"
-
-msgid "Center"
-msgstr "Center"
-
-msgid "Last Selected"
-msgstr "Last Selected"
-
-msgid "Shift+Drag: Precision Mode"
-msgstr "Shift+Drag: Precision Mode"
-
-msgid "Z: Toggle Pivot"
-msgstr "Z: Toggle Pivot"
-
-msgid "Reset Selected Vertices"
-msgstr "Reset Selected Vertices"
-
-msgid "Reset All Vertices"
-msgstr "Reset All Vertices"
-
-msgid "Advanced"
-msgstr "Advanced"
-
-msgid "Normals"
-msgstr "Normals"
-
-msgid "Tangents"
-msgstr "Tangents"
-
-msgid "Bounds"
-msgstr "Bounds"
-
-msgid "Active Layer Settings"
-msgstr "Active Layer Settings"
-
-msgid "No deformation layers. Add a layer from the Inspector."
-msgstr "No deformation layers. Add a layer from the Inspector."
-
-msgid "Settings"
+msgid "net.32ba.lattice-deformation-tool.localization.settings"
 msgstr "Settings"
 
-msgid "Delete"
-msgstr "Delete"
+msgid "net.32ba.lattice-deformation-tool.localization.copy"
+msgstr "Copy"
 
-msgid "Curve"
+msgid "net.32ba.lattice-deformation-tool.localization.paste"
+msgstr "Paste"
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate"
+msgstr "Duplicate"
+
+msgid "net.32ba.lattice-deformation-tool.localization.select"
+msgstr "Select..."
+
+# Mesh Source
+msgid "net.32ba.lattice-deformation-tool.localization.skinned-mesh-source"
+msgstr "Skinned Mesh Source"
+
+msgid "net.32ba.lattice-deformation-tool.localization.static-mesh-source"
+msgstr "Static Mesh Source"
+
+# Groups & Layers
+msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups"
+msgstr "Deformation Groups"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layers"
+msgstr "Layers"
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-lattice-layer"
+msgstr "Add Lattice Layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer"
+msgstr "Add Brush Layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer"
+msgstr "Active Layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate-layer"
+msgstr "Duplicate Layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.paste-layer"
+msgstr "Paste Layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer"
+msgstr "Reset Active Layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-deformation-layers"
+msgstr "No deformation layers are available."
+
+# L/R Operations
+msgid "net.32ba.lattice-deformation-tool.localization.lr-operations"
+msgstr "L/R Operations"
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-l"
+msgstr "Split L"
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-r"
+msgstr "Split R"
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-layer-left"
+msgstr "Split Layer Left"
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-layer-right"
+msgstr "Split Layer Right"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-x"
+msgstr "Flip X"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-y"
+msgstr "Flip Y"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-z"
+msgstr "Flip Z"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-x"
+msgstr "Flip Layer X"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-y"
+msgstr "Flip Layer Y"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-z"
+msgstr "Flip Layer Z"
+
+# Lattice Tool
+msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool"
+msgstr "Lattice Tool"
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-lattice"
+msgstr "Active layer is not a Lattice layer."
+
+msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls"
+msgstr "Move Lattice Controls"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-lattice-cage"
+msgstr "Reset Lattice Cage"
+
+msgid "net.32ba.lattice-deformation-tool.localization.control-point-scope"
+msgstr "Control Point Scope"
+
+msgid "net.32ba.lattice-deformation-tool.localization.all-controls"
+msgstr "All Controls"
+
+msgid "net.32ba.lattice-deformation-tool.localization.boundary-only"
+msgstr "Boundary Only"
+
+msgid "net.32ba.lattice-deformation-tool.localization.keep-control-points-visible"
+msgstr "Keep control points visible through objects"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-control-ids"
+msgstr "Show Control IDs"
+
+msgid "net.32ba.lattice-deformation-tool.localization.handle-orientation"
+msgstr "Handle Orientation"
+
+msgid "net.32ba.lattice-deformation-tool.localization.local"
+msgstr "Local"
+
+msgid "net.32ba.lattice-deformation-tool.localization.global"
+msgstr "Global"
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-symmetry-editing"
+msgstr "Enable Symmetry Editing"
+
+msgid "net.32ba.lattice-deformation-tool.localization.symmetry-axis"
+msgstr "Symmetry Axis"
+
+msgid "net.32ba.lattice-deformation-tool.localization.symmetry-mode"
+msgstr "Symmetry Mode"
+
+msgid "net.32ba.lattice-deformation-tool.localization.antisymmetric"
+msgstr "Antisymmetric"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mirror"
+msgstr "Mirror"
+
+msgid "net.32ba.lattice-deformation-tool.localization.x"
+msgstr "X"
+
+msgid "net.32ba.lattice-deformation-tool.localization.y"
+msgstr "Y"
+
+msgid "net.32ba.lattice-deformation-tool.localization.z"
+msgstr "Z"
+
+msgid "net.32ba.lattice-deformation-tool.localization.shift-click-hint"
+msgstr "Hold Shift/Ctrl to add/remove controls."
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-none"
+msgstr "Selected: None"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-format"
+msgstr "Selected: {0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-controls-format"
+msgstr "Selected: {0} controls"
+
+msgid "net.32ba.lattice-deformation-tool.localization.global-space-disabled"
+msgstr "Global-space editing disabled"
+
+# Lattice Grid
+msgid "net.32ba.lattice-deformation-tool.localization.current-grid-divisions"
+msgstr "Current Grid Divisions"
+
+msgid "net.32ba.lattice-deformation-tool.localization.pending-grid-divisions"
+msgstr "Pending Grid Divisions"
+
+msgid "net.32ba.lattice-deformation-tool.localization.change-lattice-divisions"
+msgstr "Change Lattice Divisions"
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected"
+msgstr "No Lattice Deformer selected."
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-asset-assigned"
+msgstr "No Lattice Asset assigned to this deformer."
+
+# Brush Tool
+msgid "net.32ba.lattice-deformation-tool.localization.brush-tool"
+msgstr "Brush Tool"
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-brush"
+msgstr "Active layer is not a Brush layer."
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info"
+msgstr "Brush Layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-radius"
+msgstr "Brush Radius"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-strength"
+msgstr "Brush Strength"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-falloff"
+msgstr "Brush Falloff"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normal"
+msgstr "Normal"
+
+msgid "net.32ba.lattice-deformation-tool.localization.move"
+msgstr "Move"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-smooth"
+msgstr "Brush Smooth"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-mask"
+msgstr "Brush Mask"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deform"
+msgstr "Brush Deform"
+
+msgid "net.32ba.lattice-deformation-tool.localization.smooth"
+msgstr "Smooth"
+
+msgid "net.32ba.lattice-deformation-tool.localization.linear"
+msgstr "Linear"
+
+msgid "net.32ba.lattice-deformation-tool.localization.constant"
+msgstr "Constant"
+
+msgid "net.32ba.lattice-deformation-tool.localization.sphere"
+msgstr "Sphere"
+
+msgid "net.32ba.lattice-deformation-tool.localization.gaussian"
+msgstr "Gaussian"
+
+msgid "net.32ba.lattice-deformation-tool.localization.falloff"
+msgstr "Falloff"
+
+msgid "net.32ba.lattice-deformation-tool.localization.invert"
+msgstr "Invert"
+
+msgid "net.32ba.lattice-deformation-tool.localization.invert-brush"
+msgstr "Invert Brush"
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-mirror"
+msgstr "Enable Mirror"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mirror-axis"
+msgstr "Mirror Axis"
+
+msgid "net.32ba.lattice-deformation-tool.localization.surface-distance"
+msgstr "Surface Distance"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-all-displacements"
+msgstr "Clear All Displacements"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements"
+msgstr "Clear Active Layer Displacements"
+
+msgid "net.32ba.lattice-deformation-tool.localization.backface-culling"
+msgstr "Backface Culling"
+
+msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-hint"
+msgstr "Alt+Scroll: Radius / Shift+Scroll: Strength"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mask"
+msgstr "Mask"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-mask"
+msgstr "Clear Mask"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-all"
+msgstr "Clear All"
+
+msgid "net.32ba.lattice-deformation-tool.localization.visualization"
+msgstr "Visualization"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices"
+msgstr "Show Affected Vertices"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-displacement-heatmap"
+msgstr "Show Displacement Heatmap"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-penetration"
+msgstr "Show Penetration"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reference-mesh"
+msgstr "Reference Mesh"
+
+msgid "net.32ba.lattice-deformation-tool.localization.dot-size"
+msgstr "Dot Size"
+
+# Vertex Selection Tool
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
+msgstr "Vertex Tool"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection"
+msgstr "Vertex Selection"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-move"
+msgstr "Vertex Move"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-rotate"
+msgstr "Vertex Rotate"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-scale"
+msgstr "Vertex Scale"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-transform"
+msgstr "Vertex Transform"
+
+msgid "net.32ba.lattice-deformation-tool.localization.transform-mode"
+msgstr "Transform Mode"
+
+msgid "net.32ba.lattice-deformation-tool.localization.rotate"
+msgstr "Rotate"
+
+msgid "net.32ba.lattice-deformation-tool.localization.scale"
+msgstr "Scale"
+
+msgid "net.32ba.lattice-deformation-tool.localization.select-all"
+msgstr "Select All"
+
+msgid "net.32ba.lattice-deformation-tool.localization.select-none"
+msgstr "Select None"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-selection"
+msgstr "Clear Selection"
+
+msgid "net.32ba.lattice-deformation-tool.localization.connected-only"
+msgstr "Connected Only"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-selected-vertices"
+msgstr "Reset Selected Vertices"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-all-vertices"
+msgstr "Reset All Vertices"
+
+msgid "net.32ba.lattice-deformation-tool.localization.proportional-editing"
+msgstr "Proportional Editing"
+
+msgid "net.32ba.lattice-deformation-tool.localization.proportional-radius"
+msgstr "Proportional Radius"
+
+msgid "net.32ba.lattice-deformation-tool.localization.pivot"
+msgstr "Pivot"
+
+msgid "net.32ba.lattice-deformation-tool.localization.center"
+msgstr "Center"
+
+msgid "net.32ba.lattice-deformation-tool.localization.last-selected"
+msgstr "Last Selected"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-vertices-format"
+msgstr "Selected: {0} vertices"
+
+msgid "net.32ba.lattice-deformation-tool.localization.wer-hint"
+msgstr "W/E/R: Move/Rotate/Scale"
+
+msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-proportional-hint"
+msgstr "Alt+Scroll: Proportional Radius"
+
+msgid "net.32ba.lattice-deformation-tool.localization.shift-drag-precision"
+msgstr "Shift+Drag: Precision Mode"
+
+msgid "net.32ba.lattice-deformation-tool.localization.z-toggle-pivot"
+msgstr "Z: Toggle Pivot"
+
+# Mesh Rebuild Options
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-rebuild-options"
+msgstr "Mesh Rebuild Options"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals"
+msgstr "Normals"
+
+msgid "net.32ba.lattice-deformation-tool.localization.tangents"
+msgstr "Tangents"
+
+msgid "net.32ba.lattice-deformation-tool.localization.bounds"
+msgstr "Bounds"
+
+msgid "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights"
+msgstr "Recalculate Bone Weights"
+
+msgid "net.32ba.lattice-deformation-tool.localization.bone-weight-requires-smr"
+msgstr "Bone weight recalculation requires a SkinnedMeshRenderer."
+
+# Weight Transfer
+msgid "net.32ba.lattice-deformation-tool.localization.weight-transfer-settings"
+msgstr "Weight Transfer Settings"
+
+msgid "net.32ba.lattice-deformation-tool.localization.stage1-initial-transfer"
+msgstr "Stage 1: Initial Transfer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.stage2-weight-inpainting"
+msgstr "Stage 2: Weight Inpainting"
+
+msgid "net.32ba.lattice-deformation-tool.localization.max-transfer-distance"
+msgstr "Max Transfer Distance"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normal-angle-threshold"
+msgstr "Normal Angle Threshold"
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-inpainting"
+msgstr "Enable Inpainting"
+
+msgid "net.32ba.lattice-deformation-tool.localization.max-iterations"
+msgstr "Max Iterations"
+
+msgid "net.32ba.lattice-deformation-tool.localization.tolerance"
+msgstr "Tolerance"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-count"
+msgstr "Vertex Count"
+
+msgid "net.32ba.lattice-deformation-tool.localization.has-displacements"
+msgstr "Has Displacements"
+
+# BlendShape
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-output"
+msgstr "BlendShape Output"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-name"
+msgstr "BlendShape Name"
+
+msgid "net.32ba.lattice-deformation-tool.localization.curve"
 msgstr "Curve"
 
-msgid "Frame Count"
-msgstr "Frame Count"
-
-msgid "Test Weight"
-msgstr "Test Weight"
-
-msgid "Enter Test Mode"
+msgid "net.32ba.lattice-deformation-tool.localization.enter-test-mode"
 msgstr "Enter Test Mode"
 
-msgid "Exit Test Mode"
+msgid "net.32ba.lattice-deformation-tool.localization.exit-test-mode"
 msgstr "Exit Test Mode"
 
-msgid "BlendShape Test Mode"
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-test-mode"
 msgstr "BlendShape Test Mode"
+
+msgid "net.32ba.lattice-deformation-tool.localization.test-weight"
+msgstr "Test Weight"
+
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape"
+msgstr "Import BlendShape"
+
+# NDMF Preview
+msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
+msgstr "(NDMF) Disable Lattice Preview"
+
+msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview"
+msgstr "(NDMF) Enable Lattice Preview"
+
+# Lattice Cage Alignment
+msgid "net.32ba.lattice-deformation-tool.localization.lattice-cage-alignment"
+msgstr "Lattice Cage Alignment"
+
+msgid "net.32ba.lattice-deformation-tool.localization.alignment-cage-info"
+msgstr "Position/scale here only move the editing cage in the Scene view. They do not change the deform target's bounds or final mesh deformation."
+
+msgid "net.32ba.lattice-deformation-tool.localization.offset"
+msgstr "Offset"
+
+msgid "net.32ba.lattice-deformation-tool.localization.offset-tooltip"
+msgstr "Direct offset applied in proxy local space before auto center / clamp"
+
+msgid "net.32ba.lattice-deformation-tool.localization.debug-log-alignment"
+msgstr "(Debug) Log Preview Alignment to Console"
+
+# Editor buttons
+msgid "net.32ba.lattice-deformation-tool.localization.open-brush-editor"
+msgstr "Open Brush Editor"
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-lattice-editor"
+msgstr "Open Lattice Editor"
+
+msgid "net.32ba.lattice-deformation-tool.localization.select-mesh-deformer"
+msgstr "Select a Mesh Deformer to edit."
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush"
+msgstr "Brush"
+
+msgid "net.32ba.lattice-deformation-tool.localization.advanced"
+msgstr "Advanced"
+
+# Legacy Brush Deformer
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deformer"
+msgstr "Brush Deformer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation"
+msgstr "Brush Deformation"

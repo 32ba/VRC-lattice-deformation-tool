@@ -80,7 +80,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (s_icon != null)
             {
-                s_icon.tooltip = LatticeLocalization.Tr("Brush Tool");
+                s_icon.tooltip = LatticeLocalization.Tr(LocKey.BrushTool);
             }
 
             SceneView.RepaintAll();
@@ -250,9 +250,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static GUIContent[] AxisOptions => new[]
         {
-            LatticeLocalization.Content("X"),
-            LatticeLocalization.Content("Y"),
-            LatticeLocalization.Content("Z")
+            LatticeLocalization.Content(LocKey.X),
+            LatticeLocalization.Content(LocKey.Y),
+            LatticeLocalization.Content(LocKey.Z)
         };
 
         internal void Activate(LatticeDeformer deformer)
@@ -291,7 +291,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (deformer.ActiveLayerType != MeshDeformerLayerType.Brush)
             {
-                Handles.Label(deformer.transform.position, LatticeLocalization.Tr("Active layer is not a Brush layer."));
+                Handles.Label(deformer.transform.position, LatticeLocalization.Tr(LocKey.ActiveLayerNotBrush));
                 return;
             }
 
@@ -1072,9 +1072,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             switch (s_brushMode)
             {
-                case BrushMode.Smooth: return LatticeLocalization.Tr("Brush Smooth");
-                case BrushMode.Mask: return LatticeLocalization.Tr("Brush Mask");
-                default: return LatticeLocalization.Tr("Brush Deform");
+                case BrushMode.Smooth: return LatticeLocalization.Tr(LocKey.BrushSmooth);
+                case BrushMode.Mask: return LatticeLocalization.Tr(LocKey.BrushMask);
+                default: return LatticeLocalization.Tr(LocKey.BrushDeform);
             }
         }
 
@@ -1604,7 +1604,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (deformer == null) return;
             if (deformer.ActiveLayerType != MeshDeformerLayerType.Brush) return;
-            Undo.RecordObject(deformer, LatticeLocalization.Tr("Clear All"));
+            Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ClearAll));
             deformer.ClearDisplacements();
             bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
             deformer.Deform(assignToRenderer);
@@ -1615,7 +1615,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (deformer == null) return;
             if (!TryGetActiveLayer(deformer, out var layer)) return;
-            Undo.RecordObject(deformer, LatticeLocalization.Tr("Clear Mask"));
+            Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ClearMask));
             layer.ClearVertexMask();
             bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
             deformer.Deform(assignToRenderer);
@@ -1627,10 +1627,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Brush Mode toolbar (instant switching)
             var modeContent = new GUIContent[]
             {
-                LatticeLocalization.Content("Normal"),
-                LatticeLocalization.Content("Move"),
-                LatticeLocalization.Content("Smooth"),
-                LatticeLocalization.Content("Mask")
+                LatticeLocalization.Content(LocKey.Normal),
+                LatticeLocalization.Content(LocKey.Move),
+                LatticeLocalization.Content(LocKey.Smooth),
+                LatticeLocalization.Content(LocKey.Mask)
             };
             int modeIndex = GUILayout.Toolbar(
                 (int)BrushToolHandler.CurrentBrushMode, modeContent);
@@ -1641,23 +1641,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             // Primary parameters (always visible)
             BrushToolHandler.BrushRadius = EditorGUILayout.Slider(
-                LatticeLocalization.Content("Brush Radius"),
+                LatticeLocalization.Content(LocKey.BrushRadius),
                 BrushToolHandler.BrushRadius, 0.001f, 0.2f);
 
             BrushToolHandler.BrushStrength = EditorGUILayout.Slider(
-                LatticeLocalization.Content("Brush Strength"),
+                LatticeLocalization.Content(LocKey.BrushStrength),
                 BrushToolHandler.BrushStrength, 0.0f, 1.0f);
 
             var falloffContent = new GUIContent[]
             {
-                LatticeLocalization.Content("Smooth"),
-                LatticeLocalization.Content("Linear"),
-                LatticeLocalization.Content("Constant"),
-                LatticeLocalization.Content("Sphere"),
-                LatticeLocalization.Content("Gaussian")
+                LatticeLocalization.Content(LocKey.Smooth),
+                LatticeLocalization.Content(LocKey.Linear),
+                LatticeLocalization.Content(LocKey.Constant),
+                LatticeLocalization.Content(LocKey.Sphere),
+                LatticeLocalization.Content(LocKey.Gaussian)
             };
             int falloffIndex = EditorGUILayout.Popup(
-                LatticeLocalization.Content("Brush Falloff"),
+                LatticeLocalization.Content(LocKey.BrushFalloff),
                 (int)BrushToolHandler.BrushFalloff,
                 falloffContent);
             falloffIndex = Mathf.Clamp(falloffIndex, 0, falloffContent.Length - 1);
@@ -1670,38 +1670,38 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 BrushToolHandler.InvertBrush = GUILayout.Toggle(
                     BrushToolHandler.InvertBrush,
-                    LatticeLocalization.Content("Invert Brush"));
+                    LatticeLocalization.Content(LocKey.InvertBrush));
                 BrushToolHandler.BackfaceCulling = GUILayout.Toggle(
                     BrushToolHandler.BackfaceCulling,
-                    LatticeLocalization.Content("Backface Culling"));
+                    LatticeLocalization.Content(LocKey.BackfaceCulling));
             }
 
             // --- Advanced section (foldout) ---
-            s_showAdvancedSection = EditorGUILayout.Foldout(s_showAdvancedSection, LatticeLocalization.Tr("Advanced"), true);
+            s_showAdvancedSection = EditorGUILayout.Foldout(s_showAdvancedSection, LatticeLocalization.Tr(LocKey.Advanced), true);
             if (s_showAdvancedSection)
             {
                 EditorGUI.indentLevel++;
                 BrushToolHandler.ConnectedOnly = GUILayout.Toggle(
                     BrushToolHandler.ConnectedOnly,
-                    LatticeLocalization.Content("Connected Only"));
+                    LatticeLocalization.Content(LocKey.ConnectedOnly));
                 BrushToolHandler.UseSurfaceDistance = GUILayout.Toggle(
                     BrushToolHandler.UseSurfaceDistance,
-                    LatticeLocalization.Content("Surface Distance"));
+                    LatticeLocalization.Content(LocKey.SurfaceDistance));
                 EditorGUI.indentLevel--;
             }
 
             // --- Mirror section (foldout) ---
-            s_showMirrorSection = EditorGUILayout.Foldout(s_showMirrorSection, LatticeLocalization.Tr("Enable Mirror"), true);
+            s_showMirrorSection = EditorGUILayout.Foldout(s_showMirrorSection, LatticeLocalization.Tr(LocKey.EnableMirror), true);
             if (s_showMirrorSection)
             {
                 EditorGUI.indentLevel++;
                 BrushToolHandler.MirrorEditing = GUILayout.Toggle(
                     BrushToolHandler.MirrorEditing,
-                    LatticeLocalization.Content("Enable Mirror"));
+                    LatticeLocalization.Content(LocKey.EnableMirror));
 
                 using (new EditorGUI.DisabledScope(!BrushToolHandler.MirrorEditing))
                 {
-                    GUILayout.Label(LatticeLocalization.Content("Mirror Axis"), EditorStyles.miniLabel);
+                    GUILayout.Label(LatticeLocalization.Content(LocKey.MirrorAxis), EditorStyles.miniLabel);
                     int axisSelection = GUILayout.Toolbar(
                         (int)BrushToolHandler.CurrentMirrorAxis,
                         BrushToolHandler.AxisOptions);
@@ -1712,27 +1712,27 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             // --- Visualization section (foldout) ---
-            s_showVisualizationSection = EditorGUILayout.Foldout(s_showVisualizationSection, LatticeLocalization.Tr("Visualization"), true);
+            s_showVisualizationSection = EditorGUILayout.Foldout(s_showVisualizationSection, LatticeLocalization.Tr(LocKey.Visualization), true);
             if (s_showVisualizationSection)
             {
                 EditorGUI.indentLevel++;
                 BrushToolHandler.ShowAffectedVertices = GUILayout.Toggle(
                     BrushToolHandler.ShowAffectedVertices,
-                    LatticeLocalization.Content("Show Affected Vertices"));
+                    LatticeLocalization.Content(LocKey.ShowAffectedVertices));
                 BrushToolHandler.ShowDisplacementHeatmap = GUILayout.Toggle(
                     BrushToolHandler.ShowDisplacementHeatmap,
-                    LatticeLocalization.Content("Show Displacement Heatmap"));
+                    LatticeLocalization.Content(LocKey.ShowDisplacementHeatmap));
                 BrushToolHandler.VertexDotSize = EditorGUILayout.Slider(
-                    LatticeLocalization.Content("Dot Size"),
+                    LatticeLocalization.Content(LocKey.DotSize),
                     BrushToolHandler.VertexDotSize, 1f, 8f);
 
                 BrushToolHandler.ShowPenetration = GUILayout.Toggle(
                     BrushToolHandler.ShowPenetration,
-                    LatticeLocalization.Content("Show Penetration"));
+                    LatticeLocalization.Content(LocKey.ShowPenetration));
                 if (BrushToolHandler.ShowPenetration)
                 {
                     BrushToolHandler.PenetrationReference = (Renderer)EditorGUILayout.ObjectField(
-                        LatticeLocalization.Content("Reference Mesh"),
+                        LatticeLocalization.Content(LocKey.ReferenceMesh),
                         BrushToolHandler.PenetrationReference,
                         typeof(Renderer),
                         true);
@@ -1745,7 +1745,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Action buttons
             using (new GUILayout.HorizontalScope())
             {
-                if (GUILayout.Button(LatticeLocalization.Content("Clear All")))
+                if (GUILayout.Button(LatticeLocalization.Content(LocKey.ClearAll)))
                 {
                     if (deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush)
                     {
@@ -1755,7 +1755,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 if (BrushToolHandler.CurrentBrushMode == BrushToolHandler.BrushMode.Mask)
                 {
-                    if (GUILayout.Button(LatticeLocalization.Content("Clear Mask")))
+                    if (GUILayout.Button(LatticeLocalization.Content(LocKey.ClearMask)))
                     {
                         if (deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush)
                         {
@@ -1766,7 +1766,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             GUILayout.Space(2f);
-            GUILayout.Label(LatticeLocalization.Tr("Alt+Scroll: Radius / Shift+Scroll: Strength"), EditorStyles.miniLabel);
+            GUILayout.Label(LatticeLocalization.Tr(LocKey.AltScrollHint), EditorStyles.miniLabel);
         }
     }
 }

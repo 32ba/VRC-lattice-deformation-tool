@@ -90,26 +90,32 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return new GUIContent(Tr(text), string.IsNullOrEmpty(tooltip) ? null : Tr(tooltip));
         }
 
-        internal static string Tr(string text)
+        internal static string Tr(string key)
         {
-            if (string.IsNullOrEmpty(text))
+            if (string.IsNullOrEmpty(key))
             {
-                return text;
+                return key;
             }
 
             var language = CurrentLanguage;
-            if (language == Language.English)
-            {
-                return text;
-            }
-
             var catalog = EnsureCatalogLoaded(language);
-            if (catalog != null && catalog.TryGetValue(text, out var translated) && !string.IsNullOrEmpty(translated))
+            if (catalog != null && catalog.TryGetValue(key, out var translated) && !string.IsNullOrEmpty(translated))
             {
                 return translated;
             }
 
-            return text;
+            // Fallback to English catalog
+            if (language != Language.English)
+            {
+                var enCatalog = EnsureCatalogLoaded(Language.English);
+                if (enCatalog != null && enCatalog.TryGetValue(key, out var enText) && !string.IsNullOrEmpty(enText))
+                {
+                    return enText;
+                }
+            }
+
+            // Last resort: return key itself
+            return key;
         }
 
         private static IReadOnlyDictionary<string, string> EnsureCatalogLoaded(Language language, bool forceReload = false)

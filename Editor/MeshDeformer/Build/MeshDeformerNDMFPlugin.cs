@@ -12,7 +12,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     internal sealed class LatticeDeformerNDMFPlugin : Plugin<LatticeDeformerNDMFPlugin>
     {
         public override string QualifiedName => "net.32ba.lattice-deformation-tool";
-        public override string DisplayName => LatticeLocalization.Tr("Mesh Deformer");
+        public override string DisplayName => LatticeLocalization.Tr(LocKey.MeshDeformer);
 
         protected override void Configure()
         {

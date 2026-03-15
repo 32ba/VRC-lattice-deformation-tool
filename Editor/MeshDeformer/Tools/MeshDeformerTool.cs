@@ -38,7 +38,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 var icon = EditorGUIUtility.IconContent("EditCollider");
                 if (icon != null)
-                    icon.tooltip = LatticeLocalization.Tr("Mesh Deformer");
+                    icon.tooltip = LatticeLocalization.Tr(LocKey.MeshDeformer);
                 return icon ?? new GUIContent("MD", "Mesh Deformer");
             }
         }
@@ -147,11 +147,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         public override void OnGUI()
         {
-            displayName = LatticeLocalization.Tr("Mesh Deformer");
+            displayName = LatticeLocalization.Tr(LocKey.MeshDeformer);
 
             if (ToolManager.activeToolType != typeof(MeshDeformerTool))
             {
-                GUILayout.Label(LatticeLocalization.Content("Mesh Deformer"), EditorStyles.miniLabel);
+                GUILayout.Label(LatticeLocalization.Content(LocKey.MeshDeformer), EditorStyles.miniLabel);
                 return;
             }
 
@@ -161,7 +161,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (selectedDeformer == null)
             {
                 EditorGUILayout.HelpBox(
-                    LatticeLocalization.Tr("Select a Mesh Deformer to edit."),
+                    LatticeLocalization.Tr(LocKey.SelectMeshDeformer),
                     MessageType.Info);
                 return;
             }
@@ -174,7 +174,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (selectedDeformer.Layers.Count == 0)
                 {
                     EditorGUILayout.HelpBox(
-                        LatticeLocalization.Tr("No deformation layers. Add a layer from the Inspector."),
+                        LatticeLocalization.Tr(LocKey.NoDeformationLayers),
                         MessageType.Info);
                     return;
                 }
@@ -186,8 +186,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     var subModeLabels = new GUIContent[]
                     {
-                        LatticeLocalization.Content("Brush"),
-                        LatticeLocalization.Content("Vertex Selection")
+                        LatticeLocalization.Content(LocKey.Brush),
+                        LatticeLocalization.Content(LocKey.VertexSelection)
                     };
                     int subMode = GUILayout.Toolbar(
                         (int)MeshDeformerTool.CurrentBrushSubMode, subModeLabels);
@@ -226,7 +226,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             int current = deformer.ActiveLayerIndex;
             int next = EditorGUILayout.Popup(
-                LatticeLocalization.Content("Active Layer"), current, names);
+                LatticeLocalization.Content(LocKey.ActiveLayer), current, names);
             if (next != current && next >= 0 && next < layers.Count)
             {
                 Undo.RecordObject(deformer, "Change Active Layer");

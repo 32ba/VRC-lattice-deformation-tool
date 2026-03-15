@@ -54,11 +54,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             using (new EditorGUI.DisabledScope(hasMeshAssigned))
             {
-                EditorGUILayout.PropertyField(_skinnedRendererProp, LatticeLocalization.Content("Skinned Mesh Source"));
+                EditorGUILayout.PropertyField(_skinnedRendererProp, LatticeLocalization.Content(LocKey.SkinnedMeshSource));
             }
             using (new EditorGUI.DisabledScope(hasSkinnedAssigned))
             {
-                EditorGUILayout.PropertyField(_meshFilterProp, LatticeLocalization.Content("Static Mesh Source"));
+                EditorGUILayout.PropertyField(_meshFilterProp, LatticeLocalization.Content(LocKey.StaticMeshSource));
             }
 
             EditorGUILayout.Space();
@@ -66,14 +66,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var deformer = (BrushDeformer)target;
             int dispCount = deformer.DisplacementCount;
             bool hasBrushData = deformer.HasDisplacements();
-            EditorGUILayout.LabelField(LatticeLocalization.Content("Brush Deformation"), EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(LatticeLocalization.Content(LocKey.BrushDeformation), EditorStyles.boldLabel);
             EditorGUI.indentLevel++;
-            EditorGUILayout.LabelField(LatticeLocalization.Tr("Vertex Count"), dispCount.ToString());
-            EditorGUILayout.LabelField(LatticeLocalization.Tr("Has Displacements"), hasBrushData ? LatticeLocalization.Tr("Yes") : LatticeLocalization.Tr("No"));
+            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.VertexCount), dispCount.ToString());
+            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.HasDisplacements), hasBrushData ? LatticeLocalization.Tr(LocKey.Yes) : LatticeLocalization.Tr(LocKey.No));
 
-            if (GUILayout.Button(LatticeLocalization.Tr("Clear All Displacements")))
+            if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearAllDisplacements)))
             {
-                Undo.RecordObject(deformer, LatticeLocalization.Tr("Clear All Displacements"));
+                Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ClearAllDisplacements));
                 deformer.ClearDisplacements();
                 deformer.Deform(!LatticePreviewUtility.ShouldAssignRuntimeMesh());
                 LatticePreviewUtility.RequestSceneRepaint();
@@ -81,7 +81,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorGUI.indentLevel--;
 
             EditorGUILayout.Space();
-            s_showOptions = EditorGUILayout.BeginFoldoutHeaderGroup(s_showOptions, LatticeLocalization.Tr("Mesh Rebuild Options"));
+            s_showOptions = EditorGUILayout.BeginFoldoutHeaderGroup(s_showOptions, LatticeLocalization.Tr(LocKey.MeshRebuildOptions));
             if (s_showOptions)
             {
                 EditorGUI.indentLevel++;
@@ -98,18 +98,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             using (new EditorGUI.DisabledScope(!hasSkinnedRenderer))
             {
-                EditorGUILayout.PropertyField(_recalcBoneWeightsProp, LatticeLocalization.Content("Recalculate Bone Weights"));
+                EditorGUILayout.PropertyField(_recalcBoneWeightsProp, LatticeLocalization.Content(LocKey.RecalculateBoneWeights));
             }
 
             if (!hasSkinnedRenderer && _recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue)
             {
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr("Bone weight recalculation requires a SkinnedMeshRenderer."), MessageType.Info);
+                EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.BoneWeightRequiresSMR), MessageType.Info);
             }
 
             if (_recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue && hasSkinnedRenderer)
             {
                 EditorGUI.indentLevel++;
-                s_showWeightTransferSettings = EditorGUILayout.Foldout(s_showWeightTransferSettings, LatticeLocalization.Tr("Weight Transfer Settings"), true);
+                s_showWeightTransferSettings = EditorGUILayout.Foldout(s_showWeightTransferSettings, LatticeLocalization.Tr(LocKey.WeightTransferSettings), true);
                 if (s_showWeightTransferSettings && _weightTransferSettingsProp != null)
                 {
                     EditorGUI.indentLevel++;
@@ -131,7 +131,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             EditorGUILayout.Space();
-            if (GUILayout.Button(LatticeLocalization.Tr("Open Brush Editor")))
+            if (GUILayout.Button(LatticeLocalization.Tr(LocKey.OpenBrushEditor)))
             {
                 ToolManager.SetActiveTool<MeshDeformerTool>();
                 LatticePreviewUtility.RequestSceneRepaint();
@@ -198,7 +198,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void DrawLanguageSelector()
         {
             int current = (int)LatticeLocalization.CurrentLanguage;
-            int next = EditorGUILayout.Popup(LatticeLocalization.Content("Tool Language"), current, LatticeLocalization.DisplayNames);
+            int next = EditorGUILayout.Popup(LatticeLocalization.Content(LocKey.ToolLanguage), current, LatticeLocalization.DisplayNames);
             if (next != current)
             {
                 next = Mathf.Clamp(next, 0, LatticeLocalization.DisplayNames.Length - 1);
@@ -210,30 +210,30 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (_weightTransferSettingsProp == null) return;
 
-            EditorGUILayout.LabelField(LatticeLocalization.Tr("Stage 1: Initial Transfer"), EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.Stage1InitialTransfer), EditorStyles.boldLabel);
             var maxDistProp = _weightTransferSettingsProp.FindPropertyRelative("maxTransferDistance");
             if (maxDistProp != null)
-                EditorGUILayout.PropertyField(maxDistProp, LatticeLocalization.Content("Max Transfer Distance",
+                EditorGUILayout.PropertyField(maxDistProp, LatticeLocalization.Content(LocKey.MaxTransferDistance,
                     "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."));
 
             var normalThresholdProp = _weightTransferSettingsProp.FindPropertyRelative("normalAngleThreshold");
             if (normalThresholdProp != null)
-                EditorGUILayout.PropertyField(normalThresholdProp, LatticeLocalization.Content("Normal Angle Threshold",
+                EditorGUILayout.PropertyField(normalThresholdProp, LatticeLocalization.Content(LocKey.NormalAngleThreshold,
                     "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."));
 
             EditorGUILayout.Space(4);
-            EditorGUILayout.LabelField(LatticeLocalization.Tr("Stage 2: Weight Inpainting"), EditorStyles.boldLabel);
+            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.Stage2WeightInpainting), EditorStyles.boldLabel);
             var enableInpaintingProp = _weightTransferSettingsProp.FindPropertyRelative("enableInpainting");
             if (enableInpaintingProp != null)
             {
-                EditorGUILayout.PropertyField(enableInpaintingProp, LatticeLocalization.Content("Enable Inpainting"));
+                EditorGUILayout.PropertyField(enableInpaintingProp, LatticeLocalization.Content(LocKey.EnableInpainting));
                 if (enableInpaintingProp.boolValue)
                 {
                     EditorGUI.indentLevel++;
                     var maxIterProp = _weightTransferSettingsProp.FindPropertyRelative("maxIterations");
-                    if (maxIterProp != null) EditorGUILayout.PropertyField(maxIterProp, LatticeLocalization.Content("Max Iterations"));
+                    if (maxIterProp != null) EditorGUILayout.PropertyField(maxIterProp, LatticeLocalization.Content(LocKey.MaxIterations));
                     var toleranceProp = _weightTransferSettingsProp.FindPropertyRelative("tolerance");
-                    if (toleranceProp != null) EditorGUILayout.PropertyField(toleranceProp, LatticeLocalization.Content("Tolerance"));
+                    if (toleranceProp != null) EditorGUILayout.PropertyField(toleranceProp, LatticeLocalization.Content(LocKey.Tolerance));
                     EditorGUI.indentLevel--;
                 }
             }

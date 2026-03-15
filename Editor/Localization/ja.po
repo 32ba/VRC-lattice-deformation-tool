@@ -3,559 +3,500 @@ msgstr ""
 "Language: ja\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-msgid "Lattice Tool"
-msgstr "Lattice Tool"
-
-msgid "X"
-msgstr "X"
-
-msgid "Y"
-msgstr "Y"
-
-msgid "Z"
-msgstr "Z"
-
-msgid "Copy"
-msgstr "コピー"
-
-msgid "Mirror"
-msgstr "ミラー"
-
-msgid "Antisymmetric"
-msgstr "反対称"
-
-msgid "Global-space editing disabled"
-msgstr "グローバル空間での編集は無効です"
-
-msgid "Move Lattice Controls"
-msgstr "Move Lattice Controls"
-
-msgid "Selected: None"
-msgstr "選択: なし"
-
-msgid "Selected: {0}"
-msgstr "選択: {0}"
-
-msgid "Selected: {0} controls"
-msgstr "選択: {0} 個のコントロール"
-
-msgid "Activate the Lattice Tool to access settings."
-msgstr "Lattice Tool を有効化してください。"
-
-msgid "Show Control IDs"
-msgstr "制御IDを表示"
-
-msgid "Control Point Scope"
-msgstr "制御点の範囲"
-
-msgid "Boundary Only"
-msgstr "境界のみ"
-
-msgid "All Controls"
-msgstr "全制御点"
-
-msgid "Keep control points visible through objects"
-msgstr "オブジェクトで制御点を隠さない"
-
-msgid "Clear Selection"
-msgstr "選択をクリア"
-
-msgid "Enable Symmetry Editing"
-msgstr "対称編集を有効化"
-
-msgid "Symmetry Mode"
-msgstr "対称モード"
-
-msgid "Symmetry Axis"
-msgstr "対称軸"
-
-msgid "Hold Shift/Ctrl to add/remove controls."
-msgstr "Shift/Ctrl を押しながら制御点を追加または削除します。"
-
-msgid "Skinned Mesh Source"
-msgstr "Skinned Mesh Source"
-msgid "Static Mesh Source"
-msgstr "Static Mesh Source"
-msgid "Lattice Cage Settings"
-msgstr "ラティスケージ設定"
-
-msgid "Advanced Cage Settings"
-msgstr "ケージ詳細設定"
-
-msgid "Mesh Rebuild Options"
-msgstr "メッシュ再構築オプション"
-
-msgid "(NDMF) Disable Lattice Preview"
-msgstr "(NDMF) Disable Lattice Preview"
-
-# アライン設定
-msgid "Lattice Cage Alignment"
-msgstr "ラティスケージ位置調整"
-
-msgid "(NDMF) Alignment Mode"
-msgstr "(NDMF) アラインメントモード"
-
-msgid "Mode1: Transform only\nMode2: Transform + Center offset (clamped)\nMode3: Bounds remap + Center offset"
-msgstr "Mode1: Transform のみ\nMode2: Transform + センターオフセット(クランプ)\nMode3: Bounds リマップ + センターオフセット"
-
-msgid "Manual Offset (proxy local)"
-msgstr "手動オフセット (プロキシローカル)"
-
-msgid "Direct offset applied in proxy local space before auto center / clamp"
-msgstr "自動センター/クランプの前にプロキシローカルで直接適用されるオフセット"
-
-msgid "Manual Scale (proxy local)"
-msgstr "手動スケール (プロキシローカル)"
-
-msgid "(NDMF) Allow Center Offset when Bounds Skipped"
-msgstr "(NDMF) Bounds 無効時もセンターオフセットを許可"
-
-msgid "Alignment Auto-Initialized"
-msgstr "アライン自動初期化済み"
-
-msgid "(Debug) Log Preview Alignment to Console"
-msgstr "(Debug) プレビューアラインをコンソールにログ出力"
-
-msgid "Auto Apply Offset/Scale"
-msgstr "オフセット／スケール自動適用"
-
-msgid "Manual Only / Auto Offset / Auto Scale / Auto Offset+Scale"
-msgstr "手動のみ／オフセット自動／スケール自動／オフセット＋スケール自動"
-
-# Scale axis labels
-msgid "X"
-msgstr "X"
-msgid "Y"
-msgstr "Y"
-msgid "Z"
-msgstr "Z"
-msgid "(NDMF) Enable Lattice Preview"
-msgstr "(NDMF) Enable Lattice Preview"
-
-msgid "Open Lattice Editor"
-msgstr "ラティスエディターを開く"
-
-msgid "Change Lattice Divisions"
-msgstr "ラティス分割数を変更"
-
-msgid "No Lattice Deformer selected."
-msgstr "No Lattice Deformer selected."
-
-msgid "No Lattice Asset assigned to this deformer."
-msgstr "このデフォーマーにラティスアセットが割り当てられていません。"
-
-msgid "Current Grid Divisions"
-msgstr "現在のグリッド分割数"
-
-msgid "Pending Grid Divisions"
-msgstr "変更後のグリッド分割数"
-
-msgid "Apply"
-msgstr "適用"
-
-msgid "Revert"
-msgstr "元に戻す"
-
-msgid "Lattice Deformer"
-msgstr "Lattice Deformer"
-
-msgid "Tool Language"
+# General
+msgid "net.32ba.lattice-deformation-tool.localization.tool-language"
 msgstr "ツールの言語"
 
-msgid "Reset Lattice Cage"
-msgstr "ラティスケージをリセット"
-
-
-
-
-
-msgid "Choose how preview proxy is mapped: Mode1=Transform, Mode2=Transform+Center offset, Mode3=Bounds remap"
-msgstr "プレビュープロキシの合わせ方を選択: モード1=Transform, モード2=Transform+中心オフセット, モード3=Boundsリマップ"
-
-msgid "Mode 1"
-msgstr "モード1"
-
-msgid "Mode 2"
-msgstr "モード2"
-
-msgid "Mode 3"
-msgstr "モード3"
-
-msgid "Transform only (uses proxy transform, no bounds remap)"
-msgstr "Transform のみ（プロキシのTransformを使用、バウンズリマップなし）"
-
-msgid "Transform + center offset (adds center delta)"
-msgstr "Transform + 中心オフセット（中心差分を加算）"
-
-msgid "Bounds remap (maps lattice bounds to proxy bounds)"
-msgstr "Bounds リマップ（ラティスのバウンズをプロキシのバウンズへ写像）"
-msgid "Offset"
-msgstr "オフセット"
-
-msgid "Scale"
-msgstr "スケール"
-msgid "Position/scale here only move the editing cage in the Scene view. They do not change the deform target\'s bounds or final mesh deformation."
-msgstr "ここで設定する位置・スケールはシーン上の編集用ケージだけを動かします。変形対象メッシュのバウンズや最終変形には影響しません。"
-
-# Weight Transfer Settings
-msgid "Recalculate Bone Weights"
-msgstr "ボーンウェイトを再計算"
-
-msgid "Weight Transfer Settings"
-msgstr "ウェイト転写設定"
-
-msgid "Stage 1: Initial Transfer"
-msgstr "Stage 1: 初期転写"
-
-msgid "Max Transfer Distance"
-msgstr "最大転写距離"
-
-msgid "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."
-msgstr "誤った面に吸い付く場合は、この値か法線角度閾値を下げて、より厳密に一致させてください。"
-
-msgid "Normal Angle Threshold"
-msgstr "法線角度閾値"
-
-msgid "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."
-msgstr "誤った面に吸い付く場合は、この値か最大転写距離を下げて、より厳密に一致させてください。"
-
-msgid "Stage 2: Weight Inpainting"
-msgstr "Stage 2: ウェイト補間"
-
-msgid "Enable Inpainting"
-msgstr "補間を有効化"
-
-msgid "Max Iterations"
-msgstr "最大反復回数"
-
-msgid "Tolerance"
-msgstr "収束判定閾値"
-
-msgid "Bone weight recalculation requires a SkinnedMeshRenderer."
-msgstr "ボーンウェイト再計算にはSkinnedMeshRendererが必要です。"
-
-# ブラシ変形ツール
-msgid "Brush Tool"
-msgstr "ブラシツール"
-
-msgid "Brush Deformer"
-msgstr "ブラシデフォーマー"
-
-msgid "Brush Deformation"
-msgstr "ブラシ変形"
-
-msgid "Brush Mode"
-msgstr "ブラシモード"
-
-msgid "Normal"
-msgstr "法線"
-
-msgid "Move"
-msgstr "移動"
-
-msgid "Brush Radius"
-msgstr "ブラシ半径"
-
-msgid "Brush Strength"
-msgstr "ブラシ強度"
-
-msgid "Brush Falloff"
-msgstr "ブラシ減衰"
-
-msgid "Invert Brush"
-msgstr "ブラシ反転"
-
-msgid "Connected Only"
-msgstr "接続のみ"
-
-msgid "Surface Distance"
-msgstr "表面距離"
-
-msgid "Backface Culling"
-msgstr "背面カリング"
-
-msgid "Enable Mirror"
-msgstr "ミラーを有効化"
-
-msgid "Mirror Axis"
-msgstr "ミラー軸"
-
-msgid "Clear All"
-msgstr "すべてクリア"
-
-msgid "Brush Deform"
-msgstr "ブラシ変形"
-
-msgid "Brush Smooth"
-msgstr "ブラシスムーズ"
-
-msgid "Open Brush Editor"
-msgstr "ブラシエディターを開く"
-
-msgid "Vertex Count"
-msgstr "頂点数"
-
-msgid "Has Displacements"
-msgstr "変形データあり"
-
-msgid "Yes"
-msgstr "はい"
-
-msgid "No"
-msgstr "いいえ"
-
-msgid "Clear All Displacements"
-msgstr "すべての変形をクリア"
-
-msgid "Alt+Scroll: Radius / Shift+Scroll: Strength"
-msgstr "Alt+スクロール: 半径 / Shift+スクロール: 強度"
-
-msgid "Linear"
-msgstr "リニア"
-
-msgid "Constant"
-msgstr "一定"
-
-msgid "Visualization"
-msgstr "可視化"
-
-msgid "Show Affected Vertices"
-msgstr "影響頂点を表示"
-
-msgid "Show Displacement Heatmap"
-msgstr "変位ヒートマップを表示"
-
-msgid "Dot Size"
-msgstr "ドットサイズ"
-
-msgid "Lattice Layer"
-msgstr "ラティスレイヤー"
-
-msgid "Bounds and interpolation are shared by the Lattice layer. Only control-point-related settings are shown for additional layers."
-msgstr "Bounds と補間設定はラティスレイヤーで共有されます。追加レイヤーでは制御点関連の設定のみ表示されます。"
-
-msgid "Grid divisions are shared by the Lattice layer. Switch Editing Layer to Lattice Layer to change structure."
-msgstr "グリッド分割はラティスレイヤーで共有されます。構造を変更するには Editing Layer を Lattice Layer に切り替えてください。"
-
-msgid "The selected layer does not match the Lattice layer structure and is currently ignored during deformation. Use Add/Duplicate from the layer panel or reset the layer."
-msgstr "選択中のレイヤーはラティスレイヤー構造と一致しないため、現在の変形では無視されます。レイヤーパネルの Add/Duplicate を使うか、レイヤーをリセットしてください。"
-
-msgid "No deformation layers are available."
-msgstr "利用可能な変形レイヤーがありません。"
-
-msgid "BlendShape Output"
-msgstr "BlendShape 出力"
-
-msgid "BlendShape Name"
-msgstr "BlendShape 名"
-
-msgid "BlendShape will be named: {0}"
-msgstr "BlendShape 名: {0}"
-
-msgid "Import BlendShape"
-msgstr "BlendShape のインポート"
-
-msgid "Select..."
-msgstr "選択..."
-
-# 左右操作
-msgid "L/R Operations"
-msgstr "左右操作"
-
-msgid "Split L"
-msgstr "左を残す"
-
-msgid "Split R"
-msgstr "右を残す"
-
-msgid "Flip X"
-msgstr "X反転"
-
-msgid "Flip Y"
-msgstr "Y反転"
-
-msgid "Flip Z"
-msgstr "Z反転"
-
-# 頂点選択ツール
-msgid "Vertex Tool"
-msgstr "頂点ツール"
-
-msgid "Transform Mode"
-msgstr "変換モード"
-
-msgid "Rotate"
-msgstr "回転"
-
-msgid "Proportional Editing"
-msgstr "プロポーショナル編集"
-
-msgid "Proportional Radius"
-msgstr "プロポーショナル半径"
-
-msgid "Falloff"
-msgstr "減衰"
-
-msgid "Selection"
-msgstr "選択"
-
-msgid "Select All"
-msgstr "すべて選択"
-
-msgid "Select None"
-msgstr "選択解除"
-
-msgid "Invert"
-msgstr "選択反転"
-
-msgid "Selected: {0} vertices"
-msgstr "選択: {0} 個の頂点"
-
-msgid "Vertex Move"
-msgstr "頂点移動"
-
-msgid "Vertex Rotate"
-msgstr "頂点回転"
-
-msgid "Vertex Scale"
-msgstr "頂点スケール"
-
-msgid "Vertex Transform"
-msgstr "頂点変換"
-
-msgid "W/E/R: Move/Rotate/Scale"
-msgstr "W/E/R: 移動/回転/スケール"
-
-msgid "Shift+Click: Add / Ctrl+Click: Toggle"
-msgstr "Shift+クリック: 追加 / Ctrl+クリック: 切替"
-
-msgid "Alt+Scroll: Proportional Radius"
-msgstr "Alt+スクロール: プロポーショナル半径"
-
-# 頂点マスク
-msgid "Mask"
-msgstr "マスク"
-
-msgid "Clear Mask"
-msgstr "マスクをクリア"
-
-msgid "Brush Mask"
-msgstr "ブラシマスク"
-
-# 貫通検出
-msgid "Show Penetration"
-msgstr "貫通表示"
-
-msgid "Reference Mesh"
-msgstr "参照メッシュ"
-
-# 減衰タイプ
-msgid "Sphere"
-msgstr "球体"
-
-msgid "Gaussian"
-msgstr "ガウシアン"
-
-msgid "Smooth"
-msgstr "スムーズ"
-
-# レイヤー操作
-msgid "Paste"
-msgstr "ペースト"
-
-msgid "Paste Layer"
-msgstr "レイヤーを貼り付け"
-
-msgid "Duplicate"
-msgstr "複製"
-
-msgid "Duplicate Layer"
-msgstr "レイヤーを複製"
-
-msgid "Mesh Deformer"
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer"
 msgstr "Mesh Deformer"
 
-msgid "Active Layer"
-msgstr "アクティブレイヤー"
+msgid "net.32ba.lattice-deformation-tool.localization.yes"
+msgstr "はい"
 
-msgid "Vertex Selection"
-msgstr "頂点選択"
+msgid "net.32ba.lattice-deformation-tool.localization.no"
+msgstr "いいえ"
 
-msgid "Select a Mesh Deformer to edit."
-msgstr "編集する Mesh Deformer を選択してください。"
+msgid "net.32ba.lattice-deformation-tool.localization.apply"
+msgstr "適用"
 
-msgid "Brush"
-msgstr "ブラシ"
+msgid "net.32ba.lattice-deformation-tool.localization.revert"
+msgstr "元に戻す"
 
-# 頂点選択ツール
-msgid "Handle Orientation"
-msgstr "ハンドル方向"
-
-msgid "Local"
-msgstr "ローカル"
-
-msgid "Global"
-msgstr "グローバル"
-
-msgid "Pivot"
-msgstr "ピボット"
-
-msgid "Center"
-msgstr "中心"
-
-msgid "Last Selected"
-msgstr "最後に選択"
-
-msgid "Shift+Drag: Precision Mode"
-msgstr "Shift+ドラッグ: 精密モード"
-
-msgid "Z: Toggle Pivot"
-msgstr "Z: ピボット切替"
-
-msgid "Reset Selected Vertices"
-msgstr "選択した頂点をリセット"
-
-msgid "Reset All Vertices"
-msgstr "すべての頂点をリセット"
-
-msgid "Advanced"
-msgstr "詳細設定"
-
-msgid "Normals"
-msgstr "法線"
-
-msgid "Tangents"
-msgstr "接線"
-
-msgid "Bounds"
-msgstr "境界"
-
-msgid "Active Layer Settings"
-msgstr "アクティブレイヤー設定"
-
-msgid "No deformation layers. Add a layer from the Inspector."
-msgstr "変形レイヤーがありません。Inspectorからレイヤーを追加してください。"
-
-msgid "Settings"
+msgid "net.32ba.lattice-deformation-tool.localization.settings"
 msgstr "設定"
 
-msgid "Delete"
-msgstr "削除"
+msgid "net.32ba.lattice-deformation-tool.localization.copy"
+msgstr "コピー"
 
-msgid "Curve"
+msgid "net.32ba.lattice-deformation-tool.localization.paste"
+msgstr "ペースト"
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate"
+msgstr "複製"
+
+msgid "net.32ba.lattice-deformation-tool.localization.select"
+msgstr "選択..."
+
+# Mesh Source
+msgid "net.32ba.lattice-deformation-tool.localization.skinned-mesh-source"
+msgstr "Skinned Mesh Source"
+
+msgid "net.32ba.lattice-deformation-tool.localization.static-mesh-source"
+msgstr "Static Mesh Source"
+
+# Groups & Layers
+msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.layers"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-lattice-layer"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer"
+msgstr "アクティブレイヤー"
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate-layer"
+msgstr "レイヤーを複製"
+
+msgid "net.32ba.lattice-deformation-tool.localization.paste-layer"
+msgstr "レイヤーを貼り付け"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-deformation-layers"
+msgstr "利用可能な変形レイヤーがありません。"
+
+# L/R Operations
+msgid "net.32ba.lattice-deformation-tool.localization.lr-operations"
+msgstr "左右操作"
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-l"
+msgstr "左を残す"
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-r"
+msgstr "右を残す"
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-layer-left"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-layer-right"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-x"
+msgstr "X反転"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-y"
+msgstr "Y反転"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-z"
+msgstr "Z反転"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-x"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-y"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-z"
+msgstr ""
+
+# Lattice Tool
+msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool"
+msgstr "Lattice Tool"
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-lattice"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls"
+msgstr "Move Lattice Controls"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-lattice-cage"
+msgstr "ラティスケージをリセット"
+
+msgid "net.32ba.lattice-deformation-tool.localization.control-point-scope"
+msgstr "制御点の範囲"
+
+msgid "net.32ba.lattice-deformation-tool.localization.all-controls"
+msgstr "全制御点"
+
+msgid "net.32ba.lattice-deformation-tool.localization.boundary-only"
+msgstr "境界のみ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.keep-control-points-visible"
+msgstr "オブジェクトで制御点を隠さない"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-control-ids"
+msgstr "制御IDを表示"
+
+msgid "net.32ba.lattice-deformation-tool.localization.handle-orientation"
+msgstr "ハンドル方向"
+
+msgid "net.32ba.lattice-deformation-tool.localization.local"
+msgstr "ローカル"
+
+msgid "net.32ba.lattice-deformation-tool.localization.global"
+msgstr "グローバル"
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-symmetry-editing"
+msgstr "対称編集を有効化"
+
+msgid "net.32ba.lattice-deformation-tool.localization.symmetry-axis"
+msgstr "対称軸"
+
+msgid "net.32ba.lattice-deformation-tool.localization.symmetry-mode"
+msgstr "対称モード"
+
+msgid "net.32ba.lattice-deformation-tool.localization.antisymmetric"
+msgstr "反対称"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mirror"
+msgstr "ミラー"
+
+msgid "net.32ba.lattice-deformation-tool.localization.x"
+msgstr "X"
+
+msgid "net.32ba.lattice-deformation-tool.localization.y"
+msgstr "Y"
+
+msgid "net.32ba.lattice-deformation-tool.localization.z"
+msgstr "Z"
+
+msgid "net.32ba.lattice-deformation-tool.localization.shift-click-hint"
+msgstr "Shift/Ctrl を押しながら制御点を追加または削除します。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-none"
+msgstr "選択: なし"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-format"
+msgstr "選択: {0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-controls-format"
+msgstr "選択: {0} 個のコントロール"
+
+msgid "net.32ba.lattice-deformation-tool.localization.global-space-disabled"
+msgstr "グローバル空間での編集は無効です"
+
+# Lattice Grid
+msgid "net.32ba.lattice-deformation-tool.localization.current-grid-divisions"
+msgstr "現在のグリッド分割数"
+
+msgid "net.32ba.lattice-deformation-tool.localization.pending-grid-divisions"
+msgstr "変更後のグリッド分割数"
+
+msgid "net.32ba.lattice-deformation-tool.localization.change-lattice-divisions"
+msgstr "ラティス分割数を変更"
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected"
+msgstr "No Lattice Deformer selected."
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-asset-assigned"
+msgstr "このデフォーマーにラティスアセットが割り当てられていません。"
+
+# Brush Tool
+msgid "net.32ba.lattice-deformation-tool.localization.brush-tool"
+msgstr "ブラシツール"
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-brush"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-radius"
+msgstr "ブラシ半径"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-strength"
+msgstr "ブラシ強度"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-falloff"
+msgstr "ブラシ減衰"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normal"
+msgstr "法線"
+
+msgid "net.32ba.lattice-deformation-tool.localization.move"
+msgstr "移動"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-smooth"
+msgstr "ブラシスムーズ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-mask"
+msgstr "ブラシマスク"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deform"
+msgstr "ブラシ変形"
+
+msgid "net.32ba.lattice-deformation-tool.localization.smooth"
+msgstr "スムーズ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.linear"
+msgstr "リニア"
+
+msgid "net.32ba.lattice-deformation-tool.localization.constant"
+msgstr "一定"
+
+msgid "net.32ba.lattice-deformation-tool.localization.sphere"
+msgstr "球体"
+
+msgid "net.32ba.lattice-deformation-tool.localization.gaussian"
+msgstr "ガウシアン"
+
+msgid "net.32ba.lattice-deformation-tool.localization.falloff"
+msgstr "減衰"
+
+msgid "net.32ba.lattice-deformation-tool.localization.invert"
+msgstr "選択反転"
+
+msgid "net.32ba.lattice-deformation-tool.localization.invert-brush"
+msgstr "ブラシ反転"
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-mirror"
+msgstr "ミラーを有効化"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mirror-axis"
+msgstr "ミラー軸"
+
+msgid "net.32ba.lattice-deformation-tool.localization.surface-distance"
+msgstr "表面距離"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-all-displacements"
+msgstr "すべての変形をクリア"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.backface-culling"
+msgstr "背面カリング"
+
+msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-hint"
+msgstr "Alt+スクロール: 半径 / Shift+スクロール: 強度"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mask"
+msgstr "マスク"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-mask"
+msgstr "マスクをクリア"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-all"
+msgstr "すべてクリア"
+
+msgid "net.32ba.lattice-deformation-tool.localization.visualization"
+msgstr "可視化"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices"
+msgstr "影響頂点を表示"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-displacement-heatmap"
+msgstr "変位ヒートマップを表示"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-penetration"
+msgstr "貫通表示"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reference-mesh"
+msgstr "参照メッシュ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.dot-size"
+msgstr "ドットサイズ"
+
+# Vertex Selection Tool
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
+msgstr "頂点ツール"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection"
+msgstr "頂点選択"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-move"
+msgstr "頂点移動"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-rotate"
+msgstr "頂点回転"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-scale"
+msgstr "頂点スケール"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-transform"
+msgstr "頂点変換"
+
+msgid "net.32ba.lattice-deformation-tool.localization.transform-mode"
+msgstr "変換モード"
+
+msgid "net.32ba.lattice-deformation-tool.localization.rotate"
+msgstr "回転"
+
+msgid "net.32ba.lattice-deformation-tool.localization.scale"
+msgstr "スケール"
+
+msgid "net.32ba.lattice-deformation-tool.localization.select-all"
+msgstr "すべて選択"
+
+msgid "net.32ba.lattice-deformation-tool.localization.select-none"
+msgstr "選択解除"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-selection"
+msgstr "選択をクリア"
+
+msgid "net.32ba.lattice-deformation-tool.localization.connected-only"
+msgstr "接続のみ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-selected-vertices"
+msgstr "選択した頂点をリセット"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-all-vertices"
+msgstr "すべての頂点をリセット"
+
+msgid "net.32ba.lattice-deformation-tool.localization.proportional-editing"
+msgstr "プロポーショナル編集"
+
+msgid "net.32ba.lattice-deformation-tool.localization.proportional-radius"
+msgstr "プロポーショナル半径"
+
+msgid "net.32ba.lattice-deformation-tool.localization.pivot"
+msgstr "ピボット"
+
+msgid "net.32ba.lattice-deformation-tool.localization.center"
+msgstr "中心"
+
+msgid "net.32ba.lattice-deformation-tool.localization.last-selected"
+msgstr "最後に選択"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-vertices-format"
+msgstr "選択: {0} 個の頂点"
+
+msgid "net.32ba.lattice-deformation-tool.localization.wer-hint"
+msgstr "W/E/R: 移動/回転/スケール"
+
+msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-proportional-hint"
+msgstr "Alt+スクロール: プロポーショナル半径"
+
+msgid "net.32ba.lattice-deformation-tool.localization.shift-drag-precision"
+msgstr "Shift+ドラッグ: 精密モード"
+
+msgid "net.32ba.lattice-deformation-tool.localization.z-toggle-pivot"
+msgstr "Z: ピボット切替"
+
+# Mesh Rebuild Options
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-rebuild-options"
+msgstr "メッシュ再構築オプション"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals"
+msgstr "法線"
+
+msgid "net.32ba.lattice-deformation-tool.localization.tangents"
+msgstr "接線"
+
+msgid "net.32ba.lattice-deformation-tool.localization.bounds"
+msgstr "境界"
+
+msgid "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights"
+msgstr "ボーンウェイトを再計算"
+
+msgid "net.32ba.lattice-deformation-tool.localization.bone-weight-requires-smr"
+msgstr "ボーンウェイト再計算にはSkinnedMeshRendererが必要です。"
+
+# Weight Transfer
+msgid "net.32ba.lattice-deformation-tool.localization.weight-transfer-settings"
+msgstr "ウェイト転写設定"
+
+msgid "net.32ba.lattice-deformation-tool.localization.stage1-initial-transfer"
+msgstr "Stage 1: 初期転写"
+
+msgid "net.32ba.lattice-deformation-tool.localization.stage2-weight-inpainting"
+msgstr "Stage 2: ウェイト補間"
+
+msgid "net.32ba.lattice-deformation-tool.localization.max-transfer-distance"
+msgstr "最大転写距離"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normal-angle-threshold"
+msgstr "法線角度閾値"
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-inpainting"
+msgstr "補間を有効化"
+
+msgid "net.32ba.lattice-deformation-tool.localization.max-iterations"
+msgstr "最大反復回数"
+
+msgid "net.32ba.lattice-deformation-tool.localization.tolerance"
+msgstr "収束判定閾値"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-count"
+msgstr "頂点数"
+
+msgid "net.32ba.lattice-deformation-tool.localization.has-displacements"
+msgstr "変形データあり"
+
+# BlendShape
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-output"
+msgstr "BlendShape 出力"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-name"
+msgstr "BlendShape 名"
+
+msgid "net.32ba.lattice-deformation-tool.localization.curve"
 msgstr "カーブ"
 
-msgid "Frame Count"
-msgstr "フレーム数"
-
-msgid "Test Weight"
-msgstr "テストウェイト"
-
-msgid "Enter Test Mode"
+msgid "net.32ba.lattice-deformation-tool.localization.enter-test-mode"
 msgstr "テストモードに入る"
 
-msgid "Exit Test Mode"
+msgid "net.32ba.lattice-deformation-tool.localization.exit-test-mode"
 msgstr "テストモードを終了"
 
-msgid "BlendShape Test Mode"
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-test-mode"
 msgstr "BlendShape テストモード"
+
+msgid "net.32ba.lattice-deformation-tool.localization.test-weight"
+msgstr "テストウェイト"
+
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape"
+msgstr "BlendShape のインポート"
+
+# NDMF Preview
+msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
+msgstr "(NDMF) Disable Lattice Preview"
+
+msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview"
+msgstr "(NDMF) Enable Lattice Preview"
+
+# Lattice Cage Alignment
+msgid "net.32ba.lattice-deformation-tool.localization.lattice-cage-alignment"
+msgstr "ラティスケージ位置調整"
+
+msgid "net.32ba.lattice-deformation-tool.localization.alignment-cage-info"
+msgstr "ここで設定する位置・スケールはシーン上の編集用ケージだけを動かします。変形対象メッシュのバウンズや最終変形には影響しません。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.offset"
+msgstr "オフセット"
+
+msgid "net.32ba.lattice-deformation-tool.localization.offset-tooltip"
+msgstr "自動センター/クランプの前にプロキシローカルで直接適用されるオフセット"
+
+msgid "net.32ba.lattice-deformation-tool.localization.debug-log-alignment"
+msgstr "(Debug) プレビューアラインをコンソールにログ出力"
+
+# Editor buttons
+msgid "net.32ba.lattice-deformation-tool.localization.open-brush-editor"
+msgstr "ブラシエディターを開く"
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-lattice-editor"
+msgstr "ラティスエディターを開く"
+
+msgid "net.32ba.lattice-deformation-tool.localization.select-mesh-deformer"
+msgstr "編集する Mesh Deformer を選択してください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush"
+msgstr "ブラシ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.advanced"
+msgstr "詳細設定"
+
+# Legacy Brush Deformer
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deformer"
+msgstr "ブラシデフォーマー"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation"
+msgstr "ブラシ変形"

@@ -94,7 +94,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (s_icon != null)
             {
-                s_icon.tooltip = LatticeLocalization.Tr("Vertex Tool");
+                s_icon.tooltip = LatticeLocalization.Tr(LocKey.VertexTool);
             }
 
             SceneView.RepaintAll();
@@ -227,7 +227,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (deformer.ActiveLayerType != MeshDeformerLayerType.Brush)
             {
-                Handles.Label(deformer.transform.position, LatticeLocalization.Tr("Active layer is not a Brush layer."));
+                Handles.Label(deformer.transform.position, LatticeLocalization.Tr(LocKey.ActiveLayerNotBrush));
                 return;
             }
 
@@ -1102,13 +1102,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             switch (s_transformMode)
             {
                 case TransformMode.Move:
-                    return LatticeLocalization.Tr("Vertex Move");
+                    return LatticeLocalization.Tr(LocKey.VertexMove);
                 case TransformMode.Rotate:
-                    return LatticeLocalization.Tr("Vertex Rotate");
+                    return LatticeLocalization.Tr(LocKey.VertexRotate);
                 case TransformMode.Scale:
-                    return LatticeLocalization.Tr("Vertex Scale");
+                    return LatticeLocalization.Tr(LocKey.VertexScale);
                 default:
-                    return LatticeLocalization.Tr("Vertex Transform");
+                    return LatticeLocalization.Tr(LocKey.VertexTransform);
             }
         }
 
@@ -1212,7 +1212,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (deformer == null || s_selectedVertices.Count == 0) return;
 
-            Undo.RecordObject(deformer, LatticeLocalization.Tr("Reset Selected Vertices"));
+            Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ResetSelectedVertices));
             deformer.EnsureDisplacementCapacity();
 
             foreach (int i in s_selectedVertices)
@@ -1230,7 +1230,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (deformer == null) return;
 
-            Undo.RecordObject(deformer, LatticeLocalization.Tr("Reset All Vertices"));
+            Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ResetAllVertices));
             deformer.ClearDisplacements();
 
             bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
@@ -1295,18 +1295,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (s_selectedVertices.Count == 0)
             {
-                return LatticeLocalization.Tr("Selected: None");
+                return LatticeLocalization.Tr(LocKey.SelectedNone);
             }
 
             if (s_selectedVertices.Count == 1)
             {
                 foreach (var index in s_selectedVertices)
                 {
-                    return string.Format(LatticeLocalization.Tr("Selected: {0}"), index);
+                    return string.Format(LatticeLocalization.Tr(LocKey.SelectedFormat), index);
                 }
             }
 
-            return string.Format(LatticeLocalization.Tr("Selected: {0} vertices"), s_selectedVertices.Count);
+            return string.Format(LatticeLocalization.Tr(LocKey.SelectedVerticesFormat), s_selectedVertices.Count);
         }
 
         internal static void DrawOverlayGUI(LatticeDeformer deformer)
@@ -1314,11 +1314,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Transform mode selector
             var modeContent = new GUIContent[]
             {
-                LatticeLocalization.Content("Move"),
-                LatticeLocalization.Content("Rotate"),
-                LatticeLocalization.Content("Scale")
+                LatticeLocalization.Content(LocKey.Move),
+                LatticeLocalization.Content(LocKey.Rotate),
+                LatticeLocalization.Content(LocKey.Scale)
             };
-            GUILayout.Label(LatticeLocalization.Content("Transform Mode"), EditorStyles.miniLabel);
+            GUILayout.Label(LatticeLocalization.Content(LocKey.TransformMode), EditorStyles.miniLabel);
             int modeIndex = GUILayout.Toolbar((int)VertexSelectionHandler.CurrentTransformMode, modeContent);
             modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
             VertexSelectionHandler.CurrentTransformMode = (VertexSelectionHandler.TransformMode)modeIndex;
@@ -1326,11 +1326,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Handle orientation selector
             var orientContent = new GUIContent[]
             {
-                LatticeLocalization.Content("Local"),
-                LatticeLocalization.Content("Global"),
-                LatticeLocalization.Content("Normal")
+                LatticeLocalization.Content(LocKey.Local),
+                LatticeLocalization.Content(LocKey.Global),
+                LatticeLocalization.Content(LocKey.Normal)
             };
-            GUILayout.Label(LatticeLocalization.Content("Handle Orientation"), EditorStyles.miniLabel);
+            GUILayout.Label(LatticeLocalization.Content(LocKey.HandleOrientation), EditorStyles.miniLabel);
             int orientIndex = GUILayout.Toolbar((int)VertexSelectionHandler.CurrentHandleOrientation, orientContent);
             orientIndex = Mathf.Clamp(orientIndex, 0, orientContent.Length - 1);
             VertexSelectionHandler.CurrentHandleOrientation = (VertexSelectionHandler.HandleOrientation)orientIndex;
@@ -1338,10 +1338,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Pivot mode selector
             var pivotContent = new GUIContent[]
             {
-                LatticeLocalization.Content("Center"),
-                LatticeLocalization.Content("Last Selected")
+                LatticeLocalization.Content(LocKey.Center),
+                LatticeLocalization.Content(LocKey.LastSelected)
             };
-            GUILayout.Label(LatticeLocalization.Content("Pivot"), EditorStyles.miniLabel);
+            GUILayout.Label(LatticeLocalization.Content(LocKey.Pivot), EditorStyles.miniLabel);
             int pivotIndex = GUILayout.Toolbar((int)VertexSelectionHandler.CurrentPivotMode, pivotContent);
             pivotIndex = Mathf.Clamp(pivotIndex, 0, pivotContent.Length - 1);
             VertexSelectionHandler.CurrentPivotMode = (VertexSelectionHandler.PivotMode)pivotIndex;
@@ -1349,30 +1349,30 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             GUILayout.Space(2f);
 
             // --- Proportional Editing section (foldout) ---
-            s_showProportionalSection = EditorGUILayout.Foldout(s_showProportionalSection, LatticeLocalization.Tr("Proportional Editing"), true);
+            s_showProportionalSection = EditorGUILayout.Foldout(s_showProportionalSection, LatticeLocalization.Tr(LocKey.ProportionalEditing), true);
             if (s_showProportionalSection)
             {
                 EditorGUI.indentLevel++;
                 VertexSelectionHandler.ProportionalEditing = GUILayout.Toggle(
                     VertexSelectionHandler.ProportionalEditing,
-                    LatticeLocalization.Content("Proportional Editing"));
+                    LatticeLocalization.Content(LocKey.ProportionalEditing));
 
                 using (new EditorGUI.DisabledScope(!VertexSelectionHandler.ProportionalEditing))
                 {
                     VertexSelectionHandler.ProportionalRadius = EditorGUILayout.Slider(
-                        LatticeLocalization.Content("Proportional Radius"),
+                        LatticeLocalization.Content(LocKey.ProportionalRadius),
                         VertexSelectionHandler.ProportionalRadius, 0.001f, 5.0f);
 
                     var falloffContent = new GUIContent[]
                     {
-                        LatticeLocalization.Content("Smooth"),
-                        LatticeLocalization.Content("Linear"),
-                        LatticeLocalization.Content("Constant"),
-                        LatticeLocalization.Content("Sphere"),
-                        LatticeLocalization.Content("Gaussian")
+                        LatticeLocalization.Content(LocKey.Smooth),
+                        LatticeLocalization.Content(LocKey.Linear),
+                        LatticeLocalization.Content(LocKey.Constant),
+                        LatticeLocalization.Content(LocKey.Sphere),
+                        LatticeLocalization.Content(LocKey.Gaussian)
                     };
                     int falloffIndex = EditorGUILayout.Popup(
-                        LatticeLocalization.Content("Falloff"),
+                        LatticeLocalization.Content(LocKey.Falloff),
                         (int)VertexSelectionHandler.ProportionalFalloffType,
                         falloffContent);
                     falloffIndex = Mathf.Clamp(falloffIndex, 0, falloffContent.Length - 1);
@@ -1382,16 +1382,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             // --- Visualization section (foldout) ---
-            s_showVisualizationSection = EditorGUILayout.Foldout(s_showVisualizationSection, LatticeLocalization.Tr("Visualization"), true);
+            s_showVisualizationSection = EditorGUILayout.Foldout(s_showVisualizationSection, LatticeLocalization.Tr(LocKey.Visualization), true);
             if (s_showVisualizationSection)
             {
                 EditorGUI.indentLevel++;
                 VertexSelectionHandler.VertexDotSize = EditorGUILayout.Slider(
-                    LatticeLocalization.Content("Dot Size"),
+                    LatticeLocalization.Content(LocKey.DotSize),
                     VertexSelectionHandler.VertexDotSize, 1f, 8f);
                 VertexSelectionHandler.BackfaceCulling = GUILayout.Toggle(
                     VertexSelectionHandler.BackfaceCulling,
-                    LatticeLocalization.Content("Backface Culling"));
+                    LatticeLocalization.Content(LocKey.BackfaceCulling));
                 EditorGUI.indentLevel--;
             }
 
@@ -1402,17 +1402,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             using (new GUILayout.HorizontalScope())
             {
-                if (GUILayout.Button(LatticeLocalization.Content("Select All")))
+                if (GUILayout.Button(LatticeLocalization.Content(LocKey.SelectAll)))
                 {
                     VertexSelectionHandler.SelectAll(deformer);
                 }
 
-                if (GUILayout.Button(LatticeLocalization.Content("Select None")))
+                if (GUILayout.Button(LatticeLocalization.Content(LocKey.SelectNone)))
                 {
                     VertexSelectionHandler.ClearSelection();
                 }
 
-                if (GUILayout.Button(LatticeLocalization.Content("Invert")))
+                if (GUILayout.Button(LatticeLocalization.Content(LocKey.Invert)))
                 {
                     VertexSelectionHandler.InvertSelection(deformer);
                 }
@@ -1422,24 +1422,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 using (new EditorGUI.DisabledScope(VertexSelectionHandler.SelectedVertexCount == 0))
                 {
-                    if (GUILayout.Button(LatticeLocalization.Content("Reset Selected Vertices")))
+                    if (GUILayout.Button(LatticeLocalization.Content(LocKey.ResetSelectedVertices)))
                     {
                         ResetSelectedVertices(deformer);
                     }
                 }
 
-                if (GUILayout.Button(LatticeLocalization.Content("Reset All Vertices")))
+                if (GUILayout.Button(LatticeLocalization.Content(LocKey.ResetAllVertices)))
                 {
                     ResetAllVertices(deformer);
                 }
             }
 
             GUILayout.Space(2f);
-            GUILayout.Label(LatticeLocalization.Tr("W/E/R: Move/Rotate/Scale") + "  " + LatticeLocalization.Tr("Z: Toggle Pivot"), EditorStyles.miniLabel);
-            GUILayout.Label(LatticeLocalization.Tr("Shift+Click: Add / Ctrl+Click: Toggle") + "  " + LatticeLocalization.Tr("Shift+Drag: Precision Mode"), EditorStyles.miniLabel);
+            GUILayout.Label(LatticeLocalization.Tr(LocKey.WERHint) + "  " + LatticeLocalization.Tr(LocKey.ZTogglePivot), EditorStyles.miniLabel);
+            GUILayout.Label(LatticeLocalization.Tr(LocKey.ShiftClickHint) + "  " + LatticeLocalization.Tr(LocKey.ShiftDragPrecision), EditorStyles.miniLabel);
             if (VertexSelectionHandler.ProportionalEditing)
             {
-                GUILayout.Label(LatticeLocalization.Tr("Alt+Scroll: Proportional Radius"), EditorStyles.miniLabel);
+                GUILayout.Label(LatticeLocalization.Tr(LocKey.AltScrollProportionalHint), EditorStyles.miniLabel);
             }
         }
     }

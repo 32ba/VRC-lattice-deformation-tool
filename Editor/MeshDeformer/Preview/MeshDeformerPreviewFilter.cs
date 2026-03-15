@@ -15,7 +15,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly Dictionary<Renderer, LatticeDeformer> _rendererToDeformer = new Dictionary<Renderer, LatticeDeformer>();
 
         private static readonly TogglablePreviewNode s_previewToggle = TogglablePreviewNode.Create(
-            () => LatticeLocalization.Tr("Mesh Deformer"),
+            () => LatticeLocalization.Tr(LocKey.MeshDeformer),
             typeof(LatticeDeformerPreviewFilter).FullName);
 
         internal static bool PreviewToggleEnabled => s_previewToggle.IsEnabled.Value;
