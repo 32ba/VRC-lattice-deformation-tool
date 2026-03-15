@@ -507,3 +507,6 @@ msgstr "没有变形图层。请从Inspector添加图层。"
 
 msgid "Settings"
 msgstr "设置"
+
+msgid "Delete"
+msgstr "删除"

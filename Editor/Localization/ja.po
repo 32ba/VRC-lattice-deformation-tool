@@ -538,3 +538,6 @@ msgstr "変形レイヤーがありません。Inspectorからレイヤーを追
 
 msgid "Settings"
 msgstr "設定"
+
+msgid "Delete"
+msgstr "削除"

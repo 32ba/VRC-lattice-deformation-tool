@@ -496,3 +496,6 @@ msgstr "No deformation layers. Add a layer from the Inspector."
 
 msgid "Settings"
 msgstr "Settings"
+
+msgid "Delete"
+msgstr "Delete"

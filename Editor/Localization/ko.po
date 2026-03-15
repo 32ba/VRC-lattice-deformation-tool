@@ -507,3 +507,6 @@ msgstr "변형 레이어가 없습니다. Inspector에서 레이어를 추가하
 
 msgid "Settings"
 msgstr "설정"
+
+msgid "Delete"
+msgstr "삭제"
