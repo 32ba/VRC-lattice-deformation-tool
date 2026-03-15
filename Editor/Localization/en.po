@@ -63,8 +63,26 @@ msgstr "Active Layer"
 msgid "net.32ba.lattice-deformation-tool.localization.duplicate-layer"
 msgstr "Duplicate Layer"
 
+msgid "net.32ba.lattice-deformation-tool.localization.copy-layer"
+msgstr "Copy Layer"
+
 msgid "net.32ba.lattice-deformation-tool.localization.paste-layer"
 msgstr "Paste Layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.delete-layer"
+msgstr "Delete Layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate-group"
+msgstr "Duplicate Group"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-group"
+msgstr "Copy Group"
+
+msgid "net.32ba.lattice-deformation-tool.localization.paste-group"
+msgstr "Paste Group"
+
+msgid "net.32ba.lattice-deformation-tool.localization.delete-group"
+msgstr "Delete Group"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer"
 msgstr "Reset Active Layer"

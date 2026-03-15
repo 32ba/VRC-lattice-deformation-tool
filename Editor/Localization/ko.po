@@ -63,8 +63,26 @@ msgstr "활성 레이어"
 msgid "net.32ba.lattice-deformation-tool.localization.duplicate-layer"
 msgstr "레이어 복제"
 
+msgid "net.32ba.lattice-deformation-tool.localization.copy-layer"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.paste-layer"
 msgstr "레이어 붙여넣기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.delete-layer"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate-group"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-group"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.paste-group"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.delete-group"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer"
 msgstr ""

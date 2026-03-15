@@ -63,8 +63,26 @@ msgstr "活動圖層"
 msgid "net.32ba.lattice-deformation-tool.localization.duplicate-layer"
 msgstr "複製圖層"
 
+msgid "net.32ba.lattice-deformation-tool.localization.copy-layer"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.paste-layer"
 msgstr "貼上圖層"
+
+msgid "net.32ba.lattice-deformation-tool.localization.delete-layer"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate-group"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-group"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.paste-group"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.delete-group"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer"
 msgstr ""

@@ -63,8 +63,26 @@ msgstr "アクティブレイヤー"
 msgid "net.32ba.lattice-deformation-tool.localization.duplicate-layer"
 msgstr "レイヤーを複製"
 
+msgid "net.32ba.lattice-deformation-tool.localization.copy-layer"
+msgstr "レイヤーをコピー"
+
 msgid "net.32ba.lattice-deformation-tool.localization.paste-layer"
 msgstr "レイヤーを貼り付け"
+
+msgid "net.32ba.lattice-deformation-tool.localization.delete-layer"
+msgstr "レイヤーを削除"
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate-group"
+msgstr "グループを複製"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-group"
+msgstr "グループをコピー"
+
+msgid "net.32ba.lattice-deformation-tool.localization.paste-group"
+msgstr "グループを貼り付け"
+
+msgid "net.32ba.lattice-deformation-tool.localization.delete-group"
+msgstr "グループを削除"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer"
 msgstr ""

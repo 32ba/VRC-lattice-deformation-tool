@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
+using System.Reflection;
 using nadena.dev.ndmf.preview;
 using UnityEditor;
 using UnityEditor.EditorTools;
@@ -58,6 +59,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static readonly Dictionary<long, Vector3Int> s_pendingGridSizes = new();
         private static string s_copiedLayerJson = null;
         private static MeshDeformerLayerType s_copiedLayerType;
+        private static string s_copiedGroupJson = null;
 
         // UI Toolkit layer list
         private ListView _layerListView;
@@ -271,6 +273,51 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             root.style.paddingLeft = 4;
             root.style.paddingRight = 4;
 
+            // Right-click context menu for group
+            root.AddManipulator(new ContextualMenuManipulator(evt =>
+            {
+                if (root.userData is not int groupIndex) return;
+                var d = target as LatticeDeformer;
+                if (d == null) return;
+
+                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.DuplicateGroup), _ =>
+                {
+                    Undo.RecordObject(d, LatticeLocalization.Tr(LocKey.DuplicateGroup));
+                    DuplicateGroup(d, groupIndex);
+                    EditorUtility.SetDirty(d);
+                    serializedObject.Update();
+                    ResolveActiveGroupProperties();
+                    RebuildGroupList();
+                    NotifyPropertyChanges();
+                });
+                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.CopyGroup), _ =>
+                {
+                    CopyGroup(d, groupIndex);
+                });
+                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.PasteGroup), _ =>
+                {
+                    Undo.RecordObject(d, LatticeLocalization.Tr(LocKey.PasteGroup));
+                    PasteGroup(d);
+                    EditorUtility.SetDirty(d);
+                    serializedObject.Update();
+                    ResolveActiveGroupProperties();
+                    RebuildGroupList();
+                    NotifyPropertyChanges();
+                }, string.IsNullOrEmpty(s_copiedGroupJson) ? DropdownMenuAction.Status.Disabled : DropdownMenuAction.Status.Normal);
+                evt.menu.AppendSeparator();
+                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.DeleteGroup), _ =>
+                {
+                    if (d.GroupCount <= 1) return;
+                    Undo.RecordObject(d, LatticeLocalization.Tr(LocKey.DeleteGroup));
+                    d.RemoveGroup(groupIndex);
+                    EditorUtility.SetDirty(d);
+                    serializedObject.Update();
+                    ResolveActiveGroupProperties();
+                    RebuildGroupList();
+                    NotifyPropertyChanges();
+                }, d.GroupCount <= 1 ? DropdownMenuAction.Status.Disabled : DropdownMenuAction.Status.Normal);
+            }));
+
             // Row 1: Group name
             var nameField = new TextField();
             nameField.name = "group-name";
@@ -299,6 +346,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             serializedObject.Update();
             if (_groupsProp == null || index < 0 || index >= _groupsProp.arraySize) return;
+
+            element.userData = index; // for right-click menu
 
             var groupProp = _groupsProp.GetArrayElementAtIndex(index);
             var groupNameProp = groupProp.FindPropertyRelative("_name");
@@ -619,6 +668,38 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             root.style.paddingLeft = 4;
             root.style.paddingRight = 4;
 
+            // Right-click context menu for layer (stop propagation to prevent group menu)
+            root.AddManipulator(new ContextualMenuManipulator(evt =>
+            {
+                if (root.userData is not int layerIndex) return;
+                var d = target as LatticeDeformer;
+                if (d == null) return;
+
+                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.DuplicateLayer), _ =>
+                {
+                    PerformSingleLayerOperation(d, LatticeLocalization.Tr(LocKey.DuplicateLayer), inst =>
+                        inst.DuplicateLayer(layerIndex) >= 0);
+                    RebuildGroupList();
+                });
+                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.CopyLayer), _ =>
+                {
+                    CopyLayer(d, layerIndex);
+                });
+                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.PasteLayer), _ =>
+                {
+                    PasteLayer(d);
+                    RebuildGroupList();
+                }, string.IsNullOrEmpty(s_copiedLayerJson) ? DropdownMenuAction.Status.Disabled : DropdownMenuAction.Status.Normal);
+                evt.menu.AppendSeparator();
+                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.DeleteLayer), _ =>
+                {
+                    DeleteLayer(d, layerIndex);
+                    RebuildGroupList();
+                }, d.Layers.Count <= 1 ? DropdownMenuAction.Status.Disabled : DropdownMenuAction.Status.Normal);
+
+                evt.StopPropagation();
+            }));
+
             // Row 1: [Enabled] [Name] [Type]
             var row1 = new VisualElement();
             row1.style.flexDirection = FlexDirection.Row;
@@ -666,6 +747,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             serializedObject.Update();
             ResolveActiveGroupProperties();
             if (_layersProp == null || index < 0 || index >= _layersProp.arraySize) return;
+
+            element.userData = index; // for right-click menu
+
             var layerProp = _layersProp.GetArrayElementAtIndex(index);
             var enabledProp = layerProp.FindPropertyRelative("_enabled");
             var nameProp = layerProp.FindPropertyRelative("_name");
@@ -784,39 +868,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             serializedObject.Update();
             ResolveActiveGroupProperties();
-
-            // Dup / Copy / Paste / L-R
-            using (new EditorGUI.DisabledScope(_layersProp.arraySize <= 0))
-            {
-                using (new EditorGUILayout.HorizontalScope())
-                {
-                    if (GUILayout.Button(LatticeLocalization.Tr(LocKey.Duplicate)))
-                    {
-                        PerformSingleLayerOperation(deformer, LatticeLocalization.Tr(LocKey.DuplicateLayer), instance =>
-                        {
-                            return instance.DuplicateLayer(instance.ActiveLayerIndex) >= 0;
-                        });
-                        RebuildLayerList();
-                    }
-                    if (GUILayout.Button(LatticeLocalization.Tr(LocKey.Copy)))
-                    {
-                        CopyLayer(deformer, deformer.ActiveLayerIndex);
-                    }
-                    using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(s_copiedLayerJson)))
-                    {
-                        if (GUILayout.Button(LatticeLocalization.Tr(LocKey.Paste)))
-                        {
-                            PasteLayer(deformer);
-                            RebuildLayerList();
-                        }
-                    }
-                    // TODO: L/R Operations temporarily disabled
-                    // if (EditorGUILayout.DropdownButton(new GUIContent(LatticeLocalization.Tr(LocKey.LROperations)), FocusType.Keyboard, GUILayout.Width(100)))
-                    // {
-                    //     ShowLROperationsMenu(deformer);
-                    // }
-                }
-            }
 
             DrawImportBlendShapeUI(deformer);
 
@@ -1331,6 +1382,47 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 return instance.InsertLayer(newLayer) >= 0;
             });
+        }
+
+        private void DuplicateGroup(LatticeDeformer deformer, int groupIndex)
+        {
+            var groups = deformer.Groups;
+            if (groupIndex < 0 || groupIndex >= groups.Count) return;
+            var srcGroup = groups[groupIndex];
+            string json = JsonUtility.ToJson(srcGroup);
+            var newGroup = new DeformerGroup();
+            JsonUtility.FromJsonOverwrite(json, newGroup);
+            newGroup.Name = srcGroup.Name + " Copy";
+
+            // Use reflection to access _groups list directly for insert
+            var groupsField = typeof(LatticeDeformer).GetField("_groups", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (groupsField?.GetValue(deformer) is List<DeformerGroup> groupsList)
+            {
+                int insertAt = Mathf.Clamp(groupIndex + 1, 0, groupsList.Count);
+                groupsList.Insert(insertAt, newGroup);
+                deformer.ActiveGroupIndex = insertAt;
+            }
+        }
+
+        private void CopyGroup(LatticeDeformer deformer, int groupIndex)
+        {
+            var groups = deformer.Groups;
+            if (groupIndex < 0 || groupIndex >= groups.Count) return;
+            s_copiedGroupJson = JsonUtility.ToJson(groups[groupIndex]);
+        }
+
+        private void PasteGroup(LatticeDeformer deformer)
+        {
+            if (string.IsNullOrEmpty(s_copiedGroupJson)) return;
+            var newGroup = new DeformerGroup();
+            JsonUtility.FromJsonOverwrite(s_copiedGroupJson, newGroup);
+
+            var groupsField = typeof(LatticeDeformer).GetField("_groups", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (groupsField?.GetValue(deformer) is List<DeformerGroup> groupsList)
+            {
+                groupsList.Add(newGroup);
+                deformer.ActiveGroupIndex = groupsList.Count - 1;
+            }
         }
 
         private static void SyncActiveToolToLayer(LatticeDeformer deformer)

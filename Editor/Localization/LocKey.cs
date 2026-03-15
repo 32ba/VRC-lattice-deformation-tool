@@ -27,7 +27,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string AddBrushLayer = "net.32ba.lattice-deformation-tool.localization.add-brush-layer";
         internal const string ActiveLayer = "net.32ba.lattice-deformation-tool.localization.active-layer";
         internal const string DuplicateLayer = "net.32ba.lattice-deformation-tool.localization.duplicate-layer";
+        internal const string CopyLayer = "net.32ba.lattice-deformation-tool.localization.copy-layer";
         internal const string PasteLayer = "net.32ba.lattice-deformation-tool.localization.paste-layer";
+        internal const string DeleteLayer = "net.32ba.lattice-deformation-tool.localization.delete-layer";
+        internal const string DuplicateGroup = "net.32ba.lattice-deformation-tool.localization.duplicate-group";
+        internal const string CopyGroup = "net.32ba.lattice-deformation-tool.localization.copy-group";
+        internal const string PasteGroup = "net.32ba.lattice-deformation-tool.localization.paste-group";
+        internal const string DeleteGroup = "net.32ba.lattice-deformation-tool.localization.delete-group";
         internal const string ResetActiveLayer = "net.32ba.lattice-deformation-tool.localization.reset-active-layer";
         internal const string NoDeformationLayers = "net.32ba.lattice-deformation-tool.localization.no-deformation-layers";
 

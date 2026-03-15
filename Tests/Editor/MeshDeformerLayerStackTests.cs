@@ -3456,6 +3456,143 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally { fixture.Dispose(); }
         }
 
+        // ── Group Copy / Paste / Duplicate Tests ──────────────
+
+        [Test]
+        public void DuplicateGroup_CreatesIndependentCopy()
+        {
+            var fixture = CreateFixture("DuplicateGroup_IndependentCopy");
+            try
+            {
+                var deformer = fixture.Deformer;
+
+                // Setup group 0 with a brush layer displacement
+                deformer.ActiveGroupIndex = 0;
+                int b = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = b;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.5f, 0f, 0f));
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "OrigShape";
+
+                // Duplicate via JSON (same as editor DuplicateGroup)
+                var srcGroup = deformer.Groups[0];
+                string json = JsonUtility.ToJson(srcGroup);
+                var newGroup = new DeformerGroup();
+                JsonUtility.FromJsonOverwrite(json, newGroup);
+                newGroup.Name = "Group Copy";
+
+                var groupsField = typeof(LatticeDeformer).GetField("_groups", s_privateInstance);
+                var groupsList = groupsField.GetValue(deformer) as List<DeformerGroup>;
+                groupsList.Add(newGroup);
+                deformer.ActiveGroupIndex = 1;
+
+                // Verify copy has same data
+                Assert.That(deformer.Groups.Count, Is.EqualTo(2));
+                Assert.That(deformer.Groups[1].Name, Is.EqualTo("Group Copy"));
+                Assert.That(deformer.Groups[1].BlendShapeOutput, Is.EqualTo(BlendShapeOutputMode.OutputAsBlendShape));
+                Assert.That(deformer.Groups[1].BlendShapeName, Is.EqualTo("OrigShape"));
+                Assert.That(deformer.Layers.Count, Is.GreaterThanOrEqualTo(2)); // original layers duplicated
+
+                // Modify original — copy should NOT change
+                deformer.ActiveGroupIndex = 0;
+                deformer.ActiveLayerIndex = b;
+                deformer.SetDisplacement(0, new Vector3(9f, 9f, 9f));
+
+                deformer.ActiveGroupIndex = 1;
+                // Find the brush layer in the copy
+                int copyBrushIdx = -1;
+                for (int i = 0; i < deformer.Layers.Count; i++)
+                    if (deformer.Layers[i].Type == MeshDeformerLayerType.Brush) { copyBrushIdx = i; break; }
+                Assert.That(copyBrushIdx, Is.GreaterThanOrEqualTo(0));
+                var copyDisp = deformer.Layers[copyBrushIdx].GetBrushDisplacement(0);
+                AssertApproximately(new Vector3(0.5f, 0f, 0f), copyDisp, Epsilon);
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void CopyPasteGroup_RoundTrip()
+        {
+            var fixture = CreateFixture("CopyPasteGroup_RoundTrip");
+            try
+            {
+                var deformer = fixture.Deformer;
+
+                // Setup group 0
+                deformer.ActiveGroupIndex = 0;
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "CopiedBS";
+                int b = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = b;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.3f, 0.4f, 0f));
+
+                // Copy group 0
+                string copiedJson = JsonUtility.ToJson(deformer.Groups[0]);
+                Assert.That(string.IsNullOrEmpty(copiedJson), Is.False);
+
+                // Paste as new group
+                var pastedGroup = new DeformerGroup();
+                JsonUtility.FromJsonOverwrite(copiedJson, pastedGroup);
+
+                var groupsField = typeof(LatticeDeformer).GetField("_groups", s_privateInstance);
+                var groupsList = groupsField.GetValue(deformer) as List<DeformerGroup>;
+                groupsList.Add(pastedGroup);
+                deformer.ActiveGroupIndex = 1;
+
+                // Verify pasted group
+                Assert.That(deformer.Groups.Count, Is.EqualTo(2));
+                Assert.That(deformer.BlendShapeOutput, Is.EqualTo(BlendShapeOutputMode.OutputAsBlendShape));
+                Assert.That(deformer.BlendShapeName, Is.EqualTo("CopiedBS"));
+
+                int pastedBrush = -1;
+                for (int i = 0; i < deformer.Layers.Count; i++)
+                    if (deformer.Layers[i].Type == MeshDeformerLayerType.Brush) { pastedBrush = i; break; }
+                Assert.That(pastedBrush, Is.GreaterThanOrEqualTo(0));
+                var disp = deformer.Layers[pastedBrush].GetBrushDisplacement(0);
+                AssertApproximately(new Vector3(0.3f, 0.4f, 0f), disp, Epsilon);
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void CopyPasteGroup_ProducesIndependentBlendShapes()
+        {
+            var fixture = CreateFixture("CopyPasteGroup_IndependentBS");
+            try
+            {
+                var deformer = fixture.Deformer;
+
+                // Group 0: BlendShape "A"
+                deformer.ActiveGroupIndex = 0;
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "ShapeA";
+                int b0 = deformer.AddLayer("B0", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = b0;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
+
+                // Copy and paste group, rename BlendShape
+                string json = JsonUtility.ToJson(deformer.Groups[0]);
+                var pastedGroup = new DeformerGroup();
+                JsonUtility.FromJsonOverwrite(json, pastedGroup);
+                pastedGroup.BlendShapeName = "ShapeB";
+
+                var groupsField = typeof(LatticeDeformer).GetField("_groups", s_privateInstance);
+                (groupsField.GetValue(deformer) as List<DeformerGroup>).Add(pastedGroup);
+
+                // Deform and verify two separate BlendShapes
+                var mesh = deformer.Deform(false);
+                int idxA = mesh.GetBlendShapeIndex("ShapeA");
+                int idxB = mesh.GetBlendShapeIndex("ShapeB");
+                Assert.That(idxA, Is.GreaterThanOrEqualTo(0));
+                Assert.That(idxB, Is.GreaterThanOrEqualTo(0));
+                Assert.That(idxA, Is.Not.EqualTo(idxB));
+            }
+            finally { fixture.Dispose(); }
+        }
+
         private sealed class TestFixture
         {
             public GameObject Root { get; }
