@@ -385,6 +385,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 SetPrivateField(deformer, "_settings", legacySettings);
                 SetPrivateField(deformer, "_layers", new List<LatticeLayer>());
+                SetPrivateField(deformer, "_groups", new List<DeformerGroup>());
                 SetPrivateField(deformer, "_activeLayerIndex", -1);
                 SetPrivateField(deformer, "_layerModelVersion", 0);
 
@@ -3098,6 +3099,361 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             float toleranceSq = tolerance * tolerance;
             Assert.That((expected - actual).sqrMagnitude, Is.LessThanOrEqualTo(toleranceSq),
                 $"Expected {expected} but got {actual}");
+        }
+
+        // ── DeformerGroup Tests ──────────────────────────────────
+
+        [Test]
+        public void DefaultComponent_HasOneGroup()
+        {
+            var fixture = CreateFixture("DefaultComponent_HasOneGroup");
+            try
+            {
+                var deformer = fixture.Deformer;
+                Assert.That(deformer.Groups.Count, Is.EqualTo(1));
+                Assert.That(deformer.ActiveGroupIndex, Is.EqualTo(0));
+                Assert.That(deformer.ActiveGroup, Is.Not.Null);
+                Assert.That(deformer.ActiveGroup.Layers.Count, Is.GreaterThanOrEqualTo(1));
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void AddGroup_CreatesNewEmptyGroup()
+        {
+            var fixture = CreateFixture("AddGroup_CreatesNewEmptyGroup");
+            try
+            {
+                var deformer = fixture.Deformer;
+                int idx = deformer.AddGroup("Group B");
+                Assert.That(deformer.Groups.Count, Is.EqualTo(2));
+                Assert.That(deformer.ActiveGroupIndex, Is.EqualTo(idx));
+                Assert.That(deformer.ActiveGroup.Name, Is.EqualTo("Group B"));
+                Assert.That(deformer.ActiveGroup.Layers.Count, Is.EqualTo(0));
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void RemoveGroup_CannotRemoveLastGroup()
+        {
+            var fixture = CreateFixture("RemoveGroup_CannotRemoveLastGroup");
+            try
+            {
+                var deformer = fixture.Deformer;
+                Assert.That(deformer.Groups.Count, Is.EqualTo(1));
+                bool removed = deformer.RemoveGroup(0);
+                Assert.That(removed, Is.False);
+                Assert.That(deformer.Groups.Count, Is.EqualTo(1));
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void RemoveGroup_RemovesCorrectGroup()
+        {
+            var fixture = CreateFixture("RemoveGroup_RemovesCorrectGroup");
+            try
+            {
+                var deformer = fixture.Deformer;
+                deformer.AddGroup("Group B");
+                deformer.AddGroup("Group C");
+                Assert.That(deformer.Groups.Count, Is.EqualTo(3));
+
+                deformer.ActiveGroupIndex = 0;
+                bool removed = deformer.RemoveGroup(1); // Remove "Group B"
+                Assert.That(removed, Is.True);
+                Assert.That(deformer.Groups.Count, Is.EqualTo(2));
+                Assert.That(deformer.Groups[1].Name, Is.EqualTo("Group C"));
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void FacadeAPI_DelegatesToActiveGroup()
+        {
+            var fixture = CreateFixture("FacadeAPI_DelegatesToActiveGroup");
+            try
+            {
+                var deformer = fixture.Deformer;
+                // Group 0 has default layers
+                int group0LayerCount = deformer.Layers.Count;
+
+                // Add group 1 with a brush layer
+                deformer.AddGroup("Group B");
+                deformer.AddLayer("Brush B", MeshDeformerLayerType.Brush);
+                Assert.That(deformer.Layers.Count, Is.EqualTo(1)); // Group B has 1 layer
+                Assert.That(deformer.ActiveLayerType, Is.EqualTo(MeshDeformerLayerType.Brush));
+
+                // Switch back to group 0
+                deformer.ActiveGroupIndex = 0;
+                Assert.That(deformer.Layers.Count, Is.EqualTo(group0LayerCount));
+                Assert.That(deformer.ActiveLayerType, Is.EqualTo(MeshDeformerLayerType.Lattice));
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void MultipleGroups_DirectDeform_AreAdditive()
+        {
+            var fixture = CreateFixture("MultipleGroups_DirectDeform_AreAdditive");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var sourceVertices = fixture.SourceMesh.vertices;
+
+                // Group 0: brush layer with displacement on vertex 0
+                deformer.ActiveGroupIndex = 0;
+                int b0 = deformer.AddLayer("Brush0", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = b0;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
+
+                // Group 1: brush layer with displacement on vertex 0
+                deformer.AddGroup("Group B");
+                int b1 = deformer.AddLayer("Brush1", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = b1;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0f, 0.2f, 0f));
+
+                var mesh = deformer.Deform(false);
+                var deformed = mesh.vertices;
+
+                // Both groups contribute additively
+                var expected = sourceVertices[0] + new Vector3(0.1f, 0.2f, 0f);
+                AssertApproximately(expected, deformed[0], 2e-3f);
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void MultipleGroups_BlendShapeOutput_ProducesMultipleBlendShapes()
+        {
+            var fixture = CreateFixture("MultipleGroups_BlendShapeOutput_MultipleBS");
+            try
+            {
+                var deformer = fixture.Deformer;
+
+                // Group 0: BlendShape "ShapeA"
+                deformer.ActiveGroupIndex = 0;
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "ShapeA";
+                int b0 = deformer.AddLayer("Brush0", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = b0;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
+
+                // Group 1: BlendShape "ShapeB"
+                deformer.AddGroup("Group B");
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "ShapeB";
+                int b1 = deformer.AddLayer("Brush1", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = b1;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0f, 0.2f, 0f));
+
+                var mesh = deformer.Deform(false);
+                int idxA = mesh.GetBlendShapeIndex("ShapeA");
+                int idxB = mesh.GetBlendShapeIndex("ShapeB");
+                Assert.That(idxA, Is.GreaterThanOrEqualTo(0), "ShapeA BlendShape should exist");
+                Assert.That(idxB, Is.GreaterThanOrEqualTo(0), "ShapeB BlendShape should exist");
+                Assert.That(idxA, Is.Not.EqualTo(idxB));
+
+                // Verify deltas: last frame (index 99) has full delta
+                int vertexCount = mesh.vertexCount;
+                var deltasA = new Vector3[vertexCount];
+                mesh.GetBlendShapeFrameVertices(idxA, 99, deltasA, null, null);
+                AssertApproximately(new Vector3(0.1f, 0f, 0f), deltasA[0], 2e-3f);
+
+                var deltasB = new Vector3[vertexCount];
+                mesh.GetBlendShapeFrameVertices(idxB, 99, deltasB, null, null);
+                AssertApproximately(new Vector3(0f, 0.2f, 0f), deltasB[0], 2e-3f);
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void MixedGroups_DirectDeformAndBlendShape_WorkTogether()
+        {
+            var fixture = CreateFixture("MixedGroups_DirectAndBS");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var sourceVertices = fixture.SourceMesh.vertices;
+
+                // Group 0: Direct deform
+                deformer.ActiveGroupIndex = 0;
+                deformer.BlendShapeOutput = BlendShapeOutputMode.Disabled;
+                int b0 = deformer.AddLayer("Direct", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = b0;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
+
+                // Group 1: BlendShape
+                deformer.AddGroup("BS Group");
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "Mixed";
+                int b1 = deformer.AddLayer("BSBrush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = b1;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0f, 0.2f, 0f));
+
+                var mesh = deformer.Deform(false);
+                var deformed = mesh.vertices;
+
+                // Direct deform group contributes to vertices
+                var expectedDirect = sourceVertices[0] + new Vector3(0.1f, 0f, 0f);
+                AssertApproximately(expectedDirect, deformed[0], 2e-3f);
+
+                // BlendShape group produces a BlendShape, not vertex change
+                int bsIdx = mesh.GetBlendShapeIndex("Mixed");
+                Assert.That(bsIdx, Is.GreaterThanOrEqualTo(0));
+                var bsDeltas = new Vector3[mesh.vertexCount];
+                mesh.GetBlendShapeFrameVertices(bsIdx, 99, bsDeltas, null, null);
+                AssertApproximately(new Vector3(0f, 0.2f, 0f), bsDeltas[0], 2e-3f);
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void DisabledGroup_DoesNotContribute()
+        {
+            var fixture = CreateFixture("DisabledGroup_DoesNotContribute");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var sourceVertices = fixture.SourceMesh.vertices;
+
+                // Group 0: brush
+                deformer.ActiveGroupIndex = 0;
+                int b0 = deformer.AddLayer("Brush0", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = b0;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.5f, 0f, 0f));
+
+                // Disable the group
+                deformer.ActiveGroup.Enabled = false;
+
+                var mesh = deformer.Deform(false);
+                var deformed = mesh.vertices;
+
+                // Vertex should be unchanged since group is disabled
+                AssertApproximately(sourceVertices[0], deformed[0], 2e-3f);
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void LegacyMigration_V0ToV3_PreservesData()
+        {
+            var fixture = CreateFixture("LegacyMigration_V0ToV3");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var legacySettings = CloneSettings(deformer.Settings);
+                const int cpIdx = 0;
+                var movedPoint = legacySettings.GetControlPointLocal(cpIdx) + new Vector3(0.05f, 0.1f, 0f);
+                legacySettings.SetControlPointLocal(cpIdx, movedPoint);
+
+                // Simulate v0 state
+                SetPrivateField(deformer, "_settings", legacySettings);
+                SetPrivateField(deformer, "_layers", new List<LatticeLayer>());
+                SetPrivateField(deformer, "_groups", new List<DeformerGroup>());
+                SetPrivateField(deformer, "_activeLayerIndex", -1);
+                SetPrivateField(deformer, "_layerModelVersion", 0);
+
+                deformer.enabled = false;
+                deformer.enabled = true;
+
+                // Should have migrated v0→v2→v3: one group, one layer
+                Assert.That(deformer.Groups.Count, Is.EqualTo(1));
+                Assert.That(deformer.Layers.Count, Is.EqualTo(1));
+                AssertApproximately(movedPoint, deformer.Layers[0].Settings.GetControlPointLocal(cpIdx), Epsilon);
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void LegacyMigration_V2ToV3_PreservesBlendShapeSettings()
+        {
+            var fixture = CreateFixture("LegacyMigration_V2ToV3_BS");
+            try
+            {
+                var deformer = fixture.Deformer;
+
+                // Simulate v2 state: layers exist, BlendShape at component level
+                var layers = new List<LatticeLayer>();
+                var brushLayer = new LatticeLayer();
+                brushLayer.Name = "TestBrush";
+                SetPrivateField(brushLayer, "_type", MeshDeformerLayerType.Brush);
+                layers.Add(brushLayer);
+
+                SetPrivateField(deformer, "_layers", layers);
+                SetPrivateField(deformer, "_groups", new List<DeformerGroup>());
+                SetPrivateField(deformer, "_activeLayerIndex", 0);
+                SetPrivateField(deformer, "_layerModelVersion", 2);
+                SetPrivateField(deformer, "_blendShapeOutput", BlendShapeOutputMode.OutputAsBlendShape);
+                SetPrivateField(deformer, "_blendShapeName", "MigratedShape");
+
+                deformer.enabled = false;
+                deformer.enabled = true;
+
+                // Should have migrated v2→v3
+                Assert.That(deformer.Groups.Count, Is.EqualTo(1));
+                Assert.That(deformer.ActiveGroup.BlendShapeOutput, Is.EqualTo(BlendShapeOutputMode.OutputAsBlendShape));
+                Assert.That(deformer.ActiveGroup.BlendShapeName, Is.EqualTo("MigratedShape"));
+                Assert.That(deformer.Layers.Count, Is.EqualTo(1));
+                Assert.That(deformer.Layers[0].Name, Is.EqualTo("TestBrush"));
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void GroupBlendShapeOutput_PerGroupSettings()
+        {
+            var fixture = CreateFixture("GroupBlendShapeOutput_PerGroup");
+            try
+            {
+                var deformer = fixture.Deformer;
+
+                // Group 0: Disabled
+                deformer.ActiveGroupIndex = 0;
+                deformer.BlendShapeOutput = BlendShapeOutputMode.Disabled;
+
+                // Group 1: OutputAsBlendShape
+                deformer.AddGroup("BS Group");
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "GroupBS";
+
+                // Verify settings are per-group
+                deformer.ActiveGroupIndex = 0;
+                Assert.That(deformer.BlendShapeOutput, Is.EqualTo(BlendShapeOutputMode.Disabled));
+
+                deformer.ActiveGroupIndex = 1;
+                Assert.That(deformer.BlendShapeOutput, Is.EqualTo(BlendShapeOutputMode.OutputAsBlendShape));
+                Assert.That(deformer.BlendShapeName, Is.EqualTo("GroupBS"));
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void GroupStateHash_ChangesWhenGroupModified()
+        {
+            var fixture = CreateFixture("GroupStateHash_Changes");
+            try
+            {
+                var deformer = fixture.Deformer;
+                int hash1 = deformer.ComputeLayeredStateHash();
+
+                deformer.AddGroup("New Group");
+                int hash2 = deformer.ComputeLayeredStateHash();
+                Assert.That(hash2, Is.Not.EqualTo(hash1), "Hash should change when group added");
+
+                deformer.ActiveGroup.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                int hash3 = deformer.ComputeLayeredStateHash();
+                Assert.That(hash3, Is.Not.EqualTo(hash2), "Hash should change when group BS mode changed");
+            }
+            finally { fixture.Dispose(); }
         }
 
         private sealed class TestFixture

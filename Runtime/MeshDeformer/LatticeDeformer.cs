@@ -246,6 +246,78 @@ namespace Net._32Ba.LatticeDeformationTool
         }
     }
 
+    [Serializable]
+    public sealed class DeformerGroup
+    {
+        [SerializeField] private string _name = "Group";
+        [SerializeField] private bool _enabled = true;
+        [SerializeField] private List<LatticeLayer> _layers = new List<LatticeLayer>();
+        [SerializeField] private int _activeLayerIndex = 0;
+        [SerializeField] private BlendShapeOutputMode _blendShapeOutput = BlendShapeOutputMode.Disabled;
+        [SerializeField] private string _blendShapeName = "";
+        [SerializeField] private AnimationCurve _blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+
+        public string Name
+        {
+            get => string.IsNullOrWhiteSpace(_name) ? "Group" : _name;
+            set => _name = string.IsNullOrWhiteSpace(value) ? "Group" : value;
+        }
+
+        public bool Enabled
+        {
+            get => _enabled;
+            set => _enabled = value;
+        }
+
+        public List<LatticeLayer> LayersList
+        {
+            get
+            {
+                if (_layers == null) _layers = new List<LatticeLayer>();
+                return _layers;
+            }
+        }
+
+        public IReadOnlyList<LatticeLayer> Layers => LayersList;
+
+        public int ActiveLayerIndex
+        {
+            get
+            {
+                if (_layers == null || _layers.Count == 0) return 0;
+                return Mathf.Clamp(_activeLayerIndex, 0, _layers.Count - 1);
+            }
+            set
+            {
+                if (_layers == null || _layers.Count == 0) { _activeLayerIndex = 0; return; }
+                _activeLayerIndex = Mathf.Clamp(value, 0, _layers.Count - 1);
+            }
+        }
+
+        public BlendShapeOutputMode BlendShapeOutput
+        {
+            get => _blendShapeOutput;
+            set => _blendShapeOutput = value;
+        }
+
+        public string BlendShapeName
+        {
+            get => _blendShapeName;
+            set => _blendShapeName = value ?? "";
+        }
+
+        public AnimationCurve BlendShapeCurve
+        {
+            get => _blendShapeCurve ?? (_blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f));
+            set => _blendShapeCurve = value ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
+        }
+
+        public string EffectiveBlendShapeName(string fallback)
+        {
+            return string.IsNullOrWhiteSpace(_blendShapeName) ? fallback : _blendShapeName;
+        }
+    }
+
     [DisallowMultipleComponent]
     [ExecuteAlways]
     [AddComponentMenu("32ba/Mesh Deformer")]
@@ -260,10 +332,19 @@ namespace Net._32Ba.LatticeDeformationTool
             Mode3_BoundsRemap = 2
         }
 
+        // Legacy fields kept for deserialization / migration
         [SerializeField] private LatticeAsset _settings = new LatticeAsset();
         [SerializeField] private List<LatticeLayer> _layers = new List<LatticeLayer>();
         [SerializeField, HideInInspector] private int _activeLayerIndex = 0;
         [SerializeField, HideInInspector] private int _layerModelVersion = 0;
+        [SerializeField] private BlendShapeOutputMode _blendShapeOutput = BlendShapeOutputMode.Disabled;
+        [SerializeField] private string _blendShapeName = "";
+        [SerializeField] private AnimationCurve _blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+
+        // New group-based structure
+        [SerializeField] private List<DeformerGroup> _groups = new List<DeformerGroup>();
+        [SerializeField, HideInInspector] private int _activeGroupIndex = 0;
+
         [SerializeField] private SkinnedMeshRenderer _skinnedMeshRenderer;
         [SerializeField] private MeshFilter _meshFilter;
         [SerializeField] private bool _recalculateNormals = true;
@@ -273,9 +354,6 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private WeightTransferSettingsData _weightTransferSettings = new WeightTransferSettingsData();
         [SerializeField, HideInInspector] private bool _hasInitializedFromSource = false;
         [SerializeField, HideInInspector] private Mesh _serializedSourceMesh;
-        [SerializeField] private BlendShapeOutputMode _blendShapeOutput = BlendShapeOutputMode.Disabled;
-        [SerializeField] private string _blendShapeName = "";
-        [SerializeField] private AnimationCurve _blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
 
         // Preview alignment (per-instance)
         [SerializeField, HideInInspector] private LatticeAlignMode _alignMode = LatticeAlignMode.Mode1_TransformOnly;
@@ -291,47 +369,45 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private Mesh _runtimeMesh;
         [NonSerialized] private Mesh _sourceMesh;
         [NonSerialized] private int _lastBlendShapeHash;
-        private const int k_CurrentLayerModelVersion = 2;
+        private const int k_CurrentLayerModelVersion = 3;
         private const string k_PrimaryLayerName = "Lattice Layer";
         private const string k_BrushLayerName = "Brush Layer";
 
         private Vector3[] _controlBuffer = Array.Empty<Vector3>();
 
         /// <summary>
-        /// Base layer settings (legacy serialized field). Kept for backward compatibility.
+        /// Base layer settings (legacy). Delegates to the first layer of the active group.
         /// </summary>
         public LatticeAsset Settings
         {
-            get
-            {
-                return GetPrimaryLayerSettings();
-            }
+            get => GetPrimaryLayerSettings();
             set
             {
-                EnsureLayers();
+                EnsureGroups();
                 var resolved = value ?? new LatticeAsset();
                 resolved.EnsureInitialized();
 
-                if (_layers.Count == 0)
+                var group = ActiveGroup;
+                if (group != null)
                 {
-                    _layers.Add(new LatticeLayer
+                    var layers = group.LayersList;
+                    if (layers.Count == 0)
                     {
-                        Name = k_PrimaryLayerName,
-                        Enabled = true,
-                        Weight = 1f,
-                        Settings = resolved
-                    });
-                }
-                else
-                {
-                    if (_layers[0] == null)
-                    {
-                        _layers[0] = new LatticeLayer();
+                        layers.Add(new LatticeLayer
+                        {
+                            Name = k_PrimaryLayerName,
+                            Enabled = true,
+                            Weight = 1f,
+                            Settings = resolved
+                        });
                     }
-
-                    _layers[0].Name = k_PrimaryLayerName;
-                    _layers[0].Enabled = true;
-                    _layers[0].Settings = resolved;
+                    else
+                    {
+                        if (layers[0] == null) layers[0] = new LatticeLayer();
+                        layers[0].Name = k_PrimaryLayerName;
+                        layers[0].Enabled = true;
+                        layers[0].Settings = resolved;
+                    }
                 }
 
                 _settings = CloneSettings(resolved);
@@ -340,35 +416,99 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
+        // ── Group-level API ──────────────────────────────────────────
+
+        public IReadOnlyList<DeformerGroup> Groups
+        {
+            get
+            {
+                EnsureGroups();
+                return _groups;
+            }
+        }
+
+        public int GroupCount
+        {
+            get
+            {
+                EnsureGroups();
+                return _groups.Count;
+            }
+        }
+
+        public int ActiveGroupIndex
+        {
+            get
+            {
+                EnsureGroups();
+                return _activeGroupIndex;
+            }
+            set
+            {
+                EnsureGroups();
+                _activeGroupIndex = _groups.Count > 0 ? Mathf.Clamp(value, 0, _groups.Count - 1) : 0;
+            }
+        }
+
+        public DeformerGroup ActiveGroup
+        {
+            get
+            {
+                EnsureGroups();
+                if (_groups.Count == 0) return null;
+                return _groups[Mathf.Clamp(_activeGroupIndex, 0, _groups.Count - 1)];
+            }
+        }
+
+        public int AddGroup(string groupName = null)
+        {
+            EnsureGroups();
+            var group = new DeformerGroup();
+            group.Name = string.IsNullOrWhiteSpace(groupName) ? GenerateNextGroupName() : groupName;
+            _groups.Add(group);
+            _activeGroupIndex = _groups.Count - 1;
+            return _activeGroupIndex;
+        }
+
+        public bool RemoveGroup(int index)
+        {
+            EnsureGroups();
+            if (index < 0 || index >= _groups.Count || _groups.Count <= 1)
+                return false;
+
+            _groups.RemoveAt(index);
+            if (_activeGroupIndex == index)
+                _activeGroupIndex = Mathf.Min(index, _groups.Count - 1);
+            else if (_activeGroupIndex > index)
+                _activeGroupIndex--;
+            return true;
+        }
+
+        // ── Facade: delegates to ActiveGroup ────────────────────────
+
         public IReadOnlyList<LatticeLayer> Layers
         {
             get
             {
-                EnsureLayers();
-                return _layers;
+                EnsureGroups();
+                var group = ActiveGroup;
+                return group != null ? group.Layers : (IReadOnlyList<LatticeLayer>)Array.Empty<LatticeLayer>();
             }
         }
 
-        /// <summary>
-        /// 0..N-1 = Active layer in _layers.
-        /// </summary>
         public int ActiveLayerIndex
         {
             get
             {
-                EnsureLayers();
-                return _activeLayerIndex;
+                EnsureGroups();
+                var group = ActiveGroup;
+                return group?.ActiveLayerIndex ?? 0;
             }
             set
             {
-                EnsureLayers();
-                if (_layers.Count == 0)
-                {
-                    _activeLayerIndex = 0;
-                    return;
-                }
-                int maxIndex = _layers.Count - 1;
-                _activeLayerIndex = Mathf.Clamp(value, 0, maxIndex);
+                EnsureGroups();
+                var group = ActiveGroup;
+                if (group != null) group.ActiveLayerIndex = value;
             }
         }
 
@@ -378,8 +518,14 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             get
             {
-                EnsureLayers();
-                return GetSettingsForLayerIndex(_activeLayerIndex) ?? GetPrimaryLayerSettings();
+                EnsureGroups();
+                var group = ActiveGroup;
+                if (group == null) return GetPrimaryLayerSettings();
+                var layers = group.LayersList;
+                int idx = group.ActiveLayerIndex;
+                if (idx >= 0 && idx < layers.Count && layers[idx] != null)
+                    return layers[idx].Settings;
+                return GetPrimaryLayerSettings();
             }
         }
 
@@ -387,13 +533,14 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             get
             {
-                EnsureLayers();
-                if (!TryGetLayer(_activeLayerIndex, out var layer))
-                {
-                    return MeshDeformerLayerType.Lattice;
-                }
-
-                return layer.Type;
+                EnsureGroups();
+                var group = ActiveGroup;
+                if (group == null) return MeshDeformerLayerType.Lattice;
+                var layers = group.LayersList;
+                int idx = group.ActiveLayerIndex;
+                if (idx >= 0 && idx < layers.Count && layers[idx] != null)
+                    return layers[idx].Type;
+                return MeshDeformerLayerType.Lattice;
             }
         }
 
@@ -401,7 +548,6 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public Mesh SourceMesh => _sourceMesh;
 
-        // Bone weight recalculation settings
         public bool RecalculateBoneWeights
         {
             get => _recalculateBoneWeights;
@@ -410,23 +556,53 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public BlendShapeOutputMode BlendShapeOutput
         {
-            get => _blendShapeOutput;
-            set => _blendShapeOutput = value;
+            get
+            {
+                var group = ActiveGroup;
+                return group?.BlendShapeOutput ?? BlendShapeOutputMode.Disabled;
+            }
+            set
+            {
+                var group = ActiveGroup;
+                if (group != null) group.BlendShapeOutput = value;
+            }
         }
 
         public string BlendShapeName
         {
-            get => _blendShapeName;
-            set => _blendShapeName = value ?? "";
+            get
+            {
+                var group = ActiveGroup;
+                return group?.BlendShapeName ?? "";
+            }
+            set
+            {
+                var group = ActiveGroup;
+                if (group != null) group.BlendShapeName = value ?? "";
+            }
         }
 
-        public string EffectiveBlendShapeName =>
-            string.IsNullOrWhiteSpace(_blendShapeName) ? gameObject.name : _blendShapeName;
+        public string EffectiveBlendShapeName
+        {
+            get
+            {
+                var group = ActiveGroup;
+                return group?.EffectiveBlendShapeName(gameObject.name) ?? gameObject.name;
+            }
+        }
 
         public AnimationCurve BlendShapeCurve
         {
-            get => _blendShapeCurve ?? (_blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f));
-            set => _blendShapeCurve = value ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
+            get
+            {
+                var group = ActiveGroup;
+                return group?.BlendShapeCurve ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
+            }
+            set
+            {
+                var group = ActiveGroup;
+                if (group != null) group.BlendShapeCurve = value ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
+            }
         }
 
         public WeightTransferSettingsData WeightTransferSettings
@@ -443,16 +619,14 @@ namespace Net._32Ba.LatticeDeformationTool
         }
 
         // Brush-layer compatibility surface for BrushToolHandler.
+        // All delegate to ActiveGroup's active layer.
         public Vector3[] Displacements
         {
             get
             {
-                EnsureLayers();
-                if (!TryGetLayer(_activeLayerIndex, out var layer) || layer.Type != MeshDeformerLayerType.Brush)
-                {
+                EnsureGroups();
+                if (!TryGetActiveLayer(out var layer) || layer.Type != MeshDeformerLayerType.Brush)
                     return Array.Empty<Vector3>();
-                }
-
                 return layer.BrushDisplacements;
             }
         }
@@ -461,100 +635,88 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public bool HasDisplacements()
         {
-            EnsureLayers();
-            if (!TryGetLayer(_activeLayerIndex, out var layer) || layer.Type != MeshDeformerLayerType.Brush)
-            {
+            EnsureGroups();
+            if (!TryGetActiveLayer(out var layer) || layer.Type != MeshDeformerLayerType.Brush)
                 return false;
-            }
-
             return layer.HasBrushDisplacements();
         }
 
         public void EnsureDisplacementCapacity()
         {
-            EnsureLayers();
+            EnsureGroups();
             CacheSourceMesh();
-            if (_sourceMesh == null)
-            {
-                return;
-            }
-
-            if (TryGetLayer(_activeLayerIndex, out var layer) && layer.Type == MeshDeformerLayerType.Brush)
-            {
+            if (_sourceMesh == null) return;
+            if (TryGetActiveLayer(out var layer) && layer.Type == MeshDeformerLayerType.Brush)
                 layer.EnsureBrushDisplacementCapacity(_sourceMesh.vertexCount);
-            }
         }
 
         public void SetDisplacement(int index, Vector3 displacement)
         {
-            EnsureLayers();
-            if (TryGetLayer(_activeLayerIndex, out var layer) && layer.Type == MeshDeformerLayerType.Brush)
-            {
+            EnsureGroups();
+            if (TryGetActiveLayer(out var layer) && layer.Type == MeshDeformerLayerType.Brush)
                 layer.SetBrushDisplacement(index, displacement);
-            }
         }
 
         public void AddDisplacement(int index, Vector3 delta)
         {
-            EnsureLayers();
-            if (TryGetLayer(_activeLayerIndex, out var layer) && layer.Type == MeshDeformerLayerType.Brush)
-            {
+            EnsureGroups();
+            if (TryGetActiveLayer(out var layer) && layer.Type == MeshDeformerLayerType.Brush)
                 layer.AddBrushDisplacement(index, delta);
-            }
         }
 
         public Vector3 GetDisplacement(int index)
         {
-            EnsureLayers();
-            if (TryGetLayer(_activeLayerIndex, out var layer) && layer.Type == MeshDeformerLayerType.Brush)
-            {
+            EnsureGroups();
+            if (TryGetActiveLayer(out var layer) && layer.Type == MeshDeformerLayerType.Brush)
                 return layer.GetBrushDisplacement(index);
-            }
-
             return Vector3.zero;
         }
 
         public void ClearDisplacements()
         {
-            EnsureLayers();
-            if (TryGetLayer(_activeLayerIndex, out var layer) && layer.Type == MeshDeformerLayerType.Brush)
-            {
+            EnsureGroups();
+            if (TryGetActiveLayer(out var layer) && layer.Type == MeshDeformerLayerType.Brush)
                 layer.ClearBrushDisplacements();
-            }
         }
+
+        // ── Layer management (operates on ActiveGroup) ──────────────
 
         public int AddLayer(string layerName = null, MeshDeformerLayerType layerType = MeshDeformerLayerType.Lattice)
         {
-            EnsureLayers();
-            var source = EditingSettings ?? GetPrimaryLayerSettings();
+            EnsureGroups();
+            var group = ActiveGroup;
+            if (group == null) return -1;
+            var layers = group.LayersList;
 
-            var layer = new LatticeLayer
+            var source = EditingSettings ?? GetPrimaryLayerSettings();
+            var newLayer = new LatticeLayer
             {
                 Name = string.IsNullOrWhiteSpace(layerName) ? GenerateNextLayerName(layerType) : layerName,
                 Enabled = true,
                 Weight = 1f,
                 Settings = CreateNeutralLayerSettings(source)
             };
-            layer.SetType(layerType);
+            newLayer.SetType(layerType);
 
-            _layers.Add(layer);
-            _activeLayerIndex = _layers.Count - 1;
+            layers.Add(newLayer);
+            group.ActiveLayerIndex = layers.Count - 1;
             if (layerType == MeshDeformerLayerType.Brush)
-            {
                 EnsureDisplacementCapacity();
-            }
 
-            return _activeLayerIndex;
+            return group.ActiveLayerIndex;
         }
 
         public int DuplicateLayer(int index)
         {
-            EnsureLayers();
-            if (!TryGetLayer(index, out var sourceLayer))
-            {
-                return -1;
-            }
+            EnsureGroups();
+            var group = ActiveGroup;
+            if (group == null) return -1;
+            var layers = group.LayersList;
 
+            if (index < 0 || index >= layers.Count || layers[index] == null)
+                return -1;
+
+            var sourceLayer = layers[index];
             var duplicate = new LatticeLayer
             {
                 Name = sourceLayer.Name + " Copy",
@@ -565,116 +727,78 @@ namespace Net._32Ba.LatticeDeformationTool
             duplicate.SetType(sourceLayer.Type);
             duplicate.BrushDisplacements = (Vector3[])sourceLayer.BrushDisplacements.Clone();
             if (sourceLayer.VertexMask.Length > 0)
-            {
                 duplicate.VertexMask = (float[])sourceLayer.VertexMask.Clone();
-            }
 
-            int insertAt = Mathf.Clamp(index + 1, 0, _layers.Count);
-            _layers.Insert(insertAt, duplicate);
-            _activeLayerIndex = insertAt;
-
-            return _activeLayerIndex;
+            int insertAt = Mathf.Clamp(index + 1, 0, layers.Count);
+            layers.Insert(insertAt, duplicate);
+            group.ActiveLayerIndex = insertAt;
+            return group.ActiveLayerIndex;
         }
 
         public int InsertLayer(LatticeLayer layer)
         {
-            if (layer == null)
-            {
-                return -1;
-            }
-
-            EnsureLayers();
-            _layers.Add(layer);
-            _activeLayerIndex = _layers.Count - 1;
-            return _activeLayerIndex;
+            if (layer == null) return -1;
+            EnsureGroups();
+            var group = ActiveGroup;
+            if (group == null) return -1;
+            var layers = group.LayersList;
+            layers.Add(layer);
+            group.ActiveLayerIndex = layers.Count - 1;
+            return group.ActiveLayerIndex;
         }
 
         public bool RemoveLayer(int index)
         {
-            EnsureLayers();
-            if (index < 0 || index >= _layers.Count || _layers.Count <= 1)
-            {
+            EnsureGroups();
+            var group = ActiveGroup;
+            if (group == null) return false;
+            var layers = group.LayersList;
+            if (index < 0 || index >= layers.Count || layers.Count <= 1)
                 return false;
-            }
 
-            _layers.RemoveAt(index);
-
-            if (_layers.Count == 0)
-            {
-                _activeLayerIndex = 0;
-                return true;
-            }
-
-            if (_activeLayerIndex == index)
-            {
-                _activeLayerIndex = Mathf.Min(index, _layers.Count - 1);
-            }
-            else if (_activeLayerIndex > index)
-            {
-                _activeLayerIndex--;
-            }
-
+            layers.RemoveAt(index);
+            int active = group.ActiveLayerIndex;
+            if (active == index)
+                group.ActiveLayerIndex = Mathf.Min(index, layers.Count - 1);
+            else if (active > index)
+                group.ActiveLayerIndex = active - 1;
             return true;
         }
 
         public bool MoveLayer(int index, int targetIndex)
         {
-            EnsureLayers();
-            if (index < 0 || index >= _layers.Count)
-            {
-                return false;
-            }
+            EnsureGroups();
+            var group = ActiveGroup;
+            if (group == null) return false;
+            var layers = group.LayersList;
+            if (index < 0 || index >= layers.Count) return false;
 
-            targetIndex = Mathf.Clamp(targetIndex, 0, _layers.Count - 1);
-            if (targetIndex == index)
-            {
-                return true;
-            }
+            targetIndex = Mathf.Clamp(targetIndex, 0, layers.Count - 1);
+            if (targetIndex == index) return true;
 
-            var layer = _layers[index];
-            _layers.RemoveAt(index);
-            _layers.Insert(targetIndex, layer);
+            var layer = layers[index];
+            layers.RemoveAt(index);
+            layers.Insert(targetIndex, layer);
 
-            if (_activeLayerIndex == index)
-            {
-                _activeLayerIndex = targetIndex;
-            }
-            else if (index < _activeLayerIndex && targetIndex >= _activeLayerIndex)
-            {
-                _activeLayerIndex--;
-            }
-            else if (index > _activeLayerIndex && targetIndex <= _activeLayerIndex)
-            {
-                _activeLayerIndex++;
-            }
-
+            int active = group.ActiveLayerIndex;
+            if (active == index)
+                group.ActiveLayerIndex = targetIndex;
+            else if (index < active && targetIndex >= active)
+                group.ActiveLayerIndex = active - 1;
+            else if (index > active && targetIndex <= active)
+                group.ActiveLayerIndex = active + 1;
             return true;
         }
 
         public int ImportBlendShapeAsLayer(int blendShapeIndex, int frameIndex = 0)
         {
-            if (_sourceMesh == null)
-            {
-                return -1;
-            }
-
+            if (_sourceMesh == null) return -1;
             int shapeCount = _sourceMesh.blendShapeCount;
-            if (blendShapeIndex < 0 || blendShapeIndex >= shapeCount)
-            {
-                return -1;
-            }
-
+            if (blendShapeIndex < 0 || blendShapeIndex >= shapeCount) return -1;
             int frameCount = _sourceMesh.GetBlendShapeFrameCount(blendShapeIndex);
-            if (frameIndex < 0 || frameIndex >= frameCount)
-            {
-                return -1;
-            }
-
+            if (frameIndex < 0 || frameIndex >= frameCount) return -1;
             int vertexCount = _sourceMesh.vertexCount;
-            if (vertexCount == 0)
-            {
-                return -1;
-            }
+            if (vertexCount == 0) return -1;
 
             var deltaVertices = new Vector3[vertexCount];
             var deltaNormals = new Vector3[vertexCount];
@@ -682,25 +806,19 @@ namespace Net._32Ba.LatticeDeformationTool
             _sourceMesh.GetBlendShapeFrameVertices(blendShapeIndex, frameIndex, deltaVertices, deltaNormals, deltaTangents);
 
             string shapeName = _sourceMesh.GetBlendShapeName(blendShapeIndex);
-
             var layer = new LatticeLayer();
             layer.Name = shapeName;
             layer.SetType(MeshDeformerLayerType.Brush);
             layer.Weight = 1f;
-
             layer.EnsureBrushDisplacementCapacity(vertexCount);
             for (int i = 0; i < vertexCount; i++)
-            {
                 layer.SetBrushDisplacement(i, deltaVertices[i]);
-            }
 
-            if (_layers == null)
-            {
-                _layers = new List<LatticeLayer>();
-            }
-
-            _layers.Add(layer);
-            return _layers.Count - 1;
+            EnsureGroups();
+            var group = ActiveGroup;
+            if (group == null) return -1;
+            group.LayersList.Add(layer);
+            return group.LayersList.Count - 1;
         }
 
         /// <summary>
@@ -713,8 +831,8 @@ namespace Net._32Ba.LatticeDeformationTool
         /// <param name="keepPositiveSide">true keeps the positive side, false keeps the negative side</param>
         public void SplitLayerByAxis(int layerIndex, int axis, bool keepPositiveSide)
         {
-            EnsureLayers();
-            if (!TryGetLayer(layerIndex, out var layer))
+            EnsureGroups();
+            if (!TryGetLayerInActiveGroup(layerIndex, out var layer))
             {
                 return;
             }
@@ -794,8 +912,8 @@ namespace Net._32Ba.LatticeDeformationTool
         /// <param name="axis">0=X, 1=Y, 2=Z</param>
         public void FlipLayerByAxis(int layerIndex, int axis)
         {
-            EnsureLayers();
-            if (!TryGetLayer(layerIndex, out var layer))
+            EnsureGroups();
+            if (!TryGetLayerInActiveGroup(layerIndex, out var layer))
             {
                 return;
             }
@@ -966,8 +1084,8 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public bool IsLayerStructurallyCompatible(int index)
         {
-            EnsureLayers();
-            return TryGetLayer(index, out _);
+            EnsureGroups();
+            return TryGetLayerInActiveGroup(index, out _);
         }
 
         public void SyncLayerStructuresToBase(bool resetControlPoints)
@@ -978,32 +1096,39 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public int ComputeLayeredStateHash()
         {
-            EnsureLayers();
+            EnsureGroups();
 
             int hash = 17;
-            hash = HashCode.Combine(hash, _layers.Count);
-            hash = HashCode.Combine(hash, _activeLayerIndex);
+            hash = HashCode.Combine(hash, _groups.Count);
+            hash = HashCode.Combine(hash, _activeGroupIndex);
 
-            foreach (var layer in _layers)
+            foreach (var group in _groups)
             {
-                if (layer == null)
-                {
-                    hash = HashCode.Combine(hash, 0);
-                    continue;
-                }
+                if (group == null) { hash = HashCode.Combine(hash, 0); continue; }
+                hash = HashCode.Combine(hash, group.Enabled);
+                hash = HashCode.Combine(hash, (int)group.BlendShapeOutput);
+                hash = HashCode.Combine(hash, (group.BlendShapeName ?? "").GetHashCode());
 
-                hash = HashCode.Combine(hash, layer.Enabled);
-                hash = HashCode.Combine(hash, layer.Weight);
-                hash = HashCode.Combine(hash, (int)layer.Type);
-                switch (layer.Type)
+                var layers = group.LayersList;
+                hash = HashCode.Combine(hash, layers.Count);
+                hash = HashCode.Combine(hash, group.ActiveLayerIndex);
+
+                foreach (var layer in layers)
                 {
-                    case MeshDeformerLayerType.Brush:
-                        hash = HashCode.Combine(hash, HashDisplacementState(layer.BrushDisplacements));
-                        hash = HashCode.Combine(hash, HashMaskState(layer.VertexMask));
-                        break;
-                    default:
-                        hash = HashCode.Combine(hash, HashAssetState(layer.Settings));
-                        break;
+                    if (layer == null) { hash = HashCode.Combine(hash, 0); continue; }
+                    hash = HashCode.Combine(hash, layer.Enabled);
+                    hash = HashCode.Combine(hash, layer.Weight);
+                    hash = HashCode.Combine(hash, (int)layer.Type);
+                    switch (layer.Type)
+                    {
+                        case MeshDeformerLayerType.Brush:
+                            hash = HashCode.Combine(hash, HashDisplacementState(layer.BrushDisplacements));
+                            hash = HashCode.Combine(hash, HashMaskState(layer.VertexMask));
+                            break;
+                        default:
+                            hash = HashCode.Combine(hash, HashAssetState(layer.Settings));
+                            break;
+                    }
                 }
             }
 
@@ -1152,69 +1277,86 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             var sourceVertices = _sourceMesh.vertices;
-            var vertices = sourceVertices != null ? (Vector3[])sourceVertices.Clone() : Array.Empty<Vector3>();
-            if (vertices.Length == 0)
+            if (sourceVertices == null || sourceVertices.Length == 0)
             {
                 return null;
             }
 
-            EnsureBrushLayerDisplacementCapacity(vertices.Length);
+            int vertexCount = sourceVertices.Length;
+            EnsureAllBrushLayerDisplacementCapacity(vertexCount);
 
-            // Apply all layers to vertices
-            for (int i = 0; i < _layers.Count; i++)
+            // Accumulate direct-deform deltas across all groups
+            var directDeltas = new Vector3[vertexCount];
+            // Collect BlendShape groups
+            var blendShapeGroups = new List<(DeformerGroup group, Vector3[] deltas)>();
+
+            for (int g = 0; g < _groups.Count; g++)
             {
-                var layer = _layers[i];
-                if (layer == null || !layer.Enabled || layer.Weight <= 0f)
+                var group = _groups[g];
+                if (group == null || !group.Enabled) continue;
+
+                var groupVertices = (Vector3[])sourceVertices.Clone();
+                var layers = group.LayersList;
+
+                for (int i = 0; i < layers.Count; i++)
                 {
-                    continue;
+                    var layer = layers[i];
+                    if (layer == null || !layer.Enabled || layer.Weight <= 0f) continue;
+
+                    switch (layer.Type)
+                    {
+                        case MeshDeformerLayerType.Brush:
+                            TryApplyBrushLayerContribution(layer, sourceVertices, groupVertices);
+                            break;
+                        default:
+                            TryApplyLatticeLayerContribution(layer, sourceVertices, groupVertices);
+                            break;
+                    }
                 }
 
-                switch (layer.Type)
+                if (group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
                 {
-                    case MeshDeformerLayerType.Brush:
-                        TryApplyBrushLayerContribution(layer, sourceVertices, vertices);
-                        break;
-                    default:
-                        TryApplyLatticeLayerContribution(layer, sourceVertices, vertices);
-                        break;
+                    var deltas = new Vector3[vertexCount];
+                    bool hasDelta = false;
+                    for (int v = 0; v < vertexCount; v++)
+                    {
+                        deltas[v] = groupVertices[v] - sourceVertices[v];
+                        if (!hasDelta && deltas[v].sqrMagnitude > 1e-10f)
+                            hasDelta = true;
+                    }
+                    if (hasDelta)
+                        blendShapeGroups.Add((group, deltas));
+                }
+                else
+                {
+                    for (int v = 0; v < vertexCount; v++)
+                        directDeltas[v] += groupVertices[v] - sourceVertices[v];
                 }
             }
 
-            if (_blendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
+            // Apply direct deltas
+            var finalVertices = new Vector3[vertexCount];
+            for (int v = 0; v < vertexCount; v++)
+                finalVertices[v] = sourceVertices[v] + directDeltas[v];
+
+            // Handle BlendShape output
+            if (blendShapeGroups.Count > 0)
             {
-                // BlendShape output: compute combined delta and add as a single BlendShape frame.
-                // Vertices remain at source positions.
-                int blendShapeHash = ComputeBlendShapeOutputHash(sourceVertices, vertices);
+                int blendShapeHash = ComputeBlendShapeOutputHash(blendShapeGroups);
                 if (blendShapeHash != _lastBlendShapeHash)
                 {
                     UnityEngine.Profiling.Profiler.BeginSample("LatticeDeformer.RebuildBlendShapes");
                     _lastBlendShapeHash = blendShapeHash;
 
                     mesh.ClearBlendShapes();
-                    if (_sourceMesh != null)
-                    {
-                        CopyBlendShapes(_sourceMesh, mesh);
-                    }
+                    CopyBlendShapes(_sourceMesh, mesh);
 
-                    int vertexCount = sourceVertices.Length;
-                    var deltaVertices = new Vector3[vertexCount];
-                    bool hasDelta = false;
-                    for (int v = 0; v < vertexCount; v++)
+                    const int sampleCount = 100;
+                    foreach (var (group, deltas) in blendShapeGroups)
                     {
-                        deltaVertices[v] = vertices[v] - sourceVertices[v];
-                        if (!hasDelta && deltaVertices[v].sqrMagnitude > 1e-10f)
-                        {
-                            hasDelta = true;
-                        }
-                    }
+                        string shapeName = group.EffectiveBlendShapeName(gameObject.name);
+                        var curve = group.BlendShapeCurve;
 
-                    if (hasDelta)
-                    {
-                        string shapeName = EffectiveBlendShapeName;
-                        var curve = BlendShapeCurve;
-
-                        // Always generate multi-frame BlendShape from curve
-                        const int sampleCount = 100;
                         for (int f = 0; f < sampleCount; f++)
                         {
                             float t = (f + 1f) / sampleCount;
@@ -1223,44 +1365,34 @@ namespace Net._32Ba.LatticeDeformationTool
 
                             var frameDeltas = new Vector3[vertexCount];
                             for (int v = 0; v < vertexCount; v++)
-                            {
-                                frameDeltas[v] = deltaVertices[v] * curveValue;
-                            }
+                                frameDeltas[v] = deltas[v] * curveValue;
                             mesh.AddBlendShapeFrame(shapeName, frameWeight, frameDeltas, null, null);
                         }
                     }
                     UnityEngine.Profiling.Profiler.EndSample();
                 }
-
-                // Keep vertices at source position
-                mesh.vertices = sourceVertices;
             }
             else
             {
-                mesh.vertices = vertices;
+                // No BlendShape groups — clear any previously generated BlendShapes
+                if (_lastBlendShapeHash != 0)
+                {
+                    mesh.ClearBlendShapes();
+                    CopyBlendShapes(_sourceMesh, mesh);
+                    _lastBlendShapeHash = 0;
+                }
             }
 
-            if (_recalculateNormals)
-            {
-                mesh.RecalculateNormals();
-            }
+            mesh.vertices = finalVertices;
 
-            if (_recalculateTangents)
-            {
-                mesh.RecalculateTangents();
-            }
-
-            if (_recalculateBounds)
-            {
-                mesh.RecalculateBounds();
-            }
+            if (_recalculateNormals) mesh.RecalculateNormals();
+            if (_recalculateTangents) mesh.RecalculateTangents();
+            if (_recalculateBounds) mesh.RecalculateBounds();
 
             mesh.UploadMeshData(false);
 
             if (assignToRenderer)
-            {
                 AssignRuntimeMesh(mesh);
-            }
 
             UnityEngine.Profiling.Profiler.EndSample();
             return mesh;
@@ -1269,13 +1401,12 @@ namespace Net._32Ba.LatticeDeformationTool
         private void EnsureLayerModelReady()
         {
             EnsureSettings();
-            if (_layers == null)
-            {
-                _layers = new List<LatticeLayer>();
-            }
+            if (_layers == null) _layers = new List<LatticeLayer>();
+            if (_groups == null) _groups = new List<DeformerGroup>();
 
             TryMigrateLegacyBaseToLayerStructure();
-            EnsureLayers();
+            TryMigrateLayersToGroupStructure();
+            EnsureGroups();
             CacheSourceMesh();
             TryAutoConfigureSettings();
         }
@@ -1334,22 +1465,19 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        private int ComputeBlendShapeOutputHash(Vector3[] sourceVertices, Vector3[] deformedVertices)
+        private int ComputeBlendShapeOutputHash(List<(DeformerGroup group, Vector3[] deltas)> blendShapeGroups)
         {
             int hash = 17;
-            hash = hash * 31 + (EffectiveBlendShapeName ?? "").GetHashCode();
-            // Sample curve at a few points for change detection
-            var curve = BlendShapeCurve;
-            for (int i = 0; i <= 4; i++)
+            foreach (var (group, deltas) in blendShapeGroups)
             {
-                hash = hash * 31 + curve.Evaluate(i * 0.25f).GetHashCode();
-            }
-            // Include vertex data hash for change detection
-            int step = Mathf.Max(1, deformedVertices.Length / 32);
-            for (int v = 0; v < deformedVertices.Length; v += step)
-            {
-                var delta = deformedVertices[v] - sourceVertices[v];
-                hash = hash * 31 + delta.GetHashCode();
+                hash = hash * 31 + (group.EffectiveBlendShapeName(gameObject.name) ?? "").GetHashCode();
+                var curve = group.BlendShapeCurve;
+                for (int i = 0; i <= 4; i++)
+                    hash = hash * 31 + curve.Evaluate(i * 0.25f).GetHashCode();
+
+                int step = Mathf.Max(1, deltas.Length / 32);
+                for (int v = 0; v < deltas.Length; v += step)
+                    hash = hash * 31 + deltas[v].GetHashCode();
             }
             return hash;
         }
@@ -1403,44 +1531,32 @@ namespace Net._32Ba.LatticeDeformationTool
         public void InitializeFromSource(bool resetControlPoints)
         {
             EnsureSettings();
-            EnsureLayers();
-            if (_sourceMesh == null)
-            {
-                return;
-            }
+            EnsureGroups();
+            if (_sourceMesh == null) return;
 
             var meshBounds = _sourceMesh.bounds;
-            for (int i = 0; i < _layers.Count; i++)
+            foreach (var group in _groups)
             {
-                if (_layers[i] == null)
+                if (group == null) continue;
+                var layers = group.LayersList;
+                for (int i = 0; i < layers.Count; i++)
                 {
-                    _layers[i] = new LatticeLayer();
-                }
+                    if (layers[i] == null) layers[i] = new LatticeLayer();
+                    var layerSettings = layers[i].Settings;
+                    if (layerSettings == null) continue;
 
-                var layerSettings = _layers[i].Settings;
-                if (layerSettings == null)
-                {
-                    continue;
-                }
+                    layerSettings.LocalBounds = meshBounds;
+                    if (resetControlPoints) layerSettings.ResetControlPoints();
 
-                layerSettings.LocalBounds = meshBounds;
-                if (resetControlPoints)
-                {
-                    layerSettings.ResetControlPoints();
-                }
-
-                if (_layers[i].Type == MeshDeformerLayerType.Brush)
-                {
-                    _layers[i].EnsureBrushDisplacementCapacity(_sourceMesh.vertexCount);
-                    if (resetControlPoints)
+                    if (layers[i].Type == MeshDeformerLayerType.Brush)
                     {
-                        _layers[i].ClearBrushDisplacements();
+                        layers[i].EnsureBrushDisplacementCapacity(_sourceMesh.vertexCount);
+                        if (resetControlPoints) layers[i].ClearBrushDisplacements();
                     }
                 }
             }
 
             _settings = CloneSettings(GetPrimaryLayerSettings());
-
             _hasInitializedFromSource = true;
             InvalidateCache();
 
@@ -1448,11 +1564,8 @@ namespace Net._32Ba.LatticeDeformationTool
             if (!Application.isPlaying)
             {
                 UnityEditor.EditorUtility.SetDirty(this);
-
                 if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(this))
-                {
                     UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(this);
-                }
             }
 #endif
         }
@@ -1467,53 +1580,95 @@ namespace Net._32Ba.LatticeDeformationTool
             _settings.EnsureInitialized();
         }
 
-        private void EnsureLayers()
+        /// <summary>
+        /// v2→v3 migration: moves flat _layers + component-level BlendShape settings into a single group.
+        /// </summary>
+        private bool TryMigrateLayersToGroupStructure()
         {
-            if (_layerModelVersion < k_CurrentLayerModelVersion)
+            if (_groups == null) _groups = new List<DeformerGroup>();
+            if (_groups.Count > 0) return false; // Already migrated
+            if (_layers == null || _layers.Count == 0)
             {
-                TryMigrateLegacyBaseToLayerStructure();
+                if (_layerModelVersion >= 3) return false;
+                // New component or empty — will be handled by EnsureGroups default creation
+                _layerModelVersion = k_CurrentLayerModelVersion;
+                return false;
             }
 
-            if (_layers == null)
+            // Migrate: wrap existing _layers into a single group
+            var group = new DeformerGroup();
+            group.Name = "Group";
+            foreach (var layer in _layers)
             {
-                _layers = new List<LatticeLayer>();
+                if (layer != null) group.LayersList.Add(layer);
             }
+            group.ActiveLayerIndex = _activeLayerIndex;
+            group.BlendShapeOutput = _blendShapeOutput;
+            group.BlendShapeName = _blendShapeName ?? "";
+            group.BlendShapeCurve = _blendShapeCurve ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
 
-            for (int i = 0; i < _layers.Count; i++)
+            _groups.Add(group);
+            _activeGroupIndex = 0;
+            _layers.Clear(); // Keep the field but empty it
+            _layerModelVersion = k_CurrentLayerModelVersion;
+
+            InvalidateCache();
+
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
             {
-                if (_layers[i] == null)
+                UnityEditor.EditorUtility.SetDirty(this);
+                if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(this))
+                    UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(this);
+            }
+#endif
+            return true;
+        }
+
+        private void EnsureGroups()
+        {
+            if (_groups == null) _groups = new List<DeformerGroup>();
+
+            // Create default group if none exist
+            if (_groups.Count == 0)
+            {
+                var defaultGroup = new DeformerGroup();
+                defaultGroup.Name = "Group";
+                defaultGroup.LayersList.Add(new LatticeLayer
                 {
-                    _layers[i] = new LatticeLayer();
-                }
+                    Name = k_PrimaryLayerName,
+                    Enabled = true,
+                    Weight = 1f,
+                });
+                _groups.Add(defaultGroup);
+                _activeGroupIndex = 0;
+            }
 
-                var layer = _layers[i];
-                _ = layer.Settings;
-
-                if (string.IsNullOrWhiteSpace(layer.Name))
+            // Ensure each group's layers are valid
+            foreach (var group in _groups)
+            {
+                if (group == null) continue;
+                var layers = group.LayersList;
+                for (int i = 0; i < layers.Count; i++)
                 {
-                    layer.Name = layer.Type == MeshDeformerLayerType.Brush ? k_BrushLayerName : k_PrimaryLayerName;
+                    if (layers[i] == null) layers[i] = new LatticeLayer();
+                    var layer = layers[i];
+                    _ = layer.Settings;
+                    if (string.IsNullOrWhiteSpace(layer.Name))
+                        layer.Name = layer.Type == MeshDeformerLayerType.Brush ? k_BrushLayerName : k_PrimaryLayerName;
                 }
             }
 
-            if (_layers.Count > 0 && _layers[0] != null && string.IsNullOrWhiteSpace(_layers[0].Name))
-            {
-                _layers[0].Name = _layers[0].Type == MeshDeformerLayerType.Brush ? k_BrushLayerName : k_PrimaryLayerName;
-            }
-
-            if (_layers.Count > 0)
-            {
-                int maxIndex = _layers.Count - 1;
-                _activeLayerIndex = Mathf.Clamp(_activeLayerIndex, 0, maxIndex);
-            }
-            else
-            {
-                _activeLayerIndex = 0;
-            }
+            _activeGroupIndex = _groups.Count > 0 ? Mathf.Clamp(_activeGroupIndex, 0, _groups.Count - 1) : 0;
 
             if (_sourceMesh != null)
-            {
-                EnsureBrushLayerDisplacementCapacity(_sourceMesh.vertexCount);
-            }
+                EnsureAllBrushLayerDisplacementCapacity(_sourceMesh.vertexCount);
+        }
+
+        // Legacy compat — still called from EnsureLayerModelReady before group migration
+        private void EnsureLayers()
+        {
+            EnsureGroups();
         }
 
         private void CacheSourceMesh()
@@ -1542,7 +1697,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
             InvalidateCache();
             ReleaseRuntimeMesh();
-            EnsureBrushLayerDisplacementCapacity(_sourceMesh != null ? _sourceMesh.vertexCount : 0);
+            EnsureAllBrushLayerDisplacementCapacity(_sourceMesh != null ? _sourceMesh.vertexCount : 0);
         }
 
         private Mesh GetSharedSourceMesh()
@@ -1585,7 +1740,8 @@ namespace Net._32Ba.LatticeDeformationTool
         private bool TryMigrateLegacyBaseToLayerStructure()
         {
             EnsureSettings();
-            if (_layerModelVersion >= k_CurrentLayerModelVersion)
+            // This handles v0→v2 (flat _settings → _layers). Skip if already at v2+.
+            if (_layerModelVersion >= 2)
             {
                 return false;
             }
@@ -1636,8 +1792,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
             _layers = migratedLayers;
             _activeLayerIndex = Mathf.Clamp(migratedActive, 0, _layers.Count - 1);
-            _layerModelVersion = k_CurrentLayerModelVersion;
-            _settings = CloneSettings(GetPrimaryLayerSettings());
+            _layerModelVersion = 2; // v0→v2 done; TryMigrateLayersToGroupStructure handles v2→v3
 
             InvalidateCache();
 
@@ -1658,78 +1813,86 @@ namespace Net._32Ba.LatticeDeformationTool
         private LatticeAsset GetPrimaryLayerSettings()
         {
             EnsureSettings();
-            EnsureLayers();
-            if (_layers != null && _layers.Count > 0)
+            var group = ActiveGroup;
+            if (group != null)
             {
-                var layer = _layers[0] ?? (_layers[0] = new LatticeLayer());
-                return layer.Settings;
+                var layers = group.LayersList;
+                if (layers.Count > 0)
+                {
+                    var layer = layers[0] ?? (layers[0] = new LatticeLayer());
+                    return layer.Settings;
+                }
             }
-
             return _settings;
         }
 
-        private LatticeAsset GetSettingsForLayerIndex(int layerIndex)
-        {
-            if (!TryGetLayer(layerIndex, out var layer))
-            {
-                return GetPrimaryLayerSettings();
-            }
-
-            return layer.Settings;
-        }
-
-        private bool TryGetLayer(int index, out LatticeLayer layer)
+        private bool TryGetActiveLayer(out LatticeLayer layer)
         {
             layer = null;
-            if (_layers == null || index < 0 || index >= _layers.Count)
-            {
-                return false;
-            }
+            var group = ActiveGroup;
+            if (group == null) return false;
+            var layers = group.LayersList;
+            int idx = group.ActiveLayerIndex;
+            if (idx < 0 || idx >= layers.Count) return false;
+            layer = layers[idx];
+            return layer != null;
+        }
 
-            layer = _layers[index];
+        private bool TryGetLayerInActiveGroup(int index, out LatticeLayer layer)
+        {
+            layer = null;
+            var group = ActiveGroup;
+            if (group == null) return false;
+            var layers = group.LayersList;
+            if (index < 0 || index >= layers.Count) return false;
+            layer = layers[index];
             return layer != null;
         }
 
         private string GenerateNextLayerName(MeshDeformerLayerType layerType)
         {
-            EnsureLayers();
-
+            var group = ActiveGroup;
+            var layers = group?.LayersList ?? new List<LatticeLayer>();
             string baseName = layerType == MeshDeformerLayerType.Brush ? k_BrushLayerName : k_PrimaryLayerName;
 
             bool baseNameExists = false;
-            for (int i = 0; i < _layers.Count; i++)
-            {
-                if (_layers[i] != null && string.Equals(_layers[i].Name, baseName, StringComparison.OrdinalIgnoreCase))
-                {
-                    baseNameExists = true;
-                    break;
-                }
-            }
+            for (int i = 0; i < layers.Count; i++)
+                if (layers[i] != null && string.Equals(layers[i].Name, baseName, StringComparison.OrdinalIgnoreCase))
+                { baseNameExists = true; break; }
 
-            if (!baseNameExists)
-            {
-                return baseName;
-            }
+            if (!baseNameExists) return baseName;
 
             int number = 1;
             while (true)
             {
                 string candidate = $"{baseName} {number}";
                 bool exists = false;
-                for (int i = 0; i < _layers.Count; i++)
-                {
-                    if (_layers[i] != null && string.Equals(_layers[i].Name, candidate, StringComparison.OrdinalIgnoreCase))
-                    {
-                        exists = true;
-                        break;
-                    }
-                }
+                for (int i = 0; i < layers.Count; i++)
+                    if (layers[i] != null && string.Equals(layers[i].Name, candidate, StringComparison.OrdinalIgnoreCase))
+                    { exists = true; break; }
+                if (!exists) return candidate;
+                number++;
+            }
+        }
 
-                if (!exists)
-                {
-                    return candidate;
-                }
+        private string GenerateNextGroupName()
+        {
+            string baseName = "Group";
+            bool baseExists = false;
+            for (int i = 0; i < _groups.Count; i++)
+                if (_groups[i] != null && string.Equals(_groups[i].Name, baseName, StringComparison.OrdinalIgnoreCase))
+                { baseExists = true; break; }
+            if (!baseExists) return baseName;
 
+            int number = 1;
+            while (true)
+            {
+                string candidate = $"{baseName} {number}";
+                bool exists = false;
+                for (int i = 0; i < _groups.Count; i++)
+                    if (_groups[i] != null && string.Equals(_groups[i].Name, candidate, StringComparison.OrdinalIgnoreCase))
+                    { exists = true; break; }
+                if (!exists) return candidate;
                 number++;
             }
         }
@@ -1817,22 +1980,17 @@ namespace Net._32Ba.LatticeDeformationTool
             return hash;
         }
 
-        private void EnsureBrushLayerDisplacementCapacity(int vertexCount)
+        private void EnsureAllBrushLayerDisplacementCapacity(int vertexCount)
         {
-            if (_layers == null)
+            if (_groups == null) return;
+            foreach (var group in _groups)
             {
-                return;
-            }
-
-            for (int i = 0; i < _layers.Count; i++)
-            {
-                var layer = _layers[i];
-                if (layer == null || layer.Type != MeshDeformerLayerType.Brush)
+                if (group == null) continue;
+                foreach (var layer in group.LayersList)
                 {
-                    continue;
+                    if (layer != null && layer.Type == MeshDeformerLayerType.Brush)
+                        layer.EnsureBrushDisplacementCapacity(vertexCount);
                 }
-
-                layer.EnsureBrushDisplacementCapacity(vertexCount);
             }
         }
 

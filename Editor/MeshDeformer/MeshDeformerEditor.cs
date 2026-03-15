@@ -14,17 +14,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     public sealed class LatticeDeformerEditor : UnityEditor.Editor
     {
         private SerializedProperty _settingsProp;
+        private SerializedProperty _groupsProp;
+        private SerializedProperty _activeGroupIndexProp;
+        // These are resolved per-frame from the active group
         private SerializedProperty _layersProp;
         private SerializedProperty _activeLayerIndexProp;
+        private SerializedProperty _blendShapeOutputProp;
+        private SerializedProperty _blendShapeNameProp;
+        private SerializedProperty _blendShapeCurveProp;
         private SerializedProperty _skinnedRendererProp;
         private SerializedProperty _meshFilterProp;
         private SerializedProperty _recalcNormalsProp;
         private SerializedProperty _recalcTangentsProp;
         private SerializedProperty _recalcBoundsProp;
         private SerializedProperty _recalcBoneWeightsProp;
-        private SerializedProperty _blendShapeOutputProp;
-        private SerializedProperty _blendShapeNameProp;
-        private SerializedProperty _blendShapeCurveProp;
         private bool _blendShapeTestMode = false;
         private float _blendShapeTestWeight = 0f;
         private Mesh _preTestMesh = null;
@@ -66,18 +69,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             EnsureLinkIcons();
             _settingsProp = serializedObject.FindProperty("_settings");
-            _layersProp = serializedObject.FindProperty("_layers");
-            _activeLayerIndexProp = serializedObject.FindProperty("_activeLayerIndex");
+            _groupsProp = serializedObject.FindProperty("_groups");
+            _activeGroupIndexProp = serializedObject.FindProperty("_activeGroupIndex");
             _skinnedRendererProp = serializedObject.FindProperty("_skinnedMeshRenderer");
             _meshFilterProp = serializedObject.FindProperty("_meshFilter");
             _recalcNormalsProp = serializedObject.FindProperty("_recalculateNormals");
             _recalcTangentsProp = serializedObject.FindProperty("_recalculateTangents");
             _recalcBoundsProp = serializedObject.FindProperty("_recalculateBounds");
             _recalcBoneWeightsProp = serializedObject.FindProperty("_recalculateBoneWeights");
-            _blendShapeOutputProp = serializedObject.FindProperty("_blendShapeOutput");
-            _blendShapeNameProp = serializedObject.FindProperty("_blendShapeName");
-            _blendShapeCurveProp = serializedObject.FindProperty("_blendShapeCurve");
             _weightTransferSettingsProp = serializedObject.FindProperty("_weightTransferSettings");
+            ResolveActiveGroupProperties();
             _alignModeProp = serializedObject.FindProperty("_alignMode");
             _clampMulXYProp = serializedObject.FindProperty("_centerClampMulXY");
             _clampMinXYProp = serializedObject.FindProperty("_centerClampMinXY");
@@ -91,6 +92,28 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             AutoAssignLocalRendererReferences();
             InitializePendingGridSizes();
             LatticeLocalization.LanguageChanged += OnLanguageChanged;
+        }
+
+        private void ResolveActiveGroupProperties()
+        {
+            _layersProp = null;
+            _activeLayerIndexProp = null;
+            _blendShapeOutputProp = null;
+            _blendShapeNameProp = null;
+            _blendShapeCurveProp = null;
+
+            if (_groupsProp == null || _activeGroupIndexProp == null) return;
+            int groupIndex = _activeGroupIndexProp.intValue;
+            if (groupIndex < 0 || groupIndex >= _groupsProp.arraySize) return;
+
+            var groupProp = _groupsProp.GetArrayElementAtIndex(groupIndex);
+            if (groupProp == null) return;
+
+            _layersProp = groupProp.FindPropertyRelative("_layers");
+            _activeLayerIndexProp = groupProp.FindPropertyRelative("_activeLayerIndex");
+            _blendShapeOutputProp = groupProp.FindPropertyRelative("_blendShapeOutput");
+            _blendShapeNameProp = groupProp.FindPropertyRelative("_blendShapeName");
+            _blendShapeCurveProp = groupProp.FindPropertyRelative("_blendShapeCurve");
         }
 
         private void OnDisable()
@@ -117,20 +140,223 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Top: Language + Mesh Source (IMGUI)
             root.Add(new IMGUIContainer(DrawTopSection));
 
-            // Layer list section (UI Toolkit ListView)
+            // Groups > Layers nested structure (UI Toolkit)
             if (targets.Length == 1)
             {
-                var layerFoldout = new Foldout
-                {
-                    text = LatticeLocalization.Tr("Deformation Layers"),
-                    value = s_showLayerStack
-                };
-                layerFoldout.RegisterValueChangedCallback(evt =>
-                {
-                    s_showLayerStack = evt.newValue;
-                    evt.StopPropagation();
-                });
+                _groupsContainer = new VisualElement();
+                _groupsContainer.style.marginTop = 4;
+                RebuildGroupList();
+                root.Add(_groupsContainer);
+            }
 
+            // Build Options + Open Editor (IMGUI)
+            root.Add(new IMGUIContainer(DrawBottomSection));
+
+            // Track serialized changes
+            root.TrackSerializedObjectValue(serializedObject, _ =>
+            {
+                CheckAndRebuildLayers();
+                NotifyPropertyChanges();
+            });
+            root.Bind(serializedObject);
+
+            return root;
+        }
+
+        private VisualElement _groupsContainer;
+        private ListView _groupListView;
+        private readonly List<int> _groupIndices = new();
+        private int _cachedGroupCount = -1;
+
+        private void RebuildGroupList()
+        {
+            if (_groupsContainer == null) return;
+            serializedObject.Update();
+            _groupsContainer.Clear();
+
+            if (_groupsProp == null) return;
+            int groupCount = _groupsProp.arraySize;
+            _cachedGroupCount = groupCount;
+
+            // Groups label
+            var groupsLabel = new Label(LatticeLocalization.Tr("Deformation Groups"));
+            groupsLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+            groupsLabel.style.marginLeft = 3;
+            groupsLabel.style.marginBottom = 2;
+            _groupsContainer.Add(groupsLabel);
+
+            // Group ListView
+            _groupListView = new ListView
+            {
+                reorderable = true,
+                reorderMode = ListViewReorderMode.Animated,
+                showBorder = true,
+                showAlternatingRowBackgrounds = AlternatingRowBackground.ContentOnly,
+                virtualizationMethod = CollectionVirtualizationMethod.DynamicHeight,
+                selectionType = SelectionType.Single,
+            };
+            _groupListView.makeItem = MakeGroupItem;
+            _groupListView.bindItem = BindGroupItem;
+            _groupListView.itemIndexChanged += OnGroupReordered;
+            _groupListView.selectionChanged += _ => OnGroupSelectionChanged();
+
+            _groupIndices.Clear();
+            for (int i = 0; i < groupCount; i++)
+                _groupIndices.Add(i);
+            _groupListView.itemsSource = _groupIndices;
+
+            int activeGroupIdx = _activeGroupIndexProp != null ? _activeGroupIndexProp.intValue : 0;
+            _groupListView.selectedIndex = Mathf.Clamp(activeGroupIdx, 0, Mathf.Max(0, groupCount - 1));
+
+            _groupsContainer.Add(_groupListView);
+
+            // Group footer: [+] [-]
+            var groupFooter = new VisualElement();
+            groupFooter.style.flexDirection = FlexDirection.Row;
+            groupFooter.style.justifyContent = Justify.FlexEnd;
+            groupFooter.style.marginTop = -2;
+            groupFooter.style.marginRight = 2;
+            groupFooter.style.marginBottom = 4;
+
+            var addGroupBtn = new Button(() =>
+            {
+                if (target is LatticeDeformer d)
+                {
+                    Undo.RecordObject(d, "Add Group");
+                    d.AddGroup();
+                    EditorUtility.SetDirty(d);
+                    serializedObject.Update();
+                    ResolveActiveGroupProperties();
+                    RebuildGroupList();
+                    NotifyPropertyChanges();
+                }
+            }) { text = "+" };
+            addGroupBtn.style.width = 25;
+            addGroupBtn.style.height = 16;
+            addGroupBtn.style.fontSize = 14;
+            addGroupBtn.style.unityTextAlign = TextAnchor.MiddleCenter;
+            addGroupBtn.style.paddingTop = 0;
+            addGroupBtn.style.paddingBottom = 0;
+            groupFooter.Add(addGroupBtn);
+
+            var removeGroupBtn = new Button(() =>
+            {
+                if (target is LatticeDeformer d && d.GroupCount > 1)
+                {
+                    Undo.RecordObject(d, "Remove Group");
+                    d.RemoveGroup(d.ActiveGroupIndex);
+                    EditorUtility.SetDirty(d);
+                    serializedObject.Update();
+                    ResolveActiveGroupProperties();
+                    RebuildGroupList();
+                    NotifyPropertyChanges();
+                }
+            }) { text = "\u2212" };
+            removeGroupBtn.style.width = 25;
+            removeGroupBtn.style.height = 16;
+            removeGroupBtn.style.fontSize = 14;
+            removeGroupBtn.style.unityTextAlign = TextAnchor.MiddleCenter;
+            removeGroupBtn.style.paddingTop = 0;
+            removeGroupBtn.style.paddingBottom = 0;
+            groupFooter.Add(removeGroupBtn);
+
+            _groupsContainer.Add(groupFooter);
+        }
+
+        private VisualElement MakeGroupItem()
+        {
+            var root = new VisualElement();
+            root.style.paddingTop = 2;
+            root.style.paddingBottom = 2;
+            root.style.paddingLeft = 4;
+            root.style.paddingRight = 4;
+
+            // Row 1: Group name
+            var nameField = new TextField();
+            nameField.name = "group-name";
+            nameField.style.flexGrow = 1;
+            nameField.style.flexShrink = 1;
+            nameField.style.minWidth = 0;
+            nameField.style.overflow = Overflow.Hidden;
+            root.Add(nameField);
+
+            // BlendShape output settings (per group)
+            var blendShapeContainer = new VisualElement();
+            blendShapeContainer.name = "blendshape-container";
+            blendShapeContainer.style.marginTop = 2;
+            root.Add(blendShapeContainer);
+
+            // Nested layer list container (populated in bind for active group)
+            var layerContainer = new VisualElement();
+            layerContainer.name = "layer-container";
+            layerContainer.style.marginTop = 4;
+            root.Add(layerContainer);
+
+            return root;
+        }
+
+        private void BindGroupItem(VisualElement element, int index)
+        {
+            serializedObject.Update();
+            if (_groupsProp == null || index < 0 || index >= _groupsProp.arraySize) return;
+
+            var groupProp = _groupsProp.GetArrayElementAtIndex(index);
+            var groupNameProp = groupProp.FindPropertyRelative("_name");
+            int activeGroupIdx = _activeGroupIndexProp != null ? _activeGroupIndexProp.intValue : 0;
+            bool isActive = index == activeGroupIdx;
+
+            // Name field
+            var nameField = element.Q<TextField>("group-name");
+            if (nameField != null)
+            {
+                nameField.SetValueWithoutNotify(groupNameProp != null ? groupNameProp.stringValue : "Group");
+                // Unregister previous callback
+                if (nameField.userData is EventCallback<ChangeEvent<string>> oldCb)
+                    nameField.UnregisterValueChangedCallback(oldCb);
+                EventCallback<ChangeEvent<string>> nameCb = evt =>
+                {
+                    if (groupNameProp != null)
+                    {
+                        serializedObject.Update();
+                        groupNameProp.stringValue = evt.newValue;
+                        serializedObject.ApplyModifiedProperties();
+                    }
+                };
+                nameField.RegisterValueChangedCallback(nameCb);
+                nameField.userData = nameCb;
+            }
+
+            // Active group highlight
+            element.style.borderLeftWidth = isActive ? 2 : 0;
+            element.style.borderLeftColor = new Color(0.3f, 0.6f, 1f, 0.8f);
+
+            // BlendShape output settings (per group)
+            var bsContainer = element.Q("blendshape-container");
+            if (bsContainer != null)
+            {
+                bsContainer.Clear();
+                int capturedGroupIndex = index;
+                bsContainer.Add(new IMGUIContainer(() =>
+                {
+                    DrawGroupBlendShapeSection(capturedGroupIndex);
+                }));
+            }
+
+            // Layer container
+            var layerContainer = element.Q("layer-container");
+            if (layerContainer == null) return;
+            layerContainer.Clear();
+
+            if (isActive)
+            {
+                // Layers label
+                var layersLabel = new Label(LatticeLocalization.Tr("Layers"));
+                layersLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+                layersLabel.style.marginLeft = 2;
+                layersLabel.style.marginBottom = 2;
+                layerContainer.Add(layersLabel);
+
+                // Layer ListView for active group
                 _layerListView = new ListView
                 {
                     reorderable = true,
@@ -145,80 +371,130 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _layerListView.itemIndexChanged += OnLayerReordered;
                 _layerListView.selectionChanged += _ => OnLayerSelectionChanged();
 
-                RebuildLayerList();
-                layerFoldout.Add(_layerListView);
+                ResolveActiveGroupProperties();
+                RebuildLayerListInternal();
+                layerContainer.Add(_layerListView);
 
-                // Footer: [+] [-] like ReorderableList
-                var footer = new VisualElement();
-                footer.style.flexDirection = FlexDirection.Row;
-                footer.style.justifyContent = Justify.FlexEnd;
-                footer.style.marginTop = -2;
-                footer.style.marginRight = 2;
-                footer.style.marginBottom = 4;
+                // Layer footer: [+] [-]
+                var layerFooter = new VisualElement();
+                layerFooter.style.flexDirection = FlexDirection.Row;
+                layerFooter.style.justifyContent = Justify.FlexEnd;
+                layerFooter.style.marginTop = -2;
+                layerFooter.style.marginRight = 2;
+                layerFooter.style.marginBottom = 2;
 
-                var addBtn = new Button(() =>
+                var addLayerBtn = new Button(() =>
                 {
                     var menu = new GenericMenu();
                     menu.AddItem(new GUIContent(LatticeLocalization.Tr("Add Lattice Layer")), false, () =>
                     {
                         AddLayerViaList(MeshDeformerLayerType.Lattice);
-                        RebuildLayerList();
+                        RebuildGroupList();
                     });
                     menu.AddItem(new GUIContent(LatticeLocalization.Tr("Add Brush Layer")), false, () =>
                     {
                         AddLayerViaList(MeshDeformerLayerType.Brush);
-                        RebuildLayerList();
+                        RebuildGroupList();
                     });
                     menu.ShowAsContext();
                 }) { text = "+" };
-                addBtn.style.width = 25;
-                addBtn.style.height = 16;
-                addBtn.style.fontSize = 14;
-                addBtn.style.unityTextAlign = TextAnchor.MiddleCenter;
-                addBtn.style.paddingTop = 0;
-                addBtn.style.paddingBottom = 0;
-                footer.Add(addBtn);
+                addLayerBtn.style.width = 25;
+                addLayerBtn.style.height = 16;
+                addLayerBtn.style.fontSize = 14;
+                addLayerBtn.style.unityTextAlign = TextAnchor.MiddleCenter;
+                addLayerBtn.style.paddingTop = 0;
+                addLayerBtn.style.paddingBottom = 0;
+                layerFooter.Add(addLayerBtn);
 
-                var removeBtn = new Button(() =>
+                var removeLayerBtn = new Button(() =>
                 {
-                    if (target is LatticeDeformer d && _layersProp.arraySize > 0)
+                    ResolveActiveGroupProperties();
+                    if (target is LatticeDeformer d && _layersProp != null && _layersProp.arraySize > 0)
                     {
                         DeleteLayer(d, _activeLayerIndexProp.intValue);
-                        RebuildLayerList();
+                        RebuildGroupList();
                     }
-                }) { text = "\u2212" }; // −
-                removeBtn.style.width = 25;
-                removeBtn.style.height = 16;
-                removeBtn.style.fontSize = 14;
-                removeBtn.style.unityTextAlign = TextAnchor.MiddleCenter;
-                removeBtn.style.paddingTop = 0;
-                removeBtn.style.paddingBottom = 0;
-                footer.Add(removeBtn);
+                }) { text = "\u2212" };
+                removeLayerBtn.style.width = 25;
+                removeLayerBtn.style.height = 16;
+                removeLayerBtn.style.fontSize = 14;
+                removeLayerBtn.style.unityTextAlign = TextAnchor.MiddleCenter;
+                removeLayerBtn.style.paddingTop = 0;
+                removeLayerBtn.style.paddingBottom = 0;
+                layerFooter.Add(removeLayerBtn);
 
-                layerFoldout.Add(footer);
-                layerFoldout.Add(new IMGUIContainer(DrawLayerOperationsImgui));
-                root.Add(layerFoldout);
+                layerContainer.Add(layerFooter);
+                layerContainer.Add(new IMGUIContainer(DrawLayerOperationsImgui));
             }
-
-            // Build Options + Open Editor (IMGUI)
-            root.Add(new IMGUIContainer(DrawBottomSection));
-
-            // Track serialized changes for layer list rebuild
-            root.TrackSerializedObjectValue(serializedObject, _ =>
+            else
             {
-                CheckAndRebuildLayers();
-                // Also notify property changes for deformation preview
-                NotifyPropertyChanges();
-            });
-            root.Bind(serializedObject);
+                // Inactive: show layer count
+                var groupLayersProp = groupProp.FindPropertyRelative("_layers");
+                int layerCount = groupLayersProp != null ? groupLayersProp.arraySize : 0;
+                var summary = new Label($"{layerCount} layer(s)");
+                summary.style.color = new Color(0.6f, 0.6f, 0.6f);
+                summary.style.marginLeft = 4;
+                summary.style.marginTop = 2;
+                layerContainer.Add(summary);
+            }
+        }
 
-            return root;
+        private void OnGroupReordered(int oldIndex, int newIndex)
+        {
+            if (target is not LatticeDeformer d) return;
+            Undo.RecordObject(d, "Reorder Group");
+
+            serializedObject.Update();
+            _groupsProp.MoveArrayElement(oldIndex, newIndex);
+            // Adjust active group index
+            int active = _activeGroupIndexProp.intValue;
+            if (active == oldIndex)
+                _activeGroupIndexProp.intValue = newIndex;
+            else if (oldIndex < active && newIndex >= active)
+                _activeGroupIndexProp.intValue = active - 1;
+            else if (oldIndex > active && newIndex <= active)
+                _activeGroupIndexProp.intValue = active + 1;
+            serializedObject.ApplyModifiedProperties();
+            ResolveActiveGroupProperties();
+            NotifyPropertyChanges();
+        }
+
+        private void OnGroupSelectionChanged()
+        {
+            if (_groupListView == null || _activeGroupIndexProp == null) return;
+            int selected = _groupListView.selectedIndex;
+            if (selected < 0 || selected >= _groupsProp.arraySize) return;
+            if (_activeGroupIndexProp.intValue == selected) return;
+
+            serializedObject.Update();
+            _activeGroupIndexProp.intValue = selected;
+            serializedObject.ApplyModifiedProperties();
+            ResolveActiveGroupProperties();
+            RebuildGroupList();
+            NotifyPropertyChanges();
+        }
+
+        private void RebuildLayerListInternal()
+        {
+            if (_layerListView == null || _layersProp == null) return;
+
+            _cachedLayerCount = _layersProp.arraySize;
+            _cachedActiveIndex = _activeLayerIndexProp?.intValue ?? 0;
+
+            _layerIndices.Clear();
+            for (int i = 0; i < _layersProp.arraySize; i++)
+                _layerIndices.Add(i);
+
+            _layerListView.itemsSource = _layerIndices;
+            _layerListView.selectedIndex = _cachedActiveIndex;
+            _layerListView.Rebuild();
         }
 
         private void DrawTopSection()
         {
             AutoAssignLocalRendererReferences();
             serializedObject.Update();
+            ResolveActiveGroupProperties();
 
             bool hasSkinnedAssigned = _skinnedRendererProp != null && !_skinnedRendererProp.hasMultipleDifferentValues && _skinnedRendererProp.objectReferenceValue != null;
             bool hasMeshAssigned = _meshFilterProp != null && !_meshFilterProp.hasMultipleDifferentValues && _meshFilterProp.objectReferenceValue != null;
@@ -244,8 +520,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void DrawBottomSection()
         {
             serializedObject.Update();
+            ResolveActiveGroupProperties();
 
-            DrawBlendShapeOutputSection();
             DrawBuildOptions();
 
             bool modified = serializedObject.ApplyModifiedProperties();
@@ -309,33 +585,30 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void CheckAndRebuildLayers()
         {
-            if (_layersProp == null || _activeLayerIndexProp == null || _layerListView == null) return;
             serializedObject.Update();
+            ResolveActiveGroupProperties();
+
+            // Check if group count changed
+            int groupCount = _groupsProp != null ? _groupsProp.arraySize : 0;
+            if (groupCount != _cachedGroupCount)
+            {
+                RebuildGroupList();
+                return;
+            }
+
+            // Check if active group's layer count/index changed
+            if (_layersProp == null || _activeLayerIndexProp == null || _layerListView == null) return;
             int count = _layersProp.arraySize;
             int active = _activeLayerIndexProp.intValue;
             if (count != _cachedLayerCount || active != _cachedActiveIndex)
             {
-                _cachedLayerCount = count;
-                _cachedActiveIndex = active;
-                RebuildLayerList();
+                RebuildGroupList();
             }
         }
 
         private void RebuildLayerList()
         {
-            if (_layerListView == null || _layersProp == null) return;
-            serializedObject.Update();
-
-            _cachedLayerCount = _layersProp.arraySize;
-            _cachedActiveIndex = _activeLayerIndexProp?.intValue ?? 0;
-
-            _layerIndices.Clear();
-            for (int i = 0; i < _layersProp.arraySize; i++)
-                _layerIndices.Add(i);
-
-            _layerListView.itemsSource = _layerIndices;
-            _layerListView.selectedIndex = _cachedActiveIndex;
-            _layerListView.Rebuild();
+            RebuildGroupList();
         }
 
         private VisualElement MakeLayerItem()
@@ -390,9 +663,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void BindLayerItem(VisualElement element, int index)
         {
-            if (_layersProp == null || index < 0 || index >= _layersProp.arraySize) return;
-
             serializedObject.Update();
+            ResolveActiveGroupProperties();
+            if (_layersProp == null || index < 0 || index >= _layersProp.arraySize) return;
             var layerProp = _layersProp.GetArrayElementAtIndex(index);
             var enabledProp = layerProp.FindPropertyRelative("_enabled");
             var nameProp = layerProp.FindPropertyRelative("_name");
@@ -510,6 +783,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (deformer == null) return;
 
             serializedObject.Update();
+            ResolveActiveGroupProperties();
 
             // Dup / Copy / Paste / L-R
             using (new EditorGUI.DisabledScope(_layersProp.arraySize <= 0))
@@ -1405,50 +1679,49 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return new Bounds(center, size);
         }
 
-        private void DrawBlendShapeOutputSection()
+        private void DrawGroupBlendShapeSection(int groupIndex)
         {
-            if (_blendShapeOutputProp == null) return;
+            serializedObject.Update();
+            if (_groupsProp == null || groupIndex < 0 || groupIndex >= _groupsProp.arraySize) return;
 
-            s_showBlendShapeOutput = EditorGUILayout.BeginFoldoutHeaderGroup(s_showBlendShapeOutput, LatticeLocalization.Tr("BlendShape Output"));
-            if (s_showBlendShapeOutput)
+            var groupProp = _groupsProp.GetArrayElementAtIndex(groupIndex);
+            var outputProp = groupProp.FindPropertyRelative("_blendShapeOutput");
+            var nameProp = groupProp.FindPropertyRelative("_blendShapeName");
+            var curveProp = groupProp.FindPropertyRelative("_blendShapeCurve");
+            if (outputProp == null) return;
+
+            EditorGUI.BeginChangeCheck();
+            EditorGUILayout.PropertyField(outputProp, new GUIContent(LatticeLocalization.Tr("BlendShape Output")));
+            bool modeJustChanged = EditorGUI.EndChangeCheck();
+
+            if (outputProp.intValue == (int)BlendShapeOutputMode.OutputAsBlendShape)
             {
-                EditorGUI.indentLevel++;
-
-                EditorGUI.BeginChangeCheck();
-                EditorGUILayout.PropertyField(_blendShapeOutputProp, new GUIContent(LatticeLocalization.Tr("BlendShape Output")));
-                bool modeJustChanged = EditorGUI.EndChangeCheck();
-
-                if (_blendShapeOutputProp.intValue == (int)BlendShapeOutputMode.OutputAsBlendShape)
+                if (modeJustChanged && nameProp != null && string.IsNullOrWhiteSpace(nameProp.stringValue))
                 {
-                    // Auto-fill name when first enabling
-                    if (modeJustChanged && _blendShapeNameProp != null
-                        && string.IsNullOrWhiteSpace(_blendShapeNameProp.stringValue))
-                    {
-                        var deformer = target as LatticeDeformer;
-                        if (deformer != null)
-                        {
-                            _blendShapeNameProp.stringValue = deformer.gameObject.name;
-                        }
-                    }
-
-                    if (_blendShapeNameProp != null)
-                    {
-                        EditorGUILayout.PropertyField(_blendShapeNameProp, new GUIContent(LatticeLocalization.Tr("BlendShape Name")));
-                    }
-
-                    // Curve
-                    if (_blendShapeCurveProp != null)
-                    {
-                        EditorGUILayout.PropertyField(_blendShapeCurveProp, new GUIContent(LatticeLocalization.Tr("Curve")));
-                    }
-
-                    // Test mode
-                    DrawBlendShapeTestMode();
+                    var deformer = target as LatticeDeformer;
+                    if (deformer != null)
+                        nameProp.stringValue = deformer.gameObject.name;
                 }
 
-                EditorGUI.indentLevel--;
+                if (nameProp != null)
+                    EditorGUILayout.PropertyField(nameProp, new GUIContent(LatticeLocalization.Tr("BlendShape Name")));
+
+                if (curveProp != null)
+                    EditorGUILayout.PropertyField(curveProp, new GUIContent(LatticeLocalization.Tr("Curve")));
+
+                // Test mode only for active group
+                int activeGroupIdx = _activeGroupIndexProp != null ? _activeGroupIndexProp.intValue : 0;
+                if (groupIndex == activeGroupIdx)
+                    DrawBlendShapeTestMode();
             }
-            EditorGUILayout.EndFoldoutHeaderGroup();
+
+            if (serializedObject.ApplyModifiedProperties())
+                NotifyPropertyChanges();
+        }
+
+        // Keep for backward compat — no longer called from DrawBottomSection
+        private void DrawBlendShapeOutputSection()
+        {
         }
 
         private void DrawBlendShapeTestMode()
