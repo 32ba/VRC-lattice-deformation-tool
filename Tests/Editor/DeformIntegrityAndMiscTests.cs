@@ -421,67 +421,70 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         // ========================================================================
-        // BlendShape Name Collision
+        // BlendShape Output (Component-Level)
         // ========================================================================
 
         [Test]
-        public void BlendShapeNameCollision_ThrowsArgumentException()
+        public void BlendShapeOutput_CombinesAllLayerDeltas()
         {
-            // Unity's Mesh.AddBlendShapeFrame does NOT allow two frames
-            // with the same name and same weight. This is expected behavior.
-            var fixture = CreateFixture("BlendShapeNameCollision_ThrowsArgumentException");
+            // BlendShape output is now component-level: all layers contribute
+            // to a single combined BlendShape frame.
+            var fixture = CreateFixture("BlendShapeOutput_CombinesAllLayerDeltas");
             try
             {
                 var deformer = fixture.Deformer;
+                var src = deformer.SourceMesh.vertices;
 
                 int layer1 = deformer.AddLayer("A", MeshDeformerLayerType.Brush);
                 deformer.ActiveLayerIndex = layer1;
                 deformer.EnsureDisplacementCapacity();
                 deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
-                deformer.Layers[layer1].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                deformer.Layers[layer1].BlendShapeName = "SameName";
 
                 int layer2 = deformer.AddLayer("B", MeshDeformerLayerType.Brush);
                 deformer.ActiveLayerIndex = layer2;
                 deformer.EnsureDisplacementCapacity();
                 deformer.SetDisplacement(0, new Vector3(0f, 0.2f, 0f));
-                deformer.Layers[layer2].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                deformer.Layers[layer2].BlendShapeName = "SameName";
 
-                ReleaseRuntimeMesh(deformer);
-                // Unity throws ArgumentException for duplicate name + weight
-                Assert.Throws<System.ArgumentException>(() => deformer.Deform(false));
-            }
-            finally { fixture.Dispose(); }
-        }
-
-        [Test]
-        public void BlendShapeUniqueNames_BothFramesAdded()
-        {
-            var fixture = CreateFixture("BlendShapeUniqueNames_BothFramesAdded");
-            try
-            {
-                var deformer = fixture.Deformer;
-
-                int layer1 = deformer.AddLayer("A", MeshDeformerLayerType.Brush);
-                deformer.ActiveLayerIndex = layer1;
-                deformer.EnsureDisplacementCapacity();
-                deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
-                deformer.Layers[layer1].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                deformer.Layers[layer1].BlendShapeName = "ShapeA";
-
-                int layer2 = deformer.AddLayer("B", MeshDeformerLayerType.Brush);
-                deformer.ActiveLayerIndex = layer2;
-                deformer.EnsureDisplacementCapacity();
-                deformer.SetDisplacement(0, new Vector3(0f, 0.2f, 0f));
-                deformer.Layers[layer2].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                deformer.Layers[layer2].BlendShapeName = "ShapeB";
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "Combined";
 
                 ReleaseRuntimeMesh(deformer);
                 Mesh mesh = null;
                 Assert.DoesNotThrow(() => mesh = deformer.Deform(false));
                 Assert.That(mesh, Is.Not.Null);
-                Assert.That(mesh.blendShapeCount, Is.GreaterThanOrEqualTo(2));
+                Assert.That(mesh.blendShapeCount, Is.EqualTo(1));
+                Assert.That(mesh.GetBlendShapeName(0), Is.EqualTo("Combined"));
+
+                // Vertices should be unchanged (all deformation goes to BlendShape)
+                for (int i = 0; i < src.Length; i++)
+                    AssertApproximately(src[i], mesh.vertices[i], 2e-3f);
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void BlendShapeOutput_FallbackName_UsesGameObjectName()
+        {
+            // EffectiveBlendShapeName falls back to gameObject.name
+            var fixture = CreateFixture("BlendShapeOutput_FallbackName_UsesGameObjectName");
+            try
+            {
+                var deformer = fixture.Deformer;
+
+                int layer1 = deformer.AddLayer("A", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = layer1;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
+
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = ""; // empty => fallback to gameObject.name
+
+                ReleaseRuntimeMesh(deformer);
+                Mesh mesh = null;
+                Assert.DoesNotThrow(() => mesh = deformer.Deform(false));
+                Assert.That(mesh, Is.Not.Null);
+                Assert.That(mesh.blendShapeCount, Is.EqualTo(1));
+                Assert.That(mesh.GetBlendShapeName(0), Is.EqualTo(deformer.gameObject.name));
             }
             finally { fixture.Dispose(); }
         }
@@ -794,18 +797,19 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 int vertexCount = deformer.SourceMesh.vertexCount;
                 var src = deformer.SourceMesh.vertices;
 
-                // Set lattice layer to BS output
-                deformer.Layers[0].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                // Lattice layer deformation
                 var settings = deformer.Layers[0].Settings;
                 settings.SetControlPointLocal(0,
                     settings.GetControlPointLocal(0) + new Vector3(0f, 0.2f, 0f));
 
-                // Add brush layer as BS output
+                // Add brush layer
                 int idx = deformer.AddLayer("BS", MeshDeformerLayerType.Brush);
                 deformer.ActiveLayerIndex = idx;
                 deformer.EnsureDisplacementCapacity();
                 deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
-                deformer.Layers[idx].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+
+                // Set component-level BlendShape output
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
 
                 ReleaseRuntimeMesh(deformer);
                 var mesh = deformer.Deform(false);
@@ -814,8 +818,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 for (int i = 0; i < vertexCount; i++)
                     AssertApproximately(src[i], mesh.vertices[i], 2e-3f);
 
-                // But BlendShapes should exist
-                Assert.That(mesh.blendShapeCount, Is.GreaterThanOrEqualTo(2));
+                // One combined BlendShape should exist
+                Assert.That(mesh.blendShapeCount, Is.EqualTo(1));
             }
             finally { fixture.Dispose(); }
         }
@@ -1033,7 +1037,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.EnsureDisplacementCapacity();
 
                 var layer = deformer.Layers[brushIdx];
-                layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
                 layer.EnsureVertexMaskCapacity(vertexCount);
 
                 for (int i = 0; i < vertexCount; i++)
@@ -1049,20 +1053,30 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var result = deformer.Deform(false);
                 Assert.That(result, Is.Not.Null);
 
-                // BlendShape should exist
+                // BlendShape should exist with combined delta from all layers
                 Assert.That(result.blendShapeCount, Is.GreaterThanOrEqualTo(1));
 
-                // Lattice should affect vertices (it's in direct mode)
-                bool anyLatticeMoved = false;
+                // Vertices should remain at source (BlendShape output mode)
                 for (int i = 0; i < vertexCount; i++)
                 {
-                    if ((result.vertices[i] - src[i]).sqrMagnitude > Epsilon)
+                    Assert.That((result.vertices[i] - src[i]).sqrMagnitude, Is.LessThan(1e-6f));
+                }
+
+                // Combined BlendShape should contain non-zero deltas (lattice + brush)
+                var deltas = new Vector3[vertexCount];
+                int lastShapeIdx = result.blendShapeCount - 1;
+                int frameCount = result.GetBlendShapeFrameCount(lastShapeIdx);
+                result.GetBlendShapeFrameVertices(lastShapeIdx, frameCount - 1, deltas, new Vector3[vertexCount], new Vector3[vertexCount]);
+                bool anyDelta = false;
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    if (deltas[i].sqrMagnitude > Epsilon)
                     {
-                        anyLatticeMoved = true;
+                        anyDelta = true;
                         break;
                     }
                 }
-                Assert.That(anyLatticeMoved, Is.True);
+                Assert.That(anyDelta, Is.True);
             }
             finally { fixture.Dispose(); }
         }

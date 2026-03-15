@@ -20,7 +20,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         // Story 1: Full outfit adjustment workflow
         //   Import existing BlendShape → mask upper body → edit with brush →
         //   split L/R → duplicate & flip for right side →
-        //   output each side as separate BlendShape
+        //   output combined as BlendShape
         // ========================================================================
 
         [Test]
@@ -64,46 +64,40 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 int rightIdx = deformer.DuplicateLayer(importedIdx);
                 deformer.FlipLayerByAxis(rightIdx, 0);
 
-                // Step 6: Set both as BlendShape output with distinct names
-                deformer.Layers[importedIdx].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                deformer.Layers[importedIdx].BlendShapeName = "Shrink_L";
-                deformer.Layers[rightIdx].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                deformer.Layers[rightIdx].BlendShapeName = "Shrink_R";
+                // Step 6: Set component-level BlendShape output (combined L+R)
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "Shrink_Combined";
 
                 // Step 7: Deform and verify
                 ReleaseRuntimeMesh(deformer);
                 var result = deformer.Deform(false);
                 Assert.That(result, Is.Not.Null);
 
-                // Vertices should be untouched (all BS output)
+                // Vertices should be untouched (BS output)
                 for (int i = 0; i < vertexCount; i++)
                     AssertApproximately(srcVerts[i], result.vertices[i], 2e-3f);
 
-                // Both BlendShapes should exist
-                bool foundL = false, foundR = false;
+                // Combined BlendShape should exist
+                int combinedIdx = -1;
                 for (int i = 0; i < result.blendShapeCount; i++)
                 {
-                    if (result.GetBlendShapeName(i) == "Shrink_L") foundL = true;
-                    if (result.GetBlendShapeName(i) == "Shrink_R") foundR = true;
+                    if (result.GetBlendShapeName(i) == "Shrink_Combined") { combinedIdx = i; break; }
                 }
-                Assert.That(foundL && foundR, Is.True, "Both L/R BlendShapes should exist");
+                Assert.That(combinedIdx, Is.GreaterThanOrEqualTo(0), "Combined BlendShape should exist");
 
-                // Left BS should have non-zero deltas only on left upper vertices
-                int lIdx = -1;
-                for (int i = 0; i < result.blendShapeCount; i++)
-                    if (result.GetBlendShapeName(i) == "Shrink_L") { lIdx = i; break; }
-
-                var lDeltas = new Vector3[vertexCount];
-                result.GetBlendShapeFrameVertices(lIdx, 0, lDeltas, null, null);
+                // Combined BS: right-side and lower vertices should have zero deltas
+                // (left layer contributes only left-upper, right layer contributes only right-upper)
+                var combinedDeltas = new Vector3[vertexCount];
+                int combinedFrameCount = result.GetBlendShapeFrameCount(combinedIdx);
+                result.GetBlendShapeFrameVertices(combinedIdx, combinedFrameCount - 1, combinedDeltas, null, null);
 
                 for (int i = 0; i < vertexCount; i++)
                 {
-                    bool isLeft = srcVerts[i].x < 0f;
                     bool isUpper = srcVerts[i].y >= 0f;
-                    if (!isLeft || !isUpper)
+                    if (!isUpper)
                     {
-                        // Should be zero (either right side or masked lower)
-                        AssertApproximately(Vector3.zero, lDeltas[i], 2e-3f);
+                        // Lower vertices should be zero (masked)
+                        AssertApproximately(Vector3.zero, combinedDeltas[i], 2e-3f);
                     }
                 }
             }
@@ -243,8 +237,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 }
 
                 // Step 4: Switch to BlendShape output mode
-                fixLayer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                fixLayer.BlendShapeName = "PenetrationFix";
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "PenetrationFix";
 
                 ReleaseRuntimeMesh(deformer);
                 var bsMesh = deformer.Deform(false);
@@ -260,7 +254,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(bsIdx, Is.GreaterThanOrEqualTo(0));
 
                 var deltas = new Vector3[vertexCount];
-                bsMesh.GetBlendShapeFrameVertices(bsIdx, 0, deltas, null, null);
+                int bsFrameCount = bsMesh.GetBlendShapeFrameCount(bsIdx);
+                bsMesh.GetBlendShapeFrameVertices(bsIdx, bsFrameCount - 1, deltas, null, null);
 
                 // Body deltas should be zero (masked)
                 for (int i = innerStart; i < innerEnd; i++)
@@ -360,9 +355,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         // ========================================================================
-        // Story 5: Import all BlendShapes → selective edit → selective export
-        //   Import 3 BSs → modify one → mask another → direct-deform the third →
-        //   output only modified ones as BS
+        // Story 5: Import all BlendShapes → selective edit → combined export
+        //   Import 3 BSs → modify one → mask another → weight the third →
+        //   output all as single combined BlendShape
         // ========================================================================
 
         [Test]
@@ -393,63 +388,76 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                         shrinkLayer.AddBrushDisplacement(i, -radial * 0.003f);
                     }
                 }
-                shrinkLayer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                shrinkLayer.BlendShapeName = "Shrink_Modified";
 
-                // Step 3: Mask "Expand" — protect lower half, output as BS
+                // Step 3: Mask "Expand" — protect lower half
                 var expandLayer = deformer.Layers[expandIdx];
                 expandLayer.EnsureVertexMaskCapacity(vertexCount);
                 for (int i = 0; i < vertexCount; i++)
                     expandLayer.SetVertexMask(i, srcVerts[i].y >= 0f ? 1f : 0f);
-                expandLayer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                expandLayer.BlendShapeName = "Expand_UpperOnly";
 
-                // Step 4: "MoveUp" stays as direct deformation (weight=0.5)
+                // Step 4: "MoveUp" at half weight
                 deformer.Layers[moveUpIdx].Weight = 0.5f;
 
-                // Step 5: Deform
+                // Step 5: Set component-level BlendShape output (combines all layers)
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "Combined_Edit";
+
+                // Step 6: Deform
                 ReleaseRuntimeMesh(deformer);
                 var result = deformer.Deform(false);
                 Assert.That(result, Is.Not.Null);
 
-                // Step 6: Verify — MoveUp should directly affect vertices
-                var originalMoveUp = new Vector3[vertexCount];
-                deformer.SourceMesh.GetBlendShapeFrameVertices(2, 0, originalMoveUp, null, null);
+                // Vertices should be untouched (BS output mode)
+                for (int i = 0; i < vertexCount; i++)
+                    AssertApproximately(srcVerts[i], result.vertices[i], 2e-3f);
 
-                bool anyDirectMoved = false;
+                // One combined BS output should exist
+                int combinedBSIdx = -1;
+                for (int i = 0; i < result.blendShapeCount; i++)
+                    if (result.GetBlendShapeName(i) == "Combined_Edit") { combinedBSIdx = i; break; }
+                Assert.That(combinedBSIdx, Is.GreaterThanOrEqualTo(0), "Combined BlendShape should exist");
+
+                var combinedDeltas = new Vector3[vertexCount];
+                int combinedBSFrameCount = result.GetBlendShapeFrameCount(combinedBSIdx);
+                result.GetBlendShapeFrameVertices(combinedBSIdx, combinedBSFrameCount - 1, combinedDeltas, null, null);
+
+                // Combined BS should have non-zero deltas (contributions from all layers)
+                bool anyNonZero = false;
                 for (int i = 0; i < vertexCount; i++)
                 {
-                    var expectedDirect = srcVerts[i] + originalMoveUp[i] * 0.5f;
-                    if ((result.vertices[i] - srcVerts[i]).sqrMagnitude > Epsilon)
+                    if (combinedDeltas[i].sqrMagnitude > Epsilon * Epsilon)
                     {
-                        anyDirectMoved = true;
+                        anyNonZero = true;
                         break;
                     }
                 }
-                Assert.That(anyDirectMoved, Is.True, "MoveUp layer should directly modify vertices");
+                Assert.That(anyNonZero, Is.True, "Combined BlendShape should have non-zero deltas");
 
-                // Two BS outputs should exist
-                bool foundShrink = false, foundExpand = false;
-                for (int i = 0; i < result.blendShapeCount; i++)
-                {
-                    string n = result.GetBlendShapeName(i);
-                    if (n == "Shrink_Modified") foundShrink = true;
-                    if (n == "Expand_UpperOnly") foundExpand = true;
-                }
-                Assert.That(foundShrink, Is.True);
-                Assert.That(foundExpand, Is.True);
-
-                // Expand BS: lower half should have zero delta (masked)
-                int expandBSIdx = -1;
-                for (int i = 0; i < result.blendShapeCount; i++)
-                    if (result.GetBlendShapeName(i) == "Expand_UpperOnly") { expandBSIdx = i; break; }
-
-                var expandDeltas = new Vector3[vertexCount];
-                result.GetBlendShapeFrameVertices(expandBSIdx, 0, expandDeltas, null, null);
+                // Expand layer masked lower half: lower vertices should have less contribution
+                // from the Expand layer (masked to zero), so lower vertices' deltas come only
+                // from Shrink + MoveUp, not Expand
+                // Verify at least one upper vertex has a larger delta than average lower vertex
+                float upperDeltaSum = 0f, lowerDeltaSum = 0f;
+                int upperCount = 0, lowerCount = 0;
                 for (int i = 0; i < vertexCount; i++)
                 {
-                    if (srcVerts[i].y < 0f)
-                        AssertApproximately(Vector3.zero, expandDeltas[i], 2e-3f);
+                    if (srcVerts[i].y >= 0f)
+                    {
+                        upperDeltaSum += combinedDeltas[i].magnitude;
+                        upperCount++;
+                    }
+                    else
+                    {
+                        lowerDeltaSum += combinedDeltas[i].magnitude;
+                        lowerCount++;
+                    }
+                }
+                if (upperCount > 0 && lowerCount > 0)
+                {
+                    float upperAvg = upperDeltaSum / upperCount;
+                    float lowerAvg = lowerDeltaSum / lowerCount;
+                    Assert.That(upperAvg, Is.GreaterThan(lowerAvg - Epsilon),
+                        "Upper half should have at least as much delta as lower (Expand masked on lower)");
                 }
             }
             finally { fixture.Dispose(); }
@@ -598,8 +606,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.EnsureDisplacementCapacity();
 
                 var layer = deformer.Layers[brushIdx];
-                layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                layer.BlendShapeName = "Island1_Push";
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "Island1_Push";
                 layer.EnsureVertexMaskCapacity(vertexCount);
 
                 // Mask islands 0 and 2, edit island 1
@@ -619,7 +627,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(bsIdx, Is.GreaterThanOrEqualTo(0));
 
                 var deltas = new Vector3[vertexCount];
-                result.GetBlendShapeFrameVertices(bsIdx, 0, deltas, null, null);
+                int bsFrameCount = result.GetBlendShapeFrameCount(bsIdx);
+                result.GetBlendShapeFrameVertices(bsIdx, bsFrameCount - 1, deltas, null, null);
 
                 // Island 0: zero
                 for (int i = 0; i < islandSize; i++)
@@ -641,8 +650,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         // ========================================================================
         // Story 9: Full L/R symmetric edit workflow on humanoid
         //   Edit left arm → preview direct deform → split L → duplicate → flip R →
-        //   set different weights per side → export both as BS →
-        //   verify symmetric deltas with independent weight
+        //   set different weights per side → export combined as BS →
+        //   verify combined deltas reflect layer weights
         // ========================================================================
 
         [Test]
@@ -682,11 +691,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.Layers[editIdx].Weight = 1.0f;
                 deformer.Layers[rightIdx].Weight = 0.5f;
 
-                // Step 6: Export both as BlendShapes
-                deformer.Layers[editIdx].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                deformer.Layers[editIdx].BlendShapeName = "ArmAdjust_L";
-                deformer.Layers[rightIdx].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                deformer.Layers[rightIdx].BlendShapeName = "ArmAdjust_R";
+                // Step 6: Export as combined BlendShape
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "ArmAdjust_Combined";
 
                 ReleaseRuntimeMesh(deformer);
                 var result = deformer.Deform(false);
@@ -695,33 +702,53 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 for (int i = 0; i < vertexCount; i++)
                     AssertApproximately(srcVerts[i], result.vertices[i], 2e-3f);
 
-                // Find BS indices
-                int lBSIdx = -1, rBSIdx = -1;
+                // Find combined BS index
+                int combinedBSIdx = -1;
                 for (int i = 0; i < result.blendShapeCount; i++)
                 {
-                    if (result.GetBlendShapeName(i) == "ArmAdjust_L") lBSIdx = i;
-                    if (result.GetBlendShapeName(i) == "ArmAdjust_R") rBSIdx = i;
+                    if (result.GetBlendShapeName(i) == "ArmAdjust_Combined") combinedBSIdx = i;
                 }
-                Assert.That(lBSIdx, Is.GreaterThanOrEqualTo(0));
-                Assert.That(rBSIdx, Is.GreaterThanOrEqualTo(0));
+                Assert.That(combinedBSIdx, Is.GreaterThanOrEqualTo(0));
 
-                var lDeltas = new Vector3[vertexCount];
-                var rDeltas = new Vector3[vertexCount];
-                result.GetBlendShapeFrameVertices(lBSIdx, 0, lDeltas, null, null);
-                result.GetBlendShapeFrameVertices(rBSIdx, 0, rDeltas, null, null);
+                var combinedDeltas = new Vector3[vertexCount];
+                int combinedBSFrameCount = result.GetBlendShapeFrameCount(combinedBSIdx);
+                result.GetBlendShapeFrameVertices(combinedBSIdx, combinedBSFrameCount - 1, combinedDeltas, null, null);
 
-                // Left BS: right side should be zero
+                // Combined BS should have non-zero deltas (L at weight 1.0 + R at weight 0.5)
+                bool anyNonZero = false;
                 for (int i = 0; i < vertexCount; i++)
                 {
-                    if (srcVerts[i].x > 0.05f)
-                        AssertApproximately(Vector3.zero, lDeltas[i], 2e-3f);
+                    if (combinedDeltas[i].sqrMagnitude > Epsilon * Epsilon)
+                    {
+                        anyNonZero = true;
+                        break;
+                    }
                 }
+                Assert.That(anyNonZero, Is.True, "Combined BlendShape should have non-zero deltas");
 
-                // Right BS at 0.5 weight: left side should be zero
+                // Left-side vertices should have stronger deltas (weight=1.0) than
+                // right-side vertices (weight=0.5) due to different layer weights
+                float leftDeltaSum = 0f, rightDeltaSum = 0f;
+                int leftCount = 0, rightCount = 0;
                 for (int i = 0; i < vertexCount; i++)
                 {
                     if (srcVerts[i].x < -0.05f)
-                        AssertApproximately(Vector3.zero, rDeltas[i], 2e-3f);
+                    {
+                        leftDeltaSum += combinedDeltas[i].magnitude;
+                        leftCount++;
+                    }
+                    else if (srcVerts[i].x > 0.05f)
+                    {
+                        rightDeltaSum += combinedDeltas[i].magnitude;
+                        rightCount++;
+                    }
+                }
+                if (leftCount > 0 && rightCount > 0)
+                {
+                    float leftAvg = leftDeltaSum / leftCount;
+                    float rightAvg = rightDeltaSum / rightCount;
+                    Assert.That(leftAvg, Is.GreaterThan(rightAvg - Epsilon),
+                        "Left side (weight=1.0) should have at least as much delta as right side (weight=0.5)");
                 }
             }
             finally { fixture.Dispose(); }
@@ -839,10 +866,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         // ========================================================================
-        // Story 12: Complex layer stack with mixed types and outputs
-        //   Lattice (direct) → Brush (direct, masked) → Brush (BS output) →
-        //   Lattice (BS output) → verify vertex = lattice1 + brush1*mask,
-        //   BS count = 2
+        // Story 12: Complex layer stack with mixed types and masks
+        //   Lattice → Brush (masked) → another Brush → another Lattice →
+        //   verify direct deform composition with masks →
+        //   switch to BS output → verify single combined BlendShape
         // ========================================================================
 
         [Test]
@@ -856,13 +883,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 int vertexCount = deformer.SourceMesh.vertexCount;
                 var srcVerts = deformer.SourceMesh.vertices;
 
-                // Layer 0: Lattice direct — small shift
+                // Layer 0: Lattice — small shift
                 var lattice0 = deformer.Layers[0].Settings;
                 lattice0.SetControlPointLocal(0,
                     lattice0.GetControlPointLocal(0) + new Vector3(0f, 0.02f, 0f));
 
-                // Layer 1: Brush direct with mask
-                int brush1 = deformer.AddLayer("Brush Direct", MeshDeformerLayerType.Brush);
+                // Layer 1: Brush with mask
+                int brush1 = deformer.AddLayer("Brush Masked", MeshDeformerLayerType.Brush);
                 deformer.ActiveLayerIndex = brush1;
                 deformer.EnsureDisplacementCapacity();
                 var brushDisp = new Vector3(0.01f, 0f, 0f);
@@ -873,48 +900,75 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 brush1Layer.EnsureVertexMaskCapacity(vertexCount);
                 brush1Layer.SetVertexMask(0, 0f); // Protect vertex 0
 
-                // Layer 2: Brush BS output
-                int brush2 = deformer.AddLayer("Brush BS", MeshDeformerLayerType.Brush);
+                // Layer 2: Another Brush
+                int brush2 = deformer.AddLayer("Brush Extra", MeshDeformerLayerType.Brush);
                 deformer.ActiveLayerIndex = brush2;
                 deformer.EnsureDisplacementCapacity();
                 deformer.SetDisplacement(0, new Vector3(0f, 0f, 0.05f));
-                deformer.Layers[brush2].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                deformer.Layers[brush2].BlendShapeName = "BrushBS";
 
-                // Layer 3: Lattice BS output
-                int lattice3 = deformer.AddLayer("Lattice BS", MeshDeformerLayerType.Lattice);
+                // Layer 3: Another Lattice
+                int lattice3 = deformer.AddLayer("Lattice Extra", MeshDeformerLayerType.Lattice);
                 var lattice3Settings = deformer.Layers[lattice3].Settings;
                 lattice3Settings.SetControlPointLocal(0,
                     lattice3Settings.GetControlPointLocal(0) + new Vector3(0f, 0.1f, 0f));
-                deformer.Layers[lattice3].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                deformer.Layers[lattice3].BlendShapeName = "LatticeBS";
 
-                // Deform
+                // Phase 1: Direct deform — verify mask and composition
                 ReleaseRuntimeMesh(deformer);
                 deformer.InvalidateCache();
                 var result = deformer.Deform(false);
                 Assert.That(result, Is.Not.Null);
 
-                // Vertex 0: Lattice0 contribution + Brush1 * mask(0)=0 = only lattice
-                // Vertex 1+: Lattice0 contribution + Brush1 * mask(1)=1
-                // BS layers should NOT contribute to vertices
+                // Vertex 0: Lattice0 + Brush1*mask(0)=0 + Brush2 + Lattice3
+                // Vertex 1+: Lattice0 + Brush1*mask(1)=1 + Brush2 + Lattice3
                 var deformed = result.vertices;
 
-                // Vertex 0 should have lattice but NOT brush (masked)
-                // Vertex 1 should have lattice + brush
+                // Vertex 0 should have less X displacement than vertex 1 (masked brush)
                 float v0BrushComponent = Mathf.Abs(deformed[0].x - srcVerts[0].x);
                 float v1BrushComponent = Mathf.Abs(deformed[1].x - srcVerts[1].x);
                 Assert.That(v0BrushComponent, Is.LessThan(v1BrushComponent + Epsilon),
                     "Masked vertex should have less X displacement than unmasked");
 
-                // Should have 2 BS outputs
-                int bsCount = 0;
-                for (int i = 0; i < result.blendShapeCount; i++)
+                // All layers should contribute to vertices (no BS output yet)
+                int movedCount = 0;
+                for (int i = 0; i < vertexCount; i++)
                 {
-                    string n = result.GetBlendShapeName(i);
-                    if (n == "BrushBS" || n == "LatticeBS") bsCount++;
+                    if ((deformed[i] - srcVerts[i]).sqrMagnitude > Epsilon * Epsilon)
+                        movedCount++;
                 }
-                Assert.That(bsCount, Is.EqualTo(2), "Should have both BS outputs");
+                Assert.That(movedCount, Is.GreaterThan(0), "Vertices should be displaced in direct mode");
+
+                // Phase 2: Switch to BS output — verify single combined BlendShape
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "MixedStack";
+
+                ReleaseRuntimeMesh(deformer);
+                deformer.InvalidateCache();
+                var bsResult = deformer.Deform(false);
+                Assert.That(bsResult, Is.Not.Null);
+
+                // Vertices should be untouched (BS output mode)
+                for (int i = 0; i < vertexCount; i++)
+                    AssertApproximately(srcVerts[i], bsResult.vertices[i], 2e-3f);
+
+                // Should have 1 combined BS output
+                int bsIdx = -1;
+                for (int i = 0; i < bsResult.blendShapeCount; i++)
+                {
+                    if (bsResult.GetBlendShapeName(i) == "MixedStack") { bsIdx = i; break; }
+                }
+                Assert.That(bsIdx, Is.GreaterThanOrEqualTo(0), "Combined BlendShape should exist");
+
+                var bsDeltas = new Vector3[vertexCount];
+                int bsFrameCount = bsResult.GetBlendShapeFrameCount(bsIdx);
+                bsResult.GetBlendShapeFrameVertices(bsIdx, bsFrameCount - 1, bsDeltas, null, null);
+
+                // BS deltas should be non-zero (all 4 layers combined)
+                bool anyDelta = false;
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    if (bsDeltas[i].sqrMagnitude > Epsilon * Epsilon) { anyDelta = true; break; }
+                }
+                Assert.That(anyDelta, Is.True, "Combined BlendShape should have non-zero deltas");
             }
             finally { fixture.Dispose(); }
         }

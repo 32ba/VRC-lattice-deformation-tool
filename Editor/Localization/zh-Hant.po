@@ -510,3 +510,21 @@ msgstr "設定"
 
 msgid "Delete"
 msgstr "刪除"
+
+msgid "Curve"
+msgstr "曲線"
+
+msgid "Frame Count"
+msgstr "幀數"
+
+msgid "Test Weight"
+msgstr "測試權重"
+
+msgid "Enter Test Mode"
+msgstr "進入測試模式"
+
+msgid "Exit Test Mode"
+msgstr "退出測試模式"
+
+msgid "BlendShape Test Mode"
+msgstr "BlendShape 測試模式"

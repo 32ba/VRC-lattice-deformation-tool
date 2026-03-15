@@ -78,12 +78,15 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
 
 ### BlendShape 出力・読み込み
 
-レイヤー単位で変形デルタを BlendShape フレームとして出力、または既存 BlendShape をブラシレイヤーとして読み込む機能。
+コンポーネント全体の変形デルタを1つの BlendShape フレームとして出力、または既存 BlendShape をブラシレイヤーとして読み込む機能。
 
-**出力 (`BlendShapeOutputMode`)**:
+**出力 (`BlendShapeOutputMode`)** — コンポーネントレベル設定:
 - `Disabled`（デフォルト）: 従来通り頂点に直接変形を適用
-- `OutputAsBlendShape`: `Deform()` の Pass 2 で `Mesh.AddBlendShapeFrame()` によりデルタを追加
-- レイヤーごとに `BlendShapeName` を指定可能（空なら Layer 名がフォールバック）
+- `OutputAsBlendShape`: 全レイヤーの合成変形を1つの BlendShape として出力。頂点はソース位置のまま保持
+- `BlendShapeName`: 出力名（有効化時に空なら `gameObject.name` で自動補完）
+- `BlendShapeCurve` (`AnimationCurve`): BlendShape の補間カーブ。フレーム数 > 1 の場合、カーブに沿って複数フレームを生成
+- `BlendShapeFrameCount`: 生成するフレーム数（1〜100、デフォルト 1）。1 ならカーブ無視で単一フレーム
+- Inspector UI の「BlendShape Output」独立 Foldout セクション内に配置。テストスライダーで SkinnedMeshRenderer 上の重みをプレビュー可能
 - NDMF ビルドパイプラインは `Object.Instantiate()` で BlendShape データを保持
 
 **読み込み**:

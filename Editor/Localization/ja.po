@@ -541,3 +541,21 @@ msgstr "設定"
 
 msgid "Delete"
 msgstr "削除"
+
+msgid "Curve"
+msgstr "カーブ"
+
+msgid "Frame Count"
+msgstr "フレーム数"
+
+msgid "Test Weight"
+msgstr "テストウェイト"
+
+msgid "Enter Test Mode"
+msgstr "テストモードに入る"
+
+msgid "Exit Test Mode"
+msgstr "テストモードを終了"
+
+msgid "BlendShape Test Mode"
+msgstr "BlendShape テストモード"

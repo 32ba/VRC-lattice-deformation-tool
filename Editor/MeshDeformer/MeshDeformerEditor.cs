@@ -22,6 +22,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SerializedProperty _recalcTangentsProp;
         private SerializedProperty _recalcBoundsProp;
         private SerializedProperty _recalcBoneWeightsProp;
+        private SerializedProperty _blendShapeOutputProp;
+        private SerializedProperty _blendShapeNameProp;
+        private SerializedProperty _blendShapeCurveProp;
+        private bool _blendShapeTestMode = false;
+        private float _blendShapeTestWeight = 0f;
+        private Mesh _preTestMesh = null;
+        private bool _preTestMeshWasOverridden = false;
+        private bool _preTestWeightsWereOverridden = false;
         private SerializedProperty _weightTransferSettingsProp;
         private SerializedProperty _alignModeProp;
         private SerializedProperty _clampMulXYProp;
@@ -42,6 +50,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_showLayerStack = true;
         private static bool s_showAlignSettings = false;
         private static bool s_showWeightTransferSettings = false;
+        private static bool s_showBlendShapeOutput = false;
         private static bool s_showLayerSettings = false;
         private static readonly Dictionary<long, Vector3Int> s_pendingGridSizes = new();
         private static string s_copiedLayerJson = null;
@@ -65,6 +74,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _recalcTangentsProp = serializedObject.FindProperty("_recalculateTangents");
             _recalcBoundsProp = serializedObject.FindProperty("_recalculateBounds");
             _recalcBoneWeightsProp = serializedObject.FindProperty("_recalculateBoneWeights");
+            _blendShapeOutputProp = serializedObject.FindProperty("_blendShapeOutput");
+            _blendShapeNameProp = serializedObject.FindProperty("_blendShapeName");
+            _blendShapeCurveProp = serializedObject.FindProperty("_blendShapeCurve");
             _weightTransferSettingsProp = serializedObject.FindProperty("_weightTransferSettings");
             _alignModeProp = serializedObject.FindProperty("_alignMode");
             _clampMulXYProp = serializedObject.FindProperty("_centerClampMulXY");
@@ -84,6 +96,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void OnDisable()
         {
             LatticeLocalization.LanguageChanged -= OnLanguageChanged;
+            ExitBlendShapeTestMode();
 
             foreach (var deformer in EnumerateTargets())
             {
@@ -232,6 +245,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             serializedObject.Update();
 
+            DrawBlendShapeOutputSection();
             DrawBuildOptions();
 
             bool modified = serializedObject.ApplyModifiedProperties();
@@ -269,9 +283,28 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (targets.Length == 1 && target is LatticeDeformer activeDeformer)
             {
                 SyncActiveToolToLayer(activeDeformer);
+                ReapplyBlendShapeTestWeight(activeDeformer);
             }
 
             LatticePreviewUtility.RequestSceneRepaint();
+        }
+
+        private void ReapplyBlendShapeTestWeight(LatticeDeformer deformer)
+        {
+            if (!_blendShapeTestMode) return;
+            if (deformer.BlendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape) return;
+
+            var smr = deformer.GetComponent<SkinnedMeshRenderer>();
+            if (smr == null) return;
+
+            // Re-assign runtime mesh after Deform() rebuild
+            var runtimeMesh = deformer.RuntimeMesh;
+            if (runtimeMesh != null && smr.sharedMesh != runtimeMesh)
+            {
+                smr.sharedMesh = runtimeMesh;
+            }
+
+            ApplyBlendShapeTestWeight(deformer, smr);
         }
 
         private void CheckAndRebuildLayers()
@@ -430,8 +463,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         DrawSettingsExcludingGrid(settingsProp, allowStructureEdits: true);
                         DrawAlignmentSettings();
                     }
-                    DrawBlendShapeOutputSettings(deformer);
-
                     if (serializedObject.ApplyModifiedProperties())
                         NotifyPropertyChanges();
                 };
@@ -1373,56 +1404,166 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return new Bounds(center, size);
         }
 
-        private void DrawBlendShapeOutputSettings(LatticeDeformer deformer)
+        private void DrawBlendShapeOutputSection()
         {
-            if (deformer == null || _layersProp == null || _activeLayerIndexProp == null)
+            if (_blendShapeOutputProp == null) return;
+
+            s_showBlendShapeOutput = EditorGUILayout.BeginFoldoutHeaderGroup(s_showBlendShapeOutput, LatticeLocalization.Tr("BlendShape Output"));
+            if (s_showBlendShapeOutput)
             {
-                return;
-            }
+                EditorGUI.indentLevel++;
 
-            int activeIndex = _activeLayerIndexProp.intValue;
-            if (activeIndex < 0 || activeIndex >= _layersProp.arraySize)
-            {
-                return;
-            }
+                EditorGUI.BeginChangeCheck();
+                EditorGUILayout.PropertyField(_blendShapeOutputProp, new GUIContent(LatticeLocalization.Tr("BlendShape Output")));
+                bool modeJustChanged = EditorGUI.EndChangeCheck();
 
-            var layerProp = _layersProp.GetArrayElementAtIndex(activeIndex);
-            if (layerProp == null)
-            {
-                return;
-            }
-
-            EditorGUILayout.Space(4);
-
-            // BlendShape Output
-            var blendShapeOutputProp = layerProp.FindPropertyRelative("_blendShapeOutput");
-            if (blendShapeOutputProp != null)
-            {
-                EditorGUILayout.PropertyField(blendShapeOutputProp, new GUIContent(LatticeLocalization.Tr("BlendShape Output")));
-
-                if (blendShapeOutputProp.intValue == (int)BlendShapeOutputMode.OutputAsBlendShape)
+                if (_blendShapeOutputProp.intValue == (int)BlendShapeOutputMode.OutputAsBlendShape)
                 {
-                    EditorGUI.indentLevel++;
-                    var blendShapeNameProp = layerProp.FindPropertyRelative("_blendShapeName");
-                    if (blendShapeNameProp != null)
+                    // Auto-fill name when first enabling
+                    if (modeJustChanged && _blendShapeNameProp != null
+                        && string.IsNullOrWhiteSpace(_blendShapeNameProp.stringValue))
                     {
-                        EditorGUILayout.PropertyField(blendShapeNameProp, new GUIContent(LatticeLocalization.Tr("BlendShape Name")));
-
-                        // Show effective name hint if blank
-                        if (string.IsNullOrWhiteSpace(blendShapeNameProp.stringValue))
+                        var deformer = target as LatticeDeformer;
+                        if (deformer != null)
                         {
-                            var layerNameProp = layerProp.FindPropertyRelative("_name");
-                            string effectiveName = layerNameProp != null && !string.IsNullOrWhiteSpace(layerNameProp.stringValue)
-                                ? layerNameProp.stringValue
-                                : "Layer";
-                            EditorGUILayout.HelpBox(
-                                string.Format(LatticeLocalization.Tr("BlendShape will be named: {0}"), effectiveName),
-                                MessageType.Info);
+                            _blendShapeNameProp.stringValue = deformer.gameObject.name;
                         }
                     }
-                    EditorGUI.indentLevel--;
+
+                    if (_blendShapeNameProp != null)
+                    {
+                        EditorGUILayout.PropertyField(_blendShapeNameProp, new GUIContent(LatticeLocalization.Tr("BlendShape Name")));
+                    }
+
+                    // Curve
+                    if (_blendShapeCurveProp != null)
+                    {
+                        EditorGUILayout.PropertyField(_blendShapeCurveProp, new GUIContent(LatticeLocalization.Tr("Curve")));
+                    }
+
+                    // Test mode
+                    DrawBlendShapeTestMode();
+                }
+
+                EditorGUI.indentLevel--;
+            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
+        }
+
+        private void DrawBlendShapeTestMode()
+        {
+            var deformer = target as LatticeDeformer;
+            if (deformer == null) return;
+
+            var smr = deformer.GetComponent<SkinnedMeshRenderer>();
+            if (smr == null) return;
+
+            EditorGUILayout.Space(2);
+
+            if (!_blendShapeTestMode)
+            {
+                if (GUILayout.Button(LatticeLocalization.Tr("Enter Test Mode")))
+                {
+                    EnterBlendShapeTestMode(deformer, smr);
                 }
             }
+            else
+            {
+                EditorGUILayout.HelpBox(LatticeLocalization.Tr("BlendShape Test Mode"), MessageType.Info);
+
+                EditorGUI.BeginChangeCheck();
+                _blendShapeTestWeight = EditorGUILayout.Slider(
+                    new GUIContent(LatticeLocalization.Tr("Test Weight")),
+                    _blendShapeTestWeight, 0f, 100f);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    ApplyBlendShapeTestWeight(deformer, smr);
+                }
+
+                if (GUILayout.Button(LatticeLocalization.Tr("Exit Test Mode")))
+                {
+                    ExitBlendShapeTestMode();
+                }
+            }
+        }
+
+        private void EnterBlendShapeTestMode(LatticeDeformer deformer, SkinnedMeshRenderer smr)
+        {
+            _preTestMesh = smr.sharedMesh;
+
+            // Record which properties were already overridden before test mode
+            if (PrefabUtility.IsPartOfPrefabInstance(smr))
+            {
+                var so = new SerializedObject(smr);
+                var meshProp = so.FindProperty("m_Mesh");
+                var weightsProp = so.FindProperty("m_BlendShapeWeights");
+                _preTestMeshWasOverridden = meshProp != null && meshProp.prefabOverride;
+                _preTestWeightsWereOverridden = weightsProp != null && weightsProp.prefabOverride;
+            }
+
+            _blendShapeTestMode = true;
+            _blendShapeTestWeight = 0f;
+
+            // Force Deform with assignment so the BlendShape is on the SMR
+            deformer.InvalidateCache();
+            deformer.Deform(true);
+            SceneView.RepaintAll();
+        }
+
+        private void ExitBlendShapeTestMode()
+        {
+            if (!_blendShapeTestMode) return;
+            _blendShapeTestMode = false;
+            _blendShapeTestWeight = 0f;
+
+            if (target is LatticeDeformer deformer)
+            {
+                var smr = deformer.GetComponent<SkinnedMeshRenderer>();
+                if (smr != null)
+                {
+                    // Restore only what test mode changed: sharedMesh
+                    if (_preTestMesh != null)
+                    {
+                        smr.sharedMesh = _preTestMesh;
+                    }
+
+                    // Revert only the prefab overrides that test mode created
+                    if (PrefabUtility.IsPartOfPrefabInstance(smr))
+                    {
+                        var so = new SerializedObject(smr);
+                        if (!_preTestMeshWasOverridden)
+                        {
+                            var meshProp = so.FindProperty("m_Mesh");
+                            if (meshProp != null && meshProp.prefabOverride)
+                                PrefabUtility.RevertPropertyOverride(meshProp, InteractionMode.AutomatedAction);
+                        }
+                        if (!_preTestWeightsWereOverridden)
+                        {
+                            var weightsProp = so.FindProperty("m_BlendShapeWeights");
+                            if (weightsProp != null && weightsProp.prefabOverride)
+                                PrefabUtility.RevertPropertyOverride(weightsProp, InteractionMode.AutomatedAction);
+                        }
+                    }
+                }
+            }
+
+            _preTestMesh = null;
+            _preTestMeshWasOverridden = false;
+            _preTestWeightsWereOverridden = false;
+            SceneView.RepaintAll();
+        }
+
+        private void ApplyBlendShapeTestWeight(LatticeDeformer deformer, SkinnedMeshRenderer smr)
+        {
+            var runtimeMesh = deformer.RuntimeMesh;
+            if (runtimeMesh == null) return;
+
+            string shapeName = deformer.EffectiveBlendShapeName;
+            int shapeIndex = runtimeMesh.GetBlendShapeIndex(shapeName);
+            if (shapeIndex < 0) return;
+
+            smr.SetBlendShapeWeight(shapeIndex, _blendShapeTestWeight);
+            SceneView.RepaintAll();
         }
 
         private void DrawImportBlendShapeUI(LatticeDeformer deformer)

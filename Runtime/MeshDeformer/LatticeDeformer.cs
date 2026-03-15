@@ -273,6 +273,9 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private WeightTransferSettingsData _weightTransferSettings = new WeightTransferSettingsData();
         [SerializeField, HideInInspector] private bool _hasInitializedFromSource = false;
         [SerializeField, HideInInspector] private Mesh _serializedSourceMesh;
+        [SerializeField] private BlendShapeOutputMode _blendShapeOutput = BlendShapeOutputMode.Disabled;
+        [SerializeField] private string _blendShapeName = "";
+        [SerializeField] private AnimationCurve _blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
 
         // Preview alignment (per-instance)
         [SerializeField, HideInInspector] private LatticeAlignMode _alignMode = LatticeAlignMode.Mode1_TransformOnly;
@@ -403,6 +406,27 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             get => _recalculateBoneWeights;
             set => _recalculateBoneWeights = value;
+        }
+
+        public BlendShapeOutputMode BlendShapeOutput
+        {
+            get => _blendShapeOutput;
+            set => _blendShapeOutput = value;
+        }
+
+        public string BlendShapeName
+        {
+            get => _blendShapeName;
+            set => _blendShapeName = value ?? "";
+        }
+
+        public string EffectiveBlendShapeName =>
+            string.IsNullOrWhiteSpace(_blendShapeName) ? gameObject.name : _blendShapeName;
+
+        public AnimationCurve BlendShapeCurve
+        {
+            get => _blendShapeCurve ?? (_blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f));
+            set => _blendShapeCurve = value ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
         }
 
         public WeightTransferSettingsData WeightTransferSettings
@@ -1136,16 +1160,11 @@ namespace Net._32Ba.LatticeDeformationTool
 
             EnsureBrushLayerDisplacementCapacity(vertices.Length);
 
-            // --- Pass 1: Direct deformation layers (existing behavior) ---
+            // Apply all layers to vertices
             for (int i = 0; i < _layers.Count; i++)
             {
                 var layer = _layers[i];
                 if (layer == null || !layer.Enabled || layer.Weight <= 0f)
-                {
-                    continue;
-                }
-
-                if (layer.BlendShapeOutput != BlendShapeOutputMode.Disabled)
                 {
                     continue;
                 }
@@ -1161,7 +1180,65 @@ namespace Net._32Ba.LatticeDeformationTool
                 }
             }
 
-            mesh.vertices = vertices;
+            if (_blendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
+            {
+                // BlendShape output: compute combined delta and add as a single BlendShape frame.
+                // Vertices remain at source positions.
+                int blendShapeHash = ComputeBlendShapeOutputHash(sourceVertices, vertices);
+                if (blendShapeHash != _lastBlendShapeHash)
+                {
+                    UnityEngine.Profiling.Profiler.BeginSample("LatticeDeformer.RebuildBlendShapes");
+                    _lastBlendShapeHash = blendShapeHash;
+
+                    mesh.ClearBlendShapes();
+                    if (_sourceMesh != null)
+                    {
+                        CopyBlendShapes(_sourceMesh, mesh);
+                    }
+
+                    int vertexCount = sourceVertices.Length;
+                    var deltaVertices = new Vector3[vertexCount];
+                    bool hasDelta = false;
+                    for (int v = 0; v < vertexCount; v++)
+                    {
+                        deltaVertices[v] = vertices[v] - sourceVertices[v];
+                        if (!hasDelta && deltaVertices[v].sqrMagnitude > 1e-10f)
+                        {
+                            hasDelta = true;
+                        }
+                    }
+
+                    if (hasDelta)
+                    {
+                        string shapeName = EffectiveBlendShapeName;
+                        var curve = BlendShapeCurve;
+
+                        // Always generate multi-frame BlendShape from curve
+                        const int sampleCount = 100;
+                        for (int f = 0; f < sampleCount; f++)
+                        {
+                            float t = (f + 1f) / sampleCount;
+                            float frameWeight = t * 100f;
+                            float curveValue = curve.Evaluate(t);
+
+                            var frameDeltas = new Vector3[vertexCount];
+                            for (int v = 0; v < vertexCount; v++)
+                            {
+                                frameDeltas[v] = deltaVertices[v] * curveValue;
+                            }
+                            mesh.AddBlendShapeFrame(shapeName, frameWeight, frameDeltas, null, null);
+                        }
+                    }
+                    UnityEngine.Profiling.Profiler.EndSample();
+                }
+
+                // Keep vertices at source position
+                mesh.vertices = sourceVertices;
+            }
+            else
+            {
+                mesh.vertices = vertices;
+            }
 
             if (_recalculateNormals)
             {
@@ -1176,56 +1253,6 @@ namespace Net._32Ba.LatticeDeformationTool
             if (_recalculateBounds)
             {
                 mesh.RecalculateBounds();
-            }
-
-            // --- Pass 2: BlendShape output layers ---
-            bool hasBlendShapeOutputLayers = false;
-            for (int i = 0; i < _layers.Count; i++)
-            {
-                var layer = _layers[i];
-                if (layer != null && layer.Enabled && layer.Weight > 0f
-                    && layer.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
-                {
-                    hasBlendShapeOutputLayers = true;
-                    break;
-                }
-            }
-
-            if (hasBlendShapeOutputLayers)
-            {
-                // Only rebuild BlendShapes when layer data has actually changed.
-                // Compute a lightweight hash of output layer state to detect changes.
-                int blendShapeHash = ComputeBlendShapeOutputHash();
-                if (blendShapeHash != _lastBlendShapeHash)
-                {
-                    UnityEngine.Profiling.Profiler.BeginSample("LatticeDeformer.RebuildBlendShapes");
-                    _lastBlendShapeHash = blendShapeHash;
-
-                    // Clear all BlendShapes and restore source ones before adding output layers,
-                    // because Unity has no RemoveBlendShape API and the runtime mesh persists.
-                    mesh.ClearBlendShapes();
-                    if (_sourceMesh != null)
-                    {
-                        CopyBlendShapes(_sourceMesh, mesh);
-                    }
-
-                    for (int i = 0; i < _layers.Count; i++)
-                    {
-                        var layer = _layers[i];
-                        if (layer == null || !layer.Enabled || layer.Weight <= 0f)
-                        {
-                            continue;
-                        }
-
-                        if (layer.BlendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape)
-                        {
-                            continue;
-                        }
-
-                        TryAddBlendShapeFrame(mesh, layer, sourceVertices, vertices);
-                    }
-                    UnityEngine.Profiling.Profiler.EndSample();
-                }
             }
 
             mesh.UploadMeshData(false);
@@ -1307,84 +1334,22 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        private void TryAddBlendShapeFrame(Mesh mesh, LatticeLayer layer, Vector3[] sourceVertices, Vector3[] baseVertices)
-        {
-            if (mesh == null || layer == null || sourceVertices == null || baseVertices == null)
-            {
-                return;
-            }
-
-            int vertexCount = sourceVertices.Length;
-            var deltaVertices = new Vector3[vertexCount];
-
-            switch (layer.Type)
-            {
-                case MeshDeformerLayerType.Brush:
-                {
-                    var displacements = layer.BrushDisplacements;
-                    if (displacements == null || displacements.Length != vertexCount)
-                    {
-                        return;
-                    }
-
-                    float weight = layer.Weight;
-                    var mask = layer.VertexMask;
-                    bool hasMask = mask != null && mask.Length == vertexCount;
-                    for (int v = 0; v < vertexCount; v++)
-                    {
-                        float maskValue = hasMask ? mask[v] : 1f;
-                        deltaVertices[v] = displacements[v] * weight * maskValue;
-                    }
-
-                    break;
-                }
-                default:
-                {
-                    var layerSettings = layer.Settings;
-                    if (layerSettings == null || !EnsureCache(layerSettings))
-                    {
-                        return;
-                    }
-
-                    var entries = _cache.Entries;
-                    if (entries == null || entries.Length != vertexCount)
-                    {
-                        return;
-                    }
-
-                    int cpCount = layerSettings.ControlPointCount;
-                    EnsureControlBuffer(cpCount);
-                    CollectControlPointsLocal(layerSettings, _controlBuffer.AsSpan());
-
-                    var layerVertices = DeformWithJobs(entries, _controlBuffer);
-                    float weight = layer.Weight;
-                    for (int v = 0; v < vertexCount; v++)
-                    {
-                        deltaVertices[v] = (layerVertices[v] - sourceVertices[v]) * weight;
-                    }
-
-                    break;
-                }
-            }
-
-            string shapeName = layer.EffectiveBlendShapeName;
-            mesh.AddBlendShapeFrame(shapeName, 100f, deltaVertices, null, null);
-        }
-
-        private int ComputeBlendShapeOutputHash()
+        private int ComputeBlendShapeOutputHash(Vector3[] sourceVertices, Vector3[] deformedVertices)
         {
             int hash = 17;
-            for (int i = 0; i < _layers.Count; i++)
+            hash = hash * 31 + (EffectiveBlendShapeName ?? "").GetHashCode();
+            // Sample curve at a few points for change detection
+            var curve = BlendShapeCurve;
+            for (int i = 0; i <= 4; i++)
             {
-                var layer = _layers[i];
-                if (layer == null) continue;
-                hash = hash * 31 + (layer.Enabled ? 1 : 0);
-                hash = hash * 31 + (int)layer.BlendShapeOutput;
-                hash = hash * 31 + layer.Weight.GetHashCode();
-                if (layer.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
-                {
-                    hash = hash * 31 + (layer.EffectiveBlendShapeName ?? "").GetHashCode();
-                }
+                hash = hash * 31 + curve.Evaluate(i * 0.25f).GetHashCode();
+            }
+            // Include vertex data hash for change detection
+            int step = Mathf.Max(1, deformedVertices.Length / 32);
+            for (int v = 0; v < deformedVertices.Length; v += step)
+            {
+                var delta = deformedVertices[v] - sourceVertices[v];
+                hash = hash * 31 + delta.GetHashCode();
             }
             return hash;
         }
@@ -1432,6 +1397,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             _cache.Clear();
+            _lastBlendShapeHash = 0;
         }
 
         public void InitializeFromSource(bool resetControlPoints)

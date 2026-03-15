@@ -726,7 +726,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
 
                 var layer = deformer.Layers[idx];
-                layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
                 layer.Enabled = false;
 
                 ReleaseRuntimeMesh(deformer);

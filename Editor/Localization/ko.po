@@ -510,3 +510,21 @@ msgstr "설정"
 
 msgid "Delete"
 msgstr "삭제"
+
+msgid "Curve"
+msgstr "커브"
+
+msgid "Frame Count"
+msgstr "프레임 수"
+
+msgid "Test Weight"
+msgstr "테스트 가중치"
+
+msgid "Enter Test Mode"
+msgstr "테스트 모드 시작"
+
+msgid "Exit Test Mode"
+msgstr "테스트 모드 종료"
+
+msgid "BlendShape Test Mode"
+msgstr "BlendShape 테스트 모드"

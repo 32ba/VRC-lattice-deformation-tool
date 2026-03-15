@@ -499,3 +499,21 @@ msgstr "Settings"
 
 msgid "Delete"
 msgstr "Delete"
+
+msgid "Curve"
+msgstr "Curve"
+
+msgid "Frame Count"
+msgstr "Frame Count"
+
+msgid "Test Weight"
+msgstr "Test Weight"
+
+msgid "Enter Test Mode"
+msgstr "Enter Test Mode"
+
+msgid "Exit Test Mode"
+msgstr "Exit Test Mode"
+
+msgid "BlendShape Test Mode"
+msgstr "BlendShape Test Mode"

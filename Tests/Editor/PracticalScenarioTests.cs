@@ -294,8 +294,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 }
 
                 // Output as new BlendShape
-                layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                layer.BlendShapeName = "ShrinkModified";
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "ShrinkModified";
 
                 ReleaseRuntimeMesh(deformer);
                 var runtimeMesh = deformer.Deform(false);
@@ -314,7 +314,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 // Verify deltas: upper half should have original + extra
                 var outputDeltas = new Vector3[vertexCount];
-                runtimeMesh.GetBlendShapeFrameVertices(outputIdx, 0, outputDeltas, null, null);
+                int outputFrameCount = runtimeMesh.GetBlendShapeFrameCount(outputIdx);
+                runtimeMesh.GetBlendShapeFrameVertices(outputIdx, outputFrameCount - 1, outputDeltas, null, null);
 
                 var originalDeltas = new Vector3[vertexCount];
                 deformer.SourceMesh.GetBlendShapeFrameVertices(shrinkIdx, 0, originalDeltas, null, null);
@@ -341,7 +342,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         public void MultipleBlendShapeImport_EachAsLayer_ThenOutputAll()
         {
             // Simulates: import all 3 BlendShapes, each as a separate layer,
-            // then output each as BlendShape.
+            // then output combined as a single BlendShape (component-level setting).
             var fixture = CreateBlendShapeCylinderFixture(
                 "MultipleBlendShapeImport_EachAsLayer_ThenOutputAll");
             try
@@ -350,47 +351,46 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 int vertexCount = deformer.SourceMesh.vertexCount;
                 var names = deformer.GetSourceBlendShapeNames();
 
-                // Import all 3 and set to BlendShape output
+                // Import all 3 layers
                 var layerIndices = new int[names.Length];
                 for (int s = 0; s < names.Length; s++)
                 {
                     layerIndices[s] = deformer.ImportBlendShapeAsLayer(s);
-                    var layer = deformer.Layers[layerIndices[s]];
-                    layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                    layer.BlendShapeName = $"Modified_{names[s]}";
                 }
+
+                // Set BlendShape output at component level (single combined output)
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "CombinedModified";
 
                 ReleaseRuntimeMesh(deformer);
                 var runtimeMesh = deformer.Deform(false);
 
-                // Should have original BlendShapes + 3 new ones
+                // Should have original BlendShapes + 1 combined new one
                 int originalBSCount = deformer.SourceMesh.blendShapeCount;
-                Assert.That(runtimeMesh.blendShapeCount, Is.EqualTo(originalBSCount + names.Length));
+                Assert.That(runtimeMesh.blendShapeCount, Is.EqualTo(originalBSCount + 1));
 
-                // Each output should have non-zero deltas
-                for (int s = 0; s < names.Length; s++)
+                int bsIdx = originalBSCount;
+                Assert.That(runtimeMesh.GetBlendShapeName(bsIdx),
+                    Is.EqualTo("CombinedModified"));
+
+                // Combined output should have non-zero deltas
+                var deltas = new Vector3[vertexCount];
+                int bsFrameCount = runtimeMesh.GetBlendShapeFrameCount(bsIdx);
+                runtimeMesh.GetBlendShapeFrameVertices(bsIdx, bsFrameCount - 1, deltas, null, null);
+
+                bool anyNonZero = false;
+                for (int v = 0; v < vertexCount; v++)
                 {
-                    int bsIdx = originalBSCount + s;
-                    Assert.That(runtimeMesh.GetBlendShapeName(bsIdx),
-                        Is.EqualTo($"Modified_{names[s]}"));
-
-                    var deltas = new Vector3[vertexCount];
-                    runtimeMesh.GetBlendShapeFrameVertices(bsIdx, 0, deltas, null, null);
-
-                    bool anyNonZero = false;
-                    for (int v = 0; v < vertexCount; v++)
+                    if (deltas[v].sqrMagnitude > Epsilon * Epsilon)
                     {
-                        if (deltas[v].sqrMagnitude > Epsilon * Epsilon)
-                        {
-                            anyNonZero = true;
-                            break;
-                        }
+                        anyNonZero = true;
+                        break;
                     }
-                    Assert.That(anyNonZero, Is.True,
-                        $"BlendShape '{names[s]}' should have non-zero deltas");
                 }
+                Assert.That(anyNonZero, Is.True,
+                    "Combined BlendShape should have non-zero deltas");
 
-                // Vertices should be unchanged (all layers are BlendShape output)
+                // Vertices should be unchanged (BlendShape output)
                 var sourceVerts = deformer.SourceMesh.vertices;
                 var deformedVerts = runtimeMesh.vertices;
                 for (int i = 0; i < vertexCount; i++)
@@ -546,15 +546,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     deformer.SetDisplacement(i, displacement);
                 }
 
-                var layer = deformer.Layers[brushIdx];
-                layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
 
                 ReleaseRuntimeMesh(deformer);
                 var runtimeMesh = deformer.Deform(false);
 
                 int shapeIdx = runtimeMesh.blendShapeCount - 1;
                 var deltas = new Vector3[vertexCount];
-                runtimeMesh.GetBlendShapeFrameVertices(shapeIdx, 0, deltas, null, null);
+                int frameCount = runtimeMesh.GetBlendShapeFrameCount(shapeIdx);
+                runtimeMesh.GetBlendShapeFrameVertices(shapeIdx, frameCount - 1, deltas, null, null);
 
                 // Every vertex should have the displacement in the BlendShape
                 int nonZeroCount = 0;
@@ -689,8 +689,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         public void MultipleOutfitAdjustments_AsBlendShapes()
         {
             // Simulates: user creates multiple outfit adjustments as separate layers,
-            // each output as BlendShape for in-game toggling via Avatar Menu Creator.
-            // E.g., "SleevesRolled", "CollarOpen", "WaistTightened"
+            // output as a single combined BlendShape (component-level setting).
+            // E.g., "SleevesRolled" + "WaistTightened" combined into one shape.
             var fixture = CreateCylinderFixture("MultipleOutfitAdjustments_AsBlendShapes");
             try
             {
@@ -710,7 +710,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                         deformer.SetDisplacement(i, -radial * 0.008f);
                     }
                 }
-                deformer.Layers[layer1].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
 
                 // Adjustment 2: lower half tightened (simulates waist cinched)
                 int layer2 = deformer.AddLayer("WaistTightened", MeshDeformerLayerType.Brush);
@@ -724,25 +723,25 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                         deformer.SetDisplacement(i, -radial * 0.005f);
                     }
                 }
-                deformer.Layers[layer2].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+
+                // Set BlendShape output at component level (single combined output)
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "OutfitAdjustments";
 
                 ReleaseRuntimeMesh(deformer);
                 var runtimeMesh = deformer.Deform(false);
 
-                // Both should produce separate BlendShapes
+                // Should produce one combined BlendShape
                 int bsCount = runtimeMesh.blendShapeCount;
-                Assert.That(bsCount, Is.GreaterThanOrEqualTo(2));
+                Assert.That(bsCount, Is.GreaterThanOrEqualTo(1));
 
-                bool foundSleeves = false;
-                bool foundWaist = false;
+                bool foundCombined = false;
                 for (int i = 0; i < bsCount; i++)
                 {
                     string name = runtimeMesh.GetBlendShapeName(i);
-                    if (name == "SleevesRolled") foundSleeves = true;
-                    if (name == "WaistTightened") foundWaist = true;
+                    if (name == "OutfitAdjustments") foundCombined = true;
                 }
-                Assert.That(foundSleeves, Is.True, "SleevesRolled BlendShape should exist");
-                Assert.That(foundWaist, Is.True, "WaistTightened BlendShape should exist");
+                Assert.That(foundCombined, Is.True, "OutfitAdjustments BlendShape should exist");
 
                 // Vertices should be unchanged (all output as BlendShape)
                 var deformed = runtimeMesh.vertices;
@@ -923,9 +922,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.ActiveLayerIndex = brushIdx;
                 deformer.EnsureDisplacementCapacity();
 
-                var layer = deformer.Layers[brushIdx];
-                layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                layer.BlendShapeName = "Puff";
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "Puff";
 
                 for (int i = 0; i < vertexCount; i++)
                 {
@@ -947,7 +945,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(mesh.GetBlendShapeName(shapeIdx), Is.EqualTo("Puff"));
 
                 var deltas = new Vector3[vertexCount];
-                mesh.GetBlendShapeFrameVertices(shapeIdx, 0, deltas, null, null);
+                int frameCount = mesh.GetBlendShapeFrameCount(shapeIdx);
+                mesh.GetBlendShapeFrameVertices(shapeIdx, frameCount - 1, deltas, null, null);
 
                 for (int i = 0; i < vertexCount; i++)
                 {
@@ -1143,8 +1142,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.ActiveLayerIndex = brushIdx;
                 deformer.EnsureDisplacementCapacity();
 
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+
                 var layer = deformer.Layers[brushIdx];
-                layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
                 layer.EnsureVertexMaskCapacity(vertexCount);
 
                 // Mask inner (body) vertices
@@ -1163,7 +1163,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 int shapeIdx = mesh.blendShapeCount - 1;
                 var deltas = new Vector3[vertexCount];
-                mesh.GetBlendShapeFrameVertices(shapeIdx, 0, deltas, null, null);
+                int frameCount = mesh.GetBlendShapeFrameCount(shapeIdx);
+                mesh.GetBlendShapeFrameVertices(shapeIdx, frameCount - 1, deltas, null, null);
 
                 // Inner (masked): zero delta
                 for (int i = innerStart; i < innerEnd; i++)

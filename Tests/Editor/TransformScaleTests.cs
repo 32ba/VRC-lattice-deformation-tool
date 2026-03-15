@@ -392,8 +392,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 var refDeltas = new Vector3[vertexCount];
                 var scaledDeltas = new Vector3[vertexCount];
-                refMesh.GetBlendShapeFrameVertices(refMesh.blendShapeCount - 1, 0, refDeltas, null, null);
-                scaledMesh.GetBlendShapeFrameVertices(scaledMesh.blendShapeCount - 1, 0, scaledDeltas, null, null);
+                int refShapeIdx = refMesh.blendShapeCount - 1;
+                int refFrameCount = refMesh.GetBlendShapeFrameCount(refShapeIdx);
+                refMesh.GetBlendShapeFrameVertices(refShapeIdx, refFrameCount - 1, refDeltas, null, null);
+                int scaledShapeIdx = scaledMesh.blendShapeCount - 1;
+                int scaledFrameCount = scaledMesh.GetBlendShapeFrameCount(scaledShapeIdx);
+                scaledMesh.GetBlendShapeFrameVertices(scaledShapeIdx, scaledFrameCount - 1, scaledDeltas, null, null);
 
                 for (int i = 0; i < vertexCount; i++)
                 {
@@ -525,9 +529,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.ActiveLayerIndex = brushIdx;
                 deformer.EnsureDisplacementCapacity();
 
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "ScaledEdit";
                 var layer = deformer.Layers[brushIdx];
-                layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                layer.BlendShapeName = "ScaledEdit";
                 layer.EnsureVertexMaskCapacity(vertexCount);
 
                 for (int i = 0; i < vertexCount; i++)
@@ -540,7 +544,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.SplitLayerByAxis(brushIdx, 0, false);
                 int rightIdx = deformer.DuplicateLayer(brushIdx);
                 deformer.FlipLayerByAxis(rightIdx, 0);
-                deformer.Layers[rightIdx].BlendShapeName = "ScaledEdit_R";
 
                 ReleaseRuntimeMesh(deformer);
                 deformer.InvalidateCache();
@@ -623,8 +626,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             deformer.EnsureDisplacementCapacity();
             deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
             deformer.SetDisplacement(1, new Vector3(0f, 0.2f, 0f));
-            deformer.Layers[idx].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-            deformer.Layers[idx].BlendShapeName = "TestBS";
+            deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+            deformer.BlendShapeName = "TestBS";
         }
 
         private static void ApplySplitFlipWorkflow(LatticeDeformer deformer)

@@ -226,9 +226,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.SetDisplacement(1, brushDelta * 2f);
 
                 var layer = deformer.Layers[brushLayerIndex];
-                layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                layer.BlendShapeName = "TestShape";
                 layer.Weight = weight;
+
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "TestShape";
 
                 // Release cached runtime mesh so Deform creates a fresh one
                 ReleaseRuntimeMesh(deformer);
@@ -245,7 +246,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var frameDeltas = new Vector3[vertexCount];
                 var frameNormals = new Vector3[vertexCount];
                 var frameTangents = new Vector3[vertexCount];
-                runtimeMesh.GetBlendShapeFrameVertices(shapeIndex, 0, frameDeltas, frameNormals, frameTangents);
+                int frameCount = runtimeMesh.GetBlendShapeFrameCount(shapeIndex);
+                runtimeMesh.GetBlendShapeFrameVertices(shapeIndex, frameCount - 1, frameDeltas, frameNormals, frameTangents);
 
                 AssertApproximately(brushDelta * weight, frameDeltas[0], 2e-3f);
                 AssertApproximately(brushDelta * 2f * weight, frameDeltas[1], 2e-3f);
@@ -279,8 +281,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.SetDisplacement(0, brushDelta);
 
                 var layer = deformer.Layers[brushLayerIndex];
-                layer.BlendShapeOutput = BlendShapeOutputMode.Disabled;
                 layer.Weight = weight;
+
+                deformer.BlendShapeOutput = BlendShapeOutputMode.Disabled;
 
                 // Release cached runtime mesh so Deform creates a fresh one
                 ReleaseRuntimeMesh(deformer);
@@ -797,9 +800,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var extraDelta = new Vector3(0.05f, 0f, 0f);
                 importedLayer.AddBrushDisplacement(0, extraDelta);
 
-                // Output as BlendShape
-                importedLayer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                importedLayer.BlendShapeName = "ModifiedShape";
+                // Output as BlendShape (component-level)
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "ModifiedShape";
 
                 ReleaseRuntimeMesh(deformer);
                 var runtimeMesh = deformer.Deform(false);
@@ -818,7 +821,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(outputIndex, Is.GreaterThanOrEqualTo(0), "Output BlendShape not found");
 
                 var outputDeltas = new Vector3[vertexCount];
-                runtimeMesh.GetBlendShapeFrameVertices(outputIndex, 0, outputDeltas, null, null);
+                int outputFrameCount = runtimeMesh.GetBlendShapeFrameCount(outputIndex);
+                runtimeMesh.GetBlendShapeFrameVertices(outputIndex, outputFrameCount - 1, outputDeltas, null, null);
 
                 // Vertex 0: original delta + extra delta (weight=1)
                 AssertApproximately(originalDeltas[0] + extraDelta, outputDeltas[0], 2e-3f);
@@ -832,9 +836,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void MultipleBlendShapeOutputLayers_ProduceSeparateFrames()
+        public void MultipleBlendShapeLayers_ProduceCombinedFrame()
         {
-            var fixture = CreateFixture("MultipleBlendShapeOutputLayers_ProduceSeparateFrames");
+            var fixture = CreateFixture("MultipleBlendShapeLayers_ProduceCombinedFrame");
             try
             {
                 var deformer = fixture.Deformer;
@@ -846,7 +850,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.EnsureDisplacementCapacity();
                 var deltaA = new Vector3(0.1f, 0f, 0f);
                 deformer.SetDisplacement(0, deltaA);
-                deformer.Layers[layerA].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
 
                 // Layer B
                 int layerB = deformer.AddLayer("ShapeB", MeshDeformerLayerType.Brush);
@@ -854,25 +857,25 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.EnsureDisplacementCapacity();
                 var deltaB = new Vector3(0f, 0.2f, 0f);
                 deformer.SetDisplacement(0, deltaB);
-                deformer.Layers[layerB].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+
+                // Component-level BlendShape output — all layers combine into one
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "CombinedShape";
 
                 ReleaseRuntimeMesh(deformer);
                 var runtimeMesh = deformer.Deform(false);
 
                 int sourceCount = deformer.SourceMesh.blendShapeCount;
-                Assert.That(runtimeMesh.blendShapeCount, Is.EqualTo(sourceCount + 2),
-                    "Should have 2 additional BlendShapes");
+                Assert.That(runtimeMesh.blendShapeCount, Is.EqualTo(sourceCount + 1),
+                    "Should have 1 combined BlendShape");
 
-                // Verify each BlendShape has independent deltas
-                var frameA = new Vector3[vertexCount];
-                var frameB = new Vector3[vertexCount];
-                runtimeMesh.GetBlendShapeFrameVertices(sourceCount, 0, frameA, null, null);
-                runtimeMesh.GetBlendShapeFrameVertices(sourceCount + 1, 0, frameB, null, null);
+                // Verify the combined BlendShape has the sum of both layers' deltas
+                var frameCombined = new Vector3[vertexCount];
+                int combinedFrameCount = runtimeMesh.GetBlendShapeFrameCount(sourceCount);
+                runtimeMesh.GetBlendShapeFrameVertices(sourceCount, combinedFrameCount - 1, frameCombined, null, null);
 
-                AssertApproximately(deltaA, frameA[0], 2e-3f);
-                AssertApproximately(Vector3.zero, frameA[1], 2e-3f);
-                AssertApproximately(deltaB, frameB[0], 2e-3f);
-                AssertApproximately(Vector3.zero, frameB[1], 2e-3f);
+                AssertApproximately(deltaA + deltaB, frameCombined[0], 2e-3f);
+                AssertApproximately(Vector3.zero, frameCombined[1], 2e-3f);
 
                 // Vertices should NOT be directly modified
                 var deformedVertices = runtimeMesh.vertices;
@@ -886,9 +889,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void BlendShapeName_FallsBackToLayerName()
+        public void BlendShapeName_FallsBackToGameObjectName()
         {
-            var fixture = CreateFixture("BlendShapeName_FallsBackToLayerName");
+            var fixture = CreateFixture("BlendShapeName_FallsBackToGameObjectName");
             try
             {
                 var deformer = fixture.Deformer;
@@ -898,15 +901,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.EnsureDisplacementCapacity();
                 deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
 
-                var layer = deformer.Layers[layerIndex];
-                layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                layer.BlendShapeName = ""; // Empty — should fall back to layer Name
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = ""; // Empty — should fall back to gameObject.name
 
                 ReleaseRuntimeMesh(deformer);
                 var runtimeMesh = deformer.Deform(false);
 
                 int lastIndex = runtimeMesh.blendShapeCount - 1;
-                Assert.That(runtimeMesh.GetBlendShapeName(lastIndex), Is.EqualTo("MyLayerName"));
+                Assert.That(runtimeMesh.GetBlendShapeName(lastIndex),
+                    Is.EqualTo(deformer.gameObject.name));
             }
             finally
             {
@@ -977,7 +980,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.EnsureDisplacementCapacity();
 
                 var layer = deformer.Layers[brushLayerIndex];
-                layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
 
                 // Set displacement on vertices 0 and 1
                 var displacement = new Vector3(0.3f, 0.2f, 0.1f);
@@ -994,7 +997,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 int shapeIndex = runtimeMesh.blendShapeCount - 1;
                 var frameDeltas = new Vector3[vertexCount];
-                runtimeMesh.GetBlendShapeFrameVertices(shapeIndex, 0, frameDeltas, null, null);
+                int frameCount = runtimeMesh.GetBlendShapeFrameCount(shapeIndex);
+                runtimeMesh.GetBlendShapeFrameVertices(shapeIndex, frameCount - 1, frameDeltas, null, null);
 
                 // Vertex 0 (masked=0): delta should be zero
                 AssertApproximately(Vector3.zero, frameDeltas[0], 2e-3f);
@@ -1791,8 +1795,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var delta = new Vector3(0f, 0.2f, 0f);
                 settings.SetControlPointLocal(0, settings.GetControlPointLocal(0) + delta);
 
-                latticeLayer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
-                latticeLayer.BlendShapeName = "LatticeShape";
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "LatticeShape";
 
                 ReleaseRuntimeMesh(deformer);
                 var runtimeMesh = deformer.Deform(false);
@@ -1812,7 +1816,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 int vertexCount = deformer.SourceMesh.vertexCount;
                 var frameDeltas = new Vector3[vertexCount];
-                runtimeMesh.GetBlendShapeFrameVertices(shapeIndex, 0, frameDeltas, null, null);
+                int frameCount = runtimeMesh.GetBlendShapeFrameCount(shapeIndex);
+                runtimeMesh.GetBlendShapeFrameVertices(shapeIndex, frameCount - 1, frameDeltas, null, null);
 
                 // At least one vertex near the moved control point should have non-zero delta
                 bool anyNonZero = false;
@@ -1860,14 +1865,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 var layer = deformer.Layers[brushLayerIndex];
                 layer.Weight = weight;
-                layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
 
                 ReleaseRuntimeMesh(deformer);
                 var runtimeMesh = deformer.Deform(false);
 
                 int shapeIndex = runtimeMesh.blendShapeCount - 1;
                 var frameDeltas = new Vector3[vertexCount];
-                runtimeMesh.GetBlendShapeFrameVertices(shapeIndex, 0, frameDeltas, null, null);
+                int frameCount = runtimeMesh.GetBlendShapeFrameCount(shapeIndex);
+                runtimeMesh.GetBlendShapeFrameVertices(shapeIndex, frameCount - 1, frameDeltas, null, null);
 
                 // Delta should be displacement * weight
                 AssertApproximately(displacement * weight, frameDeltas[0], 2e-3f);
@@ -1879,28 +1885,31 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void DirectAndBlendShapeOutputLayers_ComposeCorrectly()
+        public void BlendShapeOutput_AllLayersCombineIntoSingleFrame()
         {
-            var fixture = CreateFixture("DirectAndBlendShapeOutputLayers_ComposeCorrectly");
+            var fixture = CreateFixture("BlendShapeOutput_AllLayersCombineIntoSingleFrame");
             try
             {
                 var deformer = fixture.Deformer;
                 int vertexCount = deformer.SourceMesh.vertexCount;
 
-                // Direct layer
-                int directLayer = deformer.AddLayer("Direct", MeshDeformerLayerType.Brush);
-                deformer.ActiveLayerIndex = directLayer;
+                // Layer A
+                int layerA = deformer.AddLayer("Layer A", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = layerA;
                 deformer.EnsureDisplacementCapacity();
-                var directDisp = new Vector3(0.1f, 0f, 0f);
-                deformer.SetDisplacement(0, directDisp);
+                var dispA = new Vector3(0.1f, 0f, 0f);
+                deformer.SetDisplacement(0, dispA);
 
-                // BlendShape output layer
-                int bsLayer = deformer.AddLayer("BS Output", MeshDeformerLayerType.Brush);
-                deformer.ActiveLayerIndex = bsLayer;
+                // Layer B
+                int layerB = deformer.AddLayer("Layer B", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = layerB;
                 deformer.EnsureDisplacementCapacity();
-                var bsDisp = new Vector3(0f, 0.2f, 0f);
-                deformer.SetDisplacement(0, bsDisp);
-                deformer.Layers[bsLayer].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                var dispB = new Vector3(0f, 0.2f, 0f);
+                deformer.SetDisplacement(0, dispB);
+
+                // Component-level BlendShape output — all layers combine
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "Combined";
 
                 ReleaseRuntimeMesh(deformer);
                 var runtimeMesh = deformer.Deform(false);
@@ -1908,15 +1917,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var sourceVertices = deformer.SourceMesh.vertices;
                 var deformedVertices = runtimeMesh.vertices;
 
-                // Direct layer should modify vertices
-                var expectedVertex = sourceVertices[0] + directDisp;
-                AssertApproximately(expectedVertex, deformedVertices[0], 2e-3f);
+                // Vertices should NOT be directly modified (BlendShape output mode)
+                AssertApproximately(sourceVertices[0], deformedVertices[0], 2e-3f);
 
-                // BS layer should only appear as BlendShape, NOT in vertex data
+                // All layers should combine into a single BlendShape frame
                 int shapeIndex = runtimeMesh.blendShapeCount - 1;
                 var frameDeltas = new Vector3[vertexCount];
-                runtimeMesh.GetBlendShapeFrameVertices(shapeIndex, 0, frameDeltas, null, null);
-                AssertApproximately(bsDisp, frameDeltas[0], 2e-3f);
+                int frameCount = runtimeMesh.GetBlendShapeFrameCount(shapeIndex);
+                runtimeMesh.GetBlendShapeFrameVertices(shapeIndex, frameCount - 1, frameDeltas, null, null);
+                AssertApproximately(dispA + dispB, frameDeltas[0], 2e-3f);
             }
             finally
             {
@@ -2073,57 +2082,781 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void LatticePlusBrushPlusBlendShapeOutput_ThreeLayerComposition()
+        public void LatticePlusBrushLayers_BlendShapeOutput_CombinesAll()
         {
-            var fixture = CreateFixture("LatticePlusBrushPlusBlendShapeOutput_ThreeLayerComposition");
+            var fixture = CreateFixture("LatticePlusBrushLayers_BlendShapeOutput_CombinesAll");
             try
             {
                 var deformer = fixture.Deformer;
                 int vertexCount = deformer.SourceMesh.vertexCount;
 
-                // Layer 0: Lattice (direct)
+                // Layer 0: Lattice
                 var latticeSettings = deformer.Layers[0].Settings;
                 var latticeDelta = new Vector3(0f, 0.15f, 0f);
                 latticeSettings.SetControlPointLocal(0,
                     latticeSettings.GetControlPointLocal(0) + latticeDelta);
 
-                // Layer 1: Brush (direct)
-                int brushDirect = deformer.AddLayer("Brush Direct", MeshDeformerLayerType.Brush);
-                deformer.ActiveLayerIndex = brushDirect;
+                // Layer 1: Brush
+                int brushLayer = deformer.AddLayer("Brush Layer", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushLayer;
                 deformer.EnsureDisplacementCapacity();
                 var brushDisp = new Vector3(0.05f, 0f, 0f);
                 deformer.SetDisplacement(0, brushDisp);
 
-                // Layer 2: Brush (BlendShape output)
-                int brushBS = deformer.AddLayer("Brush BS", MeshDeformerLayerType.Brush);
-                deformer.ActiveLayerIndex = brushBS;
-                deformer.EnsureDisplacementCapacity();
-                var bsDisp = new Vector3(0f, 0f, 0.1f);
-                deformer.SetDisplacement(0, bsDisp);
-                deformer.Layers[brushBS].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                // Component-level BlendShape output — all layers combine
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "CombinedAll";
 
                 ReleaseRuntimeMesh(deformer);
                 var runtimeMesh = deformer.Deform(false);
 
-                // Vertex should have lattice + direct brush, but NOT BS brush
                 var sourceVertices = deformer.SourceMesh.vertices;
                 var deformedVertices = runtimeMesh.vertices;
 
-                // BS layer displacement should NOT be in vertex data
-                // (only lattice delta and direct brush should contribute)
-                float zDiff = Mathf.Abs(deformedVertices[0].z - sourceVertices[0].z);
-                Assert.That(zDiff, Is.LessThan(0.05f),
-                    "BlendShape output layer should not modify vertices directly");
+                // Vertices should NOT be directly modified (BlendShape output mode)
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    AssertApproximately(sourceVertices[i], deformedVertices[i], 2e-3f);
+                }
 
-                // BS layer should appear as BlendShape frame
+                // All layers should combine into a single BlendShape frame
                 int bsShapeIndex = runtimeMesh.blendShapeCount - 1;
                 var frameDeltas = new Vector3[vertexCount];
-                runtimeMesh.GetBlendShapeFrameVertices(bsShapeIndex, 0, frameDeltas, null, null);
-                AssertApproximately(bsDisp, frameDeltas[0], 2e-3f);
+                int bsFrameCount = runtimeMesh.GetBlendShapeFrameCount(bsShapeIndex);
+                runtimeMesh.GetBlendShapeFrameVertices(bsShapeIndex, bsFrameCount - 1, frameDeltas, null, null);
+
+                // At least vertex 0 should have non-zero delta from the combined lattice + brush
+                bool anyNonZero = false;
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    if (frameDeltas[i].sqrMagnitude > Epsilon * Epsilon)
+                    {
+                        anyNonZero = true;
+                        break;
+                    }
+                }
+
+                Assert.That(anyNonZero, Is.True,
+                    "Combined BlendShape should have non-zero deltas from lattice and brush layers");
             }
             finally
             {
                 fixture.Dispose();
+            }
+        }
+
+        // ========================================================================
+        // BlendShape Test Mode
+        // ========================================================================
+
+        [Test]
+        public void BlendShapeTestMode_DeformTrue_AssignsMeshToSMR()
+        {
+            var fixture = CreateSkinnedFixture("BlendShapeTestMode_DeformTrue_AssignsMeshToSMR");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var smr = deformer.GetComponent<SkinnedMeshRenderer>();
+                var originalMesh = smr.sharedMesh;
+
+                // Add brush deformation
+                int brushIdx = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushIdx;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
+
+                // Enable BlendShape output
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "TestBS";
+
+                // Simulate entering test mode: Deform(true)
+                deformer.InvalidateCache();
+                deformer.Deform(true);
+
+                // SMR should now have the runtime mesh with BlendShape
+                Assert.That(smr.sharedMesh, Is.Not.SameAs(originalMesh));
+                Assert.That(smr.sharedMesh.GetBlendShapeIndex("TestBS"), Is.GreaterThanOrEqualTo(0));
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BlendShapeTestMode_SetWeight_AffectsRenderer()
+        {
+            var fixture = CreateSkinnedFixture("BlendShapeTestMode_SetWeight_AffectsRenderer");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var smr = deformer.GetComponent<SkinnedMeshRenderer>();
+
+                // Add brush deformation
+                int brushIdx = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushIdx;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.2f, 0f, 0f));
+
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "WeightTest";
+
+                deformer.InvalidateCache();
+                deformer.Deform(true);
+
+                int shapeIndex = smr.sharedMesh.GetBlendShapeIndex("WeightTest");
+                Assert.That(shapeIndex, Is.GreaterThanOrEqualTo(0));
+
+                // Set weight and verify it sticks
+                smr.SetBlendShapeWeight(shapeIndex, 50f);
+                Assert.That(smr.GetBlendShapeWeight(shapeIndex), Is.EqualTo(50f).Within(0.01f));
+
+                smr.SetBlendShapeWeight(shapeIndex, 100f);
+                Assert.That(smr.GetBlendShapeWeight(shapeIndex), Is.EqualTo(100f).Within(0.01f));
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BlendShapeTestMode_ExitRestoresMesh()
+        {
+            var fixture = CreateSkinnedFixture("BlendShapeTestMode_ExitRestoresMesh");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var smr = deformer.GetComponent<SkinnedMeshRenderer>();
+                var originalMesh = smr.sharedMesh;
+
+                int brushIdx = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushIdx;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
+
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "RestoreTest";
+
+                // Enter test mode
+                deformer.InvalidateCache();
+                deformer.Deform(true);
+                Assert.That(smr.sharedMesh, Is.Not.SameAs(originalMesh));
+
+                // Exit: restore original mesh
+                smr.sharedMesh = originalMesh;
+                Assert.That(smr.sharedMesh, Is.SameAs(originalMesh));
+                Assert.That(smr.sharedMesh.GetBlendShapeIndex("RestoreTest"), Is.EqualTo(-1));
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BlendShapeTestMode_CurveAffectsFrames()
+        {
+            var fixture = CreateSkinnedFixture("BlendShapeTestMode_CurveAffectsFrames");
+            try
+            {
+                var deformer = fixture.Deformer;
+
+                int brushIdx = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushIdx;
+                deformer.EnsureDisplacementCapacity();
+                var disp = new Vector3(1f, 0f, 0f);
+                deformer.SetDisplacement(0, disp);
+
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "CurveTest";
+
+                // Ease-in curve: slow start, fast end
+                deformer.BlendShapeCurve = new AnimationCurve(
+                    new Keyframe(0f, 0f, 0f, 0f),
+                    new Keyframe(1f, 1f, 2f, 2f));
+
+                ReleaseRuntimeMesh(deformer);
+                var mesh = deformer.Deform(false);
+                Assert.That(mesh, Is.Not.Null);
+
+                int shapeIndex = mesh.GetBlendShapeIndex("CurveTest");
+                Assert.That(shapeIndex, Is.GreaterThanOrEqualTo(0));
+
+                // Should have 100 frames
+                Assert.That(mesh.GetBlendShapeFrameCount(shapeIndex), Is.EqualTo(100));
+
+                // Midpoint frame (frame 49, weight=50%) with ease-in should have
+                // a delta smaller than linear 0.5
+                int vertexCount = mesh.vertexCount;
+                var midDeltas = new Vector3[vertexCount];
+                mesh.GetBlendShapeFrameVertices(shapeIndex, 49, midDeltas, new Vector3[vertexCount], new Vector3[vertexCount]);
+
+                // Ease-in at t=0.5 should produce a value < 0.5
+                float midMagnitude = midDeltas[0].magnitude;
+                float fullMagnitude = disp.magnitude;
+                Assert.That(midMagnitude, Is.LessThan(fullMagnitude * 0.5f),
+                    "Ease-in curve at midpoint should produce less than 50% deformation");
+
+                // Last frame should have ~full delta
+                var lastDeltas = new Vector3[vertexCount];
+                mesh.GetBlendShapeFrameVertices(shapeIndex, 99, lastDeltas, new Vector3[vertexCount], new Vector3[vertexCount]);
+                AssertApproximately(disp, lastDeltas[0], 0.01f);
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BlendShapeTestMode_LinearCurve_ProducesLinearFrames()
+        {
+            var fixture = CreateSkinnedFixture("BlendShapeTestMode_LinearCurve_ProducesLinearFrames");
+            try
+            {
+                var deformer = fixture.Deformer;
+
+                int brushIdx = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushIdx;
+                deformer.EnsureDisplacementCapacity();
+                var disp = new Vector3(1f, 0f, 0f);
+                deformer.SetDisplacement(0, disp);
+
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "LinearTest";
+                deformer.BlendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+
+                ReleaseRuntimeMesh(deformer);
+                var mesh = deformer.Deform(false);
+                Assert.That(mesh, Is.Not.Null);
+
+                int shapeIndex = mesh.GetBlendShapeIndex("LinearTest");
+
+                // Check that midpoint frame has ~50% of full delta (linear)
+                int vertexCount = mesh.vertexCount;
+                var midDeltas = new Vector3[vertexCount];
+                mesh.GetBlendShapeFrameVertices(shapeIndex, 49, midDeltas, new Vector3[vertexCount], new Vector3[vertexCount]);
+
+                var expected = disp * 0.5f;
+                AssertApproximately(expected, midDeltas[0], 0.01f);
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BlendShapeTestMode_ExitPreservesPreExistingWeights()
+        {
+            // Source mesh with a pre-existing BlendShape
+            var root = new GameObject("BlendShapeTestMode_ExitPreservesPreExistingWeights");
+            try
+            {
+                var smr = root.AddComponent<SkinnedMeshRenderer>();
+                var sourceMesh = CreateRuntimeCubeMesh();
+                sourceMesh.bindposes = new[] { Matrix4x4.identity };
+                var bw = new BoneWeight { boneIndex0 = 0, weight0 = 1f };
+                var boneWeights = new BoneWeight[sourceMesh.vertexCount];
+                for (int i = 0; i < boneWeights.Length; i++) boneWeights[i] = bw;
+                sourceMesh.boneWeights = boneWeights;
+
+                // Add a pre-existing BlendShape to the source mesh
+                var preExistingDelta = new Vector3[sourceMesh.vertexCount];
+                preExistingDelta[0] = new Vector3(0f, 1f, 0f);
+                sourceMesh.AddBlendShapeFrame("Smile", 100f, preExistingDelta, null, null);
+
+                smr.sharedMesh = sourceMesh;
+                smr.bones = new[] { root.transform };
+
+                // Set a weight on the pre-existing BlendShape
+                int smileIndex = sourceMesh.GetBlendShapeIndex("Smile");
+                smr.SetBlendShapeWeight(smileIndex, 75f);
+
+                var deformer = root.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                deformer.Deform(false);
+
+                // Add brush deformation + enable BS output
+                int brushIdx = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushIdx;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "TestBS";
+
+                // --- Enter test mode ---
+                var preTestMesh = smr.sharedMesh;
+                deformer.InvalidateCache();
+                deformer.Deform(true);
+
+                // Runtime mesh should have both "Smile" and "TestBS"
+                var runtimeMesh = smr.sharedMesh;
+                Assert.That(runtimeMesh, Is.Not.SameAs(preTestMesh));
+                int testShapeIdx = runtimeMesh.GetBlendShapeIndex("TestBS");
+                Assert.That(testShapeIdx, Is.GreaterThanOrEqualTo(0));
+                smr.SetBlendShapeWeight(testShapeIdx, 50f);
+
+                // --- Exit test mode: restore only the mesh ---
+                smr.sharedMesh = preTestMesh;
+
+                // Pre-existing BlendShape should still be there
+                Assert.That(smr.sharedMesh.GetBlendShapeIndex("Smile"), Is.GreaterThanOrEqualTo(0));
+                // Test BlendShape should be gone (only exists on runtime mesh)
+                Assert.That(smr.sharedMesh.GetBlendShapeIndex("TestBS"), Is.EqualTo(-1));
+                // Pre-existing weight should be preserved
+                Assert.That(smr.GetBlendShapeWeight(smileIndex), Is.EqualTo(75f).Within(0.01f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void BlendShapeTestMode_ExitPreservesDeformerChanges()
+        {
+            var fixture = CreateSkinnedFixture("BlendShapeTestMode_ExitPreservesDeformerChanges");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var smr = deformer.GetComponent<SkinnedMeshRenderer>();
+
+                int brushIdx = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushIdx;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "Original";
+
+                // --- Enter test mode ---
+                var preTestMesh = smr.sharedMesh;
+                deformer.InvalidateCache();
+                deformer.Deform(true);
+
+                // During test mode, change deformer settings
+                deformer.BlendShapeName = "Renamed";
+                deformer.BlendShapeCurve = new AnimationCurve(
+                    new Keyframe(0f, 0f), new Keyframe(1f, 0.5f));
+                deformer.SetDisplacement(1, new Vector3(0f, 0.2f, 0f));
+
+                // --- Exit test mode: restore mesh only ---
+                smr.sharedMesh = preTestMesh;
+
+                // Deformer changes should be preserved
+                Assert.That(deformer.BlendShapeName, Is.EqualTo("Renamed"));
+                Assert.That(deformer.BlendShapeCurve.Evaluate(1f), Is.EqualTo(0.5f).Within(0.01f));
+                Assert.That(deformer.Layers[brushIdx].GetBrushDisplacement(1),
+                    Is.EqualTo(new Vector3(0f, 0.2f, 0f)));
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BlendShapeTestMode_OnlyMeshIsReverted()
+        {
+            var fixture = CreateSkinnedFixture("BlendShapeTestMode_OnlyMeshIsReverted");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var smr = deformer.GetComponent<SkinnedMeshRenderer>();
+
+                int brushIdx = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushIdx;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.5f, 0f, 0f));
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "RevertTest";
+
+                // Record initial state
+                var originalMesh = smr.sharedMesh;
+                bool originalEnabled = smr.enabled;
+                var originalBounds = smr.localBounds;
+
+                // --- Enter test mode ---
+                deformer.InvalidateCache();
+                deformer.Deform(true);
+                Assert.That(smr.sharedMesh, Is.Not.SameAs(originalMesh), "Mesh should change during test mode");
+
+                // --- Exit test mode ---
+                smr.sharedMesh = originalMesh;
+
+                // Only mesh should be reverted
+                Assert.That(smr.sharedMesh, Is.SameAs(originalMesh), "Mesh should be restored");
+                Assert.That(smr.enabled, Is.EqualTo(originalEnabled), "Enabled state should not change");
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BlendShapeTestMode_MultipleEnterExitCycles_NoStateLeak()
+        {
+            var fixture = CreateSkinnedFixture("BlendShapeTestMode_MultipleEnterExitCycles_NoStateLeak");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var smr = deformer.GetComponent<SkinnedMeshRenderer>();
+                var originalMesh = smr.sharedMesh;
+
+                int brushIdx = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushIdx;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.1f, 0f, 0f));
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "CycleTest";
+
+                for (int cycle = 0; cycle < 5; cycle++)
+                {
+                    // Enter
+                    deformer.InvalidateCache();
+                    deformer.Deform(true);
+                    var runtimeMesh = smr.sharedMesh;
+                    Assert.That(runtimeMesh, Is.Not.SameAs(originalMesh),
+                        $"Cycle {cycle}: mesh should change on enter");
+                    int idx = runtimeMesh.GetBlendShapeIndex("CycleTest");
+                    Assert.That(idx, Is.GreaterThanOrEqualTo(0),
+                        $"Cycle {cycle}: BlendShape should exist");
+                    smr.SetBlendShapeWeight(idx, 80f);
+
+                    // Exit
+                    smr.sharedMesh = originalMesh;
+                    Assert.That(smr.sharedMesh, Is.SameAs(originalMesh),
+                        $"Cycle {cycle}: mesh should restore on exit");
+                }
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BlendShapeTestMode_MultiplePreExistingBlendShapes_AllWeightsPreserved()
+        {
+            var root = new GameObject("BlendShapeTestMode_MultiplePreExistingBlendShapes");
+            try
+            {
+                var smr = root.AddComponent<SkinnedMeshRenderer>();
+                var sourceMesh = CreateRuntimeCubeMesh();
+                sourceMesh.bindposes = new[] { Matrix4x4.identity };
+                var bw = new BoneWeight { boneIndex0 = 0, weight0 = 1f };
+                var boneWeights = new BoneWeight[sourceMesh.vertexCount];
+                for (int i = 0; i < boneWeights.Length; i++) boneWeights[i] = bw;
+                sourceMesh.boneWeights = boneWeights;
+
+                // Add 5 pre-existing BlendShapes with different weights
+                int vertexCount = sourceMesh.vertexCount;
+                string[] names = { "Smile", "Blink", "Angry", "Sad", "Surprised" };
+                float[] weights = { 100f, 50f, 25f, 75f, 10f };
+                for (int s = 0; s < names.Length; s++)
+                {
+                    var delta = new Vector3[vertexCount];
+                    delta[0] = new Vector3(0.01f * (s + 1), 0f, 0f);
+                    sourceMesh.AddBlendShapeFrame(names[s], 100f, delta, null, null);
+                }
+
+                smr.sharedMesh = sourceMesh;
+                smr.bones = new[] { root.transform };
+                for (int s = 0; s < names.Length; s++)
+                {
+                    smr.SetBlendShapeWeight(s, weights[s]);
+                }
+
+                var deformer = root.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                deformer.Deform(false);
+
+                int brushIdx = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushIdx;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.5f, 0f, 0f));
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "TestBS";
+
+                // --- Enter test mode ---
+                var preTestMesh = smr.sharedMesh;
+                deformer.InvalidateCache();
+                deformer.Deform(true);
+
+                // Set test weight
+                var runtimeMesh = smr.sharedMesh;
+                int testIdx = runtimeMesh.GetBlendShapeIndex("TestBS");
+                smr.SetBlendShapeWeight(testIdx, 60f);
+
+                // --- Exit test mode ---
+                smr.sharedMesh = preTestMesh;
+
+                // ALL pre-existing weights should be preserved
+                for (int s = 0; s < names.Length; s++)
+                {
+                    Assert.That(smr.GetBlendShapeWeight(s), Is.EqualTo(weights[s]).Within(0.01f),
+                        $"Weight for '{names[s]}' should be preserved");
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void BlendShapeTestMode_AddLayerDuringTest_SurvivesExit()
+        {
+            var fixture = CreateSkinnedFixture("BlendShapeTestMode_AddLayerDuringTest_SurvivesExit");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var smr = deformer.GetComponent<SkinnedMeshRenderer>();
+
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "AddLayerTest";
+
+                int initialLayerCount = deformer.Layers.Count;
+
+                // --- Enter test mode ---
+                var preTestMesh = smr.sharedMesh;
+                deformer.InvalidateCache();
+                deformer.Deform(true);
+
+                // During test mode, add a new layer and edit it
+                int newBrush = deformer.AddLayer("AddedDuringTest", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = newBrush;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0f, 0.3f, 0f));
+                deformer.Layers[newBrush].Weight = 0.6f;
+
+                // --- Exit test mode ---
+                smr.sharedMesh = preTestMesh;
+
+                // Layer added during test mode should survive
+                Assert.That(deformer.Layers.Count, Is.EqualTo(initialLayerCount + 1));
+                Assert.That(deformer.Layers[newBrush].Name, Is.EqualTo("AddedDuringTest"));
+                Assert.That(deformer.Layers[newBrush].Weight, Is.EqualTo(0.6f).Within(Epsilon));
+                AssertApproximately(new Vector3(0f, 0.3f, 0f),
+                    deformer.Layers[newBrush].GetBrushDisplacement(0), Epsilon);
+
+                // Deform should still work with the new layer
+                ReleaseRuntimeMesh(deformer);
+                deformer.BlendShapeOutput = BlendShapeOutputMode.Disabled;
+                var result = deformer.Deform(false);
+                Assert.That(result, Is.Not.Null);
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BlendShapeTestMode_ChangeCurveDuringTest_ThenReDeform_Correct()
+        {
+            var fixture = CreateSkinnedFixture("BlendShapeTestMode_ChangeCurveDuringTest_ThenReDeform_Correct");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var smr = deformer.GetComponent<SkinnedMeshRenderer>();
+
+                int brushIdx = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushIdx;
+                deformer.EnsureDisplacementCapacity();
+                var disp = new Vector3(1f, 0f, 0f);
+                deformer.SetDisplacement(0, disp);
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "CurveChange";
+
+                // --- Enter with linear curve ---
+                deformer.BlendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+                deformer.InvalidateCache();
+                deformer.Deform(true);
+
+                var runtimeMesh = smr.sharedMesh;
+                int shapeIdx = runtimeMesh.GetBlendShapeIndex("CurveChange");
+                int vertexCount = runtimeMesh.vertexCount;
+
+                // Read midpoint: linear should be ~0.5
+                var midDeltas1 = new Vector3[vertexCount];
+                runtimeMesh.GetBlendShapeFrameVertices(shapeIdx, 49, midDeltas1,
+                    new Vector3[vertexCount], new Vector3[vertexCount]);
+                float linearMid = midDeltas1[0].x;
+                Assert.That(linearMid, Is.EqualTo(0.5f).Within(0.02f));
+
+                // --- Change curve to ease-in (quadratic) during test mode ---
+                deformer.BlendShapeCurve = new AnimationCurve(
+                    new Keyframe(0f, 0f, 0f, 0f),
+                    new Keyframe(1f, 1f, 2f, 0f));
+                deformer.InvalidateCache();
+                deformer.Deform(true);
+
+                // Re-read midpoint: ease-in at t=0.5 should be < 0.5
+                runtimeMesh = smr.sharedMesh;
+                shapeIdx = runtimeMesh.GetBlendShapeIndex("CurveChange");
+                var midDeltas2 = new Vector3[vertexCount];
+                runtimeMesh.GetBlendShapeFrameVertices(shapeIdx, 49, midDeltas2,
+                    new Vector3[vertexCount], new Vector3[vertexCount]);
+                float easeInMid = midDeltas2[0].x;
+                Assert.That(easeInMid, Is.LessThan(linearMid),
+                    "Ease-in curve at midpoint should produce less than linear");
+
+                // Last frame should still be full delta regardless of curve
+                int lastFrame = runtimeMesh.GetBlendShapeFrameCount(shapeIdx) - 1;
+                var lastDeltas = new Vector3[vertexCount];
+                runtimeMesh.GetBlendShapeFrameVertices(shapeIdx, lastFrame, lastDeltas,
+                    new Vector3[vertexCount], new Vector3[vertexCount]);
+                AssertApproximately(disp, lastDeltas[0], 0.01f);
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BlendShapeTestMode_ToggleOutputModeDuringTest_WorksCorrectly()
+        {
+            var fixture = CreateSkinnedFixture("BlendShapeTestMode_ToggleOutputModeDuringTest");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var smr = deformer.GetComponent<SkinnedMeshRenderer>();
+
+                int brushIdx = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushIdx;
+                deformer.EnsureDisplacementCapacity();
+                var disp = new Vector3(0.2f, 0f, 0f);
+                deformer.SetDisplacement(0, disp);
+
+                // Start with BS output enabled
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "ToggleTest";
+
+                var preTestMesh = smr.sharedMesh;
+                deformer.InvalidateCache();
+                deformer.Deform(true);
+
+                // Vertices should be at source (BS mode)
+                var sourceVerts = deformer.SourceMesh.vertices;
+                var bsVerts = smr.sharedMesh.vertices;
+                AssertApproximately(sourceVerts[0], bsVerts[0], 1e-3f);
+
+                // Switch to Disabled during test
+                deformer.BlendShapeOutput = BlendShapeOutputMode.Disabled;
+                deformer.InvalidateCache();
+                deformer.Deform(true);
+
+                // Vertices should now be deformed directly
+                var directVerts = smr.sharedMesh.vertices;
+                var expectedDirect = sourceVerts[0] + disp;
+                AssertApproximately(expectedDirect, directVerts[0], 2e-3f);
+
+                // Switch back to BS output
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.InvalidateCache();
+                deformer.Deform(true);
+
+                var bsVerts2 = smr.sharedMesh.vertices;
+                AssertApproximately(sourceVerts[0], bsVerts2[0], 1e-3f);
+
+                // Exit: restore
+                smr.sharedMesh = preTestMesh;
+                Assert.That(smr.sharedMesh, Is.SameAs(preTestMesh));
+                // Output mode change during test should be preserved
+                Assert.That(deformer.BlendShapeOutput, Is.EqualTo(BlendShapeOutputMode.OutputAsBlendShape));
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BlendShapeTestMode_MixedLayerStack_CombinedDeltaCorrect()
+        {
+            var root = new GameObject("BlendShapeTestMode_MixedLayerStack_CombinedDeltaCorrect");
+            try
+            {
+                var smr = root.AddComponent<SkinnedMeshRenderer>();
+                var sourceMesh = CreateRuntimeCubeMesh();
+                sourceMesh.bindposes = new[] { Matrix4x4.identity };
+                var bw = new BoneWeight { boneIndex0 = 0, weight0 = 1f };
+                var boneWeights = new BoneWeight[sourceMesh.vertexCount];
+                for (int i = 0; i < boneWeights.Length; i++) boneWeights[i] = bw;
+                sourceMesh.boneWeights = boneWeights;
+
+                // Pre-existing BlendShape
+                var smileDelta = new Vector3[sourceMesh.vertexCount];
+                smileDelta[0] = new Vector3(0f, 0.5f, 0f);
+                sourceMesh.AddBlendShapeFrame("Smile", 100f, smileDelta, null, null);
+
+                smr.sharedMesh = sourceMesh;
+                smr.bones = new[] { root.transform };
+                smr.SetBlendShapeWeight(0, 40f); // Smile at 40%
+
+                var deformer = root.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                deformer.Deform(false);
+
+                // Layer 1: Brush with mask
+                int brush1 = deformer.AddLayer("BrushMasked", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brush1;
+                deformer.EnsureDisplacementCapacity();
+                var disp1 = new Vector3(0.2f, 0f, 0f);
+                deformer.SetDisplacement(0, disp1);
+                deformer.Layers[brush1].Weight = 0.8f;
+                deformer.Layers[brush1].EnsureVertexMaskCapacity(sourceMesh.vertexCount);
+                deformer.Layers[brush1].SetVertexMask(0, 0.5f); // half masked
+
+                // Layer 2: Brush full weight
+                int brush2 = deformer.AddLayer("BrushFull", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brush2;
+                deformer.EnsureDisplacementCapacity();
+                var disp2 = new Vector3(0f, 0f, 0.3f);
+                deformer.SetDisplacement(0, disp2);
+
+                // Enable BS output
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "MixedStack";
+
+                // --- Enter test mode ---
+                var preTestMesh = smr.sharedMesh;
+                deformer.InvalidateCache();
+                deformer.Deform(true);
+
+                var runtimeMesh = smr.sharedMesh;
+                int mixedIdx = runtimeMesh.GetBlendShapeIndex("MixedStack");
+                Assert.That(mixedIdx, Is.GreaterThanOrEqualTo(0));
+
+                // Check the last frame has the correct combined delta
+                int frameCount = runtimeMesh.GetBlendShapeFrameCount(mixedIdx);
+                var lastDeltas = new Vector3[runtimeMesh.vertexCount];
+                runtimeMesh.GetBlendShapeFrameVertices(mixedIdx, frameCount - 1, lastDeltas,
+                    new Vector3[runtimeMesh.vertexCount], new Vector3[runtimeMesh.vertexCount]);
+
+                // Expected: brush1 contribution = disp1 * weight(0.8) * mask(0.5) = (0.08, 0, 0)
+                //           brush2 contribution = disp2 * weight(1.0) * mask(1.0) = (0, 0, 0.3)
+                //           combined = (0.08, 0, 0.3)
+                var expectedDelta = disp1 * 0.8f * 0.5f + disp2;
+                AssertApproximately(expectedDelta, lastDeltas[0], 2e-3f);
+
+                // Pre-existing "Smile" should also be preserved on runtime mesh
+                int smileIdx = runtimeMesh.GetBlendShapeIndex("Smile");
+                Assert.That(smileIdx, Is.GreaterThanOrEqualTo(0));
+
+                // --- Exit ---
+                smr.sharedMesh = preTestMesh;
+
+                // Pre-existing Smile weight should survive
+                Assert.That(smr.GetBlendShapeWeight(0), Is.EqualTo(40f).Within(0.01f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
             }
         }
 
@@ -2178,6 +2911,30 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
             var sourceMesh = CreateRuntimeCubeMesh();
             filter.sharedMesh = sourceMesh;
+
+            var deformer = root.AddComponent<LatticeDeformer>();
+            deformer.Reset();
+            var warmupMesh = deformer.Deform(false);
+            Assert.That(warmupMesh, Is.Not.Null);
+
+            return new TestFixture(root, sourceMesh, deformer);
+        }
+
+        private static TestFixture CreateSkinnedFixture(string name)
+        {
+            var root = new GameObject(name);
+            var smr = root.AddComponent<SkinnedMeshRenderer>();
+
+            var sourceMesh = CreateRuntimeCubeMesh();
+            // SkinnedMeshRenderer needs bindposes and boneWeights for basic setup
+            sourceMesh.bindposes = new[] { Matrix4x4.identity };
+            var bw = new BoneWeight { boneIndex0 = 0, weight0 = 1f };
+            var boneWeights = new BoneWeight[sourceMesh.vertexCount];
+            for (int i = 0; i < boneWeights.Length; i++) boneWeights[i] = bw;
+            sourceMesh.boneWeights = boneWeights;
+
+            smr.sharedMesh = sourceMesh;
+            smr.bones = new[] { root.transform };
 
             var deformer = root.AddComponent<LatticeDeformer>();
             deformer.Reset();
