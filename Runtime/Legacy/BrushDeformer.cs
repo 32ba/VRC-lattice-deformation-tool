@@ -157,6 +157,11 @@ namespace Net._32Ba.LatticeDeformationTool
             RestoreOriginalMesh();
         }
 
+        private void OnDestroy()
+        {
+            ReleaseRuntimeMesh();
+        }
+
         public Mesh Deform(bool assignToRenderer = true)
         {
             CacheSourceMesh();

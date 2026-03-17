@@ -12,7 +12,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         /// <summary>
         /// Finds vertices of the deformed mesh that are inside (penetrating) the reference mesh.
-        /// Uses a simple inside/outside test based on closest surface point and normal direction.
+        /// Uses a simple inside/outside test based on closest vertex and its normal direction.
+        /// Note: This is a vertex-based approximation, not a true closest-surface-point test.
         /// </summary>
         /// <param name="deformedVertices">Vertices of the deformed mesh (local space).</param>
         /// <param name="referenceMesh">The reference mesh to check against.</param>

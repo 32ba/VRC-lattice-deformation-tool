@@ -1475,8 +1475,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 for (int i = 0; i <= 4; i++)
                     hash = hash * 31 + curve.Evaluate(i * 0.25f).GetHashCode();
 
-                int step = Mathf.Max(1, deltas.Length / 32);
-                for (int v = 0; v < deltas.Length; v += step)
+                for (int v = 0; v < deltas.Length; v++)
                     hash = hash * 31 + deltas[v].GetHashCode();
             }
             return hash;
