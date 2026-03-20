@@ -7,514 +7,1015 @@ msgstr ""
 msgid "net.32ba.lattice-deformation-tool.localization.tool-language"
 msgstr "Tool Language"
 
+msgid "net.32ba.lattice-deformation-tool.localization.tool-language.tooltip"
+msgstr "Sets the display language for all tool UI elements."
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-tooltips"
+msgstr "Show Tooltips"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-tooltips.tooltip"
+msgstr "Show helpful descriptions when hovering over UI elements."
+
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer"
 msgstr "Mesh Deformer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer.tooltip"
+msgstr "The main component for non-destructive mesh deformation."
 
 msgid "net.32ba.lattice-deformation-tool.localization.yes"
 msgstr "Yes"
 
+msgid "net.32ba.lattice-deformation-tool.localization.yes.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.no"
 msgstr "No"
+
+msgid "net.32ba.lattice-deformation-tool.localization.no.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.apply"
 msgstr "Apply"
 
+msgid "net.32ba.lattice-deformation-tool.localization.apply.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.revert"
 msgstr "Revert"
+
+msgid "net.32ba.lattice-deformation-tool.localization.revert.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.settings"
 msgstr "Settings"
 
+msgid "net.32ba.lattice-deformation-tool.localization.settings.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.copy"
 msgstr "Copy"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.paste"
 msgstr "Paste"
 
+msgid "net.32ba.lattice-deformation-tool.localization.paste.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.duplicate"
 msgstr "Duplicate"
 
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.select"
 msgstr "Select..."
+
+msgid "net.32ba.lattice-deformation-tool.localization.select.tooltip"
+msgstr ""
 
 # Mesh Source
 msgid "net.32ba.lattice-deformation-tool.localization.skinned-mesh-source"
 msgstr "Skinned Mesh Source"
 
+msgid "net.32ba.lattice-deformation-tool.localization.skinned-mesh-source.tooltip"
+msgstr "Sets the SkinnedMeshRenderer to deform."
+
 msgid "net.32ba.lattice-deformation-tool.localization.static-mesh-source"
 msgstr "Static Mesh Source"
+
+msgid "net.32ba.lattice-deformation-tool.localization.static-mesh-source.tooltip"
+msgstr "Sets the MeshFilter to deform."
 
 # Groups & Layers
 msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups"
 msgstr "Deformation Groups"
 
+msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups.tooltip"
+msgstr "Organize changes into separate groups that can each output as its own effect."
+
 msgid "net.32ba.lattice-deformation-tool.localization.layers"
 msgstr "Layers"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layers.tooltip"
+msgstr "Lists all deformation layers in the active group."
 
 msgid "net.32ba.lattice-deformation-tool.localization.add-lattice-layer"
 msgstr "Add Lattice Layer"
 
+msgid "net.32ba.lattice-deformation-tool.localization.add-lattice-layer.tooltip"
+msgstr "Create a cage layer. Drag cage corners to deform the mesh."
+
 msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer"
 msgstr "Add Brush Layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer.tooltip"
+msgstr "Create a paint layer. Paint on the mesh with a brush to reshape areas."
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer"
 msgstr "Active Layer"
 
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer.tooltip"
+msgstr "Selects which layer is currently being edited."
+
 msgid "net.32ba.lattice-deformation-tool.localization.duplicate-layer"
 msgstr "Duplicate Layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate-layer.tooltip"
+msgstr "Creates a copy of the selected layer with all its data."
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy-layer"
 msgstr "Copy Layer"
 
+msgid "net.32ba.lattice-deformation-tool.localization.copy-layer.tooltip"
+msgstr "Copies the selected layer to the clipboard for pasting."
+
 msgid "net.32ba.lattice-deformation-tool.localization.paste-layer"
 msgstr "Paste Layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.paste-layer.tooltip"
+msgstr "Inserts a previously copied layer into the active group."
 
 msgid "net.32ba.lattice-deformation-tool.localization.delete-layer"
 msgstr "Delete Layer"
 
+msgid "net.32ba.lattice-deformation-tool.localization.delete-layer.tooltip"
+msgstr "Removes the selected layer from the group."
+
 msgid "net.32ba.lattice-deformation-tool.localization.duplicate-group"
 msgstr "Duplicate Group"
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate-group.tooltip"
+msgstr "Creates a copy of the selected group with all its layers."
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy-group"
 msgstr "Copy Group"
 
+msgid "net.32ba.lattice-deformation-tool.localization.copy-group.tooltip"
+msgstr "Copies the selected group to the clipboard for pasting."
+
 msgid "net.32ba.lattice-deformation-tool.localization.paste-group"
 msgstr "Paste Group"
+
+msgid "net.32ba.lattice-deformation-tool.localization.paste-group.tooltip"
+msgstr "Inserts a previously copied group into the deformer."
 
 msgid "net.32ba.lattice-deformation-tool.localization.delete-group"
 msgstr "Delete Group"
 
+msgid "net.32ba.lattice-deformation-tool.localization.delete-group.tooltip"
+msgstr "Removes the selected group and all its layers."
+
 msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer"
 msgstr "Reset Active Layer"
 
+msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer.tooltip"
+msgstr "Clears all deformation data in the active layer."
+
 msgid "net.32ba.lattice-deformation-tool.localization.no-deformation-layers"
 msgstr "No deformation layers are available."
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-deformation-layers.tooltip"
+msgstr "Add a lattice or brush layer to begin editing."
 
 # L/R Operations
 msgid "net.32ba.lattice-deformation-tool.localization.lr-operations"
 msgstr "L/R Operations"
 
+msgid "net.32ba.lattice-deformation-tool.localization.lr-operations.tooltip"
+msgstr "Tools for splitting and mirroring deformation by axis."
+
 msgid "net.32ba.lattice-deformation-tool.localization.split-l"
 msgstr "Split L"
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-l.tooltip"
+msgstr "Keeps only the left-side deformation, zeroing the right."
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-r"
 msgstr "Split R"
 
+msgid "net.32ba.lattice-deformation-tool.localization.split-r.tooltip"
+msgstr "Keeps only the right-side deformation, zeroing the left."
+
 msgid "net.32ba.lattice-deformation-tool.localization.split-layer-left"
 msgstr "Split Layer Left"
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-layer-left.tooltip"
+msgstr "Zeroes all deformation on the positive-X side of the layer."
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-layer-right"
 msgstr "Split Layer Right"
 
+msgid "net.32ba.lattice-deformation-tool.localization.split-layer-right.tooltip"
+msgstr "Zeroes all deformation on the negative-X side of the layer."
+
 msgid "net.32ba.lattice-deformation-tool.localization.flip-x"
 msgstr "Flip X"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-x.tooltip"
+msgstr "Mirrors all deformation data across the X axis."
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-y"
 msgstr "Flip Y"
 
+msgid "net.32ba.lattice-deformation-tool.localization.flip-y.tooltip"
+msgstr "Mirrors all deformation data across the Y axis."
+
 msgid "net.32ba.lattice-deformation-tool.localization.flip-z"
 msgstr "Flip Z"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-z.tooltip"
+msgstr "Mirrors all deformation data across the Z axis."
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-x"
 msgstr "Flip Layer X"
 
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-x.tooltip"
+msgstr "Swaps deformation between mirrored vertex pairs on X."
+
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-y"
 msgstr "Flip Layer Y"
 
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-y.tooltip"
+msgstr "Swaps deformation between mirrored vertex pairs on Y."
+
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-z"
 msgstr "Flip Layer Z"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-z.tooltip"
+msgstr "Swaps deformation between mirrored vertex pairs on Z."
 
 # Lattice Tool
 msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool"
 msgstr "Lattice Tool"
 
+msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool.tooltip"
+msgstr "Activates the lattice cage editor in the Scene view."
+
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-lattice"
 msgstr "Active layer is not a Lattice layer."
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-lattice.tooltip"
+msgstr "Switch to a lattice layer to use lattice editing tools."
 
 msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls"
 msgstr "Move Lattice Controls"
 
+msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls.tooltip"
+msgstr "Drag control points to deform the mesh through the cage."
+
 msgid "net.32ba.lattice-deformation-tool.localization.reset-lattice-cage"
 msgstr "Reset Lattice Cage"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-lattice-cage.tooltip"
+msgstr "Returns all control points to their default positions."
 
 msgid "net.32ba.lattice-deformation-tool.localization.control-point-scope"
 msgstr "Control Point Scope"
 
+msgid "net.32ba.lattice-deformation-tool.localization.control-point-scope.tooltip"
+msgstr "Filters which control points are displayed and selectable."
+
 msgid "net.32ba.lattice-deformation-tool.localization.all-controls"
 msgstr "All Controls"
+
+msgid "net.32ba.lattice-deformation-tool.localization.all-controls.tooltip"
+msgstr "Shows all control points including interior ones."
 
 msgid "net.32ba.lattice-deformation-tool.localization.boundary-only"
 msgstr "Boundary Only"
 
+msgid "net.32ba.lattice-deformation-tool.localization.boundary-only.tooltip"
+msgstr "Shows only control points on the outer faces of the cage."
+
 msgid "net.32ba.lattice-deformation-tool.localization.keep-control-points-visible"
 msgstr "Keep control points visible through objects"
+
+msgid "net.32ba.lattice-deformation-tool.localization.keep-control-points-visible.tooltip"
+msgstr "Renders control points on top of scene geometry."
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-control-ids"
 msgstr "Show Control IDs"
 
+msgid "net.32ba.lattice-deformation-tool.localization.show-control-ids.tooltip"
+msgstr "Displays the index number next to each control point."
+
 msgid "net.32ba.lattice-deformation-tool.localization.handle-orientation"
 msgstr "Handle Orientation"
+
+msgid "net.32ba.lattice-deformation-tool.localization.handle-orientation.tooltip"
+msgstr "Sets whether move handles align to local or world space."
 
 msgid "net.32ba.lattice-deformation-tool.localization.local"
 msgstr "Local"
 
+msgid "net.32ba.lattice-deformation-tool.localization.local.tooltip"
+msgstr "Aligns handles to the object's local coordinate space."
+
 msgid "net.32ba.lattice-deformation-tool.localization.global"
 msgstr "Global"
+
+msgid "net.32ba.lattice-deformation-tool.localization.global.tooltip"
+msgstr "Aligns handles to the world coordinate space."
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-symmetry-editing"
 msgstr "Enable Symmetry Editing"
 
+msgid "net.32ba.lattice-deformation-tool.localization.enable-symmetry-editing.tooltip"
+msgstr "Enables mirrored editing of control points across an axis."
+
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-axis"
 msgstr "Symmetry Axis"
+
+msgid "net.32ba.lattice-deformation-tool.localization.symmetry-axis.tooltip"
+msgstr "Sets the axis used for symmetric control point editing."
 
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-mode"
 msgstr "Symmetry Mode"
 
+msgid "net.32ba.lattice-deformation-tool.localization.symmetry-mode.tooltip"
+msgstr "Chooses between mirror or antisymmetric reflection."
+
 msgid "net.32ba.lattice-deformation-tool.localization.antisymmetric"
 msgstr "Antisymmetric"
+
+msgid "net.32ba.lattice-deformation-tool.localization.antisymmetric.tooltip"
+msgstr "Mirrors movement but flips the axis component sign."
 
 msgid "net.32ba.lattice-deformation-tool.localization.mirror"
 msgstr "Mirror"
 
+msgid "net.32ba.lattice-deformation-tool.localization.mirror.tooltip"
+msgstr "Copies exact movement to the opposite control point."
+
 msgid "net.32ba.lattice-deformation-tool.localization.x"
 msgstr "X"
+
+msgid "net.32ba.lattice-deformation-tool.localization.x.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.y"
 msgstr "Y"
 
+msgid "net.32ba.lattice-deformation-tool.localization.y.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.z"
 msgstr "Z"
+
+msgid "net.32ba.lattice-deformation-tool.localization.z.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.shift-click-hint"
 msgstr "Hold Shift/Ctrl to add/remove controls."
 
+msgid "net.32ba.lattice-deformation-tool.localization.shift-click-hint.tooltip"
+msgstr "Shift adds to selection; Ctrl toggles individual points."
+
 msgid "net.32ba.lattice-deformation-tool.localization.selected-none"
 msgstr "Selected: None"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-none.tooltip"
+msgstr "Click a control point to select it."
 
 msgid "net.32ba.lattice-deformation-tool.localization.selected-format"
 msgstr "Selected: {0}"
 
+msgid "net.32ba.lattice-deformation-tool.localization.selected-format.tooltip"
+msgstr "Shows the currently selected control point."
+
 msgid "net.32ba.lattice-deformation-tool.localization.selected-controls-format"
 msgstr "Selected: {0} controls"
 
+msgid "net.32ba.lattice-deformation-tool.localization.selected-controls-format.tooltip"
+msgstr "Shows how many control points are selected."
+
 msgid "net.32ba.lattice-deformation-tool.localization.global-space-disabled"
 msgstr "Global-space editing disabled"
+
+msgid "net.32ba.lattice-deformation-tool.localization.global-space-disabled.tooltip"
+msgstr "Global-space editing is unavailable with multiple selections."
 
 # Lattice Grid
 msgid "net.32ba.lattice-deformation-tool.localization.current-grid-divisions"
 msgstr "Current Grid Divisions"
 
+msgid "net.32ba.lattice-deformation-tool.localization.current-grid-divisions.tooltip"
+msgstr "Shows the current number of subdivisions on each axis."
+
 msgid "net.32ba.lattice-deformation-tool.localization.pending-grid-divisions"
 msgstr "Pending Grid Divisions"
+
+msgid "net.32ba.lattice-deformation-tool.localization.pending-grid-divisions.tooltip"
+msgstr "Sets new subdivision counts to apply to the lattice grid."
 
 msgid "net.32ba.lattice-deformation-tool.localization.change-lattice-divisions"
 msgstr "Change Lattice Divisions"
 
+msgid "net.32ba.lattice-deformation-tool.localization.change-lattice-divisions.tooltip"
+msgstr "Applies the pending division values and rebuilds the grid."
+
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected"
 msgstr "No Lattice Deformer selected."
 
+msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected.tooltip"
+msgstr "Select a GameObject with a Mesh Deformer component."
+
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-asset-assigned"
 msgstr "No Lattice Asset assigned to this deformer."
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-asset-assigned.tooltip"
+msgstr "Assign a mesh source to begin using the deformer."
 
 # Brush Tool
 msgid "net.32ba.lattice-deformation-tool.localization.brush-tool"
 msgstr "Brush Tool"
 
+msgid "net.32ba.lattice-deformation-tool.localization.brush-tool.tooltip"
+msgstr "Activates the brush-based vertex painting editor."
+
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-brush"
 msgstr "Active layer is not a Brush layer."
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-brush.tooltip"
+msgstr "Switch to a brush layer to use brush editing tools."
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info"
 msgstr "Brush Layer"
 
+msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info.tooltip"
+msgstr "Paint-based layer. Every brush stroke is saved here."
+
 msgid "net.32ba.lattice-deformation-tool.localization.brush-radius"
 msgstr "Brush Radius"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-radius.tooltip"
+msgstr "Controls the size of the brush area of effect."
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-strength"
 msgstr "Brush Strength"
 
+msgid "net.32ba.lattice-deformation-tool.localization.brush-strength.tooltip"
+msgstr "Controls how much displacement each stroke applies."
+
 msgid "net.32ba.lattice-deformation-tool.localization.brush-falloff"
 msgstr "Brush Falloff"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-falloff.tooltip"
+msgstr "Choose how soft or hard the brush edge is."
 
 msgid "net.32ba.lattice-deformation-tool.localization.normal"
 msgstr "Normal"
 
+msgid "net.32ba.lattice-deformation-tool.localization.normal.tooltip"
+msgstr "Pushes the surface outward (perpendicular to the mesh)."
+
 msgid "net.32ba.lattice-deformation-tool.localization.move"
 msgstr "Move"
+
+msgid "net.32ba.lattice-deformation-tool.localization.move.tooltip"
+msgstr "Move the mesh in the direction you drag on screen."
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-smooth"
 msgstr "Brush Smooth"
 
+msgid "net.32ba.lattice-deformation-tool.localization.brush-smooth.tooltip"
+msgstr "Blend the edges to smooth out sharp changes."
+
 msgid "net.32ba.lattice-deformation-tool.localization.brush-mask"
 msgstr "Brush Mask"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-mask.tooltip"
+msgstr "Mark areas you don't want to change. These stay locked."
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deform"
 msgstr "Brush Deform"
 
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deform.tooltip"
+msgstr "Choose how the brush affects the mesh: push, move, smooth, or lock."
+
 msgid "net.32ba.lattice-deformation-tool.localization.smooth"
 msgstr "Smooth"
+
+msgid "net.32ba.lattice-deformation-tool.localization.smooth.tooltip"
+msgstr "Soft fade from center to edge."
 
 msgid "net.32ba.lattice-deformation-tool.localization.linear"
 msgstr "Linear"
 
+msgid "net.32ba.lattice-deformation-tool.localization.linear.tooltip"
+msgstr "Even fade. Strength decreases steadily from center to edge."
+
 msgid "net.32ba.lattice-deformation-tool.localization.constant"
 msgstr "Constant"
+
+msgid "net.32ba.lattice-deformation-tool.localization.constant.tooltip"
+msgstr "Full strength across the entire brush area. Sharp edge."
 
 msgid "net.32ba.lattice-deformation-tool.localization.sphere"
 msgstr "Sphere"
 
+msgid "net.32ba.lattice-deformation-tool.localization.sphere.tooltip"
+msgstr "Soft edge. Smooth, round fade from center to edge."
+
 msgid "net.32ba.lattice-deformation-tool.localization.gaussian"
 msgstr "Gaussian"
+
+msgid "net.32ba.lattice-deformation-tool.localization.gaussian.tooltip"
+msgstr "Bell-shaped fade. Most natural for organic shaping."
 
 msgid "net.32ba.lattice-deformation-tool.localization.falloff"
 msgstr "Falloff"
 
+msgid "net.32ba.lattice-deformation-tool.localization.falloff.tooltip"
+msgstr "How the brush effect fades from center to edge."
+
 msgid "net.32ba.lattice-deformation-tool.localization.invert"
 msgstr "Invert"
+
+msgid "net.32ba.lattice-deformation-tool.localization.invert.tooltip"
+msgstr "Reverse the brush direction (push in instead of out)."
 
 msgid "net.32ba.lattice-deformation-tool.localization.invert-brush"
 msgstr "Invert Brush"
 
+msgid "net.32ba.lattice-deformation-tool.localization.invert-brush.tooltip"
+msgstr "Switch between push and pull."
+
 msgid "net.32ba.lattice-deformation-tool.localization.enable-mirror"
 msgstr "Enable Mirror"
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-mirror.tooltip"
+msgstr "Paint on both sides at once (mirror mode)."
 
 msgid "net.32ba.lattice-deformation-tool.localization.mirror-axis"
 msgstr "Mirror Axis"
 
+msgid "net.32ba.lattice-deformation-tool.localization.mirror-axis.tooltip"
+msgstr "Choose which axis to mirror: left-right, up-down, or front-back."
+
 msgid "net.32ba.lattice-deformation-tool.localization.surface-distance"
 msgstr "Surface Distance"
+
+msgid "net.32ba.lattice-deformation-tool.localization.surface-distance.tooltip"
+msgstr "Prevent brush effect from leaking through overlapping mesh."
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-all-displacements"
 msgstr "Clear All Displacements"
 
+msgid "net.32ba.lattice-deformation-tool.localization.clear-all-displacements.tooltip"
+msgstr "Erase all changes on all layers."
+
 msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements"
 msgstr "Clear Active Layer Displacements"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements.tooltip"
+msgstr "Erase all changes on the current layer only."
 
 msgid "net.32ba.lattice-deformation-tool.localization.backface-culling"
 msgstr "Backface Culling"
 
+msgid "net.32ba.lattice-deformation-tool.localization.backface-culling.tooltip"
+msgstr "Don't paint on the back side (hidden from camera)."
+
 msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-hint"
 msgstr "Alt+Scroll: Radius / Shift+Scroll: Strength"
+
+msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-hint.tooltip"
+msgstr "Keyboard shortcuts to quickly adjust brush parameters."
 
 msgid "net.32ba.lattice-deformation-tool.localization.mask"
 msgstr "Mask"
 
+msgid "net.32ba.lattice-deformation-tool.localization.mask.tooltip"
+msgstr "Protects painted vertices from further deformation."
+
 msgid "net.32ba.lattice-deformation-tool.localization.clear-mask"
 msgstr "Clear Mask"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-mask.tooltip"
+msgstr "Removes all mask data, making all vertices editable again."
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-all"
 msgstr "Clear All"
 
+msgid "net.32ba.lattice-deformation-tool.localization.clear-all.tooltip"
+msgstr "Removes all displacements and masks from the active layer."
+
 msgid "net.32ba.lattice-deformation-tool.localization.visualization"
 msgstr "Visualization"
+
+msgid "net.32ba.lattice-deformation-tool.localization.visualization.tooltip"
+msgstr "Options for displaying editing feedback in the Scene view."
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices"
 msgstr "Show Affected Vertices"
 
+msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices.tooltip"
+msgstr "Highlight the area the brush will affect."
+
 msgid "net.32ba.lattice-deformation-tool.localization.show-displacement-heatmap"
 msgstr "Show Displacement Heatmap"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-displacement-heatmap.tooltip"
+msgstr "Color the mesh to show how much you've changed each area."
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-penetration"
 msgstr "Show Penetration"
 
+msgid "net.32ba.lattice-deformation-tool.localization.show-penetration.tooltip"
+msgstr "Highlight areas poking through the original mesh."
+
 msgid "net.32ba.lattice-deformation-tool.localization.reference-mesh"
 msgstr "Reference Mesh"
 
+msgid "net.32ba.lattice-deformation-tool.localization.reference-mesh.tooltip"
+msgstr "Sets the mesh used for penetration detection checks."
+
 msgid "net.32ba.lattice-deformation-tool.localization.dot-size"
 msgstr "Dot Size"
+
+msgid "net.32ba.lattice-deformation-tool.localization.dot-size.tooltip"
+msgstr "Controls the display size of vertex indicator dots."
 
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "Vertex Tool"
 
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool.tooltip"
+msgstr "Activates the vertex selection and transform editor."
+
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection"
 msgstr "Vertex Selection"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection.tooltip"
+msgstr "Click to pick vertices. Drag to select a group."
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-move"
 msgstr "Vertex Move"
 
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-move.tooltip"
+msgstr "Move selected vertices with a handle."
+
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-rotate"
 msgstr "Vertex Rotate"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-rotate.tooltip"
+msgstr "Spin selected vertices around a center point."
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-scale"
 msgstr "Vertex Scale"
 
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-scale.tooltip"
+msgstr "Resize selected vertices larger or smaller."
+
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-transform"
 msgstr "Vertex Transform"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-transform.tooltip"
+msgstr "Move, rotate, or resize the selected vertices."
 
 msgid "net.32ba.lattice-deformation-tool.localization.transform-mode"
 msgstr "Transform Mode"
 
+msgid "net.32ba.lattice-deformation-tool.localization.transform-mode.tooltip"
+msgstr "Switches between Move, Rotate, and Scale operations."
+
 msgid "net.32ba.lattice-deformation-tool.localization.rotate"
 msgstr "Rotate"
+
+msgid "net.32ba.lattice-deformation-tool.localization.rotate.tooltip"
+msgstr "Enables rotation mode for selected vertices."
 
 msgid "net.32ba.lattice-deformation-tool.localization.scale"
 msgstr "Scale"
 
+msgid "net.32ba.lattice-deformation-tool.localization.scale.tooltip"
+msgstr "Enables scaling mode for selected vertices."
+
 msgid "net.32ba.lattice-deformation-tool.localization.select-all"
 msgstr "Select All"
+
+msgid "net.32ba.lattice-deformation-tool.localization.select-all.tooltip"
+msgstr "Selects every vertex in the active brush layer."
 
 msgid "net.32ba.lattice-deformation-tool.localization.select-none"
 msgstr "Select None"
 
+msgid "net.32ba.lattice-deformation-tool.localization.select-none.tooltip"
+msgstr "Deselects all currently selected vertices."
+
 msgid "net.32ba.lattice-deformation-tool.localization.clear-selection"
 msgstr "Clear Selection"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-selection.tooltip"
+msgstr "Removes all vertices from the current selection."
 
 msgid "net.32ba.lattice-deformation-tool.localization.connected-only"
 msgstr "Connected Only"
 
+msgid "net.32ba.lattice-deformation-tool.localization.connected-only.tooltip"
+msgstr "Limits rectangle selection to mesh-connected vertices only."
+
 msgid "net.32ba.lattice-deformation-tool.localization.reset-selected-vertices"
 msgstr "Reset Selected Vertices"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-selected-vertices.tooltip"
+msgstr "Clears displacement data for selected vertices only."
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-all-vertices"
 msgstr "Reset All Vertices"
 
+msgid "net.32ba.lattice-deformation-tool.localization.reset-all-vertices.tooltip"
+msgstr "Clears displacement data for all vertices in the layer."
+
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-editing"
 msgstr "Proportional Editing"
+
+msgid "net.32ba.lattice-deformation-tool.localization.proportional-editing.tooltip"
+msgstr "Nearby unselected vertices are also affected with softer influence."
 
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-radius"
 msgstr "Proportional Radius"
 
+msgid "net.32ba.lattice-deformation-tool.localization.proportional-radius.tooltip"
+msgstr "How far the influence spreads to nearby vertices."
+
 msgid "net.32ba.lattice-deformation-tool.localization.pivot"
 msgstr "Pivot"
+
+msgid "net.32ba.lattice-deformation-tool.localization.pivot.tooltip"
+msgstr "Sets the reference point for rotate and scale operations."
 
 msgid "net.32ba.lattice-deformation-tool.localization.center"
 msgstr "Center"
 
+msgid "net.32ba.lattice-deformation-tool.localization.center.tooltip"
+msgstr "Uses the average position of selected vertices as pivot."
+
 msgid "net.32ba.lattice-deformation-tool.localization.last-selected"
 msgstr "Last Selected"
+
+msgid "net.32ba.lattice-deformation-tool.localization.last-selected.tooltip"
+msgstr "Uses the most recently selected vertex as pivot."
 
 msgid "net.32ba.lattice-deformation-tool.localization.selected-vertices-format"
 msgstr "Selected: {0} vertices"
 
+msgid "net.32ba.lattice-deformation-tool.localization.selected-vertices-format.tooltip"
+msgstr "Shows how many vertices are currently selected."
+
 msgid "net.32ba.lattice-deformation-tool.localization.wer-hint"
 msgstr "W/E/R: Move/Rotate/Scale"
+
+msgid "net.32ba.lattice-deformation-tool.localization.wer-hint.tooltip"
+msgstr "Keyboard shortcuts to switch transform modes."
 
 msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-proportional-hint"
 msgstr "Alt+Scroll: Proportional Radius"
 
+msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-proportional-hint.tooltip"
+msgstr "Quickly adjust proportional radius with the scroll wheel."
+
 msgid "net.32ba.lattice-deformation-tool.localization.shift-drag-precision"
 msgstr "Shift+Drag: Precision Mode"
 
+msgid "net.32ba.lattice-deformation-tool.localization.shift-drag-precision.tooltip"
+msgstr "Enables fine-grained control while dragging handles."
+
 msgid "net.32ba.lattice-deformation-tool.localization.z-toggle-pivot"
 msgstr "Z: Toggle Pivot"
+
+msgid "net.32ba.lattice-deformation-tool.localization.z-toggle-pivot.tooltip"
+msgstr "Switches pivot between Center and Last Selected."
 
 # Mesh Rebuild Options
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-rebuild-options"
 msgstr "Mesh Rebuild Options"
 
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-rebuild-options.tooltip"
+msgstr "Controls what mesh data is recalculated after deformation."
+
 msgid "net.32ba.lattice-deformation-tool.localization.normals"
 msgstr "Normals"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals.tooltip"
+msgstr "Recalculate how light reflects off the deformed surface."
 
 msgid "net.32ba.lattice-deformation-tool.localization.tangents"
 msgstr "Tangents"
 
+msgid "net.32ba.lattice-deformation-tool.localization.tangents.tooltip"
+msgstr "Recalculate texture directions on the deformed surface."
+
 msgid "net.32ba.lattice-deformation-tool.localization.bounds"
 msgstr "Bounds"
+
+msgid "net.32ba.lattice-deformation-tool.localization.bounds.tooltip"
+msgstr "Recalculate the boundary box around the deformed mesh."
 
 msgid "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights"
 msgstr "Recalculate Bone Weights"
 
+msgid "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights.tooltip"
+msgstr "Update bone animation to match your deformation (for rigged avatars)."
+
 msgid "net.32ba.lattice-deformation-tool.localization.bone-weight-requires-smr"
 msgstr "Bone weight recalculation requires a SkinnedMeshRenderer."
+
+msgid "net.32ba.lattice-deformation-tool.localization.bone-weight-requires-smr.tooltip"
+msgstr "This only works with rigged (skinned) meshes that have bones."
 
 # Weight Transfer
 msgid "net.32ba.lattice-deformation-tool.localization.weight-transfer-settings"
 msgstr "Weight Transfer Settings"
 
+msgid "net.32ba.lattice-deformation-tool.localization.weight-transfer-settings.tooltip"
+msgstr "Settings for updating bone animation after you deform the mesh."
+
 msgid "net.32ba.lattice-deformation-tool.localization.stage1-initial-transfer"
 msgstr "Stage 1: Initial Transfer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.stage1-initial-transfer.tooltip"
+msgstr "Copy animation weights from nearby points on the original mesh."
 
 msgid "net.32ba.lattice-deformation-tool.localization.stage2-weight-inpainting"
 msgstr "Stage 2: Weight Inpainting"
 
+msgid "net.32ba.lattice-deformation-tool.localization.stage2-weight-inpainting.tooltip"
+msgstr "Fill in missing animation weights by smoothing the pattern."
+
 msgid "net.32ba.lattice-deformation-tool.localization.max-transfer-distance"
 msgstr "Max Transfer Distance"
+
+msgid "net.32ba.lattice-deformation-tool.localization.max-transfer-distance.tooltip"
+msgstr "Sets the maximum distance for nearest-vertex weight lookup."
 
 msgid "net.32ba.lattice-deformation-tool.localization.normal-angle-threshold"
 msgstr "Normal Angle Threshold"
 
+msgid "net.32ba.lattice-deformation-tool.localization.normal-angle-threshold.tooltip"
+msgstr "Limits transfer to vertices with similar normal directions."
+
 msgid "net.32ba.lattice-deformation-tool.localization.enable-inpainting"
 msgstr "Enable Inpainting"
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-inpainting.tooltip"
+msgstr "Fill gaps automatically by smoothing nearby weights."
 
 msgid "net.32ba.lattice-deformation-tool.localization.max-iterations"
 msgstr "Max Iterations"
 
+msgid "net.32ba.lattice-deformation-tool.localization.max-iterations.tooltip"
+msgstr "How many times to smooth the weights (higher = better but slower)."
+
 msgid "net.32ba.lattice-deformation-tool.localization.tolerance"
 msgstr "Tolerance"
+
+msgid "net.32ba.lattice-deformation-tool.localization.tolerance.tooltip"
+msgstr "Stop smoothing when quality reaches this level (lower = finer detail)."
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-count"
 msgstr "Vertex Count"
 
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-count.tooltip"
+msgstr "Displays the total number of vertices in the source mesh."
+
 msgid "net.32ba.lattice-deformation-tool.localization.has-displacements"
 msgstr "Has Displacements"
+
+msgid "net.32ba.lattice-deformation-tool.localization.has-displacements.tooltip"
+msgstr "Shows if this layer has any changes saved."
 
 # BlendShape
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-output"
 msgstr "BlendShape Output"
 
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-output.tooltip"
+msgstr "Create a new ShapeKey instead of directly deforming the mesh."
+
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-name"
 msgstr "BlendShape Name"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-name.tooltip"
+msgstr "Sets the name for the generated BlendShape on the mesh."
 
 msgid "net.32ba.lattice-deformation-tool.localization.curve"
 msgstr "Curve"
 
+msgid "net.32ba.lattice-deformation-tool.localization.curve.tooltip"
+msgstr "Control the shape transition curve (how the effect ramps up/down)."
+
 msgid "net.32ba.lattice-deformation-tool.localization.enter-test-mode"
 msgstr "Enter Test Mode"
+
+msgid "net.32ba.lattice-deformation-tool.localization.enter-test-mode.tooltip"
+msgstr "Preview how the ShapeKey looks on the mesh in real-time."
 
 msgid "net.32ba.lattice-deformation-tool.localization.exit-test-mode"
 msgstr "Exit Test Mode"
 
+msgid "net.32ba.lattice-deformation-tool.localization.exit-test-mode.tooltip"
+msgstr "Stop previewing and return the mesh to normal."
+
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-test-mode"
 msgstr "BlendShape Test Mode"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-test-mode.tooltip"
+msgstr "Live preview of the ShapeKey effect on the mesh."
 
 msgid "net.32ba.lattice-deformation-tool.localization.test-weight"
 msgstr "Test Weight"
 
+msgid "net.32ba.lattice-deformation-tool.localization.test-weight.tooltip"
+msgstr "Adjust the preview strength from 0 to 100%."
+
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape"
 msgstr "Import BlendShape"
+
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape.tooltip"
+msgstr "Load an existing ShapeKey as a paint layer to edit."
 
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
 msgstr "(NDMF) Disable Lattice Preview"
 
+msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview.tooltip"
+msgstr "Turns off the real-time NDMF deformation preview."
+
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview"
 msgstr "(NDMF) Enable Lattice Preview"
+
+msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview.tooltip"
+msgstr "Turns on real-time NDMF deformation preview in Scene view."
 
 # Lattice Cage Alignment
 msgid "net.32ba.lattice-deformation-tool.localization.lattice-cage-alignment"
 msgstr "Lattice Cage Alignment"
 
+msgid "net.32ba.lattice-deformation-tool.localization.lattice-cage-alignment.tooltip"
+msgstr "Adjusts the position and scale of the editing cage display."
+
 msgid "net.32ba.lattice-deformation-tool.localization.alignment-cage-info"
 msgstr "Position/scale here only move the editing cage in the Scene view. They do not change the deform target's bounds or final mesh deformation."
+
+msgid "net.32ba.lattice-deformation-tool.localization.alignment-cage-info.tooltip"
+msgstr "These settings are for visual alignment only, not deformation."
 
 msgid "net.32ba.lattice-deformation-tool.localization.offset"
 msgstr "Offset"
 
-msgid "net.32ba.lattice-deformation-tool.localization.offset-tooltip"
-msgstr "Direct offset applied in proxy local space before auto center / clamp"
+msgid "net.32ba.lattice-deformation-tool.localization.offset.tooltip"
+msgstr "Nudge the cage display position (visual only, doesn't affect deformation)."
 
 msgid "net.32ba.lattice-deformation-tool.localization.debug-log-alignment"
 msgstr "(Debug) Log Preview Alignment to Console"
+
+msgid "net.32ba.lattice-deformation-tool.localization.debug-log-alignment.tooltip"
+msgstr "Prints cage alignment data to the Console for debugging."
 
 # Editor buttons
 msgid "net.32ba.lattice-deformation-tool.localization.open-brush-editor"
 msgstr "Open Brush Editor"
 
+msgid "net.32ba.lattice-deformation-tool.localization.open-brush-editor.tooltip"
+msgstr "Opens the Scene view brush deformation tool."
+
 msgid "net.32ba.lattice-deformation-tool.localization.open-lattice-editor"
 msgstr "Open Lattice Editor"
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-lattice-editor.tooltip"
+msgstr "Opens the Scene view lattice cage editing tool."
 
 msgid "net.32ba.lattice-deformation-tool.localization.select-mesh-deformer"
 msgstr "Select a Mesh Deformer to edit."
 
+msgid "net.32ba.lattice-deformation-tool.localization.select-mesh-deformer.tooltip"
+msgstr "Pick a GameObject with a Mesh Deformer component first."
+
 msgid "net.32ba.lattice-deformation-tool.localization.brush"
 msgstr "Brush"
 
+msgid "net.32ba.lattice-deformation-tool.localization.brush.tooltip"
+msgstr "Switches the overlay to brush editing mode."
+
 msgid "net.32ba.lattice-deformation-tool.localization.advanced"
 msgstr "Advanced"
+
+msgid "net.32ba.lattice-deformation-tool.localization.advanced.tooltip"
+msgstr "Shows additional settings for fine-tuning behavior."
 
 # Legacy Brush Deformer
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformer"
 msgstr "Brush Deformer"
 
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deformer.tooltip"
+msgstr "Legacy standalone brush deformation component."
+
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation"
 msgstr "Brush Deformation"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
+msgstr "Section for brush-based vertex deformation settings."

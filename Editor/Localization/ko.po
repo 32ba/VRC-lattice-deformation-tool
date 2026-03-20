@@ -7,488 +7,968 @@ msgstr ""
 msgid "net.32ba.lattice-deformation-tool.localization.tool-language"
 msgstr "툴 언어"
 
+msgid "net.32ba.lattice-deformation-tool.localization.tool-language.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-tooltips"
+msgstr "툴팁 표시"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-tooltips.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer"
 msgstr "Mesh Deformer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.yes"
 msgstr "예"
 
+msgid "net.32ba.lattice-deformation-tool.localization.yes.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.no"
 msgstr "아니오"
+
+msgid "net.32ba.lattice-deformation-tool.localization.no.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.apply"
 msgstr "적용"
 
+msgid "net.32ba.lattice-deformation-tool.localization.apply.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.revert"
 msgstr "되돌리기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.revert.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.settings"
 msgstr "설정"
 
+msgid "net.32ba.lattice-deformation-tool.localization.settings.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.copy"
 msgstr "복사"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.paste"
 msgstr "붙여넣기"
 
+msgid "net.32ba.lattice-deformation-tool.localization.paste.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.duplicate"
 msgstr "복제"
 
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.select"
 msgstr "선택..."
+
+msgid "net.32ba.lattice-deformation-tool.localization.select.tooltip"
+msgstr ""
 
 # Mesh Source
 msgid "net.32ba.lattice-deformation-tool.localization.skinned-mesh-source"
 msgstr "Skinned Mesh Source"
 
+msgid "net.32ba.lattice-deformation-tool.localization.skinned-mesh-source.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.static-mesh-source"
 msgstr "Static Mesh Source"
+
+msgid "net.32ba.lattice-deformation-tool.localization.static-mesh-source.tooltip"
+msgstr ""
 
 # Groups & Layers
 msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.layers"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.layers.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.add-lattice-layer"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.add-lattice-layer.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer"
 msgstr "활성 레이어"
 
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.duplicate-layer"
 msgstr "레이어 복제"
 
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate-layer.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.copy-layer"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-layer.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.paste-layer"
 msgstr "레이어 붙여넣기"
 
+msgid "net.32ba.lattice-deformation-tool.localization.paste-layer.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.delete-layer"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.delete-layer.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.duplicate-group"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate-group.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.copy-group"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-group.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.paste-group"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.paste-group.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.delete-group"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.delete-group.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.no-deformation-layers"
 msgstr "사용 가능한 변형 레이어가 없습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-deformation-layers.tooltip"
+msgstr ""
 
 # L/R Operations
 msgid "net.32ba.lattice-deformation-tool.localization.lr-operations"
 msgstr "좌우 조작"
 
+msgid "net.32ba.lattice-deformation-tool.localization.lr-operations.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.split-l"
 msgstr "왼쪽 분리"
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-l.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-r"
 msgstr "오른쪽 분리"
 
+msgid "net.32ba.lattice-deformation-tool.localization.split-r.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.split-layer-left"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-layer-left.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-layer-right"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.split-layer-right.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.flip-x"
 msgstr "X 반전"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-x.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-y"
 msgstr "Y 반전"
 
+msgid "net.32ba.lattice-deformation-tool.localization.flip-y.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.flip-z"
 msgstr "Z 반전"
 
+msgid "net.32ba.lattice-deformation-tool.localization.flip-z.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-x"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-x.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-y"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-y.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-z"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-z.tooltip"
 msgstr ""
 
 # Lattice Tool
 msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool"
 msgstr "Lattice Tool"
 
+msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-lattice"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-lattice.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls"
 msgstr "Move Lattice Controls"
 
+msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.reset-lattice-cage"
 msgstr "래티스 케이지 초기화"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-lattice-cage.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.control-point-scope"
 msgstr "제어점 범위"
 
+msgid "net.32ba.lattice-deformation-tool.localization.control-point-scope.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.all-controls"
 msgstr "모든 제어점"
+
+msgid "net.32ba.lattice-deformation-tool.localization.all-controls.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.boundary-only"
 msgstr "경계만"
 
+msgid "net.32ba.lattice-deformation-tool.localization.boundary-only.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.keep-control-points-visible"
 msgstr "오브젝트 뒤에서도 제어점이 보이도록 유지"
+
+msgid "net.32ba.lattice-deformation-tool.localization.keep-control-points-visible.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-control-ids"
 msgstr "제어 ID 표시"
 
+msgid "net.32ba.lattice-deformation-tool.localization.show-control-ids.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.handle-orientation"
 msgstr "핸들 방향"
+
+msgid "net.32ba.lattice-deformation-tool.localization.handle-orientation.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.local"
 msgstr "로컬"
 
+msgid "net.32ba.lattice-deformation-tool.localization.local.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.global"
 msgstr "글로벌"
+
+msgid "net.32ba.lattice-deformation-tool.localization.global.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-symmetry-editing"
 msgstr "대칭 편집 활성화"
 
+msgid "net.32ba.lattice-deformation-tool.localization.enable-symmetry-editing.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-axis"
 msgstr "대칭 축"
+
+msgid "net.32ba.lattice-deformation-tool.localization.symmetry-axis.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-mode"
 msgstr "대칭 모드"
 
+msgid "net.32ba.lattice-deformation-tool.localization.symmetry-mode.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.antisymmetric"
 msgstr "반대칭"
+
+msgid "net.32ba.lattice-deformation-tool.localization.antisymmetric.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.mirror"
 msgstr "미러"
 
+msgid "net.32ba.lattice-deformation-tool.localization.mirror.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.x"
 msgstr "X"
+
+msgid "net.32ba.lattice-deformation-tool.localization.x.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.y"
 msgstr "Y"
 
+msgid "net.32ba.lattice-deformation-tool.localization.y.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.z"
 msgstr "Z"
+
+msgid "net.32ba.lattice-deformation-tool.localization.z.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.shift-click-hint"
 msgstr "Shift/Ctrl을 눌러 제어점을 추가/제거합니다."
 
+msgid "net.32ba.lattice-deformation-tool.localization.shift-click-hint.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.selected-none"
 msgstr "선택: 없음"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-none.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.selected-format"
 msgstr "선택: {0}"
 
+msgid "net.32ba.lattice-deformation-tool.localization.selected-format.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.selected-controls-format"
 msgstr "선택: 컨트롤 {0}개"
 
+msgid "net.32ba.lattice-deformation-tool.localization.selected-controls-format.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.global-space-disabled"
 msgstr "글로벌 공간 편집이 비활성화되었습니다"
+
+msgid "net.32ba.lattice-deformation-tool.localization.global-space-disabled.tooltip"
+msgstr ""
 
 # Lattice Grid
 msgid "net.32ba.lattice-deformation-tool.localization.current-grid-divisions"
 msgstr "현재 그리드 분할"
 
+msgid "net.32ba.lattice-deformation-tool.localization.current-grid-divisions.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.pending-grid-divisions"
 msgstr "변경될 그리드 분할"
+
+msgid "net.32ba.lattice-deformation-tool.localization.pending-grid-divisions.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.change-lattice-divisions"
 msgstr "래티스 분할 변경"
 
+msgid "net.32ba.lattice-deformation-tool.localization.change-lattice-divisions.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected"
 msgstr "No Lattice Deformer selected."
 
+msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-asset-assigned"
 msgstr "이 디포머에 라티스 에셋이 할당되어 있지 않습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-asset-assigned.tooltip"
+msgstr ""
 
 # Brush Tool
 msgid "net.32ba.lattice-deformation-tool.localization.brush-tool"
 msgstr "브러시 도구"
 
+msgid "net.32ba.lattice-deformation-tool.localization.brush-tool.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-brush"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-brush.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.brush-radius"
 msgstr "브러시 반경"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-radius.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-strength"
 msgstr "브러시 강도"
 
+msgid "net.32ba.lattice-deformation-tool.localization.brush-strength.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.brush-falloff"
 msgstr "브러시 감쇠"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-falloff.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.normal"
 msgstr "노멀"
 
+msgid "net.32ba.lattice-deformation-tool.localization.normal.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.move"
 msgstr "이동"
+
+msgid "net.32ba.lattice-deformation-tool.localization.move.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-smooth"
 msgstr "브러시 스무스"
 
+msgid "net.32ba.lattice-deformation-tool.localization.brush-smooth.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.brush-mask"
 msgstr "브러시 마스크"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-mask.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deform"
 msgstr "브러시 변형"
 
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deform.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.smooth"
 msgstr "부드러움"
+
+msgid "net.32ba.lattice-deformation-tool.localization.smooth.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.linear"
 msgstr "선형"
 
+msgid "net.32ba.lattice-deformation-tool.localization.linear.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.constant"
 msgstr "일정"
+
+msgid "net.32ba.lattice-deformation-tool.localization.constant.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.sphere"
 msgstr "구체"
 
+msgid "net.32ba.lattice-deformation-tool.localization.sphere.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.gaussian"
 msgstr "가우시안"
+
+msgid "net.32ba.lattice-deformation-tool.localization.gaussian.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.falloff"
 msgstr "감쇠"
 
+msgid "net.32ba.lattice-deformation-tool.localization.falloff.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.invert"
 msgstr "선택 반전"
+
+msgid "net.32ba.lattice-deformation-tool.localization.invert.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.invert-brush"
 msgstr "브러시 반전"
 
+msgid "net.32ba.lattice-deformation-tool.localization.invert-brush.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.enable-mirror"
 msgstr "미러 활성화"
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-mirror.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.mirror-axis"
 msgstr "미러 축"
 
+msgid "net.32ba.lattice-deformation-tool.localization.mirror-axis.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.surface-distance"
 msgstr "표면 거리"
+
+msgid "net.32ba.lattice-deformation-tool.localization.surface-distance.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-all-displacements"
 msgstr "모든 변형 지우기"
 
+msgid "net.32ba.lattice-deformation-tool.localization.clear-all-displacements.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.backface-culling"
 msgstr "후면 컬링"
 
+msgid "net.32ba.lattice-deformation-tool.localization.backface-culling.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-hint"
 msgstr "Alt+스크롤: 반경 / Shift+스크롤: 강도"
+
+msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-hint.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.mask"
 msgstr "마스크"
 
+msgid "net.32ba.lattice-deformation-tool.localization.mask.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.clear-mask"
 msgstr "마스크 지우기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-mask.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-all"
 msgstr "모두 지우기"
 
+msgid "net.32ba.lattice-deformation-tool.localization.clear-all.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.visualization"
 msgstr "시각화"
+
+msgid "net.32ba.lattice-deformation-tool.localization.visualization.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices"
 msgstr "영향 버텍스 표시"
 
+msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.show-displacement-heatmap"
 msgstr "변위 히트맵 표시"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-displacement-heatmap.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-penetration"
 msgstr "관통 표시"
 
+msgid "net.32ba.lattice-deformation-tool.localization.show-penetration.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.reference-mesh"
 msgstr "참조 메시"
 
+msgid "net.32ba.lattice-deformation-tool.localization.reference-mesh.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.dot-size"
 msgstr "점 크기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.dot-size.tooltip"
+msgstr ""
 
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "버텍스 도구"
 
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection"
 msgstr "버텍스 선택"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-move"
 msgstr "버텍스 이동"
 
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-move.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-rotate"
 msgstr "버텍스 회전"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-rotate.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-scale"
 msgstr "버텍스 스케일"
 
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-scale.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-transform"
 msgstr "버텍스 변환"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-transform.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.transform-mode"
 msgstr "변환 모드"
 
+msgid "net.32ba.lattice-deformation-tool.localization.transform-mode.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.rotate"
 msgstr "회전"
+
+msgid "net.32ba.lattice-deformation-tool.localization.rotate.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.scale"
 msgstr "스케일"
 
+msgid "net.32ba.lattice-deformation-tool.localization.scale.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.select-all"
 msgstr "모두 선택"
+
+msgid "net.32ba.lattice-deformation-tool.localization.select-all.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.select-none"
 msgstr "선택 해제"
 
+msgid "net.32ba.lattice-deformation-tool.localization.select-none.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.clear-selection"
 msgstr "선택 지우기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-selection.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.connected-only"
 msgstr "연결된 면만"
 
+msgid "net.32ba.lattice-deformation-tool.localization.connected-only.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.reset-selected-vertices"
 msgstr "선택한 버텍스 초기화"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-selected-vertices.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-all-vertices"
 msgstr "모든 버텍스 초기화"
 
+msgid "net.32ba.lattice-deformation-tool.localization.reset-all-vertices.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-editing"
 msgstr "비례 편집"
+
+msgid "net.32ba.lattice-deformation-tool.localization.proportional-editing.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-radius"
 msgstr "비례 반경"
 
+msgid "net.32ba.lattice-deformation-tool.localization.proportional-radius.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.pivot"
 msgstr "피벗"
+
+msgid "net.32ba.lattice-deformation-tool.localization.pivot.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.center"
 msgstr "중심"
 
+msgid "net.32ba.lattice-deformation-tool.localization.center.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.last-selected"
 msgstr "마지막 선택"
+
+msgid "net.32ba.lattice-deformation-tool.localization.last-selected.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.selected-vertices-format"
 msgstr "선택: 버텍스 {0}개"
 
+msgid "net.32ba.lattice-deformation-tool.localization.selected-vertices-format.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.wer-hint"
 msgstr "W/E/R: 이동/회전/스케일"
+
+msgid "net.32ba.lattice-deformation-tool.localization.wer-hint.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-proportional-hint"
 msgstr "Alt+스크롤: 비례 반경"
 
+msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-proportional-hint.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.shift-drag-precision"
 msgstr "Shift+드래그: 정밀 모드"
 
+msgid "net.32ba.lattice-deformation-tool.localization.shift-drag-precision.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.z-toggle-pivot"
 msgstr "Z: 피벗 전환"
+
+msgid "net.32ba.lattice-deformation-tool.localization.z-toggle-pivot.tooltip"
+msgstr ""
 
 # Mesh Rebuild Options
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-rebuild-options"
 msgstr "메시 재구성 옵션"
 
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-rebuild-options.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.normals"
 msgstr "노멀"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.tangents"
 msgstr "탄젠트"
 
+msgid "net.32ba.lattice-deformation-tool.localization.tangents.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.bounds"
 msgstr "바운드"
+
+msgid "net.32ba.lattice-deformation-tool.localization.bounds.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.bone-weight-requires-smr"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.bone-weight-requires-smr.tooltip"
 msgstr ""
 
 # Weight Transfer
 msgid "net.32ba.lattice-deformation-tool.localization.weight-transfer-settings"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.weight-transfer-settings.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.stage1-initial-transfer"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.stage1-initial-transfer.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.stage2-weight-inpainting"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.stage2-weight-inpainting.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.max-transfer-distance"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.max-transfer-distance.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.normal-angle-threshold"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.normal-angle-threshold.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.enable-inpainting"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-inpainting.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.max-iterations"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.max-iterations.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.tolerance"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.tolerance.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-count"
 msgstr "버텍스 수"
 
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-count.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.has-displacements"
 msgstr "변형 데이터 있음"
+
+msgid "net.32ba.lattice-deformation-tool.localization.has-displacements.tooltip"
+msgstr ""
 
 # BlendShape
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-output"
 msgstr "BlendShape 출력"
 
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-output.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-name"
 msgstr "BlendShape 이름"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-name.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.curve"
 msgstr "커브"
 
+msgid "net.32ba.lattice-deformation-tool.localization.curve.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.enter-test-mode"
 msgstr "테스트 모드 시작"
+
+msgid "net.32ba.lattice-deformation-tool.localization.enter-test-mode.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.exit-test-mode"
 msgstr "테스트 모드 종료"
 
+msgid "net.32ba.lattice-deformation-tool.localization.exit-test-mode.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-test-mode"
 msgstr "BlendShape 테스트 모드"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-test-mode.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.test-weight"
 msgstr "테스트 가중치"
 
+msgid "net.32ba.lattice-deformation-tool.localization.test-weight.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape"
 msgstr "BlendShape 가져오기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape.tooltip"
+msgstr ""
 
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
 msgstr "(NDMF) Disable Lattice Preview"
 
+msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview"
 msgstr "(NDMF) Enable Lattice Preview"
+
+msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview.tooltip"
+msgstr ""
 
 # Lattice Cage Alignment
 msgid "net.32ba.lattice-deformation-tool.localization.lattice-cage-alignment"
 msgstr "라티스 케이지 정렬"
 
+msgid "net.32ba.lattice-deformation-tool.localization.lattice-cage-alignment.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.alignment-cage-info"
 msgstr "여기서 설정한 위치/스케일은 씬 뷰의 편집용 케이지만 이동합니다. 변형 대상 메시의 바운즈나 최종 변형에는 영향을 주지 않습니다."
 
+msgid "net.32ba.lattice-deformation-tool.localization.alignment-cage-info.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.offset"
 msgstr "오프셋"
+
+msgid "net.32ba.lattice-deformation-tool.localization.offset.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.offset-tooltip"
 msgstr "자동 센터/클램프 전에 프록시 로컬 공간에 직접 적용되는 오프셋"
@@ -496,25 +976,49 @@ msgstr "자동 센터/클램프 전에 프록시 로컬 공간에 직접 적용�
 msgid "net.32ba.lattice-deformation-tool.localization.debug-log-alignment"
 msgstr "(Debug) 프리뷰 정렬을 콘솔에 로그"
 
+msgid "net.32ba.lattice-deformation-tool.localization.debug-log-alignment.tooltip"
+msgstr ""
+
 # Editor buttons
 msgid "net.32ba.lattice-deformation-tool.localization.open-brush-editor"
 msgstr "브러시 에디터 열기"
 
+msgid "net.32ba.lattice-deformation-tool.localization.open-brush-editor.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.open-lattice-editor"
 msgstr "래티스 편집기 열기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-lattice-editor.tooltip"
+msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.select-mesh-deformer"
 msgstr "편집할 Mesh Deformer를 선택하세요."
 
+msgid "net.32ba.lattice-deformation-tool.localization.select-mesh-deformer.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.brush"
 msgstr "브러시"
 
+msgid "net.32ba.lattice-deformation-tool.localization.brush.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.advanced"
 msgstr "고급 설정"
+
+msgid "net.32ba.lattice-deformation-tool.localization.advanced.tooltip"
+msgstr ""
 
 # Legacy Brush Deformer
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformer"
 msgstr "브러시 디포머"
 
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deformer.tooltip"
+msgstr ""
+
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation"
 msgstr "브러시 변형"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
+msgstr ""

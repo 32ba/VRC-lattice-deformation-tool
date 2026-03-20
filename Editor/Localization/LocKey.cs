@@ -4,6 +4,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     internal static class LocKey
     {
         // General
+        internal const string ShowTooltips = "net.32ba.lattice-deformation-tool.localization.show-tooltips";
         internal const string ToolLanguage = "net.32ba.lattice-deformation-tool.localization.tool-language";
         internal const string MeshDeformer = "net.32ba.lattice-deformation-tool.localization.mesh-deformer";
         internal const string Yes = "net.32ba.lattice-deformation-tool.localization.yes";

@@ -20,6 +20,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
 
         private const string k_EditorPrefsKey = "Net32Ba.LatticeLocalization.Language";
+        private const string k_TooltipPrefsKey = "Net32Ba.LatticeLocalization.ShowTooltips";
+        private const string k_TooltipSuffix = ".tooltip";
 
         private sealed class CatalogCache
         {
@@ -80,14 +82,30 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static string[] DisplayNames => s_displayNames;
 
-        internal static GUIContent Content(string text)
+        internal static bool ShowTooltips
         {
-            return new GUIContent(Tr(text));
+            get => EditorPrefs.GetBool(k_TooltipPrefsKey, true);
+            set => EditorPrefs.SetBool(k_TooltipPrefsKey, value);
         }
 
-        internal static GUIContent Content(string text, string tooltip)
+        internal static GUIContent Content(string key)
         {
-            return new GUIContent(Tr(text), string.IsNullOrEmpty(tooltip) ? null : Tr(tooltip));
+            return new GUIContent(Tr(key), ResolveTooltip(key));
+        }
+
+        internal static GUIContent Content(string key, string tooltipKey)
+        {
+            string tooltip = string.IsNullOrEmpty(tooltipKey) ? ResolveTooltip(key) : ResolveTooltip(tooltipKey);
+            return new GUIContent(Tr(key), tooltip);
+        }
+
+        private static string ResolveTooltip(string key)
+        {
+            if (!ShowTooltips || string.IsNullOrEmpty(key)) return null;
+            string tooltipKey = key + k_TooltipSuffix;
+            string tooltip = Tr(tooltipKey);
+            // If Tr returns the key itself (no translation found), return null
+            return tooltip == tooltipKey ? null : tooltip;
         }
 
         internal static string Tr(string key)

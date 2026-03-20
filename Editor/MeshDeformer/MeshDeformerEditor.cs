@@ -1089,6 +1089,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 next = Mathf.Clamp(next, 0, LatticeLocalization.DisplayNames.Length - 1);
                 LatticeLocalization.CurrentLanguage = (LatticeLocalization.Language)next;
             }
+
+            bool showTooltips = LatticeLocalization.ShowTooltips;
+            bool newShowTooltips = EditorGUILayout.Toggle(LatticeLocalization.Content(LocKey.ShowTooltips), showTooltips);
+            if (newShowTooltips != showTooltips)
+            {
+                LatticeLocalization.ShowTooltips = newShowTooltips;
+            }
         }
 
         private void TogglePreviewForTargets(bool enabled)
