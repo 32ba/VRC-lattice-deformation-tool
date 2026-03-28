@@ -99,6 +99,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return new GUIContent(Tr(key), tooltip);
         }
 
+        internal static string Tooltip(string key) => ResolveTooltip(key);
+
         private static string ResolveTooltip(string key)
         {
             if (!ShowTooltips || string.IsNullOrEmpty(key)) return null;

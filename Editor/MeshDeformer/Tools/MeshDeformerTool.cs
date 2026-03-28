@@ -186,8 +186,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     var subModeLabels = new GUIContent[]
                     {
-                        LatticeLocalization.Content(LocKey.Brush),
-                        LatticeLocalization.Content(LocKey.VertexSelection)
+                        IconContent(LocKey.Brush, "TerrainInspector.TerrainToolSplat"),
+                        IconContent(LocKey.VertexSelection, "EditCollider")
                     };
                     int subMode = GUILayout.Toolbar(
                         (int)MeshDeformerTool.CurrentBrushSubMode, subModeLabels);
@@ -210,6 +210,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     BrushToolHandler.DrawOverlayGUI(selectedDeformer);
                 }
             }
+        }
+
+        private static GUIContent IconContent(string locKey, string iconName)
+        {
+            var text = LatticeLocalization.Tr(locKey);
+            var tooltip = LatticeLocalization.Tooltip(locKey);
+            var icon = EditorGUIUtility.IconContent(iconName);
+            return icon?.image != null
+                ? new GUIContent(text, icon.image, tooltip)
+                : new GUIContent(text, tooltip);
         }
 
         private static void DrawLayerSelector(LatticeDeformer deformer)

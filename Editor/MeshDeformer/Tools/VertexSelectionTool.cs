@@ -46,7 +46,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static float s_proportionalRadius = 0.1f;
         private static FalloffType s_proportionalFalloff = FalloffType.Smooth;
         private static float s_vertexDotSize = 6f;
-        private static bool s_backfaceCulling = true;
+        // Shared with BrushToolHandler — removed local field
         private static HandleOrientation s_handleOrientation = HandleOrientation.Local;
         private static PivotMode s_pivotMode = PivotMode.Center;
         private static int s_lastSelectedVertex = -1;
@@ -155,13 +155,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static bool BackfaceCulling
         {
-            get => s_backfaceCulling;
-            set
-            {
-                if (s_backfaceCulling == value) return;
-                s_backfaceCulling = value;
-                SceneView.RepaintAll();
-            }
+            get => BrushToolHandler.BackfaceCulling;
+            set => BrushToolHandler.BackfaceCulling = value;
         }
 
         internal static HandleOrientation CurrentHandleOrientation
@@ -501,7 +496,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             // Set up batched GL drawing with depth test
             var mat = EnsureVertexDotMaterial();
-            mat.SetInt("_ZTest", s_backfaceCulling
+            mat.SetInt("_ZTest", BackfaceCulling
                 ? (int)CompareFunction.LessEqual
                 : (int)CompareFunction.Always);
             mat.SetPass(0);
@@ -1045,6 +1040,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Handles.EndGUI();
         }
 
+        private bool IsVertexFrontFacing(int index, Matrix4x4 matrix)
+        {
+            if (!BackfaceCulling || _meshNormals == null || index < 0 || index >= _meshNormals.Length)
+                return true;
+            var cam = Camera.current;
+            if (cam == null) return true;
+            Vector3 worldPos = DeformedToWorld(index, matrix);
+            Vector3 worldNormal = matrix.MultiplyVector(_meshNormals[index]).normalized;
+            Vector3 viewDir = (cam.transform.position - worldPos).normalized;
+            return Vector3.Dot(worldNormal, viewDir) > 0f;
+        }
+
         private int FindVertexAtScreenPos(Vector2 screenPos, Transform meshTransform, LatticeDeformer deformer, float maxScreenDist)
         {
             var displayVerts = _deformedVertices ?? _meshVertices;
@@ -1056,6 +1063,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var matrix = meshTransform.localToWorldMatrix;
             for (int i = 0; i < displayVerts.Length; i++)
             {
+                if (!IsVertexFrontFacing(i, matrix)) continue;
                 Vector3 worldPos = DeformedToWorld(i, matrix);
                 Vector2 guiPos = HandleUtility.WorldToGUIPoint(worldPos);
                 float dist = Vector2.Distance(guiPos, screenPos);
@@ -1077,6 +1085,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var matrix = meshTransform.localToWorldMatrix;
             for (int i = 0; i < _deformedVertices.Length; i++)
             {
+                if (!IsVertexFrontFacing(i, matrix)) continue;
                 Vector3 worldPos = DeformedToWorld(i, matrix);
                 Vector2 guiPos = HandleUtility.WorldToGUIPoint(worldPos);
                 if (screenRect.Contains(guiPos))
@@ -1309,14 +1318,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return string.Format(LatticeLocalization.Tr(LocKey.SelectedVerticesFormat), s_selectedVertices.Count);
         }
 
+        private static GUIContent IconContent(string locKey, string iconName)
+        {
+            var text = LatticeLocalization.Tr(locKey);
+            var tooltip = LatticeLocalization.Tooltip(locKey);
+            var icon = EditorGUIUtility.IconContent(iconName);
+            return icon?.image != null
+                ? new GUIContent(text, icon.image, tooltip)
+                : new GUIContent(text, tooltip);
+        }
+
         internal static void DrawOverlayGUI(LatticeDeformer deformer)
         {
-            // Transform mode selector
+            // Transform mode selector (icon + text)
             var modeContent = new GUIContent[]
             {
-                LatticeLocalization.Content(LocKey.Move),
-                LatticeLocalization.Content(LocKey.Rotate),
-                LatticeLocalization.Content(LocKey.Scale)
+                IconContent(LocKey.Move, "MoveTool"),
+                IconContent(LocKey.Rotate, "RotateTool"),
+                IconContent(LocKey.Scale, "ScaleTool")
             };
             GUILayout.Label(LatticeLocalization.Content(LocKey.TransformMode), EditorStyles.miniLabel);
             int modeIndex = GUILayout.Toolbar((int)VertexSelectionHandler.CurrentTransformMode, modeContent);

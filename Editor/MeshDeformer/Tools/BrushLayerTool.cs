@@ -27,7 +27,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
 
         private static GUIContent s_icon;
-        private static float s_brushRadius = 0.02f;
+        private static float s_brushRadius = 0.02f; // world-space units (meters)
         private static float s_brushStrength = 0.5f;
         private static BrushFalloffType s_brushFalloff = BrushFalloffType.Smooth;
         private static BrushMode s_brushMode = BrushMode.Normal;
@@ -91,7 +91,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             get => s_brushRadius;
             set
             {
-                s_brushRadius = Mathf.Clamp(value, 0.001f, 0.2f);
+                s_brushRadius = Mathf.Max(value, 1e-6f);
                 SceneView.RepaintAll();
             }
         }
@@ -254,6 +254,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             LatticeLocalization.Content(LocKey.Y),
             LatticeLocalization.Content(LocKey.Z)
         };
+
+        /// <summary>
+        /// Converts the world-space brush radius to mesh-local space.
+        /// </summary>
+        private float WorldToLocalRadius()
+        {
+            if (_activeDeformer == null) return s_brushRadius;
+            var scale = _activeDeformer.MeshTransform.lossyScale;
+            float avg = (Mathf.Abs(scale.x) + Mathf.Abs(scale.y) + Mathf.Abs(scale.z)) / 3f;
+            return s_brushRadius / Mathf.Max(avg, 1e-6f);
+        }
 
         internal void Activate(LatticeDeformer deformer)
         {
@@ -421,17 +432,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var prevMatrix = Handles.matrix;
                 Handles.matrix = Matrix4x4.identity;
 
-                var scale = meshTransform.lossyScale;
-                float avgScale = (Mathf.Abs(scale.x) + Mathf.Abs(scale.y) + Mathf.Abs(scale.z)) / 3f;
-                float worldRadius = s_brushRadius * Mathf.Max(avgScale, 1e-6f);
-
+                // s_brushRadius is in world-space units — draw directly
                 Color brushColor = GetBrushColor();
                 Handles.color = brushColor;
-                Handles.DrawWireDisc(hit.point, hit.normal, worldRadius);
+                Handles.DrawWireDisc(hit.point, hit.normal, s_brushRadius);
                 Color fillColor = brushColor;
                 fillColor.a = 0.1f;
                 Handles.color = fillColor;
-                Handles.DrawSolidDisc(hit.point, hit.normal, worldRadius);
+                Handles.DrawSolidDisc(hit.point, hit.normal, s_brushRadius);
 
                 // Draw affected vertex dots within brush radius
                 if (s_showAffectedVertices && _meshVertices != null)
@@ -509,7 +517,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             deformer.EnsureDisplacementCapacity();
 
-            float radiusSq = s_brushRadius * s_brushRadius;
+            // Convert world-space radius to mesh-local space for distance comparisons
+            var meshScale = meshTransform.lossyScale;
+            float avgScale = (Mathf.Abs(meshScale.x) + Mathf.Abs(meshScale.y) + Mathf.Abs(meshScale.z)) / 3f;
+            float localRadius = s_brushRadius / Mathf.Max(avgScale, 1e-6f);
             float effectiveStrength = s_brushStrength;
             if (evt != null && evt.control)
             {
@@ -524,19 +535,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             switch (s_brushMode)
             {
                 case BrushMode.Normal:
-                    modified = ApplyNormalBrush(deformer, localHitPoint, radiusSq, strength, direction);
+                    modified = ApplyNormalBrush(deformer, localHitPoint, localRadius, strength, direction);
                     break;
 
                 case BrushMode.Move:
-                    modified = ApplyMoveBrush(deformer, meshTransform, localHitPoint, radiusSq, strength, evt);
+                    modified = ApplyMoveBrush(deformer, meshTransform, localHitPoint, localRadius, strength, evt);
                     break;
 
                 case BrushMode.Smooth:
-                    modified = ApplySmoothBrush(deformer, localHitPoint, radiusSq, strength);
+                    modified = ApplySmoothBrush(deformer, localHitPoint, localRadius, strength);
                     break;
 
                 case BrushMode.Mask:
-                    modified = ApplyMaskBrush(deformer, localHitPoint, radiusSq);
+                    modified = ApplyMaskBrush(deformer, localHitPoint, localRadius);
                     break;
             }
 
@@ -544,7 +555,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (s_mirrorEditing)
                 {
-                    ApplyMirror(deformer, localHitPoint, radiusSq, strength, direction);
+                    ApplyMirror(deformer, localHitPoint, localRadius, strength, direction);
                 }
 
                 deformer.Deform(assignToRenderer);
@@ -554,8 +565,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _lastMousePosition = evt.mousePosition;
         }
 
-        private bool ApplyNormalBrush(LatticeDeformer deformer, Vector3 localHitPoint, float radiusSq, float strength, float direction)
+        private bool ApplyNormalBrush(LatticeDeformer deformer, Vector3 localHitPoint, float localRadius, float strength, float direction)
         {
+            float radiusSq = localRadius * localRadius;
             bool modified = false;
             int vertexCount = _meshVertices.Length;
 
@@ -596,7 +608,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     {
                         continue; // Not reachable via surface
                     }
-                    float t = geodesicDist / s_brushRadius;
+                    float t = geodesicDist / localRadius;
                     falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
                 }
                 else
@@ -606,7 +618,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     if (distSq > radiusSq) continue;
 
                     float dist = Mathf.Sqrt(distSq);
-                    float t = dist / s_brushRadius;
+                    float t = dist / localRadius;
                     falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
                 }
 
@@ -624,8 +636,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return modified;
         }
 
-        private bool ApplyMoveBrush(LatticeDeformer deformer, Transform meshTransform, Vector3 localHitPoint, float radiusSq, float strength, Event evt)
+        private bool ApplyMoveBrush(LatticeDeformer deformer, Transform meshTransform, Vector3 localHitPoint, float localRadius, float strength, Event evt)
         {
+            float radiusSq = localRadius * localRadius;
             // Compute mouse delta in world space, then convert to local
             var mouseDelta = evt.delta;
             if (mouseDelta.sqrMagnitude < 0.001f) return false;
@@ -675,7 +688,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     {
                         continue; // Not reachable via surface
                     }
-                    float t = geodesicDist / s_brushRadius;
+                    float t = geodesicDist / localRadius;
                     falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
                 }
                 else
@@ -685,7 +698,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     if (distSq > radiusSq) continue;
 
                     float dist = Mathf.Sqrt(distSq);
-                    float t = dist / s_brushRadius;
+                    float t = dist / localRadius;
                     falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
                 }
 
@@ -700,8 +713,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return modified;
         }
 
-        private bool ApplySmoothBrush(LatticeDeformer deformer, Vector3 localHitPoint, float radiusSq, float strength)
+        private bool ApplySmoothBrush(LatticeDeformer deformer, Vector3 localHitPoint, float localRadius, float strength)
         {
+            float radiusSq = localRadius * localRadius;
             EnsureAdjacencyBuilt();
 
             bool modified = false;
@@ -750,7 +764,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     {
                         continue; // Not reachable via surface
                     }
-                    float t = geodesicDist / s_brushRadius;
+                    float t = geodesicDist / localRadius;
                     falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
                 }
                 else
@@ -760,7 +774,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     if (distSq > radiusSq) continue;
 
                     float dist = Mathf.Sqrt(distSq);
-                    float t = dist / s_brushRadius;
+                    float t = dist / localRadius;
                     falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
                 }
 
@@ -787,8 +801,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return modified;
         }
 
-        private bool ApplyMaskBrush(LatticeDeformer deformer, Vector3 localHitPoint, float radiusSq)
+        private bool ApplyMaskBrush(LatticeDeformer deformer, Vector3 localHitPoint, float localRadius)
         {
+            float radiusSq = localRadius * localRadius;
             if (_meshVertices == null || _meshVertices.Length == 0)
             {
                 return false;
@@ -841,7 +856,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     {
                         continue;
                     }
-                    float t = geodesicDist / s_brushRadius;
+                    float t = geodesicDist / localRadius;
                     falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
                 }
                 else
@@ -851,7 +866,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     if (distSq > radiusSq) continue;
 
                     float dist = Mathf.Sqrt(distSq);
-                    float t = dist / s_brushRadius;
+                    float t = dist / localRadius;
                     falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
                 }
 
@@ -893,8 +908,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return layer.GetVertexMask(vertexIndex);
         }
 
-        private void ApplyMirror(LatticeDeformer deformer, Vector3 localHitPoint, float radiusSq, float strength, float direction)
+        private void ApplyMirror(LatticeDeformer deformer, Vector3 localHitPoint, float localRadius, float strength, float direction)
         {
+            float radiusSq = localRadius * localRadius;
             if (_meshVertices == null || _meshVertices.Length == 0) return;
 
             // Mirror the brush center
@@ -909,7 +925,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 int mirrorNearest = FindNearestVertex(mirroredCenter);
                 if (mirrorNearest >= 0)
                 {
-                    mirrorConnected = FindConnectedVertices(mirrorNearest, s_brushRadius);
+                    mirrorConnected = FindConnectedVertices(mirrorNearest, localRadius);
                 }
             }
 
@@ -929,7 +945,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         if (distSq > radiusSq) continue;
 
                         float dist = Mathf.Sqrt(distSq);
-                        float t = dist / s_brushRadius;
+                        float t = dist / localRadius;
                         float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
 
                         var normal = _meshNormals[i].normalized;
@@ -962,7 +978,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         if (distSq > radiusSq) continue;
 
                         float dist = Mathf.Sqrt(distSq);
-                        float t = dist / s_brushRadius;
+                        float t = dist / localRadius;
                         float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
 
                         var neighbors = _adjacency[i];
@@ -1011,7 +1027,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         if (distSq > radiusSq) continue;
 
                         float dist = Mathf.Sqrt(distSq);
-                        float t = dist / s_brushRadius;
+                        float t = dist / localRadius;
                         float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
 
                         float current = layer.GetVertexMask(i);
@@ -1204,7 +1220,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void DrawAffectedVertices(LatticeDeformer deformer, Vector3 localHitPoint, Transform meshTransform)
         {
-            float radiusSq = s_brushRadius * s_brushRadius;
+            var meshScale = meshTransform.lossyScale;
+            float avgScale = (Mathf.Abs(meshScale.x) + Mathf.Abs(meshScale.y) + Mathf.Abs(meshScale.z)) / 3f;
+            float localRadius = s_brushRadius / Mathf.Max(avgScale, 1e-6f);
+            float radiusSq = localRadius * localRadius;
             int vertexCount = _meshVertices.Length;
             Color brushColor = GetBrushColor();
             var matrix = meshTransform.localToWorldMatrix;
@@ -1227,7 +1246,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     if (!_geodesicDistanceCache.TryGetValue(i, out float geodesicDist))
                         continue;
-                    float t = geodesicDist / s_brushRadius;
+                    float t = geodesicDist / localRadius;
                     falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
                 }
                 else
@@ -1235,7 +1254,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     float distSq = (vertex - localHitPoint).sqrMagnitude;
                     if (distSq > radiusSq) continue;
                     float dist = Mathf.Sqrt(distSq);
-                    float t = dist / s_brushRadius;
+                    float t = dist / localRadius;
                     falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
                 }
 
@@ -1552,7 +1571,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (nearestVertex != _connectedCacheStartVertex)
             {
                 _connectedCacheStartVertex = nearestVertex;
-                _connectedVerticesCache = FindConnectedVertices(nearestVertex, s_brushRadius);
+                _connectedVerticesCache = FindConnectedVertices(nearestVertex, WorldToLocalRadius());
             }
         }
 
@@ -1580,7 +1599,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             _geodesicCacheStartVertex = nearest;
             _geodesicDistanceCache = GeodesicDistanceCalculator.ComputeDistances(
-                nearest, s_brushRadius, _adjacency, _meshVertices);
+                nearest, WorldToLocalRadius(), _adjacency, _meshVertices);
         }
 
         private void ClearGeodesicDistanceCache()
@@ -1611,32 +1630,56 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             LatticePreviewUtility.RequestSceneRepaint();
         }
 
+        /// <summary>
+        /// Creates GUIContent with a built-in Unity icon (null-safe).
+        /// Falls back to text-only if the icon name doesn't exist.
+        /// </summary>
+        private static GUIContent IconContent(string locKey, string iconName)
+        {
+            var text = LatticeLocalization.Tr(locKey);
+            var tooltip = LatticeLocalization.Tooltip(locKey);
+            var icon = EditorGUIUtility.IconContent(iconName);
+            return icon?.image != null
+                ? new GUIContent(text, icon.image, tooltip)
+                : new GUIContent(text, tooltip);
+        }
+
         internal static void DrawOverlayGUI(LatticeDeformer deformer)
         {
-            // Brush Mode toolbar (instant switching)
+            // Brush Mode toolbar (icon + text) — Mask mode hidden from UI
             var modeContent = new GUIContent[]
             {
-                LatticeLocalization.Content(LocKey.Normal),
-                LatticeLocalization.Content(LocKey.Move),
-                LatticeLocalization.Content(LocKey.Smooth),
-                LatticeLocalization.Content(LocKey.Mask)
+                IconContent(LocKey.Normal, "TerrainInspector.TerrainToolSetHeight"),
+                IconContent(LocKey.Move, "MoveTool"),
+                IconContent(LocKey.Smooth, "TerrainInspector.TerrainToolSmoothHeight"),
             };
-            int modeIndex = GUILayout.Toolbar(
-                (int)BrushToolHandler.CurrentBrushMode, modeContent);
+            // Map toolbar index (0-2) to BrushMode enum (Normal=0, Move=1, Smooth=2)
+            int currentModeIndex = Mathf.Min((int)BrushToolHandler.CurrentBrushMode, modeContent.Length - 1);
+            int modeIndex = GUILayout.Toolbar(currentModeIndex, modeContent);
             modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
             BrushToolHandler.CurrentBrushMode = (BrushToolHandler.BrushMode)modeIndex;
 
             GUILayout.Space(2f);
 
             // Primary parameters (always visible)
-            BrushToolHandler.BrushRadius = EditorGUILayout.Slider(
-                LatticeLocalization.Content(LocKey.BrushRadius),
-                BrushToolHandler.BrushRadius, 0.001f, 0.2f);
+            // Display world-space cm: mesh-local radius * transform scale * 100
+            // s_brushRadius is world-space meters — display as cm directly
+            float radiusCm = BrushToolHandler.BrushRadius * 100f;
+            EditorGUI.BeginChangeCheck();
+            radiusCm = EditorGUILayout.Slider(
+                new GUIContent(LatticeLocalization.Tr(LocKey.BrushRadius) + " (cm)", LatticeLocalization.Tooltip(LocKey.BrushRadius)),
+                radiusCm, 0.1f, 20f);
+            if (EditorGUI.EndChangeCheck())
+                BrushToolHandler.BrushRadius = radiusCm / 100f;
 
-            BrushToolHandler.BrushStrength = EditorGUILayout.Slider(
-                LatticeLocalization.Content(LocKey.BrushStrength),
-                BrushToolHandler.BrushStrength, 0.0f, 1.0f);
+            // Display strength as 0-100%, store internally as 0-1
+            float strengthPercent = BrushToolHandler.BrushStrength * 100f;
+            strengthPercent = EditorGUILayout.Slider(
+                new GUIContent(LatticeLocalization.Tr(LocKey.BrushStrength) + " (%)", LatticeLocalization.Tooltip(LocKey.BrushStrength)),
+                strengthPercent, 0f, 100f);
+            BrushToolHandler.BrushStrength = strengthPercent / 100f;
 
+            // Falloff type (text only — falloff curves are self-explanatory with names)
             var falloffContent = new GUIContent[]
             {
                 LatticeLocalization.Content(LocKey.Smooth),
@@ -1742,16 +1785,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
                 }
 
-                if (BrushToolHandler.CurrentBrushMode == BrushToolHandler.BrushMode.Mask)
-                {
-                    if (GUILayout.Button(LatticeLocalization.Content(LocKey.ClearMask)))
-                    {
-                        if (deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush)
-                        {
-                            BrushToolHandler.ClearActiveMask(deformer);
-                        }
-                    }
-                }
+                // Mask mode UI hidden — mask brush mode is disabled in UI
             }
 
             GUILayout.Space(2f);
