@@ -186,8 +186,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     var subModeLabels = new GUIContent[]
                     {
-                        IconContent(LocKey.Brush, "TerrainInspector.TerrainToolSplat"),
-                        IconContent(LocKey.VertexSelection, "EditCollider")
+                        ToolIcons.Content(ToolIcons.Brush, LocKey.Brush),
+                        ToolIcons.Content(ToolIcons.VertexSelect, LocKey.VertexSelection)
                     };
                     int subMode = GUILayout.Toolbar(
                         (int)MeshDeformerTool.CurrentBrushSubMode, subModeLabels);

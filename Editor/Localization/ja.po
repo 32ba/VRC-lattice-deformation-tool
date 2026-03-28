@@ -610,6 +610,12 @@ msgstr "可視化"
 msgid "net.32ba.lattice-deformation-tool.localization.visualization.tooltip"
 msgstr "Sceneビューでの編集フィードバック表示オプションです。"
 
+msgid "net.32ba.lattice-deformation-tool.localization.show-wireframe"
+msgstr "ワイヤーフレーム表示"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-wireframe.tooltip"
+msgstr "メッシュのエッジを表示して面の形状を確認できます。"
+
 msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices"
 msgstr "影響頂点を表示"
 

@@ -36,10 +36,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_invertBrush = false;
         private static bool s_showAffectedVertices = true;
         private static bool s_showDisplacementHeatmap = true;
+        private static bool s_showWireframe = true;
         private static float s_vertexDotSize = 3f;
         private static bool s_connectedOnly = false;
         private static bool s_useSurfaceDistance = false;
-        private static bool s_backfaceCulling = false;
+        private static bool s_backfaceCulling = true;
         private static bool s_showPenetration = false;
         private static Renderer s_penetrationReference = null;
 
@@ -347,6 +348,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     evt.Use();
                     return;
                 }
+            }
+
+            // Draw mesh wireframe
+            if (s_showWireframe && _meshTriangles != null && _meshVertices != null)
+            {
+                var deformedLocal = new Vector3[_meshVertices.Length];
+                for (int i = 0; i < deformedLocal.Length; i++)
+                    deformedLocal[i] = _meshVertices[i] + deformer.GetDisplacement(i);
+                WireframeRenderer.Draw(_meshTriangles, _worldPositions, deformedLocal, meshTransform.localToWorldMatrix);
             }
 
             // Draw displacement heatmap (always visible when enabled)
@@ -1649,9 +1659,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Brush Mode toolbar (icon + text) — Mask mode hidden from UI
             var modeContent = new GUIContent[]
             {
-                IconContent(LocKey.Normal, "TerrainInspector.TerrainToolSetHeight"),
-                IconContent(LocKey.Move, "MoveTool"),
-                IconContent(LocKey.Smooth, "TerrainInspector.TerrainToolSmoothHeight"),
+                ToolIcons.Content(ToolIcons.Normal, LocKey.Normal),
+                ToolIcons.Content(ToolIcons.Move, LocKey.Move),
+                ToolIcons.Content(ToolIcons.Smooth, LocKey.Smooth),
             };
             // Map toolbar index (0-2) to BrushMode enum (Normal=0, Move=1, Smooth=2)
             int currentModeIndex = Mathf.Min((int)BrushToolHandler.CurrentBrushMode, modeContent.Length - 1);
@@ -1668,7 +1678,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorGUI.BeginChangeCheck();
             radiusCm = EditorGUILayout.Slider(
                 new GUIContent(LatticeLocalization.Tr(LocKey.BrushRadius) + " (cm)", LatticeLocalization.Tooltip(LocKey.BrushRadius)),
-                radiusCm, 0.1f, 20f);
+                radiusCm, 0f, 10f);
             if (EditorGUI.EndChangeCheck())
                 BrushToolHandler.BrushRadius = radiusCm / 100f;
 
@@ -1702,10 +1712,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 BrushToolHandler.InvertBrush = GUILayout.Toggle(
                     BrushToolHandler.InvertBrush,
-                    LatticeLocalization.Content(LocKey.InvertBrush));
+                    ToolIcons.Content(ToolIcons.Invert, LocKey.InvertBrush));
                 BrushToolHandler.BackfaceCulling = GUILayout.Toggle(
                     BrushToolHandler.BackfaceCulling,
-                    LatticeLocalization.Content(LocKey.BackfaceCulling));
+                    ToolIcons.Content(ToolIcons.BackfaceCull, LocKey.BackfaceCulling));
             }
 
             // --- Advanced section (foldout) ---
@@ -1715,10 +1725,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 EditorGUI.indentLevel++;
                 BrushToolHandler.ConnectedOnly = GUILayout.Toggle(
                     BrushToolHandler.ConnectedOnly,
-                    LatticeLocalization.Content(LocKey.ConnectedOnly));
+                    ToolIcons.Content(ToolIcons.Connected, LocKey.ConnectedOnly));
                 BrushToolHandler.UseSurfaceDistance = GUILayout.Toggle(
                     BrushToolHandler.UseSurfaceDistance,
-                    LatticeLocalization.Content(LocKey.SurfaceDistance));
+                    ToolIcons.Content(ToolIcons.SurfaceDistance, LocKey.SurfaceDistance));
                 EditorGUI.indentLevel--;
             }
 
@@ -1729,7 +1739,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 EditorGUI.indentLevel++;
                 BrushToolHandler.MirrorEditing = GUILayout.Toggle(
                     BrushToolHandler.MirrorEditing,
-                    LatticeLocalization.Content(LocKey.EnableMirror));
+                    ToolIcons.Content(ToolIcons.Mirror, LocKey.EnableMirror));
 
                 using (new EditorGUI.DisabledScope(!BrushToolHandler.MirrorEditing))
                 {
@@ -1748,19 +1758,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (s_showVisualizationSection)
             {
                 EditorGUI.indentLevel++;
+                s_showWireframe = GUILayout.Toggle(s_showWireframe,
+                    ToolIcons.Content(ToolIcons.Eye, LocKey.ShowWireframe));
                 BrushToolHandler.ShowAffectedVertices = GUILayout.Toggle(
                     BrushToolHandler.ShowAffectedVertices,
-                    LatticeLocalization.Content(LocKey.ShowAffectedVertices));
+                    ToolIcons.Content(ToolIcons.Eye, LocKey.ShowAffectedVertices));
                 BrushToolHandler.ShowDisplacementHeatmap = GUILayout.Toggle(
                     BrushToolHandler.ShowDisplacementHeatmap,
-                    LatticeLocalization.Content(LocKey.ShowDisplacementHeatmap));
+                    ToolIcons.Content(ToolIcons.Eye, LocKey.ShowDisplacementHeatmap));
                 BrushToolHandler.VertexDotSize = EditorGUILayout.Slider(
                     LatticeLocalization.Content(LocKey.DotSize),
                     BrushToolHandler.VertexDotSize, 1f, 8f);
 
                 BrushToolHandler.ShowPenetration = GUILayout.Toggle(
                     BrushToolHandler.ShowPenetration,
-                    LatticeLocalization.Content(LocKey.ShowPenetration));
+                    ToolIcons.Content(ToolIcons.Eye, LocKey.ShowPenetration));
                 if (BrushToolHandler.ShowPenetration)
                 {
                     BrushToolHandler.PenetrationReference = (Renderer)EditorGUILayout.ObjectField(
@@ -1777,7 +1789,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Action buttons
             using (new GUILayout.HorizontalScope())
             {
-                if (GUILayout.Button(LatticeLocalization.Content(LocKey.ClearAll)))
+                if (GUILayout.Button(ToolIcons.Content(ToolIcons.Clear, LocKey.ClearAll)))
                 {
                     if (deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush)
                     {

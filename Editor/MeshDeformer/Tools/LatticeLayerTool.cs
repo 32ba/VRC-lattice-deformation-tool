@@ -1001,7 +1001,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Compact toggles (horizontal)
             using (new GUILayout.HorizontalScope())
             {
-                LatticeToolHandler.ShowIndices = GUILayout.Toggle(LatticeToolHandler.ShowIndices, LatticeLocalization.Content(LocKey.ShowControlIds));
+                LatticeToolHandler.ShowIndices = GUILayout.Toggle(LatticeToolHandler.ShowIndices, ToolIcons.Content(ToolIcons.Eye, LocKey.ShowControlIds));
 
                 bool keepControlsVisible = GUILayout.Toggle(
                     !LatticeToolHandler.OccludeWithSceneGeometry,
@@ -1013,7 +1013,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             using (new GUILayout.HorizontalScope())
             {
-                if (GUILayout.Button(LatticeLocalization.Content(LocKey.ClearSelection), GUILayout.Width(110f)))
+                if (GUILayout.Button(ToolIcons.Content(ToolIcons.Clear, LocKey.ClearSelection), GUILayout.Width(110f)))
                 {
                     LatticeToolHandler.ClearSelection();
                 }
@@ -1026,7 +1026,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (s_showSymmetrySection)
             {
                 EditorGUI.indentLevel++;
-                LatticeToolHandler.MirrorEditing = GUILayout.Toggle(LatticeToolHandler.MirrorEditing, LatticeLocalization.Content(LocKey.EnableSymmetryEditing));
+                LatticeToolHandler.MirrorEditing = GUILayout.Toggle(LatticeToolHandler.MirrorEditing, ToolIcons.Content(ToolIcons.Mirror, LocKey.EnableSymmetryEditing));
 
                 using (new EditorGUI.DisabledScope(!LatticeToolHandler.MirrorEditing))
                 {

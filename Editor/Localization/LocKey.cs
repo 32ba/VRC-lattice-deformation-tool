@@ -116,6 +116,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string ClearMask = "net.32ba.lattice-deformation-tool.localization.clear-mask";
         internal const string ClearAll = "net.32ba.lattice-deformation-tool.localization.clear-all";
         internal const string Visualization = "net.32ba.lattice-deformation-tool.localization.visualization";
+        internal const string ShowWireframe = "net.32ba.lattice-deformation-tool.localization.show-wireframe";
         internal const string ShowAffectedVertices = "net.32ba.lattice-deformation-tool.localization.show-affected-vertices";
         internal const string ShowDisplacementHeatmap = "net.32ba.lattice-deformation-tool.localization.show-displacement-heatmap";
         internal const string ShowPenetration = "net.32ba.lattice-deformation-tool.localization.show-penetration";

@@ -610,6 +610,12 @@ msgstr "Visualization"
 msgid "net.32ba.lattice-deformation-tool.localization.visualization.tooltip"
 msgstr "Options for displaying editing feedback in the Scene view."
 
+msgid "net.32ba.lattice-deformation-tool.localization.show-wireframe"
+msgstr "Show Wireframe"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-wireframe.tooltip"
+msgstr "Show the mesh edges so you can see the shape of faces."
+
 msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices"
 msgstr "Show Affected Vertices"
 
