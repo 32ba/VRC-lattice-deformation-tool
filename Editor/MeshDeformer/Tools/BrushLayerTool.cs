@@ -415,34 +415,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     localHitNormal = meshTransform.InverseTransformDirection(hit.normal).normalized;
                 }
 
-                // Draw brush disc at the world hit position
+                // Draw brush disc at the visual hit position in world space.
+                // The raycast hit point is where the user sees the mesh (post-skinning),
+                // so we draw there. The radius is in mesh-local space, so scale it to world.
                 var prevMatrix = Handles.matrix;
-                if (usedBakedMesh)
-                {
-                    Handles.matrix = bakedMatrix;
-                    var drawLocal = bakedMatrix.inverse.MultiplyPoint3x4(hit.point);
-                    var drawNormal = bakedMatrix.inverse.MultiplyVector(hit.normal).normalized;
+                Handles.matrix = Matrix4x4.identity;
 
-                    Color brushColor = GetBrushColor();
-                    Handles.color = brushColor;
-                    Handles.DrawWireDisc(drawLocal, drawNormal, s_brushRadius);
-                    Color fillColor = brushColor;
-                    fillColor.a = 0.1f;
-                    Handles.color = fillColor;
-                    Handles.DrawSolidDisc(drawLocal, drawNormal, s_brushRadius);
-                }
-                else
-                {
-                    Handles.matrix = meshTransform.localToWorldMatrix;
+                var scale = meshTransform.lossyScale;
+                float avgScale = (Mathf.Abs(scale.x) + Mathf.Abs(scale.y) + Mathf.Abs(scale.z)) / 3f;
+                float worldRadius = s_brushRadius * Mathf.Max(avgScale, 1e-6f);
 
-                    Color brushColor = GetBrushColor();
-                    Handles.color = brushColor;
-                    Handles.DrawWireDisc(localHitPoint, localHitNormal, s_brushRadius);
-                    Color fillColor = brushColor;
-                    fillColor.a = 0.1f;
-                    Handles.color = fillColor;
-                    Handles.DrawSolidDisc(localHitPoint, localHitNormal, s_brushRadius);
-                }
+                Color brushColor = GetBrushColor();
+                Handles.color = brushColor;
+                Handles.DrawWireDisc(hit.point, hit.normal, worldRadius);
+                Color fillColor = brushColor;
+                fillColor.a = 0.1f;
+                Handles.color = fillColor;
+                Handles.DrawSolidDisc(hit.point, hit.normal, worldRadius);
 
                 // Draw affected vertex dots within brush radius
                 if (s_showAffectedVertices && _meshVertices != null)
