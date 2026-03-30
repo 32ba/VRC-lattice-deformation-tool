@@ -178,6 +178,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static int SelectedVertexCount => s_selectedVertices.Count;
 
+        private float WorldToLocalRadius(float worldRadius)
+        {
+            if (_activeDeformer == null) return worldRadius;
+            var scale = _activeDeformer.MeshTransform.lossyScale;
+            float avg = (Mathf.Abs(scale.x) + Mathf.Abs(scale.y) + Mathf.Abs(scale.z)) / 3f;
+            return worldRadius / Mathf.Max(avg, 1e-6f);
+        }
+
         internal void Activate(LatticeDeformer deformer)
         {
             _activeDeformer = deformer;
@@ -274,7 +282,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Alt+Scroll to adjust proportional radius
             if (evt.type == EventType.ScrollWheel && evt.alt && ProportionalEditing)
             {
-                float delta = -evt.delta.y * 0.01f;
+                float delta = -evt.delta.y * 0.005f;
                 ProportionalRadius = s_proportionalRadius + delta;
                 evt.Use();
                 return;
@@ -954,12 +962,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
-            if (minDist >= s_proportionalRadius)
+            // Convert world-space radius to mesh-local for distance comparison
+            float localPropRadius = WorldToLocalRadius(s_proportionalRadius);
+            if (minDist >= localPropRadius)
             {
                 return 0f;
             }
 
-            float t = minDist / s_proportionalRadius;
+            float t = minDist / localPropRadius;
             return EvaluateFalloff(t);
         }
 
@@ -1010,14 +1020,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 pivotWorld = centroid / count;
             }
 
+            // s_proportionalRadius is world-space — draw directly
             var prevMatrix = Handles.matrix;
-            Handles.matrix = meshTransform.localToWorldMatrix;
-            var localCentroid = meshTransform.InverseTransformPoint(pivotWorld);
+            Handles.matrix = Matrix4x4.identity;
 
             Handles.color = k_ProportionalRadiusColor;
-            Handles.DrawWireDisc(localCentroid, Vector3.up, s_proportionalRadius);
-            Handles.DrawWireDisc(localCentroid, Vector3.right, s_proportionalRadius);
-            Handles.DrawWireDisc(localCentroid, Vector3.forward, s_proportionalRadius);
+            Handles.DrawWireDisc(pivotWorld, Vector3.up, s_proportionalRadius);
+            Handles.DrawWireDisc(pivotWorld, Vector3.right, s_proportionalRadius);
+            Handles.DrawWireDisc(pivotWorld, Vector3.forward, s_proportionalRadius);
 
             Handles.matrix = prevMatrix;
         }
