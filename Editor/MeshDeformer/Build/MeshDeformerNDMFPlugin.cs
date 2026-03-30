@@ -12,7 +12,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     internal sealed class LatticeDeformerNDMFPlugin : Plugin<LatticeDeformerNDMFPlugin>
     {
         public override string QualifiedName => "net.32ba.lattice-deformation-tool";
-        public override string DisplayName => LatticeLocalization.Tr("Lattice Deformer");
+        public override string DisplayName => LatticeLocalization.Tr(LocKey.MeshDeformer);
 
         protected override void Configure()
         {
@@ -87,7 +87,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var exportMesh = Object.Instantiate(bakedMesh);
             if (!string.IsNullOrEmpty(ownerName))
             {
-                exportMesh.name = ownerName + "_LatticeBaked";
+                exportMesh.name = ownerName + "_MeshDeformed";
             }
 
             // Recalculate bone weights if enabled and using SkinnedMeshRenderer
@@ -107,11 +107,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (result.success)
                 {
                     exportMesh.boneWeights = result.weights;
-                    Debug.Log($"[LatticeDeformer] Weight transfer completed for {ownerName}: {result.transferredCount} transferred, {result.inpaintedCount} inpainted out of {result.totalVertices} vertices.");
+                    Debug.Log($"[MeshDeformer] Weight transfer completed for {ownerName}: {result.transferredCount} transferred, {result.inpaintedCount} inpainted out of {result.totalVertices} vertices.");
                 }
                 else
                 {
-                    Debug.LogWarning($"[LatticeDeformer] Weight transfer failed for {ownerName}: {result.errorMessage}");
+                    Debug.LogWarning($"[MeshDeformer] Weight transfer failed for {ownerName}: {result.errorMessage}");
                 }
             }
 

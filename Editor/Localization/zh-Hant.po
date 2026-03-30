@@ -3,202 +3,1022 @@ msgstr ""
 "Language: zh-Hant\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-msgid "Lattice Tool"
-msgstr "Lattice Tool"
-
-msgid "X"
-msgstr "X"
-
-msgid "Y"
-msgstr "Y"
-
-msgid "Z"
-msgstr "Z"
-
-msgid "Copy"
-msgstr "複製"
-
-msgid "Mirror"
-msgstr "鏡像"
-
-msgid "Antisymmetric"
-msgstr "反對稱"
-
-msgid "Global-space editing disabled"
-msgstr "全域空間編輯已停用"
-
-msgid "Move Lattice Controls"
-msgstr "Move Lattice Controls"
-
-msgid "Selected: None"
-msgstr "選取: 無"
-
-msgid "Selected: {0}"
-msgstr "選取: {0}"
-
-msgid "Selected: {0} controls"
-msgstr "選取: {0} 個控制點"
-
-msgid "Activate the Lattice Tool to access settings."
-msgstr "Activate the Lattice Tool to access settings."
-
-msgid "Show Control IDs"
-msgstr "顯示控制 ID"
-
-msgid "Control Point Scope"
-msgstr "控制點範圍"
-
-msgid "Boundary Only"
-msgstr "僅邊界"
-
-msgid "All Controls"
-msgstr "全部控制點"
-
-msgid "Keep control points visible through objects"
-msgstr "物件不會遮住控制點"
-
-msgid "Clear Selection"
-msgstr "清除選取"
-
-msgid "Enable Symmetry Editing"
-msgstr "啟用對稱編輯"
-
-msgid "Symmetry Mode"
-msgstr "對稱模式"
-
-msgid "Symmetry Axis"
-msgstr "對稱軸"
-
-msgid "Hold Shift/Ctrl to add/remove controls."
-msgstr "按住 Shift/Ctrl 以新增或移除控制點。"
-
-msgid "Skinned Mesh Source"
-msgstr "Skinned Mesh Source"
-msgid "Static Mesh Source"
-msgstr "Static Mesh Source"
-msgid "Lattice Cage Settings"
-msgstr "晶格籠設定"
-
-msgid "Advanced Cage Settings"
-msgstr "籠進階設定"
-
-msgid "Mesh Rebuild Options"
-msgstr "網格重建選項"
-
-msgid "(NDMF) Disable Lattice Preview"
-msgstr "(NDMF) Disable Lattice Preview"
-
-# Alignment settings
-msgid "Lattice Cage Alignment"
-msgstr "格架籠對齊"
-
-msgid "(NDMF) Alignment Mode"
-msgstr "(NDMF) 對齊模式"
-
-msgid "Mode1: Transform only\nMode2: Transform + Center offset (clamped)\nMode3: Bounds remap + Center offset"
-msgstr "模式1: 僅Transform\n模式2: Transform + 中心偏移(限制)\n模式3: Bounds重映射 + 中心偏移"
-
-msgid "Manual Offset (proxy local)"
-msgstr "手動偏移 (代理區域)"
-
-msgid "Direct offset applied in proxy local space before auto center / clamp"
-msgstr "在自動中心/限制前套用於代理區域的偏移"
-
-msgid "Manual Scale (proxy local)"
-msgstr "手動縮放 (代理區域)"
-
-msgid "(NDMF) Allow Center Offset when Bounds Skipped"
-msgstr "(NDMF) 略過Bounds時允許中心偏移"
-
-msgid "Alignment Auto-Initialized"
-msgstr "對齊已自動初始化"
-
-msgid "(Debug) Log Preview Alignment to Console"
-msgstr "(Debug) 將預覽對齊輸出到控制台"
-
-msgid "Auto Apply Offset/Scale"
-msgstr "自動套用偏移/縮放"
-
-msgid "Manual Only / Auto Offset / Auto Scale / Auto Offset+Scale"
-msgstr "僅手動 / 自動偏移 / 自動縮放 / 自動偏移+縮放"
-
-# Scale axis labels
-msgid "X"
-msgstr "X"
-msgid "Y"
-msgstr "Y"
-msgid "Z"
-msgstr "Z"
-msgid "(NDMF) Enable Lattice Preview"
-msgstr "(NDMF) Enable Lattice Preview"
-
-msgid "Open Lattice Editor"
-msgstr "開啟晶格編輯器"
-
-msgid "Change Lattice Divisions"
-msgstr "變更晶格分段"
-
-msgid "No Lattice Deformer selected."
-msgstr "No Lattice Deformer selected."
-
-msgid "No Lattice Asset assigned to this deformer."
-msgstr "此變形器未指派晶格資產。"
-
-msgid "Current Grid Divisions"
-msgstr "目前網格分段"
-
-msgid "Pending Grid Divisions"
-msgstr "變更後的網格分段"
-
-msgid "Apply"
-msgstr "套用"
-
-msgid "Revert"
-msgstr "還原"
-
-msgid "Lattice Deformer"
-msgstr "Lattice Deformer"
-
-msgid "Tool Language"
+# General
+msgid "net.32ba.lattice-deformation-tool.localization.tool-language"
 msgstr "工具語言"
 
-msgid "Reset Lattice Cage"
+msgid "net.32ba.lattice-deformation-tool.localization.tool-language.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-tooltips"
+msgstr "顯示工具提示"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-tooltips.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer"
+msgstr "Mesh Deformer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.yes"
+msgstr "是"
+
+msgid "net.32ba.lattice-deformation-tool.localization.yes.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.no"
+msgstr "否"
+
+msgid "net.32ba.lattice-deformation-tool.localization.no.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.apply"
+msgstr "套用"
+
+msgid "net.32ba.lattice-deformation-tool.localization.apply.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.revert"
+msgstr "還原"
+
+msgid "net.32ba.lattice-deformation-tool.localization.revert.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.settings"
+msgstr "設定"
+
+msgid "net.32ba.lattice-deformation-tool.localization.settings.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy"
+msgstr "複製"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.paste"
+msgstr "貼上"
+
+msgid "net.32ba.lattice-deformation-tool.localization.paste.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate"
+msgstr "複製"
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.select"
+msgstr "選擇..."
+
+msgid "net.32ba.lattice-deformation-tool.localization.select.tooltip"
+msgstr ""
+
+# Mesh Source
+msgid "net.32ba.lattice-deformation-tool.localization.skinned-mesh-source"
+msgstr "Skinned Mesh Source"
+
+msgid "net.32ba.lattice-deformation-tool.localization.skinned-mesh-source.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.static-mesh-source"
+msgstr "Static Mesh Source"
+
+msgid "net.32ba.lattice-deformation-tool.localization.static-mesh-source.tooltip"
+msgstr ""
+
+# Groups & Layers
+msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.layers"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.layers.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-lattice-layer"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-lattice-layer.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer"
+msgstr "活動圖層"
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate-layer"
+msgstr "複製圖層"
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate-layer.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-layer"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-layer.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.paste-layer"
+msgstr "貼上圖層"
+
+msgid "net.32ba.lattice-deformation-tool.localization.paste-layer.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.delete-layer"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.delete-layer.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate-group"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.duplicate-group.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-group"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-group.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.paste-group"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.paste-group.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.delete-group"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.delete-group.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-deformation-layers"
+msgstr "沒有可用的變形圖層。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-deformation-layers.tooltip"
+msgstr ""
+
+# L/R Operations
+msgid "net.32ba.lattice-deformation-tool.localization.lr-operations"
+msgstr "左右操作"
+
+msgid "net.32ba.lattice-deformation-tool.localization.lr-operations.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-l"
+msgstr "保留左側"
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-l.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-r"
+msgstr "保留右側"
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-r.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-layer-left"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-layer-left.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-layer-right"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.split-layer-right.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-x"
+msgstr "X翻轉"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-x.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-y"
+msgstr "Y翻轉"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-y.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-z"
+msgstr "Z翻轉"
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-z.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-x"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-x.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-y"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-y.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-z"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-z.tooltip"
+msgstr ""
+
+# Lattice Tool
+msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool"
+msgstr "Lattice Tool"
+
+msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-lattice"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-lattice.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls"
+msgstr "Move Lattice Controls"
+
+msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-lattice-cage"
 msgstr "重設晶格籠"
 
+msgid "net.32ba.lattice-deformation-tool.localization.reset-lattice-cage.tooltip"
+msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.control-point-scope"
+msgstr "控制點範圍"
 
+msgid "net.32ba.lattice-deformation-tool.localization.control-point-scope.tooltip"
+msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.all-controls"
+msgstr "全部控制點"
 
-msgid "Choose how preview proxy is mapped: Mode1=Transform, Mode2=Transform+Center offset, Mode3=Bounds remap"
-msgstr "選擇預覽代理的對齊方式：模式1=僅變換，模式2=變換+中心偏移，模式3=包圍盒重新映射"
+msgid "net.32ba.lattice-deformation-tool.localization.all-controls.tooltip"
+msgstr ""
 
-msgid "Mode 1"
-msgstr "模式1"
+msgid "net.32ba.lattice-deformation-tool.localization.boundary-only"
+msgstr "僅邊界"
 
-msgid "Mode 2"
-msgstr "模式2"
+msgid "net.32ba.lattice-deformation-tool.localization.boundary-only.tooltip"
+msgstr ""
 
-msgid "Mode 3"
-msgstr "模式3"
+msgid "net.32ba.lattice-deformation-tool.localization.keep-control-points-visible"
+msgstr "物件不會遮住控制點"
 
-msgid "Transform only (uses proxy transform, no bounds remap)"
-msgstr "僅變換（使用代理的Transform，不做包圍盒重新映射）"
+msgid "net.32ba.lattice-deformation-tool.localization.keep-control-points-visible.tooltip"
+msgstr ""
 
-msgid "Transform + center offset (adds center delta)"
-msgstr "變換+中心偏移（加上中心差值）"
+msgid "net.32ba.lattice-deformation-tool.localization.show-control-ids"
+msgstr "顯示控制 ID"
 
-msgid "Bounds remap (maps lattice bounds to proxy bounds)"
-msgstr "包圍盒重新映射（將格籠包圍盒映射到代理包圍盒）"
-msgid "Offset"
-msgstr "偏移"
+msgid "net.32ba.lattice-deformation-tool.localization.show-control-ids.tooltip"
+msgstr ""
 
-msgid "Scale"
+msgid "net.32ba.lattice-deformation-tool.localization.handle-orientation"
+msgstr "手柄方向"
+
+msgid "net.32ba.lattice-deformation-tool.localization.handle-orientation.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.local"
+msgstr "本地"
+
+msgid "net.32ba.lattice-deformation-tool.localization.local.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.global"
+msgstr "全域"
+
+msgid "net.32ba.lattice-deformation-tool.localization.global.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-symmetry-editing"
+msgstr "啟用對稱編輯"
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-symmetry-editing.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.symmetry-axis"
+msgstr "對稱軸"
+
+msgid "net.32ba.lattice-deformation-tool.localization.symmetry-axis.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.symmetry-mode"
+msgstr "對稱模式"
+
+msgid "net.32ba.lattice-deformation-tool.localization.symmetry-mode.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.antisymmetric"
+msgstr "反對稱"
+
+msgid "net.32ba.lattice-deformation-tool.localization.antisymmetric.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.mirror"
+msgstr "鏡像"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mirror.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.x"
+msgstr "X"
+
+msgid "net.32ba.lattice-deformation-tool.localization.x.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.y"
+msgstr "Y"
+
+msgid "net.32ba.lattice-deformation-tool.localization.y.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.z"
+msgstr "Z"
+
+msgid "net.32ba.lattice-deformation-tool.localization.z.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.shift-click-hint"
+msgstr "按住 Shift/Ctrl 以新增或移除控制點。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.shift-click-hint.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-none"
+msgstr "選取: 無"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-none.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-format"
+msgstr "選取: {0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-format.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-controls-format"
+msgstr "選取: {0} 個控制點"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-controls-format.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.global-space-disabled"
+msgstr "全域空間編輯已停用"
+
+msgid "net.32ba.lattice-deformation-tool.localization.global-space-disabled.tooltip"
+msgstr ""
+
+# Lattice Grid
+msgid "net.32ba.lattice-deformation-tool.localization.current-grid-divisions"
+msgstr "目前網格分段"
+
+msgid "net.32ba.lattice-deformation-tool.localization.current-grid-divisions.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.pending-grid-divisions"
+msgstr "變更後的網格分段"
+
+msgid "net.32ba.lattice-deformation-tool.localization.pending-grid-divisions.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.change-lattice-divisions"
+msgstr "變更晶格分段"
+
+msgid "net.32ba.lattice-deformation-tool.localization.change-lattice-divisions.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected"
+msgstr "No Lattice Deformer selected."
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-asset-assigned"
+msgstr "此變形器未指派晶格資產。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-asset-assigned.tooltip"
+msgstr ""
+
+# Brush Tool
+msgid "net.32ba.lattice-deformation-tool.localization.brush-tool"
+msgstr "筆刷工具"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-tool.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-brush"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-brush.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-radius"
+msgstr "筆刷半徑"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-radius.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-strength"
+msgstr "筆刷強度"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-strength.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-falloff"
+msgstr "筆刷衰減"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-falloff.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.normal"
+msgstr "法線"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normal.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.move"
+msgstr "移動"
+
+msgid "net.32ba.lattice-deformation-tool.localization.move.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-smooth"
+msgstr "筆刷平滑"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-smooth.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-mask"
+msgstr "筆刷遮罩"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-mask.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deform"
+msgstr "筆刷變形"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deform.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.smooth"
+msgstr "平滑"
+
+msgid "net.32ba.lattice-deformation-tool.localization.smooth.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.linear"
+msgstr "線性"
+
+msgid "net.32ba.lattice-deformation-tool.localization.linear.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.constant"
+msgstr "恆定"
+
+msgid "net.32ba.lattice-deformation-tool.localization.constant.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.sphere"
+msgstr "球體"
+
+msgid "net.32ba.lattice-deformation-tool.localization.sphere.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.gaussian"
+msgstr "高斯"
+
+msgid "net.32ba.lattice-deformation-tool.localization.gaussian.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.falloff"
+msgstr "衰減"
+
+msgid "net.32ba.lattice-deformation-tool.localization.falloff.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.invert"
+msgstr "反選"
+
+msgid "net.32ba.lattice-deformation-tool.localization.invert.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.invert-brush"
+msgstr "反轉筆刷"
+
+msgid "net.32ba.lattice-deformation-tool.localization.invert-brush.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-mirror"
+msgstr "啟用鏡像"
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-mirror.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.mirror-axis"
+msgstr "鏡像軸"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mirror-axis.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.surface-distance"
+msgstr "表面距離"
+
+msgid "net.32ba.lattice-deformation-tool.localization.surface-distance.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-all-displacements"
+msgstr "清除所有變形"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-all-displacements.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.backface-culling"
+msgstr "背面剔除"
+
+msgid "net.32ba.lattice-deformation-tool.localization.backface-culling.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-hint"
+msgstr "Alt+滾輪: 半徑 / Shift+滾輪: 強度"
+
+msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-hint.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.mask"
+msgstr "遮罩"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mask.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-mask"
+msgstr "清除遮罩"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-mask.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-all"
+msgstr "全部清除"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-all.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.visualization"
+msgstr "可視化"
+
+msgid "net.32ba.lattice-deformation-tool.localization.visualization.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices"
+msgstr "顯示受影響頂點"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-displacement-heatmap"
+msgstr "顯示位移熱力圖"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-displacement-heatmap.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-penetration"
+msgstr "顯示穿透"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-penetration.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.reference-mesh"
+msgstr "參考網格"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reference-mesh.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.dot-size"
+msgstr "點大小"
+
+msgid "net.32ba.lattice-deformation-tool.localization.dot-size.tooltip"
+msgstr ""
+
+# Vertex Selection Tool
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
+msgstr "頂點工具"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection"
+msgstr "頂點選取"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-move"
+msgstr "頂點移動"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-move.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-rotate"
+msgstr "頂點旋轉"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-rotate.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-scale"
+msgstr "頂點縮放"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-scale.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-transform"
+msgstr "頂點變換"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-transform.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.transform-mode"
+msgstr "變換模式"
+
+msgid "net.32ba.lattice-deformation-tool.localization.transform-mode.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.rotate"
+msgstr "旋轉"
+
+msgid "net.32ba.lattice-deformation-tool.localization.rotate.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.scale"
 msgstr "縮放"
-msgid "Position/scale here only move the editing cage in the Scene view. They do not change the deform target\'s bounds or final mesh deformation."
+
+msgid "net.32ba.lattice-deformation-tool.localization.scale.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.select-all"
+msgstr "全選"
+
+msgid "net.32ba.lattice-deformation-tool.localization.select-all.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.select-none"
+msgstr "取消選取"
+
+msgid "net.32ba.lattice-deformation-tool.localization.select-none.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-selection"
+msgstr "清除選取"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clear-selection.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.connected-only"
+msgstr "僅連接面"
+
+msgid "net.32ba.lattice-deformation-tool.localization.connected-only.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-selected-vertices"
+msgstr "重置選取頂點"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-selected-vertices.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-all-vertices"
+msgstr "重置所有頂點"
+
+msgid "net.32ba.lattice-deformation-tool.localization.reset-all-vertices.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.proportional-editing"
+msgstr "比例編輯"
+
+msgid "net.32ba.lattice-deformation-tool.localization.proportional-editing.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.proportional-radius"
+msgstr "比例半徑"
+
+msgid "net.32ba.lattice-deformation-tool.localization.proportional-radius.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.pivot"
+msgstr "樞軸"
+
+msgid "net.32ba.lattice-deformation-tool.localization.pivot.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.center"
+msgstr "中心"
+
+msgid "net.32ba.lattice-deformation-tool.localization.center.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.last-selected"
+msgstr "最後選取"
+
+msgid "net.32ba.lattice-deformation-tool.localization.last-selected.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-vertices-format"
+msgstr "選取: {0} 個頂點"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-vertices-format.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.wer-hint"
+msgstr "W/E/R: 移動/旋轉/縮放"
+
+msgid "net.32ba.lattice-deformation-tool.localization.wer-hint.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-proportional-hint"
+msgstr "Alt+滾輪: 比例半徑"
+
+msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-proportional-hint.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.shift-drag-precision"
+msgstr "Shift+拖曳: 精確模式"
+
+msgid "net.32ba.lattice-deformation-tool.localization.shift-drag-precision.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.z-toggle-pivot"
+msgstr "Z: 切換樞軸"
+
+msgid "net.32ba.lattice-deformation-tool.localization.z-toggle-pivot.tooltip"
+msgstr ""
+
+# Mesh Rebuild Options
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-rebuild-options"
+msgstr "網格重建選項"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-rebuild-options.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals"
+msgstr "法線"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.tangents"
+msgstr "切線"
+
+msgid "net.32ba.lattice-deformation-tool.localization.tangents.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.bounds"
+msgstr "邊界"
+
+msgid "net.32ba.lattice-deformation-tool.localization.bounds.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.bone-weight-requires-smr"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.bone-weight-requires-smr.tooltip"
+msgstr ""
+
+# Weight Transfer
+msgid "net.32ba.lattice-deformation-tool.localization.weight-transfer-settings"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.weight-transfer-settings.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.stage1-initial-transfer"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.stage1-initial-transfer.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.stage2-weight-inpainting"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.stage2-weight-inpainting.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.max-transfer-distance"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.max-transfer-distance.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.normal-angle-threshold"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.normal-angle-threshold.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-inpainting"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.enable-inpainting.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.max-iterations"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.max-iterations.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.tolerance"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.tolerance.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-count"
+msgstr "頂點數"
+
+msgid "net.32ba.lattice-deformation-tool.localization.vertex-count.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.has-displacements"
+msgstr "存在變形資料"
+
+msgid "net.32ba.lattice-deformation-tool.localization.has-displacements.tooltip"
+msgstr ""
+
+# BlendShape
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-output"
+msgstr "BlendShape 輸出"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-output.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-name"
+msgstr "BlendShape 名稱"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-name.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.curve"
+msgstr "曲線"
+
+msgid "net.32ba.lattice-deformation-tool.localization.curve.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.enter-test-mode"
+msgstr "進入測試模式"
+
+msgid "net.32ba.lattice-deformation-tool.localization.enter-test-mode.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.exit-test-mode"
+msgstr "退出測試模式"
+
+msgid "net.32ba.lattice-deformation-tool.localization.exit-test-mode.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-test-mode"
+msgstr "BlendShape 測試模式"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-test-mode.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.test-weight"
+msgstr "測試權重"
+
+msgid "net.32ba.lattice-deformation-tool.localization.test-weight.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape"
+msgstr "匯入 BlendShape"
+
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape.tooltip"
+msgstr ""
+
+# NDMF Preview
+msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
+msgstr "(NDMF) Disable Lattice Preview"
+
+msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview"
+msgstr "(NDMF) Enable Lattice Preview"
+
+msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview.tooltip"
+msgstr ""
+
+# Lattice Cage Alignment
+msgid "net.32ba.lattice-deformation-tool.localization.lattice-cage-alignment"
+msgstr "格架籠對齊"
+
+msgid "net.32ba.lattice-deformation-tool.localization.lattice-cage-alignment.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.alignment-cage-info"
 msgstr "此處的位移/縮放僅移動場景檢視中的編輯籠，不會改變變形目標的包圍盒或最終變形。"
 
-msgid "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."
-msgstr "如果權重黏到錯誤的表面，請嘗試降低此值或法線角度閾值，讓匹配更嚴格。"
+msgid "net.32ba.lattice-deformation-tool.localization.alignment-cage-info.tooltip"
+msgstr ""
 
-msgid "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."
-msgstr "如果權重黏到錯誤的表面，請嘗試降低此值或最大轉移距離，讓匹配更嚴格。"
+msgid "net.32ba.lattice-deformation-tool.localization.offset"
+msgstr "偏移"
+
+msgid "net.32ba.lattice-deformation-tool.localization.offset.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.offset-tooltip"
+msgstr "在自動中心/限制前套用於代理區域的偏移"
+
+msgid "net.32ba.lattice-deformation-tool.localization.debug-log-alignment"
+msgstr "(Debug) 將預覽對齊輸出到控制台"
+
+msgid "net.32ba.lattice-deformation-tool.localization.debug-log-alignment.tooltip"
+msgstr ""
+
+# Editor buttons
+msgid "net.32ba.lattice-deformation-tool.localization.open-brush-editor"
+msgstr "開啟筆刷編輯器"
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-brush-editor.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-lattice-editor"
+msgstr "開啟晶格編輯器"
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-lattice-editor.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.select-mesh-deformer"
+msgstr "請選擇要編輯的 Mesh Deformer。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.select-mesh-deformer.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush"
+msgstr "筆刷"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.advanced"
+msgstr "進階設定"
+
+msgid "net.32ba.lattice-deformation-tool.localization.advanced.tooltip"
+msgstr ""
+
+# Legacy Brush Deformer
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deformer"
+msgstr "筆刷變形器"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deformer.tooltip"
+msgstr ""
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation"
+msgstr "筆刷變形"
+
+msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
+msgstr ""

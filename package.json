@@ -3,7 +3,7 @@
   "displayName": "Lattice Deformation Tool",
   "version": "1.2.1",
   "unity": "2022.3",
-  "description": "Editor tooling for non-destructive free-form lattice deformation of meshes and skinned meshes.",
+  "description": "Editor tooling for layered mesh deformation (lattice and brush) on meshes and skinned meshes. formerly known as Mesh Deformation Tool.",
   "author": {
     "name": "32ba"
   },
