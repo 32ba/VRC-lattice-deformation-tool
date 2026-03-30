@@ -1,7 +1,7 @@
 {
   "name": "net.32ba.lattice-deformation-tool",
   "displayName": "Lattice Deformation Tool",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "unity": "2022.3",
   "description": "Editor tooling for layered mesh deformation (lattice and brush) on meshes and skinned meshes. formerly known as Mesh Deformation Tool.",
   "author": {
