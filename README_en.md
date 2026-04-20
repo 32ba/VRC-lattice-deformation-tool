@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Blobs~/logo-white.png">
+    <img src="Blobs~/logo.png" alt="Mesh Deformation Tool" width="500">
+  </picture>
+</p>
+
 # Lattice Deformation Tool
 
 A Unity editor extension for lattice deformation, compatible with Unity 2022.3 and later.  

@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Blobs~/logo-white.png">
+    <img src="Blobs~/logo.png" alt="Mesh Deformation Tool" width="500">
+  </picture>
+</p>
+
 # Lattice Deformation Tool
 
 Unity 2022.3 以降に対応するラティス変形用の Unity エディタ拡張です。NDMF のプレビュー機能と連携し、元のメッシュを破壊しない非破壊ワークフローで編集できます。
