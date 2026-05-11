@@ -16,6 +16,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string Paste = "net.32ba.lattice-deformation-tool.localization.paste";
         internal const string Duplicate = "net.32ba.lattice-deformation-tool.localization.duplicate";
         internal const string Select = "net.32ba.lattice-deformation-tool.localization.select";
+        internal const string UpdateAvailable = "net.32ba.lattice-deformation-tool.localization.update-available";
+        internal const string UpdateCurrentToLatest = "net.32ba.lattice-deformation-tool.localization.update-current-to-latest";
+        internal const string UpdateOpenBoothPage = "net.32ba.lattice-deformation-tool.localization.update-open-booth-page";
 
         // Mesh Source
         internal const string SkinnedMeshSource = "net.32ba.lattice-deformation-tool.localization.skinned-mesh-source";

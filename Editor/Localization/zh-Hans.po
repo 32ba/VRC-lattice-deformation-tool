@@ -1022,3 +1022,13 @@ msgstr "笔刷变形"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr ""
+
+# Update notification
+msgid "net.32ba.lattice-deformation-tool.localization.update-available"
+msgstr "有新版本可用"
+
+msgid "net.32ba.lattice-deformation-tool.localization.update-current-to-latest"
+msgstr "当前: {0}  最新: {1}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
+msgstr "打开 BOOTH 商品页面"

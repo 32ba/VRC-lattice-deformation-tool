@@ -34,11 +34,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             AutoAssignLocalRendererReferences();
             LatticeLocalization.LanguageChanged += Repaint;
+            ReleaseChecker.OnUpdateCheckCompleted += Repaint;
         }
 
         private void OnDisable()
         {
             LatticeLocalization.LanguageChanged -= Repaint;
+            ReleaseChecker.OnUpdateCheckCompleted -= Repaint;
         }
 
         public override void OnInspectorGUI()
@@ -51,6 +53,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             DrawLanguageSelector();
             EditorGUILayout.Space();
+            ReleaseNotificationGUI.Draw();
 
             using (new EditorGUI.DisabledScope(hasMeshAssigned))
             {

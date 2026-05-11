@@ -1022,3 +1022,13 @@ msgstr "브러시 변형"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr ""
+
+# Update notification
+msgid "net.32ba.lattice-deformation-tool.localization.update-available"
+msgstr "새 버전을 사용할 수 있습니다"
+
+msgid "net.32ba.lattice-deformation-tool.localization.update-current-to-latest"
+msgstr "현재: {0}  최신: {1}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
+msgstr "BOOTH 상품 페이지 열기"

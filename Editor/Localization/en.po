@@ -1025,3 +1025,13 @@ msgstr "Brush Deformation"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr "Section for brush-based vertex deformation settings."
+
+# Update notification
+msgid "net.32ba.lattice-deformation-tool.localization.update-available"
+msgstr "A new version is available"
+
+msgid "net.32ba.lattice-deformation-tool.localization.update-current-to-latest"
+msgstr "Current: {0}  Latest: {1}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
+msgstr "Open BOOTH Product Page"

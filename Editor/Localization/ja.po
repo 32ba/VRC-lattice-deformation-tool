@@ -1025,3 +1025,13 @@ msgstr "ブラシ変形"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr "ブラシベースの頂点変形設定セクションです。"
+
+# Update notification
+msgid "net.32ba.lattice-deformation-tool.localization.update-available"
+msgstr "新しいバージョンがあります"
+
+msgid "net.32ba.lattice-deformation-tool.localization.update-current-to-latest"
+msgstr "現在: {0}  最新: {1}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
+msgstr "BOOTH 商品ページを開く"

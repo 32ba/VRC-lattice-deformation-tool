@@ -94,6 +94,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             AutoAssignLocalRendererReferences();
             InitializePendingGridSizes();
             LatticeLocalization.LanguageChanged += OnLanguageChanged;
+            ReleaseChecker.OnUpdateCheckCompleted += Repaint;
         }
 
         private void ResolveActiveGroupProperties()
@@ -121,6 +122,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void OnDisable()
         {
             LatticeLocalization.LanguageChanged -= OnLanguageChanged;
+            ReleaseChecker.OnUpdateCheckCompleted -= Repaint;
             ExitBlendShapeTestMode();
 
             foreach (var deformer in EnumerateTargets())
@@ -552,6 +554,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             DrawLanguageSelector();
             EditorGUILayout.Space();
+            ReleaseNotificationGUI.Draw();
 
             using (new EditorGUI.DisabledScope(disableSkinnedField))
             {
