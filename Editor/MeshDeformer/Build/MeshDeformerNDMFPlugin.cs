@@ -134,7 +134,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static bool ShouldProcessDeformer(LatticeDeformer deformer)
         {
-            return deformer != null && deformer.isActiveAndEnabled;
+            return deformer != null && deformer.enabled;
         }
     }
 }

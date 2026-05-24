@@ -25,7 +25,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void ShouldProcessDeformer_WhenGameObjectIsInactive_ReturnsFalse()
+        public void ShouldProcessDeformer_WhenGameObjectIsInactive_ReturnsTrue()
         {
             var go = new GameObject("InactiveObjectDeformer");
             try
@@ -33,7 +33,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var deformer = go.AddComponent<LatticeDeformer>();
                 go.SetActive(false);
 
-                Assert.That(LatticeDeformerBakePass.ShouldProcessDeformer(deformer), Is.False);
+                Assert.That(LatticeDeformerBakePass.ShouldProcessDeformer(deformer), Is.True);
             }
             finally
             {
