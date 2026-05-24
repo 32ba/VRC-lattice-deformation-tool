@@ -2,7 +2,8 @@
   "name": "net.32ba.lattice-deformation-tool.tests.editor",
   "references": [
     "net.32ba.lattice-deformation-tool",
-    "net.32ba.lattice-deformation-tool.editor"
+    "net.32ba.lattice-deformation-tool.editor",
+    "nadena.dev.ndmf"
   ],
   "includePlatforms": [
     "Editor"
