@@ -50,7 +50,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static void ProcessDeformer(BuildContext context, LatticeDeformer deformer)
         {
-            if (deformer == null)
+            if (!ShouldProcessDeformer(deformer))
             {
                 return;
             }
@@ -130,6 +130,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             Object.DestroyImmediate(deformer, true);
+        }
+
+        internal static bool ShouldProcessDeformer(LatticeDeformer deformer)
+        {
+            return deformer != null && deformer.enabled;
         }
     }
 }
