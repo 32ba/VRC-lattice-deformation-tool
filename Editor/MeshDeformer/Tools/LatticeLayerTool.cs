@@ -626,7 +626,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                             }
 
                             deformer.InvalidateCache();
-                            deformer.Deform(false);
+                            bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
+                            deformer.Deform(assignRuntimeMesh);
                             LatticePrefabUtility.MarkModified(deformer);
                             LatticePreviewUtility.RequestSceneRepaint();
                         }
@@ -644,7 +645,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            _activeDeformer.Deform(false);
+            bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
+            _activeDeformer.Deform(assignRuntimeMesh);
 
             LatticePreviewUtility.RequestSceneRepaint();
         }

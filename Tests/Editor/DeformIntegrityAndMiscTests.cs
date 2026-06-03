@@ -194,6 +194,93 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally { fixture.Dispose(); }
         }
 
+        [Test]
+        public void SkinnedBlendShapeWeight_InitializeBoundsUsesVisibleVertices()
+        {
+            var fixture = CreateSkinnedBlendShapeFixture("SkinnedBlendShapeWeight_InitializeBounds");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var source = fixture.SourceMesh;
+                var baseVertices = source.vertices;
+                var deltas = new Vector3[source.vertexCount];
+                source.GetBlendShapeFrameVertices(0, 0, deltas, null, null);
+
+                var referenced = source.triangles;
+                var expected = new Bounds(baseVertices[referenced[0]] + deltas[referenced[0]], Vector3.zero);
+                for (int i = 1; i < referenced.Length; i++)
+                {
+                    int vertexIndex = referenced[i];
+                    expected.Encapsulate(baseVertices[vertexIndex] + deltas[vertexIndex]);
+                }
+
+                deformer.InitializeFromSource(true);
+
+                AssertApproximately(expected.center, deformer.Settings.LocalBounds.center, Epsilon);
+                AssertApproximately(expected.size, deformer.Settings.LocalBounds.size, Epsilon);
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void SkinnedBlendShapeWeight_DeformBakesVisibleVerticesWithoutDoubleApplying()
+        {
+            var fixture = CreateSkinnedBlendShapeFixture("SkinnedBlendShapeWeight_DeformBakesVisible");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var source = fixture.SourceMesh;
+                var runtime = deformer.Deform(false);
+
+                var baseVertices = source.vertices;
+                var sourceDeltas = new Vector3[source.vertexCount];
+                source.GetBlendShapeFrameVertices(0, 0, sourceDeltas, null, null);
+
+                var runtimeDeltas = new Vector3[runtime.vertexCount];
+                runtime.GetBlendShapeFrameVertices(0, 0, runtimeDeltas, null, null);
+                var runtimeVertices = runtime.vertices;
+
+                foreach (int i in source.triangles)
+                {
+                    AssertApproximately(baseVertices[i] + sourceDeltas[i], runtimeVertices[i], Epsilon);
+                    AssertApproximately(Vector3.zero, runtimeDeltas[i], Epsilon);
+                }
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void SkinnedBlendShapeWeight_DeformAfterRestoreStillDoesNotDoubleApply()
+        {
+            var fixture = CreateSkinnedBlendShapeFixture("SkinnedBlendShapeWeight_DeformAfterRestore");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var source = fixture.SourceMesh;
+                var renderer = fixture.Root.GetComponent<SkinnedMeshRenderer>();
+
+                deformer.Deform(true);
+                deformer.RestoreOriginalMesh();
+                var runtime = deformer.Deform(true);
+
+                var baseVertices = source.vertices;
+                var sourceDeltas = new Vector3[source.vertexCount];
+                source.GetBlendShapeFrameVertices(0, 0, sourceDeltas, null, null);
+
+                var runtimeDeltas = new Vector3[runtime.vertexCount];
+                runtime.GetBlendShapeFrameVertices(0, 0, runtimeDeltas, null, null);
+                var runtimeVertices = runtime.vertices;
+
+                Assert.That(renderer.sharedMesh, Is.SameAs(runtime));
+                foreach (int i in source.triangles)
+                {
+                    AssertApproximately(baseVertices[i] + sourceDeltas[i], runtimeVertices[i], Epsilon);
+                    AssertApproximately(Vector3.zero, runtimeDeltas[i], Epsilon);
+                }
+            }
+            finally { fixture.Dispose(); }
+        }
+
         // ========================================================================
         // RestoreOriginalMesh
         // ========================================================================
@@ -1194,6 +1281,41 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             deformer.Deform(false);
 
             return new TestFixture(root, sourceMesh, deformer);
+        }
+
+        private static TestFixture CreateSkinnedBlendShapeFixture(string name)
+        {
+            var mesh = new Mesh { name = name + "_Mesh" };
+            mesh.vertices = new[]
+            {
+                new Vector3(0f, 0f, 0f),
+                new Vector3(1f, 0f, 0f),
+                new Vector3(0f, 1f, 0f),
+                new Vector3(100f, 100f, 100f)
+            };
+            mesh.triangles = new[] { 0, 1, 2 };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+
+            var deltas = new[]
+            {
+                new Vector3(0f, 0.25f, 0f),
+                new Vector3(0f, 0.25f, 0f),
+                new Vector3(0f, 0.5f, 0f),
+                new Vector3(100f, 100f, 100f)
+            };
+            mesh.AddBlendShapeFrame("ExistingShape", 100f, deltas, null, null);
+
+            var root = new GameObject(name);
+            var smr = root.AddComponent<SkinnedMeshRenderer>();
+            smr.sharedMesh = mesh;
+            smr.SetBlendShapeWeight(0, 100f);
+
+            var deformer = root.AddComponent<LatticeDeformer>();
+            deformer.Reset();
+            deformer.Deform(false);
+
+            return new TestFixture(root, mesh, deformer);
         }
 
         private static Mesh CreateCubeMesh()
