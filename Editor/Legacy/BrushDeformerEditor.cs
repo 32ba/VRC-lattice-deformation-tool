@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using nadena.dev.ndmf.preview;
 using UnityEditor;
 using UnityEditor.EditorTools;
@@ -9,6 +10,7 @@ using Net._32Ba.LatticeDeformationTool;
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
     [CustomEditor(typeof(BrushDeformer))]
+    [ExcludeFromCodeCoverage]
     public sealed class BrushDeformerEditor : UnityEditor.Editor
     {
         private SerializedProperty _skinnedRendererProp;

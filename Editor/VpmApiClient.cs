@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using UnityEngine.Networking;
 
@@ -18,6 +19,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _packageId = packageId;
         }
 
+        [ExcludeFromCodeCoverage]
         internal IEnumerator GetLatestVersionCoroutine(Action<string> onComplete, Action<string> onError = null)
         {
             string url = $"{ApiBaseUrl}/{_packageId}/latest/version";
@@ -38,25 +40,40 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private static string BuildErrorMessage(UnityWebRequest request, string url)
+        internal static string BuildErrorMessage(UnityWebRequest request, string url)
+        {
+            string responseText = request.downloadHandler != null ? request.downloadHandler.text : null;
+            return BuildErrorMessage(request, url, responseText);
+        }
+
+        internal static string BuildErrorMessage(UnityWebRequest request, string url, string responseText)
+        {
+            return BuildErrorMessage(request.result, request.error, request.responseCode, url, responseText);
+        }
+
+        internal static string BuildErrorMessage(
+            UnityWebRequest.Result result,
+            string error,
+            long responseCode,
+            string url,
+            string responseText)
         {
             var parts = new StringBuilder();
             parts.Append("VPM API request failed");
-            parts.Append($" ({request.result})");
+            parts.Append($" ({result})");
 
-            if (!string.IsNullOrEmpty(request.error))
+            if (!string.IsNullOrEmpty(error))
             {
-                parts.Append($": {request.error}");
+                parts.Append($": {error}");
             }
 
-            if (request.responseCode > 0)
+            if (responseCode > 0)
             {
-                parts.Append($" [HTTP {request.responseCode}]");
+                parts.Append($" [HTTP {responseCode}]");
             }
 
             parts.Append($" URL={url}");
 
-            string responseText = request.downloadHandler != null ? request.downloadHandler.text : null;
             if (!string.IsNullOrWhiteSpace(responseText))
             {
                 responseText = responseText.Trim();

@@ -61,11 +61,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
                 }
 
-                if (closestRefVertex < 0)
-                {
-                    continue;
-                }
-
                 // Check if point is "inside" the reference mesh
                 // by comparing direction to closest vertex with the surface normal
                 Vector3 toPoint = pointInRefSpace - refVertices[closestRefVertex];

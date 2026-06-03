@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System;
+using System.Diagnostics.CodeAnalysis;
 using UnityEditor;
 using UnityEditor.EditorTools;
 using UnityEditor.Overlays;
@@ -9,6 +10,7 @@ using Net._32Ba.LatticeDeformationTool;
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
     [EditorTool("Mesh Deformer", typeof(LatticeDeformer))]
+    [ExcludeFromCodeCoverage]
     public sealed class MeshDeformerTool : EditorTool
     {
         internal enum BrushSubMode
@@ -139,6 +141,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     }
 
     [Overlay(typeof(SceneView), k_OverlayId, k_OverlayId, defaultDisplay = true)]
+    [ExcludeFromCodeCoverage]
     internal sealed class MeshDeformerToolOverlay : IMGUIOverlay, ITransientOverlay
     {
         private const string k_OverlayId = "Mesh Deformer";

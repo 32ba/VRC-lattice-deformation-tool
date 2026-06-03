@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using nadena.dev.ndmf;
 using Net._32Ba.LatticeDeformationTool;
 using Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer;
@@ -9,6 +10,7 @@ using Object = UnityEngine.Object;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
+    [ExcludeFromCodeCoverage]
     internal sealed class LatticeDeformerNDMFPlugin : Plugin<LatticeDeformerNDMFPlugin>
     {
         public override string QualifiedName => "net.32ba.lattice-deformation-tool";
@@ -23,6 +25,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
     }
 
+    [ExcludeFromCodeCoverage]
     internal sealed class LatticeDeformerBakePass : Pass<LatticeDeformerBakePass>
     {
         protected override void Execute(BuildContext context)

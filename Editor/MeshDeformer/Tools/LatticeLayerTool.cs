@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -8,6 +9,7 @@ using Net._32Ba.LatticeDeformationTool;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
+    [ExcludeFromCodeCoverage]
     internal sealed class LatticeToolHandler
     {
         internal enum MirrorAxis

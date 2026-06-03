@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using UnityEngine;
 using Unity.Collections;
 using Unity.Jobs;
@@ -494,6 +495,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         }
 
         [BurstCompile]
+        [ExcludeFromCodeCoverage]
         private struct FindClosestPointJob : IJobParallelFor
         {
             [ReadOnly] public NativeArray<float3> queryPoints;

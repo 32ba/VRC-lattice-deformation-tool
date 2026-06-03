@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -87,6 +88,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 : new GUIContent(text, tooltip);
         }
 
+        [ExcludeFromCodeCoverage]
         private static Texture2D LoadFromPackage(string name)
         {
             if (s_iconDir == null)

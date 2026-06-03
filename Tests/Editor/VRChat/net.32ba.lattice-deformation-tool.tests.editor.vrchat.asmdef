@@ -1,0 +1,25 @@
+{
+  "name": "net.32ba.lattice-deformation-tool.tests.editor.vrchat",
+  "references": [
+    "net.32ba.lattice-deformation-tool",
+    "net.32ba.lattice-deformation-tool.editor",
+    "net.32ba.lattice-deformation-tool.vrchat"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "versionDefines": [
+    {
+      "name": "com.vrchat.avatars",
+      "expression": "(0.0.0,999.9.9)",
+      "define": "LATTICE_VRCSDK3_AVATAR"
+    }
+  ],
+  "defineConstraints": [
+    "LATTICE_VRCSDK3_AVATAR"
+  ],
+  "noEngineReferences": false
+}

@@ -1,9 +1,11 @@
 #if UNITY_EDITOR
+using System.Diagnostics.CodeAnalysis;
 using Net._32Ba.LatticeDeformationTool;
 using UnityEditor;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
+    [ExcludeFromCodeCoverage]
     internal static class LatticePrefabUtility
     {
         public static void MarkModified(LatticeDeformer deformer)

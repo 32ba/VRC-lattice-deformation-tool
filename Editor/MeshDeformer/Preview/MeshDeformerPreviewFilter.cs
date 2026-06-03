@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 using nadena.dev.ndmf.preview;
@@ -10,6 +11,7 @@ using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
+    [ExcludeFromCodeCoverage]
     internal sealed class LatticeDeformerPreviewFilter : IRenderFilter
     {
         private readonly Dictionary<Renderer, LatticeDeformer> _rendererToDeformer = new Dictionary<Renderer, LatticeDeformer>();

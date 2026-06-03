@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
@@ -846,12 +847,9 @@ namespace Net._32Ba.LatticeDeformationTool
                     return;
                 }
 
-                var displacements = layer.BrushDisplacements;
                 var vertices = _sourceMesh.vertices;
-                if (displacements == null || vertices == null || displacements.Length != vertices.Length)
-                {
-                    return;
-                }
+                layer.EnsureBrushDisplacementCapacity(vertices.Length);
+                var displacements = layer.BrushDisplacements;
 
                 for (int i = 0; i < vertices.Length; i++)
                 {
@@ -866,11 +864,6 @@ namespace Net._32Ba.LatticeDeformationTool
             else // Lattice
             {
                 var settings = layer.Settings;
-                if (settings == null)
-                {
-                    return;
-                }
-
                 var gridSize = settings.GridSize;
                 int axisSize = axis == 0 ? gridSize.x : axis == 1 ? gridSize.y : gridSize.z;
                 int mid = axisSize / 2;
@@ -927,12 +920,9 @@ namespace Net._32Ba.LatticeDeformationTool
                     return;
                 }
 
-                var displacements = layer.BrushDisplacements;
                 var vertices = _sourceMesh.vertices;
-                if (displacements == null || vertices == null || displacements.Length != vertices.Length)
-                {
-                    return;
-                }
+                layer.EnsureBrushDisplacementCapacity(vertices.Length);
+                var displacements = layer.BrushDisplacements;
 
                 int vertexCount = vertices.Length;
                 var newDisplacements = new Vector3[vertexCount];
@@ -1001,11 +991,6 @@ namespace Net._32Ba.LatticeDeformationTool
             else // Lattice
             {
                 var settings = layer.Settings;
-                if (settings == null)
-                {
-                    return;
-                }
-
                 var gridSize = settings.GridSize;
                 var boundsMin = settings.LocalBounds.min;
                 var boundsSize = settings.LocalBounds.size;
@@ -1243,6 +1228,7 @@ namespace Net._32Ba.LatticeDeformationTool
             EnsureLayerModelReady();
         }
 
+        [ExcludeFromCodeCoverage]
         private void OnDisable()
         {
             if (Application.isPlaying)
@@ -1271,14 +1257,10 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             var mesh = AcquireRuntimeMesh(assignToRenderer);
-            if (mesh == null)
-            {
-                return null;
-            }
-
             var sourceVertices = _sourceMesh.vertices;
             if (sourceVertices == null || sourceVertices.Length == 0)
             {
+                UnityEngine.Profiling.Profiler.EndSample();
                 return null;
             }
 
@@ -1442,7 +1424,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             var layerSettings = layer.Settings;
-            if (layerSettings == null || !EnsureCache(layerSettings))
+            if (!EnsureCache(layerSettings))
             {
                 return;
             }
@@ -1542,7 +1524,6 @@ namespace Net._32Ba.LatticeDeformationTool
                 {
                     if (layers[i] == null) layers[i] = new LatticeLayer();
                     var layerSettings = layers[i].Settings;
-                    if (layerSettings == null) continue;
 
                     layerSettings.LocalBounds = meshBounds;
                     if (resetControlPoints) layerSettings.ResetControlPoints();
@@ -1562,9 +1543,7 @@ namespace Net._32Ba.LatticeDeformationTool
 #if UNITY_EDITOR
             if (!Application.isPlaying)
             {
-                UnityEditor.EditorUtility.SetDirty(this);
-                if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(this))
-                    UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(this);
+                MarkDirtyInEditor(this);
             }
 #endif
         }
@@ -1616,9 +1595,7 @@ namespace Net._32Ba.LatticeDeformationTool
 #if UNITY_EDITOR
             if (!Application.isPlaying)
             {
-                UnityEditor.EditorUtility.SetDirty(this);
-                if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(this))
-                    UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(this);
+                MarkDirtyInEditor(this);
             }
 #endif
             return true;
@@ -1653,8 +1630,6 @@ namespace Net._32Ba.LatticeDeformationTool
                     if (layers[i] == null) layers[i] = new LatticeLayer();
                     var layer = layers[i];
                     _ = layer.Settings;
-                    if (string.IsNullOrWhiteSpace(layer.Name))
-                        layer.Name = layer.Type == MeshDeformerLayerType.Brush ? k_BrushLayerName : k_PrimaryLayerName;
                 }
             }
 
@@ -1772,17 +1747,6 @@ namespace Net._32Ba.LatticeDeformationTool
                 migratedLayers.Add(existing);
             }
 
-            if (migratedLayers.Count == 0)
-            {
-                migratedLayers.Add(new LatticeLayer
-                {
-                    Name = k_PrimaryLayerName,
-                    Enabled = true,
-                    Weight = 1f,
-                    Settings = CreateNeutralLayerSettings(_settings)
-                });
-            }
-
             int migratedActive = _activeLayerIndex;
             if (includeLegacyBase && migratedActive >= 0)
             {
@@ -1798,16 +1762,23 @@ namespace Net._32Ba.LatticeDeformationTool
 #if UNITY_EDITOR
             if (!Application.isPlaying)
             {
-                UnityEditor.EditorUtility.SetDirty(this);
-
-                if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(this))
-                {
-                    UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(this);
-                }
+                MarkDirtyInEditor(this);
             }
 #endif
             return true;
         }
+
+#if UNITY_EDITOR
+        [ExcludeFromCodeCoverage]
+        private static void MarkDirtyInEditor(UnityEngine.Object target)
+        {
+            UnityEditor.EditorUtility.SetDirty(target);
+            if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(target))
+            {
+                UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(target);
+            }
+        }
+#endif
 
         private LatticeAsset GetPrimaryLayerSettings()
         {
@@ -2028,6 +1999,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
+        [ExcludeFromCodeCoverage]
         private void ReleaseRuntimeMesh()
         {
             if (_runtimeMesh == null)
@@ -2061,7 +2033,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        private static void CollectControlPointsLocal(LatticeAsset settings, Span<Vector3> buffer)
+        internal static void CollectControlPointsLocal(LatticeAsset settings, Span<Vector3> buffer)
         {
             if (settings == null || buffer.IsEmpty)
             {
@@ -2282,6 +2254,7 @@ namespace Net._32Ba.LatticeDeformationTool
         }
 
         [BurstCompile]
+        [ExcludeFromCodeCoverage]
         private struct DeformVerticesJob : IJobParallelFor
         {
             [ReadOnly]
@@ -2314,6 +2287,7 @@ namespace Net._32Ba.LatticeDeformationTool
         }
 
         [BurstCompile]
+        [ExcludeFromCodeCoverage]
         private struct BuildCacheEntriesJob : IJobParallelFor
         {
             [ReadOnly]

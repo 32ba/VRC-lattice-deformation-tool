@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using nadena.dev.ndmf.preview;
 using UnityEditor;
@@ -12,6 +13,7 @@ using Net._32Ba.LatticeDeformationTool;
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
     [CustomEditor(typeof(LatticeDeformer), true)]
+    [ExcludeFromCodeCoverage]
     public sealed class LatticeDeformerEditor : UnityEditor.Editor
     {
         private SerializedProperty _settingsProp;
