@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using Net._32Ba.LatticeDeformationTool;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
@@ -97,6 +98,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             var targetVertices = targetMesh.vertices;
             var targetNormals = targetMesh.normals;
             var targetTriangles = GetAllTriangles(targetMesh);
+            var sourceVertices = sourceMesh.vertices;
             int vertexCount = targetVertices.Length;
 
             var result = new TransferResult
@@ -118,6 +120,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
             var sw = Stopwatch.StartNew();
 
+            // Hybrid mode is for the common same-mesh-before/after case. Vertex index
+            // correspondence is a stronger signal than nearest surface matching, so keep
+            // reliable original weights and use surface transfer only for uncertain vertices.
+            if (settings.transferMode == WeightTransferMode.Hybrid && sourceWeights.Length == vertexCount)
+            {
+                InitializeIndexCorrespondence(
+                    sourceVertices,
+                    sourceMesh.normals,
+                    sourceWeights,
+                    targetVertices,
+                    targetNormals,
+                    settings,
+                    result.weights,
+                    confidenceMask,
+                    ref result.transferredCount);
+            }
+
             // Stage 1: Initial transfer
             Stage1Transfer(
                 sourceMesh,
@@ -133,7 +152,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             sw.Restart();
 
             // Stage 2: Weight inpainting (if enabled and needed)
-            if (settings.enableInpainting && result.transferredCount < vertexCount && targetTriangles.Length > 0)
+            if (settings.enableInpainting && HasUnknownVertices(confidenceMask) && targetTriangles.Length > 0)
             {
                 Stage2Inpainting(
                     targetVertices,
@@ -148,7 +167,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             var stage2Time = sw.ElapsedMilliseconds;
             Debug.Log($"[WeightTransfer] Stage1: {stage1Time}ms, Stage2: {stage2Time}ms");
 
-            if (!settings.enableInpainting || result.transferredCount >= vertexCount)
+            if (!settings.enableInpainting || !HasUnknownVertices(confidenceMask))
             {
                 // Fill non-transferred vertices with zero weights
                 for (int i = 0; i < vertexCount; i++)
@@ -213,6 +232,54 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         }
 
         /// <summary>
+        /// Initializes reliable same-index weights for source/target meshes with unchanged topology.
+        /// </summary>
+        private static void InitializeIndexCorrespondence(
+            Vector3[] sourceVertices,
+            Vector3[] sourceNormals,
+            BoneWeight[] sourceWeights,
+            Vector3[] targetVertices,
+            Vector3[] targetNormals,
+            WeightTransferSettings settings,
+            BoneWeight[] outWeights,
+            float[] outConfidence,
+            ref int transferredCount)
+        {
+            if (sourceVertices == null || targetVertices == null || sourceVertices.Length != targetVertices.Length)
+            {
+                return;
+            }
+
+            float maxTransferDistance = ResolveMaxTransferDistance(settings, sourceVertices, targetVertices);
+            float safeMaxTransferDistance = Mathf.Max(maxTransferDistance, 1e-6f);
+            float maxDistSq = safeMaxTransferDistance * safeMaxTransferDistance;
+            float normalThresholdCos = Mathf.Cos(settings.normalAngleThreshold * Mathf.Deg2Rad);
+
+            for (int i = 0; i < targetVertices.Length; i++)
+            {
+                if ((targetVertices[i] - sourceVertices[i]).sqrMagnitude > maxDistSq)
+                {
+                    continue;
+                }
+
+                if (sourceNormals != null && targetNormals != null &&
+                    i < sourceNormals.Length && i < targetNormals.Length &&
+                    sourceNormals[i].sqrMagnitude > 1e-8f && targetNormals[i].sqrMagnitude > 1e-8f)
+                {
+                    float normalDot = Vector3.Dot(sourceNormals[i].normalized, targetNormals[i].normalized);
+                    if (normalDot < normalThresholdCos)
+                    {
+                        continue;
+                    }
+                }
+
+                outWeights[i] = sourceWeights[i];
+                outConfidence[i] = 1f;
+                transferredCount++;
+            }
+        }
+
+        /// <summary>
         /// Stage 1: Initial weight transfer based on closest point on source mesh.
         /// Uses batch processing with Burst jobs for performance.
         /// </summary>
@@ -243,6 +310,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
                 for (int i = 0; i < targetVertices.Length; i++)
                 {
+                    if (outConfidence[i] >= 0.5f)
+                    {
+                        continue;
+                    }
+
                     var queryResult = queryResults[i];
                     var targetPos = targetVertices[i];
                     var targetNormal = targetNormals != null && i < targetNormals.Length
@@ -289,6 +361,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                     transferredCount++;
                 }
             }
+        }
+
+        private static bool HasUnknownVertices(float[] confidence)
+        {
+            if (confidence == null)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < confidence.Length; i++)
+            {
+                if (confidence[i] < 0.5f)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static int[] GetAllTriangles(Mesh mesh)

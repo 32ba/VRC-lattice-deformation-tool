@@ -96,6 +96,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var settingsData = deformer.WeightTransferSettings;
                 var settings = new WeightTransferSettings
                 {
+                    transferMode = settingsData.transferMode,
                     maxTransferDistance = settingsData.maxTransferDistance,
                     normalAngleThreshold = settingsData.normalAngleThreshold,
                     enableInpainting = settingsData.enableInpainting,

@@ -1,4 +1,5 @@
 using System;
+using Net._32Ba.LatticeDeformationTool;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
@@ -10,6 +11,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
     [Serializable]
     public class WeightTransferSettings
     {
+        [Tooltip("How bone weights are transferred. Hybrid preserves reliable same-index weights before using surface transfer and inpainting.")]
+        public WeightTransferMode transferMode = WeightTransferMode.Hybrid;
+
         [Header("Stage 1: Initial Transfer")]
         [Tooltip("Maximum transfer distance as a fraction of the target mesh bounds diagonal (paper default: 0.05). May expand based on deformation magnitude.")]
         [Range(0.001f, 1.0f)]
@@ -43,6 +47,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         {
             return new WeightTransferSettings
             {
+                transferMode = this.transferMode,
                 maxTransferDistance = this.maxTransferDistance,
                 normalAngleThreshold = this.normalAngleThreshold,
                 enableInpainting = this.enableInpainting,

@@ -1631,6 +1631,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Stage 1 settings
             EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.Stage1InitialTransfer), EditorStyles.boldLabel);
 
+            var transferModeProp = _weightTransferSettingsProp.FindPropertyRelative("transferMode");
+            if (transferModeProp != null)
+            {
+                EditorGUILayout.PropertyField(
+                    transferModeProp,
+                    new GUIContent(
+                        "Transfer Mode",
+                        "Hybrid preserves reliable same-index weights before using surface transfer and inpainting."));
+            }
+
             var maxDistProp = _weightTransferSettingsProp.FindPropertyRelative("maxTransferDistance");
             if (maxDistProp != null)
             {

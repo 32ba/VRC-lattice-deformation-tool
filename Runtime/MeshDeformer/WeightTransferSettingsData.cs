@@ -3,6 +3,12 @@ using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool
 {
+    public enum WeightTransferMode
+    {
+        Hybrid = 0,
+        SurfaceTransfer = 1
+    }
+
     /// <summary>
     /// Serializable settings data for weight transfer operations.
     /// This class is in Runtime so it can be serialized with LatticeDeformer.
@@ -11,6 +17,9 @@ namespace Net._32Ba.LatticeDeformationTool
     [Serializable]
     public class WeightTransferSettingsData
     {
+        [Tooltip("How bone weights are transferred. Hybrid preserves reliable same-index weights before using surface transfer and inpainting.")]
+        public WeightTransferMode transferMode = WeightTransferMode.Hybrid;
+
         [Header("Stage 1: Initial Transfer")]
         [Tooltip("Maximum transfer distance as a fraction of the target mesh bounds diagonal (paper default: 0.05). May expand based on deformation magnitude.")]
         [Range(0.001f, 1.0f)]
@@ -43,6 +52,7 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             return new WeightTransferSettingsData
             {
+                transferMode = this.transferMode,
                 maxTransferDistance = this.maxTransferDistance,
                 normalAngleThreshold = this.normalAngleThreshold,
                 enableInpainting = this.enableInpainting,
