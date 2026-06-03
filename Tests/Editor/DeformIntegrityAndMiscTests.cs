@@ -281,6 +281,41 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally { fixture.Dispose(); }
         }
 
+        [Test]
+        public void SkinnedBlendShapeWeight_PartialWeight_DeformKeepsVisibleShape()
+        {
+            var fixture = CreateSkinnedBlendShapeFixture("SkinnedBlendShapeWeight_PartialWeight", 50f);
+            try
+            {
+                var deformer = fixture.Deformer;
+                var source = fixture.SourceMesh;
+                var renderer = fixture.Root.GetComponent<SkinnedMeshRenderer>();
+                var expectedVisibleVertices = EvaluateVisibleVertices(renderer);
+
+                var runtime = deformer.Deform(true);
+                var actualVisibleVertices = EvaluateVisibleVertices(renderer);
+
+                Assert.That(renderer.sharedMesh, Is.SameAs(runtime));
+                foreach (int i in source.triangles)
+                {
+                    AssertApproximately(expectedVisibleVertices[i], actualVisibleVertices[i], Epsilon);
+                }
+
+                int shapeIndex = runtime.GetBlendShapeIndex("ExistingShape");
+                Assert.That(shapeIndex, Is.GreaterThanOrEqualTo(0));
+                Assert.That(runtime.GetBlendShapeFrameCount(shapeIndex), Is.EqualTo(2));
+                Assert.That(runtime.GetBlendShapeFrameWeight(shapeIndex, 0), Is.EqualTo(50f).Within(Epsilon));
+
+                var neutralDeltas = new Vector3[runtime.vertexCount];
+                runtime.GetBlendShapeFrameVertices(shapeIndex, 0, neutralDeltas, null, null);
+                foreach (int i in source.triangles)
+                {
+                    AssertApproximately(Vector3.zero, neutralDeltas[i], Epsilon);
+                }
+            }
+            finally { fixture.Dispose(); }
+        }
+
         // ========================================================================
         // RestoreOriginalMesh
         // ========================================================================
@@ -1283,7 +1318,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             return new TestFixture(root, sourceMesh, deformer);
         }
 
-        private static TestFixture CreateSkinnedBlendShapeFixture(string name)
+        private static TestFixture CreateSkinnedBlendShapeFixture(string name, float blendShapeWeight = 100f)
         {
             var mesh = new Mesh { name = name + "_Mesh" };
             mesh.vertices = new[]
@@ -1309,13 +1344,82 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var root = new GameObject(name);
             var smr = root.AddComponent<SkinnedMeshRenderer>();
             smr.sharedMesh = mesh;
-            smr.SetBlendShapeWeight(0, 100f);
+            smr.SetBlendShapeWeight(0, blendShapeWeight);
 
             var deformer = root.AddComponent<LatticeDeformer>();
             deformer.Reset();
             deformer.Deform(false);
 
             return new TestFixture(root, mesh, deformer);
+        }
+
+        private static Vector3[] EvaluateVisibleVertices(SkinnedMeshRenderer renderer)
+        {
+            var mesh = renderer.sharedMesh;
+            var vertices = mesh.vertices;
+            for (int shape = 0; shape < mesh.blendShapeCount; shape++)
+            {
+                var delta = EvaluateBlendShapeVertexDelta(mesh, shape, renderer.GetBlendShapeWeight(shape));
+                if (delta == null) continue;
+                for (int i = 0; i < vertices.Length; i++)
+                {
+                    vertices[i] += delta[i];
+                }
+            }
+
+            return vertices;
+        }
+
+        private static Vector3[] EvaluateBlendShapeVertexDelta(Mesh mesh, int shapeIndex, float weight)
+        {
+            int frameCount = mesh.GetBlendShapeFrameCount(shapeIndex);
+            if (frameCount <= 0)
+            {
+                return null;
+            }
+
+            int vertexCount = mesh.vertexCount;
+            var lower = new Vector3[vertexCount];
+            var upper = new Vector3[vertexCount];
+            var unusedNormals = new Vector3[vertexCount];
+            var unusedTangents = new Vector3[vertexCount];
+
+            float firstWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, 0);
+            if (weight <= firstWeight || frameCount == 1)
+            {
+                mesh.GetBlendShapeFrameVertices(shapeIndex, 0, lower, unusedNormals, unusedTangents);
+                float scale = Mathf.Abs(firstWeight) > Mathf.Epsilon ? weight / firstWeight : 0f;
+                for (int i = 0; i < lower.Length; i++)
+                {
+                    lower[i] *= scale;
+                }
+
+                return lower;
+            }
+
+            for (int frame = 1; frame < frameCount; frame++)
+            {
+                float upperWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, frame);
+                if (weight <= upperWeight)
+                {
+                    float lowerWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, frame - 1);
+                    mesh.GetBlendShapeFrameVertices(shapeIndex, frame - 1, lower, unusedNormals, unusedTangents);
+                    mesh.GetBlendShapeFrameVertices(shapeIndex, frame, upper, unusedNormals, unusedTangents);
+
+                    float t = Mathf.Abs(upperWeight - lowerWeight) > Mathf.Epsilon
+                        ? Mathf.InverseLerp(lowerWeight, upperWeight, weight)
+                        : 0f;
+                    for (int i = 0; i < lower.Length; i++)
+                    {
+                        lower[i] = Vector3.LerpUnclamped(lower[i], upper[i], t);
+                    }
+
+                    return lower;
+                }
+            }
+
+            mesh.GetBlendShapeFrameVertices(shapeIndex, frameCount - 1, lower, unusedNormals, unusedTangents);
+            return lower;
         }
 
         private static Mesh CreateCubeMesh()

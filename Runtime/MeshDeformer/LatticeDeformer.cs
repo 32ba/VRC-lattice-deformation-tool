@@ -1277,7 +1277,10 @@ namespace Net._32Ba.LatticeDeformationTool
                 return null;
             }
 
-            var sourceVertices = BuildCurrentSourceVertices(out var bakedBlendShapeDeltas, out var bakedBlendShapeHash);
+            var sourceVertices = BuildCurrentSourceVertices(
+                out var bakedBlendShapeDeltas,
+                out var bakedBlendShapeWeights,
+                out var bakedBlendShapeHash);
             if (sourceVertices == null || sourceVertices.Length == 0)
             {
                 return null;
@@ -1350,7 +1353,7 @@ namespace Net._32Ba.LatticeDeformationTool
                     _lastBlendShapeHash = blendShapeHash;
 
                     mesh.ClearBlendShapes();
-                    CopyBlendShapes(_sourceMesh, mesh, bakedBlendShapeDeltas);
+                    CopyBlendShapes(_sourceMesh, mesh, bakedBlendShapeDeltas, bakedBlendShapeWeights);
 
                     const int sampleCount = 100;
                     foreach (var (group, deltas) in blendShapeGroups)
@@ -1379,13 +1382,13 @@ namespace Net._32Ba.LatticeDeformationTool
                 if (_lastBlendShapeHash != 0)
                 {
                     mesh.ClearBlendShapes();
-                    CopyBlendShapes(_sourceMesh, mesh, bakedBlendShapeDeltas);
+                    CopyBlendShapes(_sourceMesh, mesh, bakedBlendShapeDeltas, bakedBlendShapeWeights);
                     _lastBlendShapeHash = 0;
                 }
                 else if (bakedBlendShapeHash != _lastBakedBlendShapeHash)
                 {
                     mesh.ClearBlendShapes();
-                    CopyBlendShapes(_sourceMesh, mesh, bakedBlendShapeDeltas);
+                    CopyBlendShapes(_sourceMesh, mesh, bakedBlendShapeDeltas, bakedBlendShapeWeights);
                 }
             }
 
@@ -1489,7 +1492,11 @@ namespace Net._32Ba.LatticeDeformationTool
             return hash;
         }
 
-        private static void CopyBlendShapes(Mesh source, Mesh destination, Vector3[][] bakedBlendShapeDeltas = null)
+        private static void CopyBlendShapes(
+            Mesh source,
+            Mesh destination,
+            Vector3[][] bakedBlendShapeDeltas = null,
+            float[] bakedBlendShapeWeights = null)
         {
             int shapeCount = source.blendShapeCount;
             int vertexCount = source.vertexCount;
@@ -1497,6 +1504,28 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 string name = source.GetBlendShapeName(s);
                 int frameCount = source.GetBlendShapeFrameCount(s);
+                var baked = bakedBlendShapeDeltas != null && s < bakedBlendShapeDeltas.Length
+                    ? bakedBlendShapeDeltas[s]
+                    : null;
+                float bakedWeight = bakedBlendShapeWeights != null && s < bakedBlendShapeWeights.Length
+                    ? bakedBlendShapeWeights[s]
+                    : 0f;
+                bool hasBakedShape = baked != null && baked.Length == vertexCount;
+
+                if (hasBakedShape && frameCount > 0)
+                {
+                    float firstWeight = source.GetBlendShapeFrameWeight(s, 0);
+                    if (bakedWeight < firstWeight - 1e-5f)
+                    {
+                        destination.AddBlendShapeFrame(
+                            name,
+                            bakedWeight,
+                            new Vector3[vertexCount],
+                            new Vector3[vertexCount],
+                            new Vector3[vertexCount]);
+                    }
+                }
+
                 for (int f = 0; f < frameCount; f++)
                 {
                     float weight = source.GetBlendShapeFrameWeight(s, f);
@@ -1504,10 +1533,7 @@ namespace Net._32Ba.LatticeDeformationTool
                     var dn = new Vector3[vertexCount];
                     var dt = new Vector3[vertexCount];
                     source.GetBlendShapeFrameVertices(s, f, dv, dn, dt);
-                    var baked = bakedBlendShapeDeltas != null && s < bakedBlendShapeDeltas.Length
-                        ? bakedBlendShapeDeltas[s]
-                        : null;
-                    if (baked != null && baked.Length == vertexCount)
+                    if (hasBakedShape)
                     {
                         for (int v = 0; v < vertexCount; v++)
                         {
@@ -1520,9 +1546,13 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        private Vector3[] BuildCurrentSourceVertices(out Vector3[][] bakedBlendShapeDeltas, out int bakedBlendShapeHash)
+        private Vector3[] BuildCurrentSourceVertices(
+            out Vector3[][] bakedBlendShapeDeltas,
+            out float[] bakedBlendShapeWeights,
+            out int bakedBlendShapeHash)
         {
             bakedBlendShapeDeltas = null;
+            bakedBlendShapeWeights = null;
             bakedBlendShapeHash = 0;
 
             if (_sourceMesh == null)
@@ -1549,6 +1579,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             Vector3[][] deltas = null;
+            float[] weights = null;
             bool hasBakedShape = false;
             int hash = 17;
 
@@ -1567,7 +1598,9 @@ namespace Net._32Ba.LatticeDeformationTool
                 }
 
                 deltas ??= new Vector3[shapeCount][];
+                weights ??= new float[shapeCount];
                 deltas[s] = delta;
+                weights[s] = weight;
                 hasBakedShape = true;
                 hash = HashCode.Combine(hash, s, weight);
 
@@ -1583,6 +1616,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             bakedBlendShapeDeltas = deltas;
+            bakedBlendShapeWeights = weights;
             bakedBlendShapeHash = hash;
             return vertices;
         }
@@ -1680,7 +1714,7 @@ namespace Net._32Ba.LatticeDeformationTool
             EnsureGroups();
             if (_sourceMesh == null) return;
 
-            var sourceVertices = BuildCurrentSourceVertices(out _, out _);
+            var sourceVertices = BuildCurrentSourceVertices(out _, out _, out _);
             var meshBounds = CalculateReferencedBounds(_sourceMesh, sourceVertices, _sourceMesh.bounds);
             foreach (var group in _groups)
             {
