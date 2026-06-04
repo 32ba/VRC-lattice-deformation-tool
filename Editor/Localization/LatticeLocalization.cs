@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text;
 using UnityEditor;
@@ -48,6 +49,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             "繁體中文"
         };
 
+        [ExcludeFromCodeCoverage]
         static LatticeLocalization()
         {
             s_catalogs = new Dictionary<Language, CatalogCache>();
@@ -209,6 +211,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return null;
         }
 
+        [ExcludeFromCodeCoverage]
         private static string GetPackageRoot()
         {
             if (!string.IsNullOrEmpty(s_packageRootPath) && Directory.Exists(s_packageRootPath))
@@ -272,7 +275,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return s_packageRootPath;
         }
 
-        private static IReadOnlyDictionary<string, string> ParsePo(IReadOnlyList<string> lines)
+        internal static IReadOnlyDictionary<string, string> ParsePo(IReadOnlyList<string> lines)
         {
             var catalog = new Dictionary<string, string>();
             string currentId = null;

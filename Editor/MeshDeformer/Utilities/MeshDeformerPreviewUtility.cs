@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using nadena.dev.ndmf.preview;
 using UnityEditor;
 using UnityEngine;
@@ -7,6 +8,7 @@ using Net._32Ba.LatticeDeformationTool;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
+    [ExcludeFromCodeCoverage]
     internal static class LatticePreviewUtility
     {
         private const string k_PreviewAlignedKey = "Net32Ba.LatticeDeformer.UsePreviewAlignedCage";
@@ -20,17 +22,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         /// </summary>
         public static bool ShouldAssignRuntimeMesh()
         {
-            if (NDMFPreview.DisablePreviewDepth != 0)
+            return ShouldAssignRuntimeMesh(
+                NDMFPreview.DisablePreviewDepth,
+                NDMFPreviewPrefs.instance.EnablePreview,
+                LatticeDeformerPreviewFilter.PreviewToggleEnabled);
+        }
+
+        internal static bool ShouldAssignRuntimeMesh(int disablePreviewDepth, bool enablePreview, bool previewToggleEnabled)
+        {
+            if (disablePreviewDepth != 0)
             {
                 return true;
             }
 
-            if (!NDMFPreviewPrefs.instance.EnablePreview)
+            if (!enablePreview)
             {
                 return true;
             }
 
-            return !LatticeDeformerPreviewFilter.PreviewToggleEnabled;
+            return !previewToggleEnabled;
         }
 
         /// <summary>
@@ -82,6 +92,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         /// Returns the transform used for lattice editing. If preview alignment is enabled and a proxy
         /// renderer exists, its transform is used; otherwise the deformer.MeshTransform is returned.
         /// </summary>
+        [ExcludeFromCodeCoverage]
         public static Transform GetEditingTransform(LatticeDeformer deformer)
         {
             if (deformer == null)
@@ -92,18 +103,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (UsePreviewAlignedCage)
             {
                 var renderer = deformer.GetComponent<Renderer>();
-                if (renderer != null)
-                {
-                    if (TryGetRegisteredProxy(renderer, out var proxy) && proxy != null)
-                    {
-                        return proxy.transform;
-                    }
-
-                    if (NDMFPreviewProxyUtility.TryGetProxyRenderer(renderer, out proxy) && proxy != null)
-                    {
-                        return proxy.transform;
-                    }
-                }
+                if (renderer != null && TryGetPreviewProxy(renderer, out var proxy) && proxy != null) return proxy.transform;
             }
 
             return deformer.MeshTransform;
@@ -127,17 +127,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return sourceBounds;
             }
 
-            if (!NDMFPreviewProxyUtility.TryGetProxyRenderer(renderer, out var proxy) || proxy == null)
+            if (!TryGetPreviewProxy(renderer, out var proxy) || proxy == null)
             {
                 return sourceBounds;
             }
 
             var targetTransform = editingTransform != null ? editingTransform : proxy.transform;
-            if (targetTransform == null)
-            {
-                return sourceBounds;
-            }
-
             var worldBounds = GetRendererWorldBounds(proxy);
             return ToLocalBounds(targetTransform, worldBounds);
         }
@@ -201,6 +196,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return new Bounds(center, localExtents * 2f);
         }
 
+        [ExcludeFromCodeCoverage]
         public static void RequestSceneRepaint()
         {
             SceneView.RepaintAll();
@@ -235,6 +231,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool TryGetRegisteredProxy(Renderer original, out Renderer proxy)
         {
             return s_latestProxyMap.TryGetValue(original, out proxy);
+        }
+
+        internal static bool TryGetPreviewProxy(Renderer original, out Renderer proxy)
+        {
+            if (TryGetRegisteredProxy(original, out proxy) && proxy != null)
+            {
+                return true;
+            }
+
+            return NDMFPreviewProxyUtility.TryGetProxyRenderer(original, out proxy);
         }
 
         internal static Bounds GetMeshLocalBounds(Renderer renderer)

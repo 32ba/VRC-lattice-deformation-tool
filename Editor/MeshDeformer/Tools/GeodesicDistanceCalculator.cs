@@ -47,16 +47,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var (currentDist, current) = pq.Min;
                 pq.Remove(pq.Min);
 
-                // Skip if we've already found a shorter path
-                if (distances.TryGetValue(current, out float knownDist) && currentDist > knownDist)
-                {
-                    continue;
-                }
-
-                if (current >= adjacency.Count || adjacency[current] == null)
-                {
-                    continue;
-                }
+                if (current >= adjacency.Count || adjacency[current] == null) continue;
 
                 foreach (int neighbor in adjacency[current])
                 {

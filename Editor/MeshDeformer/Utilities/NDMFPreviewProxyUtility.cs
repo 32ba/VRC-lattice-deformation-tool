@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using UnityEngine;
 
@@ -16,7 +17,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         private const BindingFlags k_BindingFlags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
 
+        [ExcludeFromCodeCoverage]
         public static bool TryGetProxyRenderer(Renderer original, out Renderer proxy)
+        {
+            return TryGetProxyRenderer(original, GetCurrentSession(), out proxy);
+        }
+
+        internal static bool TryGetProxyRenderer(Renderer original, object session, out Renderer proxy)
         {
             proxy = null;
             if (original == null)
@@ -24,28 +31,28 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return false;
             }
 
-            foreach (var (orig, prox) in GetOriginalToProxyPairs())
+            foreach (var (orig, prox) in GetOriginalToProxyPairs(session))
             {
-                if (orig == null || prox == null)
-                {
-                    continue;
-                }
+                if (orig == null || prox == null) continue;
 
-                if (ReferenceEquals(orig, original) || orig.gameObject == original.gameObject)
-                {
-                    proxy = prox;
-                    return true;
-                }
+                if (!ReferenceEquals(orig, original) && orig.gameObject != original.gameObject) continue;
+                proxy = prox;
+                return true;
             }
 
-            return TryInvokeProxyLookup(original, out proxy);
+            return TryInvokeProxyLookup(session, original, out proxy);
         }
 
+        [ExcludeFromCodeCoverage]
         private static bool TryInvokeProxyLookup(Renderer original, out Renderer proxy)
         {
+            return TryInvokeProxyLookup(GetCurrentSession(), original, out proxy);
+        }
+
+        internal static bool TryInvokeProxyLookup(object session, Renderer original, out Renderer proxy)
+        {
             proxy = null;
-            var session = GetCurrentSession();
-            if (session == null)
+            if (session == null || original == null)
             {
                 return false;
             }
@@ -88,9 +95,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
+        [ExcludeFromCodeCoverage]
         private static IEnumerable<(Renderer original, Renderer proxy)> GetOriginalToProxyPairs()
         {
-            var session = GetCurrentSession();
+            return GetOriginalToProxyPairs(GetCurrentSession());
+        }
+
+        internal static IEnumerable<(Renderer original, Renderer proxy)> GetOriginalToProxyPairs(object session)
+        {
             if (session == null)
             {
                 yield break;
@@ -131,7 +143,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private static IEnumerable<(Renderer original, Renderer proxy)> EnumerateProxyPairsFromMethods(object session)
+        internal static IEnumerable<(Renderer original, Renderer proxy)> EnumerateProxyPairsFromMethods(object session)
         {
             if (session == null)
             {
@@ -175,7 +187,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private static IEnumerable<(Renderer original, Renderer proxy)> ExtractPairs(object value)
+        internal static IEnumerable<(Renderer original, Renderer proxy)> ExtractPairs(object value)
         {
             if (value is IDictionary dict)
             {
@@ -216,7 +228,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private static bool TryBuildPair(object keyObj, object valObj, out (Renderer, Renderer) pair)
+        internal static bool TryBuildPair(object keyObj, object valObj, out (Renderer, Renderer) pair)
         {
             pair = (null, null);
             var keyRenderer = ExtractRenderer(keyObj);
@@ -230,6 +242,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return false;
         }
 
+        [ExcludeFromCodeCoverage]
         private static Renderer ExtractRenderer(object obj)
         {
             switch (obj)
@@ -245,7 +258,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private static IEnumerable<MemberInfo> EnumerateProxyMapMembers(object session)
+        internal static IEnumerable<MemberInfo> EnumerateProxyMapMembers(object session)
         {
             if (session == null)
             {
@@ -273,6 +286,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
+        [ExcludeFromCodeCoverage]
         private static object GetCurrentSession()
         {
             var type = FindPreviewSessionType();
@@ -297,6 +311,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
+        [ExcludeFromCodeCoverage]
         private static Type FindPreviewSessionType()
         {
             var type = Type.GetType("nadena.dev.ndmf.preview.PreviewSession, nadena.dev.ndmf.preview");

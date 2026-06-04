@@ -1,0 +1,24 @@
+{
+  "name": "net.32ba.lattice-deformation-tool.coverage",
+  "rootNamespace": "Net._32Ba.LatticeDeformationTool.Editor",
+  "references": [
+    "Unity.TestTools.CodeCoverage.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "versionDefines": [
+    {
+      "name": "com.unity.testtools.codecoverage",
+      "expression": "1.2.0",
+      "define": "LATTICE_CODE_COVERAGE"
+    }
+  ],
+  "defineConstraints": [
+    "LATTICE_CODE_COVERAGE"
+  ],
+  "noEngineReferences": false
+}

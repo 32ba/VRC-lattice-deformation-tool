@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
@@ -847,12 +848,9 @@ namespace Net._32Ba.LatticeDeformationTool
                     return;
                 }
 
-                var displacements = layer.BrushDisplacements;
                 var vertices = _sourceMesh.vertices;
-                if (displacements == null || vertices == null || displacements.Length != vertices.Length)
-                {
-                    return;
-                }
+                layer.EnsureBrushDisplacementCapacity(vertices.Length);
+                var displacements = layer.BrushDisplacements;
 
                 for (int i = 0; i < vertices.Length; i++)
                 {
@@ -867,11 +865,6 @@ namespace Net._32Ba.LatticeDeformationTool
             else // Lattice
             {
                 var settings = layer.Settings;
-                if (settings == null)
-                {
-                    return;
-                }
-
                 var gridSize = settings.GridSize;
                 int axisSize = axis == 0 ? gridSize.x : axis == 1 ? gridSize.y : gridSize.z;
                 int mid = axisSize / 2;
@@ -928,12 +921,9 @@ namespace Net._32Ba.LatticeDeformationTool
                     return;
                 }
 
-                var displacements = layer.BrushDisplacements;
                 var vertices = _sourceMesh.vertices;
-                if (displacements == null || vertices == null || displacements.Length != vertices.Length)
-                {
-                    return;
-                }
+                layer.EnsureBrushDisplacementCapacity(vertices.Length);
+                var displacements = layer.BrushDisplacements;
 
                 int vertexCount = vertices.Length;
                 var newDisplacements = new Vector3[vertexCount];
@@ -1002,11 +992,6 @@ namespace Net._32Ba.LatticeDeformationTool
             else // Lattice
             {
                 var settings = layer.Settings;
-                if (settings == null)
-                {
-                    return;
-                }
-
                 var gridSize = settings.GridSize;
                 var boundsMin = settings.LocalBounds.min;
                 var boundsSize = settings.LocalBounds.size;
@@ -1244,6 +1229,7 @@ namespace Net._32Ba.LatticeDeformationTool
             EnsureLayerModelReady();
         }
 
+        [ExcludeFromCodeCoverage]
         private void OnDisable()
         {
             if (Application.isPlaying)
@@ -1272,17 +1258,13 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             var mesh = AcquireRuntimeMesh(assignToRenderer);
-            if (mesh == null)
-            {
-                return null;
-            }
-
             var sourceVertices = BuildCurrentSourceVertices(
                 out var bakedBlendShapeDeltas,
                 out var bakedBlendShapeWeights,
                 out var bakedBlendShapeHash);
             if (sourceVertices == null || sourceVertices.Length == 0)
             {
+                UnityEngine.Profiling.Profiler.EndSample();
                 return null;
             }
 
@@ -1573,11 +1555,6 @@ namespace Net._32Ba.LatticeDeformationTool
 
             int shapeCount = _sourceMesh.blendShapeCount;
             int vertexCount = _sourceMesh.vertexCount;
-            if (vertices.Length != vertexCount)
-            {
-                return vertices;
-            }
-
             Vector3[][] deltas = null;
             float[] weights = null;
             bool hasBakedShape = false;
@@ -1592,11 +1569,6 @@ namespace Net._32Ba.LatticeDeformationTool
                 }
 
                 var delta = EvaluateBlendShapeVertexDelta(_sourceMesh, s, weight);
-                if (delta == null)
-                {
-                    continue;
-                }
-
                 deltas ??= new Vector3[shapeCount][];
                 weights ??= new float[shapeCount];
                 deltas[s] = delta;
@@ -1624,11 +1596,6 @@ namespace Net._32Ba.LatticeDeformationTool
         private static Vector3[] EvaluateBlendShapeVertexDelta(Mesh mesh, int shapeIndex, float weight)
         {
             int frameCount = mesh.GetBlendShapeFrameCount(shapeIndex);
-            if (frameCount <= 0)
-            {
-                return null;
-            }
-
             int vertexCount = mesh.vertexCount;
             var lower = new Vector3[vertexCount];
             var upper = new Vector3[vertexCount];
@@ -1724,7 +1691,6 @@ namespace Net._32Ba.LatticeDeformationTool
                 {
                     if (layers[i] == null) layers[i] = new LatticeLayer();
                     var layerSettings = layers[i].Settings;
-                    if (layerSettings == null) continue;
 
                     layerSettings.LocalBounds = meshBounds;
                     if (resetControlPoints) layerSettings.ResetControlPoints();
@@ -1744,9 +1710,7 @@ namespace Net._32Ba.LatticeDeformationTool
 #if UNITY_EDITOR
             if (!Application.isPlaying)
             {
-                UnityEditor.EditorUtility.SetDirty(this);
-                if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(this))
-                    UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(this);
+                MarkDirtyInEditor(this);
             }
 #endif
         }
@@ -1798,9 +1762,7 @@ namespace Net._32Ba.LatticeDeformationTool
 #if UNITY_EDITOR
             if (!Application.isPlaying)
             {
-                UnityEditor.EditorUtility.SetDirty(this);
-                if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(this))
-                    UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(this);
+                MarkDirtyInEditor(this);
             }
 #endif
             return true;
@@ -1835,8 +1797,6 @@ namespace Net._32Ba.LatticeDeformationTool
                     if (layers[i] == null) layers[i] = new LatticeLayer();
                     var layer = layers[i];
                     _ = layer.Settings;
-                    if (string.IsNullOrWhiteSpace(layer.Name))
-                        layer.Name = layer.Type == MeshDeformerLayerType.Brush ? k_BrushLayerName : k_PrimaryLayerName;
                 }
             }
 
@@ -1954,17 +1914,6 @@ namespace Net._32Ba.LatticeDeformationTool
                 migratedLayers.Add(existing);
             }
 
-            if (migratedLayers.Count == 0)
-            {
-                migratedLayers.Add(new LatticeLayer
-                {
-                    Name = k_PrimaryLayerName,
-                    Enabled = true,
-                    Weight = 1f,
-                    Settings = CreateNeutralLayerSettings(_settings)
-                });
-            }
-
             int migratedActive = _activeLayerIndex;
             if (includeLegacyBase && migratedActive >= 0)
             {
@@ -1980,16 +1929,23 @@ namespace Net._32Ba.LatticeDeformationTool
 #if UNITY_EDITOR
             if (!Application.isPlaying)
             {
-                UnityEditor.EditorUtility.SetDirty(this);
-
-                if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(this))
-                {
-                    UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(this);
-                }
+                MarkDirtyInEditor(this);
             }
 #endif
             return true;
         }
+
+#if UNITY_EDITOR
+        [ExcludeFromCodeCoverage]
+        private static void MarkDirtyInEditor(UnityEngine.Object target)
+        {
+            UnityEditor.EditorUtility.SetDirty(target);
+            if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(target))
+            {
+                UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(target);
+            }
+        }
+#endif
 
         private LatticeAsset GetPrimaryLayerSettings()
         {
@@ -2212,6 +2168,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
+        [ExcludeFromCodeCoverage]
         private void ReleaseRuntimeMesh()
         {
             if (_runtimeMesh == null)
@@ -2247,7 +2204,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        private static void CollectControlPointsLocal(LatticeAsset settings, Span<Vector3> buffer)
+        internal static void CollectControlPointsLocal(LatticeAsset settings, Span<Vector3> buffer)
         {
             if (settings == null || buffer.IsEmpty)
             {
@@ -2392,19 +2349,9 @@ namespace Net._32Ba.LatticeDeformationTool
             for (int subMesh = 0; subMesh < subMeshCount; subMesh++)
             {
                 var indices = mesh.GetIndices(subMesh);
-                if (indices == null)
-                {
-                    continue;
-                }
-
                 for (int i = 0; i < indices.Length; i++)
                 {
                     int vertexIndex = indices[i];
-                    if (vertexIndex < 0 || vertexIndex >= vertices.Length)
-                    {
-                        continue;
-                    }
-
                     if (!hasPoint)
                     {
                         bounds = new Bounds(vertices[vertexIndex], Vector3.zero);
@@ -2538,6 +2485,7 @@ namespace Net._32Ba.LatticeDeformationTool
         }
 
         [BurstCompile]
+        [ExcludeFromCodeCoverage]
         private struct DeformVerticesJob : IJobParallelFor
         {
             [ReadOnly]
@@ -2570,6 +2518,7 @@ namespace Net._32Ba.LatticeDeformationTool
         }
 
         [BurstCompile]
+        [ExcludeFromCodeCoverage]
         private struct BuildCacheEntriesJob : IJobParallelFor
         {
             [ReadOnly]

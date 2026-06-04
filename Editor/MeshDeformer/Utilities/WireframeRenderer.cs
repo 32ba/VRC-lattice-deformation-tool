@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.Diagnostics.CodeAnalysis;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -8,6 +9,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     /// Draws mesh wireframe edges in the Scene view using GL lines.
     /// Shared between BrushToolHandler and VertexSelectionHandler.
     /// </summary>
+    [ExcludeFromCodeCoverage]
     internal static class WireframeRenderer
     {
         private static Material s_material;

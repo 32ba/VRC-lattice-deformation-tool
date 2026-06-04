@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.Diagnostics.CodeAnalysis;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
@@ -17,6 +18,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         /// Returns world-space positions for SkinnedMeshRenderer (via proxy BakeMesh),
         /// or null for MeshRenderer (caller should use localToWorldMatrix).
         /// </summary>
+        [ExcludeFromCodeCoverage]
         public static Vector3[] ComputeWorldPositions(LatticeDeformer deformer, Vector3[] localVertices)
         {
             if (deformer == null || localVertices == null || localVertices.Length == 0)
@@ -76,6 +78,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         /// For SkinnedMeshRenderer, bakes the proxy (or original) SMR.
         /// Returns false for MeshRenderer (caller should raycast against source mesh + localToWorldMatrix).
         /// </summary>
+        [ExcludeFromCodeCoverage]
         public static bool TryGetBakedMeshForRaycast(LatticeDeformer deformer,
             out Mesh bakedMesh, out Matrix4x4 bakedMeshMatrix)
         {

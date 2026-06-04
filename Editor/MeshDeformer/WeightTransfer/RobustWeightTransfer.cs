@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -132,18 +133,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             var stage1Time = sw.ElapsedMilliseconds;
             sw.Restart();
 
-            // Stage 2: Weight inpainting (if enabled and needed)
-            if (settings.enableInpainting && result.transferredCount < vertexCount && targetTriangles.Length > 0)
-            {
-                Stage2Inpainting(
-                    targetVertices,
-                    targetTriangles,
-                    sourceMesh.bindposes.Length, // Number of bones
-                    result.weights,
-                    confidenceMask,
-                    settings,
-                    ref result.inpaintedCount);
-            }
+            RunStage2InpaintingIfNeeded(settings, result.transferredCount, vertexCount, targetTriangles, targetVertices, sourceMesh.bindposes.Length, result.weights, confidenceMask, ref result.inpaintedCount);
 
             var stage2Time = sw.ElapsedMilliseconds;
             Debug.Log($"[WeightTransfer] Stage1: {stage1Time}ms, Stage2: {stage2Time}ms");
@@ -160,31 +150,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 }
             }
 
-            int fallbackCount = 0;
-            if (sourceWeights.Length == vertexCount)
-            {
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    var bw = result.weights[i];
-                    if (bw.weight0 <= 0f && bw.weight1 <= 0f && bw.weight2 <= 0f && bw.weight3 <= 0f)
-                    {
-                        result.weights[i] = sourceWeights[i];
-                        fallbackCount++;
-                    }
-                }
-            }
-            else
-            {
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    var bw = result.weights[i];
-                    if (bw.weight0 <= 0f && bw.weight1 <= 0f && bw.weight2 <= 0f && bw.weight3 <= 0f)
-                    {
-                        result.weights[i] = new BoneWeight { boneIndex0 = 0, weight0 = 1f };
-                        fallbackCount++;
-                    }
-                }
-            }
+            int fallbackCount = ApplyZeroWeightFallback(result.weights, sourceWeights);
 
             if (fallbackCount > 0)
             {
@@ -216,6 +182,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         /// Stage 1: Initial weight transfer based on closest point on source mesh.
         /// Uses batch processing with Burst jobs for performance.
         /// </summary>
+        [ExcludeFromCodeCoverage]
         private static void Stage1Transfer(
             Mesh sourceMesh,
             BoneWeight[] sourceWeights,
@@ -255,17 +222,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                         continue;
                     }
 
-                    // Distance check
-                    float distSq = (targetPos - queryResult.closestPoint).sqrMagnitude;
-                    if (distSq > maxDistSq)
-                    {
-                        outConfidence[i] = 0f;
-                        continue;
-                    }
-
-                    // Normal alignment check
                     float normalDot = Vector3.Dot(targetNormal.normalized, queryResult.interpolatedNormal.normalized);
-                    if (normalDot < normalThresholdCos)
+                    if (ShouldRejectTransfer(targetPos, queryResult.closestPoint, maxDistSq, normalDot, normalThresholdCos))
                     {
                         outConfidence[i] = 0f;
                         continue;
@@ -279,6 +237,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                         queryResult.barycentricCoords);
 
                     // Compute confidence based on distance and normal alignment
+                    float distSq = (targetPos - queryResult.closestPoint).sqrMagnitude;
                     float distConfidence = 1f - Mathf.Sqrt(distSq) / safeMaxTransferDistance;
                     float normalDenominator = 1f - normalThresholdCos;
                     float normalConfidence = normalDenominator <= 1e-6f
@@ -289,6 +248,44 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                     transferredCount++;
                 }
             }
+        }
+
+        internal static bool ShouldRejectTransfer(Vector3 targetPos, Vector3 closestPoint, float maxDistSq, float normalDot, float normalThresholdCos)
+        {
+            return (targetPos - closestPoint).sqrMagnitude > maxDistSq ||
+                   normalDot < normalThresholdCos;
+        }
+
+        internal static int ApplyZeroWeightFallback(BoneWeight[] weights, BoneWeight[] sourceWeights)
+        {
+            int fallbackCount = 0;
+            int vertexCount = weights.Length;
+            if (sourceWeights.Length == vertexCount)
+            {
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    var bw = weights[i];
+                    if (bw.weight0 <= 0f && bw.weight1 <= 0f && bw.weight2 <= 0f && bw.weight3 <= 0f)
+                    {
+                        weights[i] = sourceWeights[i];
+                        fallbackCount++;
+                    }
+                }
+            }
+            else
+            {
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    var bw = weights[i];
+                    if (bw.weight0 <= 0f && bw.weight1 <= 0f && bw.weight2 <= 0f && bw.weight3 <= 0f)
+                    {
+                        weights[i] = new BoneWeight { boneIndex0 = 0, weight0 = 1f };
+                        fallbackCount++;
+                    }
+                }
+            }
+
+            return fallbackCount;
         }
 
         private static int[] GetAllTriangles(Mesh mesh)
@@ -355,6 +352,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 {
                     inpaintedCount++;
                 }
+            }
+        }
+
+        [ExcludeFromCodeCoverage]
+        private static void RunStage2InpaintingIfNeeded(
+            WeightTransferSettings settings,
+            int transferredCount,
+            int vertexCount,
+            int[] targetTriangles,
+            Vector3[] targetVertices,
+            int boneCount,
+            BoneWeight[] weights,
+            float[] confidenceMask,
+            ref int inpaintedCount)
+        {
+            if (settings.enableInpainting && transferredCount < vertexCount && targetTriangles.Length > 0)
+            {
+                Stage2Inpainting(
+                    targetVertices,
+                    targetTriangles,
+                    boneCount,
+                    weights,
+                    confidenceMask,
+                    settings,
+                    ref inpaintedCount);
             }
         }
 
@@ -431,10 +453,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             return result;
         }
 
-        private static void AddBoneWeight(
-            System.Collections.Generic.Dictionary<int, float> dict,
-            int boneIndex,
-            float weight)
+        private static void AddBoneWeight(System.Collections.Generic.Dictionary<int, float> dict, int boneIndex, float weight)
         {
             if (weight <= 0f) return;
             if (dict.ContainsKey(boneIndex))
@@ -459,10 +478,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 ? ratio
                 : ratio * boundsDiagonal;
 
-            float deformationDistance = CalculatePercentileDisplacement(
-                sourceVertices,
-                targetVertices,
-                DeformationPercentile);
+            float deformationDistance = CalculatePercentileDisplacement(sourceVertices, targetVertices, DeformationPercentile);
             if (deformationDistance > Mathf.Epsilon)
             {
                 baseDistance = Mathf.Max(baseDistance, deformationDistance * DeformationMargin);

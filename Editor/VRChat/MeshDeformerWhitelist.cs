@@ -1,5 +1,6 @@
 #if LATTICE_VRCSDK3_AVATAR
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using UnityEditor;
@@ -14,6 +15,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         private const string ComponentTypeName = "Net._32Ba.LatticeDeformationTool.LatticeDeformer";
 
+        [ExcludeFromCodeCoverage]
         static LatticeDeformerWhitelist()
         {
             try
@@ -30,6 +32,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
+        [ExcludeFromCodeCoverage]
         private static void AppendToWhitelist(string fieldName)
         {
             var field = typeof(AvatarValidation).GetField(fieldName, BindingFlags.Public | BindingFlags.Static);
@@ -38,15 +41,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            if (field.GetValue(null) is not string[] entries || entries.Contains(ComponentTypeName))
+            if (field.GetValue(null) is not string[] entries)
             {
                 return;
+            }
+
+            field.SetValue(null, AppendComponentType(entries));
+        }
+
+        internal static string[] AppendComponentType(string[] entries)
+        {
+            if (entries == null || entries.Contains(ComponentTypeName))
+            {
+                return entries;
             }
 
             var updated = new string[entries.Length + 1];
             entries.CopyTo(updated, 0);
             updated[^1] = ComponentTypeName;
-            field.SetValue(null, updated);
+            return updated;
         }
     }
 }

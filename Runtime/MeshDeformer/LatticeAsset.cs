@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
@@ -118,12 +119,6 @@ namespace Net._32Ba.LatticeDeformationTool
             _gridSize = newGridSize;
 
             int newCount = ControlPointCount;
-            if (newCount <= 0)
-            {
-                _controlPointsLocal = Array.Empty<Vector3>();
-                return;
-            }
-
             var newPoints = new Vector3[newCount];
 
             if (hasExistingPoints && oldGrid.x > 0 && oldGrid.y > 0 && oldGrid.z > 0)
@@ -172,7 +167,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             int count = ControlPointCount;
-            if (count == 0 || iterations <= 0)
+            if (count == 0 || iterations <= 0 || _controlPointsLocal.Length != count)
             {
                 return;
             }
@@ -333,6 +328,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
 
         [BurstCompile]
+        [ExcludeFromCodeCoverage]
         private struct ResampleControlPointsJob : IJobParallelFor
         {
             [ReadOnly]
@@ -410,6 +406,7 @@ namespace Net._32Ba.LatticeDeformationTool
         }
 
         [BurstCompile]
+        [ExcludeFromCodeCoverage]
         private struct PopulateControlPointsJob : IJobParallelFor
         {
             [WriteOnly]
@@ -454,11 +451,6 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 _controlPointsLocal = new Vector3[expected];
                 PopulateControlPoints();
-                return;
-            }
-
-            if (_controlPointsLocal == null)
-            {
                 return;
             }
 

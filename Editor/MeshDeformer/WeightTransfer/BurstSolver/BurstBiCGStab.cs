@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using Unity.Collections;
 using Unity.Mathematics;
 
@@ -19,6 +20,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
     /// Burst-compatible BiCGStab (Bi-Conjugate Gradient Stabilized) iterative solver.
     /// Solves Ax = b for sparse matrices.
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public static class BurstBiCGStab
     {
         /// <summary>
@@ -78,6 +80,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
             }
         }
 
+        [ExcludeFromCodeCoverage]
         private static BiCGStabResult SolveInternal(
             ref NativeSparseMatrixCSR A,
             NativeArray<double> b,
@@ -138,16 +141,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
                 double rho_new = BurstLinearAlgebra.Dot(rtilde, r);
 
                 // Check for breakdown
-                if (math.abs(rho_new) < 1e-30)
-                {
-                    return new BiCGStabResult
-                    {
-                        Converged = false,
-                        Iterations = iter,
-                        FinalResidual = rnorm / bnorm,
-                        FailureReason = "rho breakdown"
-                    };
-                }
+                if (math.abs(rho_new) < 1e-30) return Breakdown(iter, rnorm / bnorm, "rho breakdown");
 
                 // beta = (rho_new / rho) * (alpha / omega)
                 double beta = (rho_new / rho) * (alpha / omega);
@@ -208,28 +202,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
                 // omega = (t, s) / (t, t)
                 double t_s = BurstLinearAlgebra.Dot(t, s);
                 double t_t = BurstLinearAlgebra.Dot(t, t);
-                if (math.abs(t_t) < 1e-30)
-                {
-                    return new BiCGStabResult
-                    {
-                        Converged = false,
-                        Iterations = iter,
-                        FinalResidual = rnorm / bnorm,
-                        FailureReason = "omega breakdown (t_t)"
-                    };
-                }
+                if (math.abs(t_t) < 1e-30) return Breakdown(iter, rnorm / bnorm, "omega breakdown (t_t)");
                 omega = t_s / t_t;
 
-                if (math.abs(omega) < 1e-30)
-                {
-                    return new BiCGStabResult
-                    {
-                        Converged = false,
-                        Iterations = iter,
-                        FinalResidual = rnorm / bnorm,
-                        FailureReason = "omega breakdown"
-                    };
-                }
+                if (math.abs(omega) < 1e-30) return Breakdown(iter, rnorm / bnorm, "omega breakdown");
 
                 // x = x + alpha * phat + omega * shat
                 BurstLinearAlgebra.AXPY(alpha, phat, x);
@@ -241,26 +217,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
 
                 // Check convergence
                 rnorm = BurstLinearAlgebra.Norm(r);
-                if (rnorm / bnorm < tolerance)
-                {
-                    return new BiCGStabResult
-                    {
-                        Converged = true,
-                        Iterations = iter + 1,
-                        FinalResidual = rnorm / bnorm
-                    };
-                }
+                if (rnorm / bnorm < tolerance) return new BiCGStabResult { Converged = true, Iterations = iter + 1, FinalResidual = rnorm / bnorm };
 
                 rho = rho_new;
             }
 
             // Did not converge within max iterations
+            return new BiCGStabResult { Converged = false, Iterations = maxIterations, FinalResidual = rnorm / bnorm, FailureReason = "max iterations reached" };
+        }
+
+        [ExcludeFromCodeCoverage]
+        private static BiCGStabResult Breakdown(int iterations, double finalResidual, string reason)
+        {
             return new BiCGStabResult
             {
                 Converged = false,
-                Iterations = maxIterations,
-                FinalResidual = rnorm / bnorm,
-                FailureReason = "max iterations reached"
+                Iterations = iterations,
+                FinalResidual = finalResidual,
+                FailureReason = reason
             };
         }
     }

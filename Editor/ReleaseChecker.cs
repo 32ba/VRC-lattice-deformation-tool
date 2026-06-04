@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
 using UnityEditor;
@@ -25,11 +26,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static event Action OnUpdateCheckCompleted;
 
+        [ExcludeFromCodeCoverage]
         static ReleaseChecker()
         {
             EditorApplication.delayCall += () => CheckForUpdates();
         }
 
+        [ExcludeFromCodeCoverage]
         internal static void CheckForUpdates(bool forceCheck = false)
         {
             if (IsChecking)
@@ -51,11 +54,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorCoroutine.Start(CheckRoutine());
         }
 
+        [ExcludeFromCodeCoverage]
         internal static void OpenReleasePage()
         {
             Application.OpenURL(ReleasePageUrl);
         }
 
+        [ExcludeFromCodeCoverage]
         internal static string GetCurrentVersion()
         {
             try
@@ -74,6 +79,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return "0.0.0";
         }
 
+        [ExcludeFromCodeCoverage]
         private static IEnumerator CheckRoutine()
         {
             yield return Api.GetLatestVersionCoroutine(HandleSuccess, HandleError);
@@ -123,23 +129,43 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return true;
             }
 
+            return ShouldCheckForUpdates(stored, DateTime.Now);
+        }
+
+        internal static bool ShouldCheckForUpdates(string stored, DateTime now)
+        {
+            if (string.IsNullOrEmpty(stored))
+            {
+                return true;
+            }
+
             if (long.TryParse(stored, out long binary))
             {
                 var last = DateTime.FromBinary(binary);
-                return (DateTime.Now - last).TotalHours >= CheckIntervalHours;
+                return (now - last).TotalHours >= CheckIntervalHours;
             }
 
             return true;
         }
 
-        private static string GetLastCheckKey()
+        internal static string GetLastCheckKey()
         {
-            return $"{LastCheckKeyPrefix}.{GetProjectScopeSuffix()}";
+            return BuildLastCheckKey(GetProjectScopeSuffix());
         }
 
-        private static string GetProjectScopeSuffix()
+        internal static string BuildLastCheckKey(string projectScopeSuffix)
+        {
+            return $"{LastCheckKeyPrefix}.{projectScopeSuffix}";
+        }
+
+        internal static string GetProjectScopeSuffix()
         {
             string projectPath = Application.dataPath;
+            return BuildProjectScopeSuffix(projectPath);
+        }
+
+        internal static string BuildProjectScopeSuffix(string projectPath)
+        {
             if (string.IsNullOrEmpty(projectPath))
             {
                 return "unknown";
@@ -154,6 +180,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
     }
 
+    [ExcludeFromCodeCoverage]
     internal sealed class EditorCoroutine
     {
         private readonly IEnumerator _routine;

@@ -1,10 +1,12 @@
 #if UNITY_EDITOR
 using System;
+using System.Diagnostics.CodeAnalysis;
 using UnityEditor;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
+    [ExcludeFromCodeCoverage]
     internal static class ReleaseNotificationGUI
     {
         internal static void Draw()
