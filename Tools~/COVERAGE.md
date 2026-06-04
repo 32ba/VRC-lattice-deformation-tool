@@ -9,19 +9,19 @@ This package targets 100% line coverage for these production assemblies:
 The coverage command is:
 
 ```powershell
-./Tools~/Run-Coverage.ps1 -ProjectPath D:\VRC\Projects\Plugin-dev-playground -MinimumTestTotal 391
+./Tools~/Run-Coverage.ps1 -ProjectPath D:\VRC\Projects\Plugin-dev-playground -MinimumTestTotal 421
 ```
 
 To fail the run unless the generated XML reports 100% line coverage:
 
 ```powershell
-./Tools~/Run-Coverage.ps1 -ProjectPath D:\VRC\Projects\Plugin-dev-playground -MinimumTestTotal 391 -EnforceLineCoverage
+./Tools~/Run-Coverage.ps1 -ProjectPath D:\VRC\Projects\Plugin-dev-playground -MinimumTestTotal 421 -EnforceLineCoverage
 ```
 
 To validate the fixed paths, filters, Unity executable, package path, and Code Coverage package without launching Unity or cleaning previous artifacts:
 
 ```powershell
-./Tools~/Run-Coverage.ps1 -ProjectPath D:\VRC\Projects\Plugin-dev-playground -MinimumTestTotal 391 -PreflightOnly
+./Tools~/Run-Coverage.ps1 -ProjectPath D:\VRC\Projects\Plugin-dev-playground -MinimumTestTotal 421 -PreflightOnly
 ```
 
 ## MCP Execution
@@ -64,7 +64,7 @@ Omit `net.32ba.lattice-deformation-tool.vrchat` from manual `Assert-Coverage.ps1
 
 If Unity logs `Visited sequence points not found`, Code Coverage was enabled after the current Editor process had already compiled or loaded the target assemblies without coverage instrumentation. Keep the MCP configuration, restart the Editor, confirm `GetStatus` reports `Coverage.enabled=True`, `CodeOptimization=Debug`, `ScriptDebugInfoEnabled=True`, `BurstCompilation=False`, and `CoverageXmlFiles=0` before the run, then rerun the UnityMCP test command. After the run, `CoverageXmlFiles` and `CoverageHtmlFiles` must be greater than zero before the line coverage gate is meaningful.
 
-The current successful MCP-generated baseline produced `391/391` passing EditMode tests and generated XML/HTML artifacts under `Temp/LatticeCoverage`. After excluding explicit Unity/NDMF/GUI/Burst job glue and adding focused Runtime/WeightTransfer/Editor utility coverage, the current baseline line coverage is:
+The current successful MCP test baseline produced `421/421` passing EditMode tests. The latest coverage baseline generated XML/HTML artifacts under `Temp/LatticeCoverage`; after excluding explicit Unity/NDMF/GUI/Burst job glue and adding focused Runtime/WeightTransfer/Editor utility coverage, the current baseline line coverage is:
 
 - `net.32ba.lattice-deformation-tool`: 100.0%
 - `net.32ba.lattice-deformation-tool.editor`: 100.0%
@@ -90,7 +90,7 @@ Run it with the Unity Editor closed. The script fixes:
 - EditMode test assembly: `net.32ba.lattice-deformation-tool.tests.editor`, plus `net.32ba.lattice-deformation-tool.tests.editor.vrchat` when `com.vrchat.avatars` is present
 - Unity Code Coverage package execution: `-enableCodeCoverage`
 - coverage accuracy flags: `-debugCodeOptimization` and `-burst-disable-compilation`
-- test result gate: `Tools~/Assert-TestResults.ps1` requires `result="Passed"` and total/passed with zero failed/skipped/inconclusive tests; current minimum total is 391
+- test result gate: `Tools~/Assert-TestResults.ps1` requires `result="Passed"` and total/passed with zero failed/skipped/inconclusive tests; current minimum total is 421
 - artifact gate: `Tools~/Assert-CoverageArtifacts.ps1` requires generated coverage XML and HTML report files under `ResultsPath`
 - optional line coverage gate: `Tools~/Assert-Coverage.ps1 -MinimumLineCoverage 100` requires each target assembly coverage entry to be present and at 100%
 - preflight: Unity Code Coverage package (`com.unity.testtools.codecoverage`) must be present in `Packages/packages-lock.json` or `Library/PackageCache`
@@ -159,7 +159,7 @@ Method-level exclusions are also used for `ReleaseChecker` delayed startup and V
 
 ## Verification Gates
 
-- `Tests/Editor` keeps passing as the suite grows; current MCP baseline is `391/391`.
+- `Tests/Editor` keeps passing as the suite grows; current MCP baseline is `421/421`.
 - UnityMCP, batchmode, or CI generates coverage artifacts under `Temp/LatticeCoverage`.
 - Final line coverage for the three target assemblies is 100%.
 - Any excluded line has an explicit UI/SceneView/glue rationale.
