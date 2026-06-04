@@ -370,6 +370,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private Mesh _runtimeMesh;
         [NonSerialized] private Mesh _sourceMesh;
         [NonSerialized] private int _lastBlendShapeHash;
+        [NonSerialized] private int _lastBakedBlendShapeHash;
         private const int k_CurrentLayerModelVersion = 3;
         private const string k_PrimaryLayerName = "Lattice Layer";
         private const string k_BrushLayerName = "Brush Layer";
@@ -1257,7 +1258,10 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             var mesh = AcquireRuntimeMesh(assignToRenderer);
-            var sourceVertices = _sourceMesh.vertices;
+            var sourceVertices = BuildCurrentSourceVertices(
+                out var bakedBlendShapeDeltas,
+                out var bakedBlendShapeWeights,
+                out var bakedBlendShapeHash);
             if (sourceVertices == null || sourceVertices.Length == 0)
             {
                 UnityEngine.Profiling.Profiler.EndSample();
@@ -1324,14 +1328,14 @@ namespace Net._32Ba.LatticeDeformationTool
             // Handle BlendShape output
             if (blendShapeGroups.Count > 0)
             {
-                int blendShapeHash = ComputeBlendShapeOutputHash(blendShapeGroups);
+                int blendShapeHash = HashCode.Combine(ComputeBlendShapeOutputHash(blendShapeGroups), bakedBlendShapeHash);
                 if (blendShapeHash != _lastBlendShapeHash)
                 {
                     UnityEngine.Profiling.Profiler.BeginSample("LatticeDeformer.RebuildBlendShapes");
                     _lastBlendShapeHash = blendShapeHash;
 
                     mesh.ClearBlendShapes();
-                    CopyBlendShapes(_sourceMesh, mesh);
+                    CopyBlendShapes(_sourceMesh, mesh, bakedBlendShapeDeltas, bakedBlendShapeWeights);
 
                     const int sampleCount = 100;
                     foreach (var (group, deltas) in blendShapeGroups)
@@ -1360,10 +1364,17 @@ namespace Net._32Ba.LatticeDeformationTool
                 if (_lastBlendShapeHash != 0)
                 {
                     mesh.ClearBlendShapes();
-                    CopyBlendShapes(_sourceMesh, mesh);
+                    CopyBlendShapes(_sourceMesh, mesh, bakedBlendShapeDeltas, bakedBlendShapeWeights);
                     _lastBlendShapeHash = 0;
                 }
+                else if (bakedBlendShapeHash != _lastBakedBlendShapeHash)
+                {
+                    mesh.ClearBlendShapes();
+                    CopyBlendShapes(_sourceMesh, mesh, bakedBlendShapeDeltas, bakedBlendShapeWeights);
+                }
             }
+
+            _lastBakedBlendShapeHash = bakedBlendShapeHash;
 
             mesh.vertices = finalVertices;
 
@@ -1424,7 +1435,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             var layerSettings = layer.Settings;
-            if (!EnsureCache(layerSettings))
+            if (layerSettings == null || !EnsureCache(layerSettings, sourceVertices))
             {
                 return;
             }
@@ -1463,7 +1474,11 @@ namespace Net._32Ba.LatticeDeformationTool
             return hash;
         }
 
-        private static void CopyBlendShapes(Mesh source, Mesh destination)
+        private static void CopyBlendShapes(
+            Mesh source,
+            Mesh destination,
+            Vector3[][] bakedBlendShapeDeltas = null,
+            float[] bakedBlendShapeWeights = null)
         {
             int shapeCount = source.blendShapeCount;
             int vertexCount = source.vertexCount;
@@ -1471,6 +1486,28 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 string name = source.GetBlendShapeName(s);
                 int frameCount = source.GetBlendShapeFrameCount(s);
+                var baked = bakedBlendShapeDeltas != null && s < bakedBlendShapeDeltas.Length
+                    ? bakedBlendShapeDeltas[s]
+                    : null;
+                float bakedWeight = bakedBlendShapeWeights != null && s < bakedBlendShapeWeights.Length
+                    ? bakedBlendShapeWeights[s]
+                    : 0f;
+                bool hasBakedShape = baked != null && baked.Length == vertexCount;
+
+                if (hasBakedShape && frameCount > 0)
+                {
+                    float firstWeight = source.GetBlendShapeFrameWeight(s, 0);
+                    if (bakedWeight < firstWeight - 1e-5f)
+                    {
+                        destination.AddBlendShapeFrame(
+                            name,
+                            bakedWeight,
+                            new Vector3[vertexCount],
+                            new Vector3[vertexCount],
+                            new Vector3[vertexCount]);
+                    }
+                }
+
                 for (int f = 0; f < frameCount; f++)
                 {
                     float weight = source.GetBlendShapeFrameWeight(s, f);
@@ -1478,8 +1515,137 @@ namespace Net._32Ba.LatticeDeformationTool
                     var dn = new Vector3[vertexCount];
                     var dt = new Vector3[vertexCount];
                     source.GetBlendShapeFrameVertices(s, f, dv, dn, dt);
+                    if (hasBakedShape)
+                    {
+                        for (int v = 0; v < vertexCount; v++)
+                        {
+                            dv[v] -= baked[v];
+                        }
+                    }
+
                     destination.AddBlendShapeFrame(name, weight, dv, dn, dt);
                 }
+            }
+        }
+
+        private Vector3[] BuildCurrentSourceVertices(
+            out Vector3[][] bakedBlendShapeDeltas,
+            out float[] bakedBlendShapeWeights,
+            out int bakedBlendShapeHash)
+        {
+            bakedBlendShapeDeltas = null;
+            bakedBlendShapeWeights = null;
+            bakedBlendShapeHash = 0;
+
+            if (_sourceMesh == null)
+            {
+                return null;
+            }
+
+            var vertices = _sourceMesh.vertices;
+            if (vertices == null || vertices.Length == 0)
+            {
+                return vertices;
+            }
+
+            if (_skinnedMeshRenderer == null || _sourceMesh.blendShapeCount == 0)
+            {
+                return vertices;
+            }
+
+            int shapeCount = _sourceMesh.blendShapeCount;
+            int vertexCount = _sourceMesh.vertexCount;
+            Vector3[][] deltas = null;
+            float[] weights = null;
+            bool hasBakedShape = false;
+            int hash = 17;
+
+            for (int s = 0; s < shapeCount; s++)
+            {
+                float weight = _skinnedMeshRenderer.GetBlendShapeWeight(s);
+                if (Mathf.Abs(weight) <= 1e-5f)
+                {
+                    continue;
+                }
+
+                var delta = EvaluateBlendShapeVertexDelta(_sourceMesh, s, weight);
+                deltas ??= new Vector3[shapeCount][];
+                weights ??= new float[shapeCount];
+                deltas[s] = delta;
+                weights[s] = weight;
+                hasBakedShape = true;
+                hash = HashCode.Combine(hash, s, weight);
+
+                for (int v = 0; v < vertexCount; v++)
+                {
+                    vertices[v] += delta[v];
+                }
+            }
+
+            if (!hasBakedShape)
+            {
+                return vertices;
+            }
+
+            bakedBlendShapeDeltas = deltas;
+            bakedBlendShapeWeights = weights;
+            bakedBlendShapeHash = hash;
+            return vertices;
+        }
+
+        private static Vector3[] EvaluateBlendShapeVertexDelta(Mesh mesh, int shapeIndex, float weight)
+        {
+            int frameCount = mesh.GetBlendShapeFrameCount(shapeIndex);
+            int vertexCount = mesh.vertexCount;
+            var lower = new Vector3[vertexCount];
+            var upper = new Vector3[vertexCount];
+            var unusedNormals = new Vector3[vertexCount];
+            var unusedTangents = new Vector3[vertexCount];
+
+            float firstWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, 0);
+            if (weight <= firstWeight || frameCount == 1)
+            {
+                mesh.GetBlendShapeFrameVertices(shapeIndex, 0, lower, unusedNormals, unusedTangents);
+                float scale = Mathf.Abs(firstWeight) > Mathf.Epsilon ? weight / firstWeight : 0f;
+                ScaleDeltas(lower, scale);
+                return lower;
+            }
+
+            for (int frame = 1; frame < frameCount; frame++)
+            {
+                float upperWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, frame);
+                if (weight <= upperWeight)
+                {
+                    float lowerWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, frame - 1);
+                    mesh.GetBlendShapeFrameVertices(shapeIndex, frame - 1, lower, unusedNormals, unusedTangents);
+                    mesh.GetBlendShapeFrameVertices(shapeIndex, frame, upper, unusedNormals, unusedTangents);
+
+                    float t = Mathf.Abs(upperWeight - lowerWeight) > Mathf.Epsilon
+                        ? Mathf.InverseLerp(lowerWeight, upperWeight, weight)
+                        : 0f;
+                    for (int i = 0; i < vertexCount; i++)
+                    {
+                        lower[i] = Vector3.LerpUnclamped(lower[i], upper[i], t);
+                    }
+
+                    return lower;
+                }
+            }
+
+            mesh.GetBlendShapeFrameVertices(shapeIndex, frameCount - 1, lower, unusedNormals, unusedTangents);
+            return lower;
+        }
+
+        private static void ScaleDeltas(Vector3[] deltas, float scale)
+        {
+            if (deltas == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < deltas.Length; i++)
+            {
+                deltas[i] *= scale;
             }
         }
 
@@ -1515,7 +1681,8 @@ namespace Net._32Ba.LatticeDeformationTool
             EnsureGroups();
             if (_sourceMesh == null) return;
 
-            var meshBounds = _sourceMesh.bounds;
+            var sourceVertices = BuildCurrentSourceVertices(out _, out _, out _);
+            var meshBounds = CalculateReferencedBounds(_sourceMesh, sourceVertices, _sourceMesh.bounds);
             foreach (var group in _groups)
             {
                 if (group == null) continue;
@@ -1976,6 +2143,8 @@ namespace Net._32Ba.LatticeDeformationTool
                 _runtimeMesh = Instantiate(_sourceMesh);
                 _runtimeMesh.name = _sourceMesh.name + " (Mesh Deformer)";
                 _runtimeMesh.hideFlags = HideFlags.HideAndDontSave;
+                _lastBlendShapeHash = 0;
+                _lastBakedBlendShapeHash = int.MinValue;
             }
 
             if (assignToRenderer)
@@ -2017,6 +2186,8 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             _runtimeMesh = null;
+            _lastBlendShapeHash = 0;
+            _lastBakedBlendShapeHash = int.MinValue;
         }
 
         private void EnsureControlBuffer(int controlPointCount)
@@ -2108,7 +2279,7 @@ namespace Net._32Ba.LatticeDeformationTool
         }
 
 
-        private bool EnsureCache(LatticeAsset settings)
+        private bool EnsureCache(LatticeAsset settings, Vector3[] restVertices)
         {
             if (settings == null)
             {
@@ -2126,17 +2297,18 @@ namespace Net._32Ba.LatticeDeformationTool
                 return false;
             }
 
-            if (_cache.IsCompatibleWith(settings, mesh))
+            int restVerticesHash = HashVertices(restVertices);
+            if (_cache.IsCompatibleWith(settings, mesh, restVerticesHash))
             {
                 return true;
             }
 
-            return RebuildCache(settings, mesh);
+            return RebuildCache(settings, mesh, restVertices, restVerticesHash);
         }
 
-        private bool RebuildCache(LatticeAsset settings, Mesh mesh)
+        private bool RebuildCache(LatticeAsset settings, Mesh mesh, Vector3[] restVertices, int restVerticesHash)
         {
-            if (settings == null || mesh == null)
+            if (settings == null || mesh == null || restVertices == null)
             {
                 return false;
             }
@@ -2154,14 +2326,73 @@ namespace Net._32Ba.LatticeDeformationTool
                 return false;
             }
 
-            var restVertices = mesh.vertices;
             var bounds = settings.LocalBounds;
             LatticeCacheEntry[] entries;
 
             entries = BuildCacheWithJobs(gridSize, bounds, restVertices);
 
-            _cache.Populate(gridSize, bounds, settings.Interpolation, vertexCount, entries, restVertices);
+            _cache.Populate(gridSize, bounds, settings.Interpolation, vertexCount, restVerticesHash, entries, restVertices);
             return true;
+        }
+
+        private static Bounds CalculateReferencedBounds(Mesh mesh, Vector3[] vertices, Bounds fallback)
+        {
+            if (mesh == null || vertices == null || vertices.Length == 0)
+            {
+                return fallback;
+            }
+
+            var bounds = new Bounds();
+            bool hasPoint = false;
+
+            int subMeshCount = Mathf.Max(1, mesh.subMeshCount);
+            for (int subMesh = 0; subMesh < subMeshCount; subMesh++)
+            {
+                var indices = mesh.GetIndices(subMesh);
+                for (int i = 0; i < indices.Length; i++)
+                {
+                    int vertexIndex = indices[i];
+                    if (!hasPoint)
+                    {
+                        bounds = new Bounds(vertices[vertexIndex], Vector3.zero);
+                        hasPoint = true;
+                    }
+                    else
+                    {
+                        bounds.Encapsulate(vertices[vertexIndex]);
+                    }
+                }
+            }
+
+            if (hasPoint)
+            {
+                return bounds;
+            }
+
+            bounds = new Bounds(vertices[0], Vector3.zero);
+            for (int i = 1; i < vertices.Length; i++)
+            {
+                bounds.Encapsulate(vertices[i]);
+            }
+
+            return bounds;
+        }
+
+        private static int HashVertices(Vector3[] vertices)
+        {
+            if (vertices == null || vertices.Length == 0)
+            {
+                return 0;
+            }
+
+            int hash = vertices.Length;
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                var v = vertices[i];
+                hash = HashCode.Combine(hash, v.x, v.y, v.z);
+            }
+
+            return hash;
         }
 
         private static Vector3 CalculateNormalizedCoordinate(Bounds bounds, Vector3 point)
@@ -2382,12 +2613,13 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private Bounds _localBounds;
         [SerializeField] private LatticeInterpolationMode _interpolation;
         [SerializeField] private int _vertexCount;
+        [SerializeField] private int _restVerticesHash;
         [SerializeField] private LatticeCacheEntry[] _entries = Array.Empty<LatticeCacheEntry>();
         [SerializeField] private Vector3[] _restVertices = Array.Empty<Vector3>();
 
         public LatticeCacheEntry[] Entries => _entries;
 
-        public bool IsCompatibleWith(LatticeAsset asset, Mesh mesh)
+        public bool IsCompatibleWith(LatticeAsset asset, Mesh mesh, int restVerticesHash)
         {
             if (asset == null || mesh == null)
             {
@@ -2400,6 +2632,11 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             if (_vertexCount != mesh.vertexCount)
+            {
+                return false;
+            }
+
+            if (_restVerticesHash != restVerticesHash)
             {
                 return false;
             }
@@ -2422,12 +2659,13 @@ namespace Net._32Ba.LatticeDeformationTool
             return true;
         }
 
-        public void Populate(Vector3Int gridSize, Bounds bounds, LatticeInterpolationMode interpolation, int vertexCount, LatticeCacheEntry[] entries, Vector3[] restVertices)
+        public void Populate(Vector3Int gridSize, Bounds bounds, LatticeInterpolationMode interpolation, int vertexCount, int restVerticesHash, LatticeCacheEntry[] entries, Vector3[] restVertices)
         {
             _gridSize = gridSize;
             _localBounds = bounds;
             _interpolation = interpolation;
             _vertexCount = vertexCount;
+            _restVerticesHash = restVerticesHash;
             _entries = entries ?? Array.Empty<LatticeCacheEntry>();
             _restVertices = restVertices ?? Array.Empty<Vector3>();
         }
@@ -2437,6 +2675,7 @@ namespace Net._32Ba.LatticeDeformationTool
             _entries = Array.Empty<LatticeCacheEntry>();
             _restVertices = Array.Empty<Vector3>();
             _vertexCount = 0;
+            _restVerticesHash = 0;
         }
 
         private static bool ApproximatelyEquals(Bounds lhs, Bounds rhs)

@@ -253,18 +253,163 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             switch (renderer)
             {
                 case SkinnedMeshRenderer skinned:
-                    // localBounds is the skinned renderer's evaluated local AABB (reflects root bone & import settings)
-                    return skinned.localBounds;
+                    return CalculateSkinnedMeshLocalBounds(skinned);
                 case MeshRenderer meshRenderer:
                     var mf = meshRenderer.GetComponent<MeshFilter>();
                     if (mf != null && mf.sharedMesh != null)
                     {
-                        return mf.sharedMesh.bounds;
+                        return CalculateReferencedMeshBounds(mf.sharedMesh, mf.sharedMesh.vertices, mf.sharedMesh.bounds);
                     }
                     break;
             }
 
             return renderer.bounds;
+        }
+
+        private static Bounds CalculateSkinnedMeshLocalBounds(SkinnedMeshRenderer skinned)
+        {
+            var mesh = skinned != null ? skinned.sharedMesh : null;
+            if (mesh == null)
+            {
+                return skinned != null ? skinned.localBounds : new Bounds(Vector3.zero, Vector3.zero);
+            }
+
+            var vertices = mesh.vertices;
+            if (vertices == null || vertices.Length == 0)
+            {
+                return mesh.bounds;
+            }
+
+            if (mesh.blendShapeCount > 0)
+            {
+                int shapeCount = mesh.blendShapeCount;
+                for (int shape = 0; shape < shapeCount; shape++)
+                {
+                    float weight = skinned.GetBlendShapeWeight(shape);
+                    if (Mathf.Abs(weight) <= 1e-5f)
+                    {
+                        continue;
+                    }
+
+                    var delta = EvaluateBlendShapeVertexDelta(mesh, shape, weight);
+                    if (delta == null || delta.Length != vertices.Length)
+                    {
+                        continue;
+                    }
+
+                    for (int i = 0; i < vertices.Length; i++)
+                    {
+                        vertices[i] += delta[i];
+                    }
+                }
+            }
+
+            return CalculateReferencedMeshBounds(mesh, vertices, mesh.bounds);
+        }
+
+        private static Vector3[] EvaluateBlendShapeVertexDelta(Mesh mesh, int shapeIndex, float weight)
+        {
+            int frameCount = mesh.GetBlendShapeFrameCount(shapeIndex);
+            if (frameCount <= 0)
+            {
+                return null;
+            }
+
+            int vertexCount = mesh.vertexCount;
+            var lower = new Vector3[vertexCount];
+            var upper = new Vector3[vertexCount];
+            var normals = new Vector3[vertexCount];
+            var tangents = new Vector3[vertexCount];
+
+            float firstWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, 0);
+            if (weight <= firstWeight || frameCount == 1)
+            {
+                mesh.GetBlendShapeFrameVertices(shapeIndex, 0, lower, normals, tangents);
+                float scale = Mathf.Abs(firstWeight) > Mathf.Epsilon ? weight / firstWeight : 0f;
+                for (int i = 0; i < lower.Length; i++)
+                {
+                    lower[i] *= scale;
+                }
+
+                return lower;
+            }
+
+            for (int frame = 1; frame < frameCount; frame++)
+            {
+                float upperWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, frame);
+                if (weight <= upperWeight)
+                {
+                    float lowerWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, frame - 1);
+                    mesh.GetBlendShapeFrameVertices(shapeIndex, frame - 1, lower, normals, tangents);
+                    mesh.GetBlendShapeFrameVertices(shapeIndex, frame, upper, normals, tangents);
+
+                    float t = Mathf.Abs(upperWeight - lowerWeight) > Mathf.Epsilon
+                        ? Mathf.InverseLerp(lowerWeight, upperWeight, weight)
+                        : 0f;
+                    for (int i = 0; i < lower.Length; i++)
+                    {
+                        lower[i] = Vector3.LerpUnclamped(lower[i], upper[i], t);
+                    }
+
+                    return lower;
+                }
+            }
+
+            mesh.GetBlendShapeFrameVertices(shapeIndex, frameCount - 1, lower, normals, tangents);
+            return lower;
+        }
+
+        private static Bounds CalculateReferencedMeshBounds(Mesh mesh, Vector3[] vertices, Bounds fallback)
+        {
+            if (mesh == null || vertices == null || vertices.Length == 0)
+            {
+                return fallback;
+            }
+
+            var bounds = new Bounds();
+            bool hasPoint = false;
+
+            int subMeshCount = Mathf.Max(1, mesh.subMeshCount);
+            for (int subMesh = 0; subMesh < subMeshCount; subMesh++)
+            {
+                var indices = mesh.GetIndices(subMesh);
+                if (indices == null)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < indices.Length; i++)
+                {
+                    int vertexIndex = indices[i];
+                    if (vertexIndex < 0 || vertexIndex >= vertices.Length)
+                    {
+                        continue;
+                    }
+
+                    if (!hasPoint)
+                    {
+                        bounds = new Bounds(vertices[vertexIndex], Vector3.zero);
+                        hasPoint = true;
+                    }
+                    else
+                    {
+                        bounds.Encapsulate(vertices[vertexIndex]);
+                    }
+                }
+            }
+
+            if (hasPoint)
+            {
+                return bounds;
+            }
+
+            bounds = new Bounds(vertices[0], Vector3.zero);
+            for (int i = 1; i < vertices.Length; i++)
+            {
+                bounds.Encapsulate(vertices[i]);
+            }
+
+            return bounds;
         }
 
         internal static Bounds GetRendererLocalBounds(Renderer renderer)

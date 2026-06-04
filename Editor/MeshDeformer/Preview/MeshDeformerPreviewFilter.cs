@@ -277,6 +277,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     _previewMesh.tangents = tangents;
                 }
 
+                CopyBlendShapes(runtimeMesh, _previewMesh);
                 _previewMesh.bounds = runtimeMesh.bounds;
                 _previewMesh.UploadMeshData(false);
 
@@ -357,6 +358,33 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             catch
             {
                 return null;
+            }
+        }
+
+        private static void CopyBlendShapes(Mesh source, Mesh destination)
+        {
+            if (source == null || destination == null || source.vertexCount != destination.vertexCount)
+            {
+                return;
+            }
+
+            destination.ClearBlendShapes();
+
+            int shapeCount = source.blendShapeCount;
+            int vertexCount = source.vertexCount;
+            for (int shape = 0; shape < shapeCount; shape++)
+            {
+                string shapeName = source.GetBlendShapeName(shape);
+                int frameCount = source.GetBlendShapeFrameCount(shape);
+                for (int frame = 0; frame < frameCount; frame++)
+                {
+                    float frameWeight = source.GetBlendShapeFrameWeight(shape, frame);
+                    var deltaVertices = new Vector3[vertexCount];
+                    var deltaNormals = new Vector3[vertexCount];
+                    var deltaTangents = new Vector3[vertexCount];
+                    source.GetBlendShapeFrameVertices(shape, frame, deltaVertices, deltaNormals, deltaTangents);
+                    destination.AddBlendShapeFrame(shapeName, frameWeight, deltaVertices, deltaNormals, deltaTangents);
+                }
             }
         }
 

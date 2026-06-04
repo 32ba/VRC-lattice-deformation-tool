@@ -164,27 +164,29 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var bounds = asset.LocalBounds;
             try
             {
-                Assert.That(cache.IsCompatibleWith(null, mesh), Is.False);
-                Assert.That(cache.IsCompatibleWith(asset, null), Is.False);
-                Assert.That(cache.IsCompatibleWith(asset, mesh), Is.False);
+                Assert.That(cache.IsCompatibleWith(null, mesh, 0), Is.False);
+                Assert.That(cache.IsCompatibleWith(asset, null, 0), Is.False);
+                Assert.That(cache.IsCompatibleWith(asset, mesh, 0), Is.False);
 
                 cache.Populate(
                     asset.GridSize,
                     bounds,
                     asset.Interpolation,
                     mesh.vertexCount + 1,
+                    0,
                     new[] { new LatticeCacheEntry() },
                     mesh.vertices);
-                Assert.That(cache.IsCompatibleWith(asset, mesh), Is.False);
+                Assert.That(cache.IsCompatibleWith(asset, mesh, 0), Is.False);
 
                 cache.Populate(
                     asset.GridSize + Vector3Int.one,
                     bounds,
                     asset.Interpolation,
                     mesh.vertexCount,
+                    0,
                     new[] { new LatticeCacheEntry() },
                     mesh.vertices);
-                Assert.That(cache.IsCompatibleWith(asset, mesh), Is.False);
+                Assert.That(cache.IsCompatibleWith(asset, mesh, 0), Is.False);
 
                 cache.Populate(
                     asset.GridSize,
@@ -193,27 +195,31 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                         ? LatticeInterpolationMode.CubicBernstein
                         : LatticeInterpolationMode.Trilinear,
                     mesh.vertexCount,
+                    0,
                     new[] { new LatticeCacheEntry() },
                     mesh.vertices);
-                Assert.That(cache.IsCompatibleWith(asset, mesh), Is.False);
+                Assert.That(cache.IsCompatibleWith(asset, mesh, 0), Is.False);
 
                 cache.Populate(
                     asset.GridSize,
                     new Bounds(bounds.center + Vector3.one, bounds.size),
                     asset.Interpolation,
                     mesh.vertexCount,
+                    0,
                     new[] { new LatticeCacheEntry() },
                     mesh.vertices);
-                Assert.That(cache.IsCompatibleWith(asset, mesh), Is.False);
+                Assert.That(cache.IsCompatibleWith(asset, mesh, 0), Is.False);
 
                 cache.Populate(
                     asset.GridSize,
                     bounds,
                     asset.Interpolation,
                     mesh.vertexCount,
+                    0,
                     new[] { new LatticeCacheEntry() },
                     mesh.vertices);
-                Assert.That(cache.IsCompatibleWith(asset, mesh), Is.True);
+                Assert.That(cache.IsCompatibleWith(asset, mesh, 0), Is.True);
+                Assert.That(cache.IsCompatibleWith(asset, mesh, 1), Is.False);
                 cache.Clear();
                 Assert.That(cache.Entries, Is.Empty);
             }
@@ -770,11 +776,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 {
                     var cache = new LatticeDeformerCache();
                     var settings = latticeLayer.Settings;
+                    int sourceHash = InvokeStaticPrivate<int>("HashVertices", source);
                     cache.Populate(
                         settings.GridSize,
                         settings.LocalBounds,
                         settings.Interpolation,
                         sourceMesh.vertexCount,
+                        sourceHash,
                         new[] { new LatticeCacheEntry(), new LatticeCacheEntry() },
                         source);
                     typeof(LatticeDeformer)
@@ -1010,25 +1018,25 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     .SetValue(deformer, null);
                 Assert.That(deformer.WeightTransferSettings, Is.Not.Null);
 
-                InvokePrivate(deformer, "EnsureCache", new object[] { null });
+                InvokePrivate(deformer, "EnsureCache", null, Array.Empty<Vector3>());
                 Assert.That(
-                    InvokePrivate(deformer, "RebuildCache", null, mesh),
+                    InvokePrivate(deformer, "RebuildCache", null, mesh, Array.Empty<Vector3>(), 0),
                     Is.EqualTo(false));
 
                 var invalidGrid = new LatticeAsset();
                 typeof(LatticeAsset)
                     .GetField("_gridSize", BindingFlags.Instance | BindingFlags.NonPublic)
                     .SetValue(invalidGrid, Vector3Int.one);
-                Assert.That(InvokePrivate(deformer, "RebuildCache", invalidGrid, mesh), Is.EqualTo(false));
+                Assert.That(InvokePrivate(deformer, "RebuildCache", invalidGrid, mesh, Array.Empty<Vector3>(), 0), Is.EqualTo(false));
 
                 var validSettings = new LatticeAsset();
                 validSettings.EnsureInitialized();
-                Assert.That(InvokePrivate(deformer, "RebuildCache", validSettings, mesh), Is.EqualTo(false));
+                Assert.That(InvokePrivate(deformer, "RebuildCache", validSettings, mesh, Array.Empty<Vector3>(), 0), Is.EqualTo(false));
 
                 typeof(LatticeDeformer)
                     .GetField("_cache", BindingFlags.Instance | BindingFlags.NonPublic)
                     .SetValue(deformer, null);
-                Assert.That(InvokePrivate(deformer, "EnsureCache", validSettings), Is.EqualTo(false));
+                Assert.That(InvokePrivate(deformer, "EnsureCache", validSettings, Array.Empty<Vector3>()), Is.EqualTo(false));
             }
             finally
             {
@@ -1166,6 +1174,100 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
+        [Test]
+        public void LatticeDeformer_BlendShapeSourceHelpers_CoverRuntimeBranches()
+        {
+            var go = new GameObject("runtime-core-blendshape-source");
+            var deformer = go.AddComponent<LatticeDeformer>();
+            var renderer = go.AddComponent<SkinnedMeshRenderer>();
+            var mesh = CreateBlendShapeMesh("RuntimeCoreBlendShape");
+            var emptyMesh = new Mesh { name = "RuntimeCoreEmptyBlendShape" };
+            try
+            {
+                typeof(LatticeDeformer)
+                    .GetField("_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(deformer, null);
+                var nullArgs = new object[] { null, null, null };
+                Assert.That(InvokePrivate(deformer, "BuildCurrentSourceVertices", nullArgs), Is.Null);
+
+                typeof(LatticeDeformer)
+                    .GetField("_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(deformer, emptyMesh);
+                var emptyArgs = new object[] { null, null, null };
+                Assert.That((Vector3[])InvokePrivate(deformer, "BuildCurrentSourceVertices", emptyArgs), Is.Empty);
+
+                typeof(LatticeDeformer)
+                    .GetField("_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(deformer, mesh);
+                typeof(LatticeDeformer)
+                    .GetField("_skinnedMeshRenderer", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(deformer, null);
+                var noRendererArgs = new object[] { null, null, null };
+                Assert.That(((Vector3[])InvokePrivate(deformer, "BuildCurrentSourceVertices", noRendererArgs))[0], Is.EqualTo(mesh.vertices[0]));
+
+                renderer.sharedMesh = mesh;
+                renderer.SetBlendShapeWeight(0, 0f);
+                typeof(LatticeDeformer)
+                    .GetField("_skinnedMeshRenderer", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(deformer, renderer);
+                var zeroWeightArgs = new object[] { null, null, null };
+                Assert.That(((Vector3[])InvokePrivate(deformer, "BuildCurrentSourceVertices", zeroWeightArgs))[0], Is.EqualTo(mesh.vertices[0]));
+
+                renderer.SetBlendShapeWeight(0, 75f);
+                var bakedArgs = new object[] { null, null, null };
+                var bakedVertices = (Vector3[])InvokePrivate(deformer, "BuildCurrentSourceVertices", bakedArgs);
+                Assert.That(bakedVertices[0].x, Is.EqualTo(-0.25f).Within(1e-6f));
+                Assert.That(bakedArgs[0], Is.TypeOf<Vector3[][]>());
+                Assert.That(bakedArgs[1], Is.TypeOf<float[]>());
+                Assert.That((int)bakedArgs[2], Is.Not.EqualTo(0));
+
+                var interpolated = InvokeStaticPrivate<Vector3[]>("EvaluateBlendShapeVertexDelta", mesh, 0, 75f);
+                Assert.That(interpolated[0].x, Is.EqualTo(0.75f).Within(1e-6f));
+                var lastFrame = InvokeStaticPrivate<Vector3[]>("EvaluateBlendShapeVertexDelta", mesh, 0, 150f);
+                Assert.That(lastFrame[0].x, Is.EqualTo(1f).Within(1e-6f));
+
+                Assert.That(InvokeStaticPrivate<int>("HashVertices", new object[] { null }), Is.EqualTo(0));
+                Assert.That(InvokeStaticPrivate<int>("HashVertices", Array.Empty<Vector3>()), Is.EqualTo(0));
+                Assert.That(InvokeStaticPrivate<int>("HashVertices", new[] { Vector3.one }), Is.Not.EqualTo(0));
+                InvokeStaticPrivate<object>("ScaleDeltas", null, 1f);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(mesh);
+                UnityEngine.Object.DestroyImmediate(emptyMesh);
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
+        public void LatticeDeformer_DeformAndBoundsHelpers_CoverMergeBranches()
+        {
+            var go = new GameObject("runtime-core-merge-branches");
+            var deformer = go.AddComponent<LatticeDeformer>();
+            var mesh = CreateSymmetricQuadMesh("RuntimeCoreMergeBounds");
+            try
+            {
+                typeof(LatticeDeformer)
+                    .GetField("_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(deformer, mesh);
+                Assert.That(deformer.Deform(), Is.Null);
+
+                mesh.subMeshCount = 1;
+                mesh.SetIndices(Array.Empty<int>(), MeshTopology.Triangles, 0);
+                var fallbackBounds = InvokeStaticPrivate<Bounds>(
+                    "CalculateReferencedBounds",
+                    mesh,
+                    mesh.vertices,
+                    new Bounds(Vector3.one, Vector3.one));
+                Assert.That(fallbackBounds.center.x, Is.EqualTo(0f).Within(1e-6f));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(mesh);
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+        }
+
         private static object InvokePrivate(object target, string methodName, params object[] args)
         {
             var method = target.GetType()
@@ -1173,7 +1275,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 .First(m => m.Name == methodName &&
                             m.GetParameters().Length == args.Length &&
                             m.GetParameters()
-                                .Select((p, i) => args[i] == null || p.ParameterType.IsInstanceOfType(args[i]))
+                                .Select((p, i) => ParameterMatches(p.ParameterType, args[i]))
                                 .All(match => match));
             return method.Invoke(target, args);
         }
@@ -1185,9 +1287,24 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 .First(m => m.Name == methodName &&
                             m.GetParameters().Length == args.Length &&
                             m.GetParameters()
-                                .Select((p, i) => args[i] == null || p.ParameterType.IsInstanceOfType(args[i]))
+                                .Select((p, i) => ParameterMatches(p.ParameterType, args[i]))
                                 .All(match => match));
             return (T)method.Invoke(null, args);
+        }
+
+        private static bool ParameterMatches(Type parameterType, object arg)
+        {
+            if (arg == null)
+            {
+                return true;
+            }
+
+            if (parameterType.IsByRef)
+            {
+                parameterType = parameterType.GetElementType();
+            }
+
+            return parameterType != null && parameterType.IsInstanceOfType(arg);
         }
 
         private static Mesh CreateSymmetricQuadMesh(string name)
@@ -1203,6 +1320,18 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             mesh.normals = Enumerable.Repeat(Vector3.forward, 4).ToArray();
             mesh.triangles = new[] { 0, 2, 1, 1, 2, 3 };
             mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private static Mesh CreateBlendShapeMesh(string name)
+        {
+            var mesh = CreateSymmetricQuadMesh(name);
+            var delta50 = Enumerable.Repeat(new Vector3(0.5f, 0f, 0f), mesh.vertexCount).ToArray();
+            var delta100 = Enumerable.Repeat(Vector3.right, mesh.vertexCount).ToArray();
+            var zeroNormals = new Vector3[mesh.vertexCount];
+            var zeroTangents = new Vector3[mesh.vertexCount];
+            mesh.AddBlendShapeFrame("Smile", 50f, delta50, zeroNormals, zeroTangents);
+            mesh.AddBlendShapeFrame("Smile", 100f, delta100, zeroNormals, zeroTangents);
             return mesh;
         }
     }
