@@ -487,6 +487,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [Test]
         public void ReleaseChecker_PrivateHandlers_UpdateStateAndRaiseEvent()
         {
+            var previousState = CaptureReleaseCheckerState();
             int completed = 0;
             void OnCompleted() => completed++;
 
@@ -518,6 +519,70 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally
             {
                 ReleaseChecker.OnUpdateCheckCompleted -= OnCompleted;
+                RestoreReleaseCheckerState(previousState);
+            }
+        }
+
+        [Test]
+        public void ReleaseChecker_CompletionNotificationException_DoesNotStopOtherSubscribers()
+        {
+            var previousState = CaptureReleaseCheckerState();
+            int completed = 0;
+            void ThrowingSubscriber() => throw new InvalidOperationException("completion subscriber failed");
+            void CountingSubscriber() => completed++;
+
+            ReleaseChecker.OnUpdateCheckCompleted += ThrowingSubscriber;
+            ReleaseChecker.OnUpdateCheckCompleted += CountingSubscriber;
+            try
+            {
+                LogAssert.Expect(
+                    LogType.Warning,
+                    new System.Text.RegularExpressions.Regex(@"\[LatticeDeformationTool\] Update check failed: network failed"));
+                LogAssert.Expect(
+                    LogType.Exception,
+                    new System.Text.RegularExpressions.Regex("completion subscriber failed"));
+
+                InvokeReleaseCheckerHandler("HandleError", "network failed");
+
+                Assert.That(ReleaseChecker.IsChecking, Is.False);
+                Assert.That(completed, Is.EqualTo(1));
+                Assert.That(ReleaseChecker.CheckError, Is.EqualTo("network failed"));
+            }
+            finally
+            {
+                ReleaseChecker.OnUpdateCheckCompleted -= ThrowingSubscriber;
+                ReleaseChecker.OnUpdateCheckCompleted -= CountingSubscriber;
+                RestoreReleaseCheckerState(previousState);
+            }
+        }
+
+        [Test]
+        public void EditorCoroutine_Exception_ClearsReleaseCheckerStateAndNotifiesOnce()
+        {
+            var previousState = CaptureReleaseCheckerState();
+            SetReleaseCheckerIsChecking(true);
+            int completed = 0;
+            void OnCompleted() => completed++;
+            ReleaseChecker.OnUpdateCheckCompleted += OnCompleted;
+            try
+            {
+                LogAssert.Expect(LogType.Exception, new System.Text.RegularExpressions.Regex("routine failed"));
+
+                var coroutine = EditorCoroutine.Start(
+                    ThrowingRoutine(),
+                    exception => InvokeReleaseCheckerExceptionHandler(exception));
+                Assert.That(InvokeRegisteredEditorCoroutineUpdate(coroutine), Is.True);
+                Assert.That(InvokeRegisteredEditorCoroutineUpdate(coroutine), Is.True);
+
+                Assert.That(ReleaseChecker.IsChecking, Is.False);
+                Assert.That(ReleaseChecker.CheckError, Is.EqualTo("routine failed"));
+                Assert.That(completed, Is.EqualTo(1));
+                Assert.That(IsEditorCoroutineRegistered(coroutine), Is.False);
+            }
+            finally
+            {
+                ReleaseChecker.OnUpdateCheckCompleted -= OnCompleted;
+                RestoreReleaseCheckerState(previousState);
             }
         }
 
@@ -569,6 +634,99 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
             Assert.That(method, Is.Not.Null);
             method.Invoke(null, new object[] { value });
+        }
+
+        private static void InvokeReleaseCheckerExceptionHandler(Exception exception)
+        {
+            var method = typeof(ReleaseChecker).GetMethod(
+                "HandleCoroutineException",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null);
+            method.Invoke(null, new object[] { exception });
+        }
+
+        private static void SetReleaseCheckerIsChecking(bool value)
+        {
+            SetReleaseCheckerBackingField("<IsChecking>k__BackingField", value);
+        }
+
+        private readonly struct ReleaseCheckerState
+        {
+            public readonly bool IsChecking;
+            public readonly string CheckError;
+            public readonly string LatestVersion;
+            public readonly bool HasNewVersion;
+
+            public ReleaseCheckerState(bool isChecking, string checkError, string latestVersion, bool hasNewVersion)
+            {
+                IsChecking = isChecking;
+                CheckError = checkError;
+                LatestVersion = latestVersion;
+                HasNewVersion = hasNewVersion;
+            }
+        }
+
+        private static ReleaseCheckerState CaptureReleaseCheckerState()
+        {
+            return new ReleaseCheckerState(
+                ReleaseChecker.IsChecking,
+                ReleaseChecker.CheckError,
+                ReleaseChecker.LatestVersion,
+                ReleaseChecker.HasNewVersion);
+        }
+
+        private static void RestoreReleaseCheckerState(ReleaseCheckerState state)
+        {
+            SetReleaseCheckerBackingField("<IsChecking>k__BackingField", state.IsChecking);
+            SetReleaseCheckerBackingField("<CheckError>k__BackingField", state.CheckError);
+            SetReleaseCheckerBackingField("<LatestVersion>k__BackingField", state.LatestVersion);
+            SetReleaseCheckerBackingField("<HasNewVersion>k__BackingField", state.HasNewVersion);
+        }
+
+        private static void SetReleaseCheckerBackingField(string fieldName, object value)
+        {
+            var field = typeof(ReleaseChecker).GetField(
+                fieldName,
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null);
+            field.SetValue(null, value);
+        }
+
+        private static bool InvokeRegisteredEditorCoroutineUpdate(EditorCoroutine coroutine)
+        {
+            var field = typeof(EditorApplication).GetField(
+                "update",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null);
+
+            var callbacks = field.GetValue(null) as Delegate;
+            var callback = callbacks?.GetInvocationList()
+                .FirstOrDefault(item => ReferenceEquals(item.Target, coroutine));
+            if (callback == null)
+            {
+                return false;
+            }
+
+            callback.DynamicInvoke();
+            return true;
+        }
+
+        private static bool IsEditorCoroutineRegistered(EditorCoroutine coroutine)
+        {
+            var field = typeof(EditorApplication).GetField(
+                "update",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null);
+
+            var callbacks = field.GetValue(null) as Delegate;
+            return callbacks != null && callbacks.GetInvocationList()
+                .Any(item => ReferenceEquals(item.Target, coroutine));
+        }
+
+        private static System.Collections.IEnumerator ThrowingRoutine()
+        {
+            yield return null;
+            throw new InvalidOperationException("routine failed");
         }
 
         private static T InvokeReleaseCheckerPrivate<T>(string methodName, params object[] args)
