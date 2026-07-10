@@ -610,6 +610,12 @@ msgstr "可视化"
 msgid "net.32ba.lattice-deformation-tool.localization.visualization.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.show-wireframe"
+msgstr "显示线框"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-wireframe.tooltip"
+msgstr "显示网格边缘，以便查看面的形状。"
+
 msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices"
 msgstr "显示受影响顶点"
 

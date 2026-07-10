@@ -214,6 +214,28 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeLocalization_AllCatalogsContainShowWireframeLabelAndTooltip()
+        {
+            var method = typeof(LatticeLocalization).GetMethod(
+                "EnsureCatalogLoaded",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null);
+
+            foreach (LatticeLocalization.Language language in Enum.GetValues(typeof(LatticeLocalization.Language)))
+            {
+                var catalog = method.Invoke(null, new object[] { language, true })
+                    as IReadOnlyDictionary<string, string>;
+
+                Assert.That(catalog, Is.Not.Null, language.ToString());
+                Assert.That(catalog[LocKey.ShowWireframe], Is.Not.Null.And.Not.Empty, language.ToString());
+                Assert.That(
+                    catalog[LocKey.ShowWireframe + ".tooltip"],
+                    Is.Not.Null.And.Not.Empty,
+                    language.ToString());
+            }
+        }
+
+        [Test]
         public void LatticeLocalization_PrivateLoadCatalog_HandlesMissingAndInvalidRoot()
         {
             var root = Path.Combine(Path.GetTempPath(), "lattice-localization-missing-" + Guid.NewGuid().ToString("N"));
