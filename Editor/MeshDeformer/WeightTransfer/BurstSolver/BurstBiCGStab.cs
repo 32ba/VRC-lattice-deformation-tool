@@ -39,6 +39,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
             int maxIterations,
             double tolerance)
         {
+            ValidateInputs(ref A, b, x);
             int n = A.RowCount;
 
             if (n == 0)
@@ -78,6 +79,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
                 shat.Dispose();
                 temp.Dispose();
             }
+        }
+
+        private static void ValidateInputs(
+            ref NativeSparseMatrixCSR matrix,
+            NativeArray<double> rightHandSide,
+            NativeArray<double> solution)
+        {
+            if (matrix.RowCount < 0 || matrix.ColCount < 0 || matrix.RowCount != matrix.ColCount)
+                throw new ArgumentException("BiCGStab requires a square matrix.", nameof(matrix));
+            matrix.ValidateContents();
+            if (matrix.Diagonal.Length < matrix.RowCount)
+                throw new ArgumentException("Matrix diagonal is shorter than the matrix dimension.", nameof(matrix));
+            if (!rightHandSide.IsCreated || rightHandSide.Length != matrix.RowCount)
+                throw new ArgumentException("Right-hand side length must match the matrix row count.", nameof(rightHandSide));
+            if (!solution.IsCreated || solution.Length != matrix.ColCount)
+                throw new ArgumentException("Solution length must match the matrix column count.", nameof(solution));
         }
 
         [ExcludeFromCodeCoverage]

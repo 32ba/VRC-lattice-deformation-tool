@@ -84,6 +84,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 };
             }
 
+            if (sourceWeights.Length < sourceMesh.vertexCount)
+            {
+                return new TransferResult
+                {
+                    success = false,
+                    errorMessage = "Source weights do not cover every source vertex."
+                };
+            }
+
             if (targetMesh == null)
             {
                 return new TransferResult

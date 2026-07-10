@@ -423,6 +423,30 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void GeodesicDistanceCalculator_IgnoresInvalidNeighborsAndDistance()
+        {
+            var adjacency = new List<HashSet<int>>
+            {
+                new HashSet<int> { -1, 1, 99 },
+                new HashSet<int> { 0 },
+                new HashSet<int> { 0 }
+            };
+            var vertices = new[] { Vector3.zero, Vector3.right };
+
+            var distances = GeodesicDistanceCalculator.ComputeDistances(0, 2f, adjacency, vertices);
+
+            Assert.That(distances.Keys, Is.EquivalentTo(new[] { 0, 1 }));
+            var nanDistances = GeodesicDistanceCalculator.ComputeDistances(0, float.NaN, adjacency, vertices);
+            Assert.That(nanDistances.Keys, Is.EquivalentTo(new[] { 0, 1 }));
+            Assert.That(
+                GeodesicDistanceCalculator.ComputeDistances(0, -1f, adjacency, vertices),
+                Does.ContainKey(0));
+            Assert.That(
+                GeodesicDistanceCalculator.ComputeDistances(2, 2f, adjacency, vertices),
+                Is.Empty);
+        }
+
+        [Test]
         public void ToolIcons_Content_FallsBackToTextWhenIconIsMissing()
         {
             var key = "__missing_loc_key__" + Guid.NewGuid().ToString("N");

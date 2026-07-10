@@ -78,25 +78,37 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         private NativeArray<int> _gridTriangleIndices;
         private int3 _gridDimensions;
         private bool _nativeDataInitialized;
+        private bool _disposed;
 
         /// <summary>
         /// Creates a new spatial query structure from mesh data.
         /// </summary>
         public MeshSpatialQuery(Vector3[] vertices, int[] triangles, Vector3[] normals)
         {
-            _vertices = vertices ?? throw new ArgumentNullException(nameof(vertices));
-            _triangles = triangles ?? throw new ArgumentNullException(nameof(triangles));
-            _normals = normals;
-            _triangleCount = triangles.Length / 3;
+            ValidateMeshData(vertices, triangles, normals);
+
+            // The grid and native buffers must describe an immutable snapshot. Keeping references
+            // to caller-owned arrays would allow later mutations to invalidate both structures.
+            _vertices = (Vector3[])vertices.Clone();
+            _triangles = (int[])triangles.Clone();
+            _normals = normals == null ? null : (Vector3[])normals.Clone();
+            _triangleCount = _triangles.Length / 3;
 
             // Compute bounds
-            _boundsMin = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
-            _boundsMax = new Vector3(float.MinValue, float.MinValue, float.MinValue);
-
-            foreach (var v in vertices)
+            if (_vertices.Length == 0)
             {
-                _boundsMin = Vector3.Min(_boundsMin, v);
-                _boundsMax = Vector3.Max(_boundsMax, v);
+                _boundsMin = Vector3.zero;
+                _boundsMax = Vector3.zero;
+            }
+            else
+            {
+                _boundsMin = _vertices[0];
+                _boundsMax = _vertices[0];
+                for (int i = 1; i < _vertices.Length; i++)
+                {
+                    _boundsMin = Vector3.Min(_boundsMin, _vertices[i]);
+                    _boundsMax = Vector3.Max(_boundsMax, _vertices[i]);
+                }
             }
 
             // Compute cell size based on mesh bounds
@@ -104,10 +116,37 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             float maxSize = Mathf.Max(boundsSize.x, Mathf.Max(boundsSize.y, boundsSize.z));
             _cellSize = maxSize / 32f; // 32 cells along longest axis
             if (_cellSize < 0.001f) _cellSize = 0.001f;
+            _gridDimensions = new int3(
+                Mathf.Max(1, Mathf.CeilToInt(boundsSize.x / _cellSize) + 1),
+                Mathf.Max(1, Mathf.CeilToInt(boundsSize.y / _cellSize) + 1),
+                Mathf.Max(1, Mathf.CeilToInt(boundsSize.z / _cellSize) + 1));
 
             // Build grid
             _grid = new Dictionary<Vector3Int, List<int>>();
             BuildGrid();
+        }
+
+        private static void ValidateMeshData(Vector3[] vertices, int[] triangles, Vector3[] normals)
+        {
+            if (vertices == null)
+                throw new ArgumentNullException(nameof(vertices));
+            if (triangles == null)
+                throw new ArgumentNullException(nameof(triangles));
+            if (normals != null && normals.Length != 0 && normals.Length != vertices.Length)
+                throw new ArgumentException("Normals must be empty or match the vertex count.", nameof(normals));
+
+            // Preserve the historical behavior of ignoring a trailing partial triangle.
+            int usableTriangleIndexCount = triangles.Length - triangles.Length % 3;
+            for (int i = 0; i < usableTriangleIndexCount; i++)
+            {
+                int vertexIndex = triangles[i];
+                if (vertexIndex < 0 || vertexIndex >= vertices.Length)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(triangles),
+                        $"Triangle index {vertexIndex} at position {i} is outside the vertex array.");
+                }
+            }
         }
 
         private void BuildGrid()
@@ -258,20 +297,38 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         /// </summary>
         public QueryResult FindClosestPoint(Vector3 queryPoint, float maxSearchDistance = -1f)
         {
-            int maxRadius = GetMaxSearchRadius(maxSearchDistance);
+            ThrowIfDisposed();
+            ValidateSearchDistance(maxSearchDistance);
             var result = new QueryResult
             {
                 found = false,
                 distance = float.MaxValue
             };
 
+            // A non-positive distance has historically meant "no distance limit". Scan every
+            // triangle directly so the unbounded path is actually unbounded, even when the
+            // query point is many grid cells away from the mesh.
+            if (maxSearchDistance <= 0f)
+            {
+                for (int triangleIndex = 0; triangleIndex < _triangleCount; triangleIndex++)
+                {
+                    var triResult = FindClosestPointOnTriangle(queryPoint, triangleIndex);
+                    if (triResult.distance < result.distance)
+                    {
+                        result = triResult;
+                    }
+                }
+
+                return result.found ? result : CreateNotFoundResult();
+            }
+
+            int maxRadius = GetMaxSearchRadius(maxSearchDistance);
+
             var queryCell = WorldToCell(queryPoint);
 
             // Search in expanding radius
             for (int radius = 0; radius <= maxRadius; radius++)
             {
-                bool foundInRadius = false;
-
                 for (int dx = -radius; dx <= radius; dx++)
                 {
                     for (int dy = -radius; dy <= radius; dy++)
@@ -298,22 +355,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                                     if (triResult.distance < result.distance)
                                     {
                                         result = triResult;
-                                        foundInRadius = true;
                                     }
+                                }
                                 }
                             }
                         }
                     }
-                }
 
-                // If we found something and the next radius would be too far, stop
-                if (foundInRadius && result.distance < (radius + 1) * _cellSize)
+                float nextRadiusLowerBound = GetUnsearchedCellDistance(queryPoint, queryCell, radius);
+                if (result.found && result.distance < nextRadiusLowerBound)
                 {
                     break;
                 }
+
             }
 
-            return result;
+            return IsWithinSearchDistance(result, maxSearchDistance)
+                ? result
+                : CreateNotFoundResult();
         }
 
         private QueryResult FindClosestPointOnTriangle(Vector3 queryPoint, int triangleIndex)
@@ -431,12 +490,79 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             return a + ab * v2 + ac * w2;
         }
 
+        private float GetUnsearchedCellDistance(Vector3 queryPoint, Vector3Int queryCell, int radius)
+        {
+            float lowerBound = float.MaxValue;
+            UpdateUnsearchedCellDistance(
+                queryPoint.x,
+                queryCell.x + radius + 1,
+                _boundsMin.x,
+                _gridDimensions.x,
+                ref lowerBound);
+            UpdateUnsearchedCellDistance(
+                queryPoint.x,
+                queryCell.x - radius - 1,
+                _boundsMin.x,
+                _gridDimensions.x,
+                ref lowerBound);
+            UpdateUnsearchedCellDistance(
+                queryPoint.y,
+                queryCell.y + radius + 1,
+                _boundsMin.y,
+                _gridDimensions.y,
+                ref lowerBound);
+            UpdateUnsearchedCellDistance(
+                queryPoint.y,
+                queryCell.y - radius - 1,
+                _boundsMin.y,
+                _gridDimensions.y,
+                ref lowerBound);
+            UpdateUnsearchedCellDistance(
+                queryPoint.z,
+                queryCell.z + radius + 1,
+                _boundsMin.z,
+                _gridDimensions.z,
+                ref lowerBound);
+            UpdateUnsearchedCellDistance(
+                queryPoint.z,
+                queryCell.z - radius - 1,
+                _boundsMin.z,
+                _gridDimensions.z,
+                ref lowerBound);
+            return lowerBound;
+        }
+
+        private void UpdateUnsearchedCellDistance(
+            float queryCoordinate,
+            int cell,
+            float boundsMin,
+            int dimension,
+            ref float lowerBound)
+        {
+            if (cell < 0 || cell >= dimension)
+                return;
+
+            float cellMin = boundsMin + cell * _cellSize;
+            float cellMax = cellMin + _cellSize;
+            float distance = queryCoordinate < cellMin
+                ? cellMin - queryCoordinate
+                : queryCoordinate > cellMax
+                    ? queryCoordinate - cellMax
+                    : 0f;
+            lowerBound = Mathf.Min(lowerBound, distance);
+        }
+
         /// <summary>
         /// Finds closest points for multiple query points using parallel Burst jobs.
         /// </summary>
         public QueryResult[] FindClosestPointsBatch(Vector3[] queryPoints, float maxSearchDistance = -1f)
         {
-            int maxRadius = GetMaxSearchRadius(maxSearchDistance);
+            ThrowIfDisposed();
+            if (queryPoints == null)
+                throw new ArgumentNullException(nameof(queryPoints));
+
+            ValidateSearchDistance(maxSearchDistance);
+            int maxRadius = maxSearchDistance <= 0f ? -1 : GetMaxSearchRadius(maxSearchDistance);
             // For small batches, use sequential processing
             if (queryPoints.Length < 100)
             {
@@ -451,47 +577,52 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             // Initialize native data if needed
             InitializeNativeData();
 
-            // Create native arrays for job
-            var nativeQueryPoints = new NativeArray<float3>(queryPoints.Length, Allocator.TempJob);
-            for (int i = 0; i < queryPoints.Length; i++)
+            NativeArray<float3> nativeQueryPoints = default;
+            NativeArray<QueryResultNative> nativeResults = default;
+            try
             {
-                nativeQueryPoints[i] = new float3(queryPoints[i].x, queryPoints[i].y, queryPoints[i].z);
+                nativeQueryPoints = new NativeArray<float3>(queryPoints.Length, Allocator.TempJob);
+                for (int i = 0; i < queryPoints.Length; i++)
+                {
+                    nativeQueryPoints[i] = new float3(queryPoints[i].x, queryPoints[i].y, queryPoints[i].z);
+                }
+
+                nativeResults = new NativeArray<QueryResultNative>(queryPoints.Length, Allocator.TempJob);
+
+                var job = new FindClosestPointJob
+                {
+                    queryPoints = nativeQueryPoints,
+                    vertices = _nativeVertices,
+                    triangles = _nativeTriangles,
+                    normals = _nativeNormals,
+                    gridCellStarts = _gridCellStarts,
+                    gridCellCounts = _gridCellCounts,
+                    gridTriangleIndices = _gridTriangleIndices,
+                    gridDimensions = _gridDimensions,
+                    boundsMin = new float3(_boundsMin.x, _boundsMin.y, _boundsMin.z),
+                    cellSize = _cellSize,
+                    maxRadius = maxRadius,
+                    results = nativeResults
+                };
+
+                job.Schedule(queryPoints.Length, 64).Complete();
+
+                var results = new QueryResult[queryPoints.Length];
+                for (int i = 0; i < queryPoints.Length; i++)
+                {
+                    var result = nativeResults[i].ToManaged();
+                    results[i] = IsWithinSearchDistance(result, maxSearchDistance)
+                        ? result
+                        : CreateNotFoundResult();
+                }
+
+                return results;
             }
-
-            var nativeResults = new NativeArray<QueryResultNative>(queryPoints.Length, Allocator.TempJob);
-
-            // Schedule and complete job
-            var job = new FindClosestPointJob
+            finally
             {
-                queryPoints = nativeQueryPoints,
-                vertices = _nativeVertices,
-                triangles = _nativeTriangles,
-                normals = _nativeNormals,
-                gridCellStarts = _gridCellStarts,
-                gridCellCounts = _gridCellCounts,
-                gridTriangleIndices = _gridTriangleIndices,
-                gridDimensions = _gridDimensions,
-                boundsMin = new float3(_boundsMin.x, _boundsMin.y, _boundsMin.z),
-                cellSize = _cellSize,
-                maxRadius = maxRadius,
-                results = nativeResults
-            };
-
-            var handle = job.Schedule(queryPoints.Length, 64);
-            handle.Complete();
-
-            // Copy results back
-            var results2 = new QueryResult[queryPoints.Length];
-            for (int i = 0; i < queryPoints.Length; i++)
-            {
-                results2[i] = nativeResults[i].ToManaged();
+                if (nativeQueryPoints.IsCreated) nativeQueryPoints.Dispose();
+                if (nativeResults.IsCreated) nativeResults.Dispose();
             }
-
-            // Cleanup temp arrays
-            nativeQueryPoints.Dispose();
-            nativeResults.Dispose();
-
-            return results2;
         }
 
         [BurstCompile]
@@ -523,11 +654,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
                 int3 queryCell = WorldToCell(queryPoint);
 
+                if (maxRadius < 0)
+                {
+                    int triangleCount = triangles.Length / 3;
+                    for (int triangleIndex = 0; triangleIndex < triangleCount; triangleIndex++)
+                    {
+                        var triResult = FindClosestPointOnTriangle(queryPoint, triangleIndex);
+                        if (triResult.distance < result.distance)
+                        {
+                            result = triResult;
+                        }
+                    }
+
+                    results[index] = result;
+                    return;
+                }
+
                 // Search in expanding radius
                 for (int radius = 0; radius <= maxRadius; radius++)
                 {
-                    bool foundInRadius = false;
-
                     for (int dx = -radius; dx <= radius; dx++)
                     {
                         for (int dy = -radius; dy <= radius; dy++)
@@ -560,18 +705,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                                     if (triResult.distance < result.distance)
                                     {
                                         result = triResult;
-                                        foundInRadius = true;
                                     }
                                 }
                             }
                         }
                     }
 
-                    // If we found something and the next radius would be too far, stop
-                    if (foundInRadius && result.distance < (radius + 1) * cellSize)
-                    {
-                        break;
-                    }
+                float nextRadiusLowerBound = GetUnsearchedCellDistance(queryPoint, queryCell, radius);
+                if (result.found && result.distance < nextRadiusLowerBound)
+                {
+                    break;
+                }
+
                 }
 
                 results[index] = result;
@@ -697,10 +842,47 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 barycentricCoords = new float3(1f - v2 - w2, v2, w2);
                 return a + ab * v2 + ac * w2;
             }
+
+            private float GetUnsearchedCellDistance(float3 queryPoint, int3 queryCell, int radius)
+            {
+                float lowerBound = float.MaxValue;
+                UpdateUnsearchedCellDistance(queryPoint.x, queryCell.x + radius + 1, boundsMin.x, gridDimensions.x, ref lowerBound);
+                UpdateUnsearchedCellDistance(queryPoint.x, queryCell.x - radius - 1, boundsMin.x, gridDimensions.x, ref lowerBound);
+                UpdateUnsearchedCellDistance(queryPoint.y, queryCell.y + radius + 1, boundsMin.y, gridDimensions.y, ref lowerBound);
+                UpdateUnsearchedCellDistance(queryPoint.y, queryCell.y - radius - 1, boundsMin.y, gridDimensions.y, ref lowerBound);
+                UpdateUnsearchedCellDistance(queryPoint.z, queryCell.z + radius + 1, boundsMin.z, gridDimensions.z, ref lowerBound);
+                UpdateUnsearchedCellDistance(queryPoint.z, queryCell.z - radius - 1, boundsMin.z, gridDimensions.z, ref lowerBound);
+                return lowerBound;
+            }
+
+            private void UpdateUnsearchedCellDistance(
+                float queryCoordinate,
+                int cell,
+                float boundsMinimum,
+                int dimension,
+                ref float lowerBound)
+            {
+                if (cell < 0 || cell >= dimension)
+                    return;
+
+                float cellMin = boundsMinimum + cell * cellSize;
+                float cellMax = cellMin + cellSize;
+                float distance = queryCoordinate < cellMin
+                    ? cellMin - queryCoordinate
+                    : queryCoordinate > cellMax
+                        ? queryCoordinate - cellMax
+                        : 0f;
+                lowerBound = math.min(lowerBound, distance);
+            }
         }
 
         public void Dispose()
         {
+            if (_disposed)
+            {
+                return;
+            }
+
             _grid.Clear();
 
             if (_nativeDataInitialized)
@@ -713,16 +895,52 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 if (_gridTriangleIndices.IsCreated) _gridTriangleIndices.Dispose();
                 _nativeDataInitialized = false;
             }
+
+            _disposed = true;
         }
 
         private int GetMaxSearchRadius(float maxSearchDistance)
         {
             if (maxSearchDistance <= 0f)
             {
-                return 8;
+                return -1;
             }
 
             return Mathf.Max(1, Mathf.CeilToInt(maxSearchDistance / _cellSize));
+        }
+
+        private static void ValidateSearchDistance(float maxSearchDistance)
+        {
+            if (float.IsNaN(maxSearchDistance) || float.IsInfinity(maxSearchDistance))
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(maxSearchDistance),
+                    maxSearchDistance,
+                    "Search distance must be finite.");
+            }
+        }
+
+        private static bool IsWithinSearchDistance(QueryResult result, float maxSearchDistance)
+        {
+            return result.found && (maxSearchDistance <= 0f || result.distance <= maxSearchDistance);
+        }
+
+        private static QueryResult CreateNotFoundResult()
+        {
+            return new QueryResult
+            {
+                found = false,
+                distance = float.MaxValue,
+                triangleIndex = -1
+            };
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(MeshSpatialQuery));
+            }
         }
     }
 }

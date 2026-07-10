@@ -30,11 +30,28 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         /// </summary>
         public WeightInpainting(Vector3[] vertices, int[] triangles, int maxIterations, float tolerance)
         {
+            if (vertices == null)
+                throw new ArgumentNullException(nameof(vertices));
+            if (triangles == null)
+                throw new ArgumentNullException(nameof(triangles));
+
             _vertices = vertices;
             _triangles = triangles;
             _maxIterations = maxIterations;
             _tolerance = tolerance;
             _vertexCount = vertices.Length;
+
+            int usableTriangleIndexCount = triangles.Length - triangles.Length % 3;
+            for (int i = 0; i < usableTriangleIndexCount; i++)
+            {
+                if (triangles[i] < 0 || triangles[i] >= _vertexCount)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(triangles),
+                        triangles[i],
+                        "Triangle index is outside the vertex array.");
+                }
+            }
 
             BuildAdjacency();
             BuildCotangentLaplacianSparse();
@@ -175,6 +192,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         /// </summary>
         public void Inpaint(BoneWeight[] weights, float[] confidence, int boneCount)
         {
+            if (weights == null)
+                throw new ArgumentNullException(nameof(weights));
+            if (confidence == null)
+                throw new ArgumentNullException(nameof(confidence));
+            if (weights.Length < _vertexCount)
+                throw new ArgumentException("Weights must cover every vertex.", nameof(weights));
+            if (confidence.Length < _vertexCount)
+                throw new ArgumentException("Confidence values must cover every vertex.", nameof(confidence));
+
             // Find known (transferred) and unknown (to inpaint) vertices
             var knownIndices = new List<int>();
             var unknownIndices = new List<int>();
@@ -270,18 +296,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 L_uu_entries.Add((ui, ui, diagSums[ui] + 1e-8));
             }
 
-            // Build sparse matrices using Burst-compatible format
-            var L_uu = NativeSparseMatrixCSR.FromIndexed(nu, nu, L_uu_entries, Allocator.TempJob);
-            var L_uk = NativeSparseMatrixCSR.FromIndexed(nu, nk, L_uk_entries, Allocator.TempJob);
-
-            // Allocate native arrays for solving
-            var knownWeightsArray = new NativeArray<double>(nk, Allocator.TempJob);
-            var rhsArray = new NativeArray<double>(nu, Allocator.TempJob);
-            var solutionArray = new NativeArray<double>(nu, Allocator.TempJob);
-            var tempArray = new NativeArray<double>(nu, Allocator.TempJob);
+            NativeSparseMatrixCSR L_uu = default;
+            NativeSparseMatrixCSR L_uk = default;
+            NativeArray<double> knownWeightsArray = default;
+            NativeArray<double> rhsArray = default;
+            NativeArray<double> solutionArray = default;
 
             try
             {
+                // Build sparse matrices using Burst-compatible format
+                L_uu = NativeSparseMatrixCSR.FromIndexed(nu, nu, L_uu_entries, Allocator.TempJob);
+                L_uk = NativeSparseMatrixCSR.FromIndexed(nu, nk, L_uk_entries, Allocator.TempJob);
+
+                // Allocate native arrays for solving
+                knownWeightsArray = new NativeArray<double>(nk, Allocator.TempJob);
+                rhsArray = new NativeArray<double>(nu, Allocator.TempJob);
+                solutionArray = new NativeArray<double>(nu, Allocator.TempJob);
+
                 // Solve for each bone
                 var boneWeightResults = new double[nu, boneList.Count];
 
@@ -336,12 +367,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             finally
             {
                 // Dispose all native arrays
-                L_uu.Dispose();
-                L_uk.Dispose();
-                knownWeightsArray.Dispose();
-                rhsArray.Dispose();
-                solutionArray.Dispose();
-                tempArray.Dispose();
+                if (L_uu.IsCreated) L_uu.Dispose();
+                if (L_uk.IsCreated) L_uk.Dispose();
+                if (knownWeightsArray.IsCreated) knownWeightsArray.Dispose();
+                if (rhsArray.IsCreated) rhsArray.Dispose();
+                if (solutionArray.IsCreated) solutionArray.Dispose();
             }
         }
 

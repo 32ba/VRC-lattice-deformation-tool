@@ -14,6 +14,43 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     public sealed class WeightTransferCoreTests
     {
         [Test]
+        public void NativeSparseMatrix_FromCOO_DoesNotMutateInput()
+        {
+            var entries = new List<(int row, int col, double val)>
+            {
+                (1, 1, 2.0),
+                (0, 0, 1.0)
+            };
+
+            var matrix = NativeSparseMatrixCSR.FromCOO(2, 2, entries, Allocator.TempJob);
+            try
+            {
+                Assert.That(entries[0], Is.EqualTo((1, 1, 2.0)));
+                Assert.That(entries[1], Is.EqualTo((0, 0, 1.0)));
+            }
+            finally
+            {
+                matrix.Dispose();
+            }
+
+        }
+
+        [Test]
+        public void NativeSparseMatrix_FromCOO_RejectsInvalidShapeAndEntries()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                NativeSparseMatrixCSR.FromCOO(-1, 0, new List<(int, int, double)>(), Allocator.TempJob));
+            Assert.Throws<ArgumentNullException>(() =>
+                NativeSparseMatrixCSR.FromCOO(1, 1, null, Allocator.TempJob));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                NativeSparseMatrixCSR.FromCOO(
+                    1, 1, new List<(int, int, double)> { (1, 0, 1.0) }, Allocator.TempJob));
+            Assert.Throws<ArgumentException>(() =>
+                NativeSparseMatrixCSR.FromCOO(
+                    1, 1, new List<(int, int, double)> { (0, 0, double.NaN) }, Allocator.TempJob));
+        }
+
+        [Test]
         public void NativeSparseMatrix_FromCOO_SortsSumsAndDropsZeroEntries()
         {
             var entries = new List<(int row, int col, double val)>
@@ -338,6 +375,259 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void BurstBiCGStab_Solve_RejectsInvalidVectorLengthAndTolerance()
+        {
+            var matrix = NativeSparseMatrixCSR.FromCOO(
+                1,
+                1,
+                new List<(int row, int col, double val)> { (0, 0, 1.0) },
+                Allocator.TempJob);
+            using var empty = new NativeArray<double>(0, Allocator.TempJob);
+            using var vector = new NativeArray<double>(1, Allocator.TempJob);
+            using var nonZeroRightHandSide = new NativeArray<double>(new[] { 1.0 }, Allocator.TempJob);
+            using var zeroSolution = new NativeArray<double>(new[] { 0.0 }, Allocator.TempJob);
+            using var negativeIterationSolution = new NativeArray<double>(new[] { 0.0 }, Allocator.TempJob);
+            try
+            {
+                Assert.Throws<ArgumentException>(() =>
+                    BurstBiCGStab.Solve(ref matrix, empty, vector, 1, 1e-6));
+
+                var zeroTolerance = BurstBiCGStab.Solve(
+                    ref matrix,
+                    nonZeroRightHandSide,
+                    zeroSolution,
+                    1,
+                    0.0);
+                Assert.That(zeroTolerance.Converged, Is.False);
+
+                var negativeIterations = BurstBiCGStab.Solve(
+                    ref matrix,
+                    nonZeroRightHandSide,
+                    negativeIterationSolution,
+                    -1,
+                    1e-6);
+                Assert.That(negativeIterations.Converged, Is.False);
+                Assert.That(negativeIterations.Iterations, Is.EqualTo(-1));
+                Assert.That(negativeIterations.FailureReason, Is.EqualTo("max iterations reached"));
+            }
+            finally
+            {
+                matrix.Dispose();
+            }
+
+        }
+
+        [Test]
+        public void BurstBiCGStab_Solve_RejectsMalformedCsrContents()
+        {
+            var matrix = new NativeSparseMatrixCSR
+            {
+                RowCount = 1,
+                ColCount = 1,
+                NonZeroCount = 1,
+                Values = new NativeArray<double>(new[] { 1.0 }, Allocator.TempJob),
+                ColIndices = new NativeArray<int>(new[] { 0 }, Allocator.TempJob),
+                RowPointers = new NativeArray<int>(new[] { 0, 2 }, Allocator.TempJob),
+                Diagonal = new NativeArray<double>(new[] { 1.0 }, Allocator.TempJob)
+            };
+            using var vector = new NativeArray<double>(new[] { 1.0 }, Allocator.TempJob);
+            try
+            {
+                Assert.Throws<ArgumentException>(() =>
+                    BurstBiCGStab.Solve(ref matrix, vector, vector, 1, 1e-6));
+            }
+            finally
+            {
+                matrix.Dispose();
+            }
+
+            matrix = new NativeSparseMatrixCSR
+            {
+                RowCount = 1,
+                ColCount = 1,
+                NonZeroCount = 1,
+                Values = new NativeArray<double>(new[] { 1.0 }, Allocator.TempJob),
+                ColIndices = new NativeArray<int>(new[] { 1 }, Allocator.TempJob),
+                RowPointers = new NativeArray<int>(new[] { 0, 1 }, Allocator.TempJob),
+                Diagonal = new NativeArray<double>(new[] { 1.0 }, Allocator.TempJob)
+            };
+            try
+            {
+                Assert.Throws<ArgumentOutOfRangeException>(() =>
+                    BurstBiCGStab.Solve(ref matrix, vector, vector, 1, 1e-6));
+            }
+            finally
+            {
+                matrix.Dispose();
+            }
+
+            matrix = new NativeSparseMatrixCSR
+            {
+                RowCount = 1,
+                ColCount = 1,
+                NonZeroCount = 1,
+                Values = new NativeArray<double>(new[] { double.NaN }, Allocator.TempJob),
+                ColIndices = new NativeArray<int>(new[] { 0 }, Allocator.TempJob),
+                RowPointers = new NativeArray<int>(new[] { 0, 1 }, Allocator.TempJob),
+                Diagonal = new NativeArray<double>(new[] { 1.0 }, Allocator.TempJob)
+            };
+            try
+            {
+                Assert.Throws<ArgumentException>(() =>
+                    BurstBiCGStab.Solve(ref matrix, vector, vector, 1, 1e-6));
+            }
+            finally
+            {
+                matrix.Dispose();
+            }
+        }
+
+        [Test]
+        public void MeshSpatialQuery_RejectsInconsistentMeshData()
+        {
+            var vertices = new[] { Vector3.zero, Vector3.right, Vector3.up };
+
+            using (var query = new MeshSpatialQuery(vertices, new[] { 0, 1 }, null))
+            {
+                Assert.That(query.FindClosestPoint(Vector3.zero).found, Is.False);
+            }
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new MeshSpatialQuery(vertices, new[] { 0, 1, 3 }, null));
+            Assert.Throws<ArgumentException>(() =>
+                new MeshSpatialQuery(vertices, new[] { 0, 1, 2 }, new[] { Vector3.forward }));
+        }
+
+        [Test]
+        public void MeshSpatialQuery_UsesAnImmutableInputSnapshot()
+        {
+            var vertices = new[] { Vector3.zero, Vector3.right, Vector3.up };
+            var triangles = new[] { 0, 1, 2 };
+            using var query = new MeshSpatialQuery(vertices, triangles, null);
+
+            vertices[0] = new Vector3(100f, 100f, 100f);
+            triangles[0] = 99;
+
+            var result = query.FindClosestPoint(new Vector3(0.25f, 0.25f, 1f), 2f);
+            Assert.That(result.found, Is.True);
+            Assert.That(result.closestPoint.x, Is.EqualTo(0.25f).Within(1e-5f));
+            Assert.That(result.closestPoint.y, Is.EqualTo(0.25f).Within(1e-5f));
+            Assert.That(result.closestPoint.z, Is.EqualTo(0f).Within(1e-5f));
+        }
+
+        [Test]
+        public void MeshSpatialQuery_EnforcesExactMaximumSearchDistance()
+        {
+            var vertices = new[] { Vector3.zero, Vector3.right, Vector3.up };
+            var triangles = new[] { 0, 1, 2 };
+            using var query = new MeshSpatialQuery(vertices, triangles, null);
+
+            var result = query.FindClosestPoint(new Vector3(0.25f, 0.25f, 0.01f), 0.001f);
+
+            Assert.That(result.found, Is.False);
+            Assert.That(result.distance, Is.EqualTo(float.MaxValue));
+            Assert.Throws<ArgumentNullException>(() => query.FindClosestPointsBatch(null));
+                Assert.Throws<ArgumentOutOfRangeException>(() => query.FindClosestPoint(Vector3.zero, float.NaN));
+        }
+
+        [Test]
+        public void MeshSpatialQuery_UnlimitedSearchFindsTriangleBeyondEightCells()
+        {
+            var mesh = CreateLongRangeTriangleMesh();
+            try
+            {
+                using var query = new MeshSpatialQuery(mesh.vertices, mesh.triangles, null);
+                var point = new Vector3(0.5f, 0.25f, 0.25f);
+
+                var result = query.FindClosestPoint(point);
+
+                Assert.That(result.found, Is.True);
+                Assert.That(result.distance, Is.EqualTo(0.5f).Within(1e-5f));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void MeshSpatialQuery_AdjacentCellClosestResultMatchesBruteForce()
+        {
+            var mesh = CreateAdjacentCellMesh();
+            try
+            {
+                using var query = new MeshSpatialQuery(mesh.vertices, mesh.triangles, null);
+                var point = new Vector3(0.03124f, 0.5f, 0.001f);
+                var result = query.FindClosestPoint(point, 0.01f);
+                var expectedDistance = BruteForceClosestDistance(point, mesh);
+
+                Assert.That(result.found, Is.True);
+                Assert.That(result.triangleIndex, Is.EqualTo(1));
+                Assert.That(result.distance, Is.EqualTo(expectedDistance).Within(1e-5f));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void MeshSpatialQuery_SequentialAndBurstBatchMatchBruteForce()
+        {
+            var mesh = CreateAdjacentCellMesh();
+            try
+            {
+                using var query = new MeshSpatialQuery(mesh.vertices, mesh.triangles, null);
+                var points = new[]
+                {
+                    new Vector3(0.03124f, 0.5f, 0.001f),
+                    new Vector3(0.03124f, 0.495f, 0.001f),
+                    new Vector3(0.03124f, 0.505f, 0.001f)
+                };
+                var sequential = query.FindClosestPointsBatch(points, 0.01f);
+                var burstPoints = new Vector3[128];
+                for (int i = 0; i < burstPoints.Length; i++)
+                    burstPoints[i] = points[i % points.Length];
+                var burst = query.FindClosestPointsBatch(burstPoints, 0.01f);
+
+                for (int i = 0; i < points.Length; i++)
+                {
+                    var expectedDistance = BruteForceClosestDistance(points[i], mesh);
+                    Assert.That(sequential[i].found, Is.True);
+                    Assert.That(sequential[i].distance, Is.EqualTo(expectedDistance).Within(1e-5f));
+                }
+
+                for (int i = 0; i < burst.Length; i++)
+                {
+                    int sourceIndex = i % points.Length;
+                    var expectedDistance = BruteForceClosestDistance(burstPoints[i], mesh);
+                    Assert.That(burst[i].found, Is.True);
+                    Assert.That(burst[i].distance, Is.EqualTo(expectedDistance).Within(1e-5f));
+                    Assert.That(burst[i].triangleIndex, Is.EqualTo(sequential[sourceIndex].triangleIndex));
+                    Assert.That(burst[i].distance, Is.EqualTo(sequential[sourceIndex].distance).Within(1e-5f));
+                }
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void MeshSpatialQuery_RejectsUseAfterDisposeAndAllowsRepeatedDispose()
+        {
+            var query = new MeshSpatialQuery(
+                new[] { Vector3.zero, Vector3.right, Vector3.up },
+                new[] { 0, 1, 2 },
+                null);
+
+            query.Dispose();
+            query.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => query.FindClosestPoint(Vector3.zero));
+            Assert.Throws<ObjectDisposedException>(() => query.FindClosestPointsBatch(Array.Empty<Vector3>()));
+        }
+
+        [Test]
         public void MeshSpatialQuery_FindClosestPoint_ReturnsNotFoundWhenSearchRadiusMissesGrid()
         {
             var vertices = new[]
@@ -480,6 +770,27 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(weights[0].boneIndex0, Is.EqualTo(0));
             Assert.That(weights[1].boneIndex0, Is.EqualTo(1));
             Assert.That(weights[2].boneIndex0, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void WeightInpainting_RejectsNullAndShortInputsExplicitly()
+        {
+            Assert.Throws<ArgumentNullException>(() =>
+                new WeightInpainting(null, Array.Empty<int>(), 8, 1e-8f));
+            Assert.Throws<ArgumentNullException>(() =>
+                new WeightInpainting(Array.Empty<Vector3>(), null, 8, 1e-8f));
+
+            var inpainting = new WeightInpainting(
+                new[] { Vector3.zero },
+                Array.Empty<int>(),
+                8,
+                1e-8f);
+            Assert.Throws<ArgumentNullException>(() =>
+                inpainting.Inpaint(null, new[] { 1f }, 1));
+            Assert.Throws<ArgumentException>(() =>
+                inpainting.Inpaint(new BoneWeight[0], new[] { 1f }, 1));
+            Assert.Throws<ArgumentException>(() =>
+                inpainting.Inpaint(new[] { new BoneWeight() }, Array.Empty<float>(), 1));
         }
 
         [Test]
@@ -720,6 +1031,29 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally
             {
                 UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void RobustWeightTransfer_Transfer_ReturnsFailureForShortSourceWeights()
+        {
+            var sourceMesh = CreateTriangleMesh();
+            var targetMesh = CreateTriangleMesh();
+            try
+            {
+                var result = RobustWeightTransfer.Transfer(
+                    sourceMesh,
+                    new[] { Bone(0, 1f) },
+                    targetMesh,
+                    new WeightTransferSettings { enableInpainting = false });
+
+                Assert.That(result.success, Is.False);
+                Assert.That(result.errorMessage, Does.Contain("do not cover"));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(sourceMesh);
+                UnityEngine.Object.DestroyImmediate(targetMesh);
             }
         }
 
@@ -1023,6 +1357,106 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(RobustWeightTransfer.ApplyZeroWeightFallback(defaultWeights, new[] { Bone(9, 1f) }), Is.EqualTo(2));
             Assert.That(defaultWeights[0].boneIndex0, Is.EqualTo(0));
             Assert.That(defaultWeights[0].weight0, Is.EqualTo(1f));
+        }
+
+        private static Mesh CreateLongRangeTriangleMesh()
+        {
+            var mesh = new Mesh { name = "LongRangeTriangle" };
+            mesh.vertices = new[]
+            {
+                Vector3.zero,
+                Vector3.up,
+                Vector3.forward
+            };
+            mesh.triangles = new[] { 0, 1, 2 };
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private static Mesh CreateAdjacentCellMesh()
+        {
+            var mesh = new Mesh { name = "AdjacentCellTriangles" };
+            mesh.vertices = new[]
+            {
+                new Vector3(0.030f, 0.490f, 0f),
+                new Vector3(0.030f, 0.510f, 0f),
+                new Vector3(0.030f, 0.500f, 0.020f),
+                new Vector3(0.032f, 0.490f, 0f),
+                new Vector3(0.032f, 0.510f, 0f),
+                new Vector3(0.032f, 0.500f, 0.020f),
+                new Vector3(0f, 0f, 1f),
+                new Vector3(0f, 1f, 1f),
+                new Vector3(0f, 1f, 1f)
+            };
+            mesh.triangles = new[] { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private static float BruteForceClosestDistance(Vector3 point, Mesh mesh)
+        {
+            var vertices = mesh.vertices;
+            var triangles = mesh.triangles;
+            float closestDistance = float.MaxValue;
+            for (int i = 0; i + 2 < triangles.Length; i += 3)
+            {
+                var closest = ClosestPointOnTriangle(
+                    point,
+                    vertices[triangles[i]],
+                    vertices[triangles[i + 1]],
+                    vertices[triangles[i + 2]]);
+                closestDistance = Mathf.Min(closestDistance, Vector3.Distance(point, closest));
+            }
+
+            return closestDistance;
+        }
+
+        private static Vector3 ClosestPointOnTriangle(Vector3 p, Vector3 a, Vector3 b, Vector3 c)
+        {
+            Vector3 ab = b - a;
+            Vector3 ac = c - a;
+            Vector3 ap = p - a;
+            float d1 = Vector3.Dot(ab, ap);
+            float d2 = Vector3.Dot(ac, ap);
+            if (d1 <= 0f && d2 <= 0f) return a;
+
+            Vector3 bp = p - b;
+            float d3 = Vector3.Dot(ab, bp);
+            float d4 = Vector3.Dot(ac, bp);
+            if (d3 >= 0f && d4 <= d3) return b;
+
+            float vc = d1 * d4 - d3 * d2;
+            if (vc <= 0f && d1 >= 0f && d3 <= 0f)
+            {
+                float v = d1 / (d1 - d3);
+                return a + v * ab;
+            }
+
+            Vector3 cp = p - c;
+            float d5 = Vector3.Dot(ab, cp);
+            float d6 = Vector3.Dot(ac, cp);
+            if (d6 >= 0f && d5 <= d6) return c;
+
+            float vb = d5 * d2 - d1 * d6;
+            if (vb <= 0f && d2 >= 0f && d6 <= 0f)
+            {
+                float w = d2 / (d2 - d6);
+                return a + w * ac;
+            }
+
+            float va = d3 * d6 - d5 * d4;
+            if (va <= 0f && (d4 - d3) >= 0f && (d5 - d6) >= 0f)
+            {
+                float w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+                return b + w * (c - b);
+            }
+
+            float denominator = va + vb + vc;
+            if (Mathf.Abs(denominator) <= 1e-12f)
+                return a;
+            float v2 = vb / denominator;
+            float w2 = vc / denominator;
+            return a + ab * v2 + ac * w2;
         }
 
         private static Mesh CreateTriangleMesh()
