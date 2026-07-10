@@ -34,16 +34,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var existingTarget = legacy.GetComponent<LatticeDeformer>();
             var displacements = legacy.Displacements ?? Array.Empty<Vector3>();
 
-            // A completed migration remains successful even if the original source is
-            // subsequently removed. This makes the operation safely idempotent.
-            if (!legacy.enabled &&
-                existingTarget != null &&
-                TryFindMigratedLayer(existingTarget, displacements, requireMarkerName: false, out _))
-            {
-                target = existingTarget;
-                return true;
-            }
-
             var legacySerialized = new SerializedObject(legacy);
             legacySerialized.UpdateIfRequiredOrScript();
 
@@ -61,6 +51,34 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 sourceMesh = skinnedRenderer != null ? skinnedRenderer.sharedMesh : meshFilter != null ? meshFilter.sharedMesh : null;
             }
+            var knownExistingTargetSource = existingTarget != null
+                ? ResolveKnownTargetSource(existingTarget)
+                : null;
+
+            // Reject a known source mismatch before inspecting the target's public
+            // layer API. That API performs source initialization and must not run as
+            // part of a validation path that is required to be mutation-free.
+            if (existingTarget != null &&
+                sourceMesh != null &&
+                knownExistingTargetSource != null &&
+                !ReferenceEquals(knownExistingTargetSource, sourceMesh))
+            {
+                error = "The existing Mesh Deformer uses a different source mesh.";
+                return false;
+            }
+
+            // A completed migration remains successful even if the original source is
+            // subsequently removed. This makes the operation safely idempotent.
+            if (!legacy.enabled &&
+                existingTarget != null &&
+                TryFindMigratedLayer(existingTarget, displacements, requireMigrationMarker: true, out _) &&
+                (sourceMesh == null ||
+                 knownExistingTargetSource == null ||
+                 ReferenceEquals(knownExistingTargetSource, sourceMesh)))
+            {
+                target = existingTarget;
+                return true;
+            }
 
             if (sourceMesh == null)
             {
@@ -76,13 +94,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (existingTarget != null)
             {
-                var existingSource = ResolveKnownTargetSource(existingTarget);
-                if (existingSource != null && !ReferenceEquals(existingSource, sourceMesh))
-                {
-                    error = "The existing Mesh Deformer uses a different source mesh.";
-                    return false;
-                }
-
                 if (!HasEquivalentComponentSettings(legacySerialized, existingTarget))
                 {
                     error = "The existing Mesh Deformer uses different rebuild or weight-transfer settings. Review the settings manually before merging.";
@@ -96,7 +107,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             bool alreadyHasLayer = existingTarget != null &&
-                TryFindMigratedLayer(existingTarget, displacements, requireMarkerName: true, out _);
+                TryFindMigratedLayer(existingTarget, displacements, requireMigrationMarker: true, out _);
 
             Undo.IncrementCurrentGroup();
             int undoGroup = Undo.GetCurrentGroup();
@@ -171,7 +182,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     target.ActiveGroupIndex = Mathf.Clamp(previousActiveGroup, 0, target.GroupCount - 1);
                 }
 
-                if (!TryFindMigratedLayer(target, displacements, requireMarkerName: false, out var migratedLayer))
+                if (!TryFindMigratedLayer(target, displacements, requireMigrationMarker: true, out var migratedLayer))
                 {
                     throw new InvalidOperationException("The migrated displacement payload could not be verified.");
                 }
@@ -360,7 +371,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool TryFindMigratedLayer(
             LatticeDeformer target,
             Vector3[] expected,
-            bool requireMarkerName,
+            bool requireMigrationMarker,
             out LatticeLayer result)
         {
             result = null;
@@ -382,7 +393,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     {
                         continue;
                     }
-                    if (requireMarkerName && !string.Equals(layer.Name, MigratedLayerName, StringComparison.Ordinal))
+                    bool hasMigrationMarker =
+                        string.Equals(group.Name, MigratedGroupName, StringComparison.Ordinal) &&
+                        string.Equals(layer.Name, MigratedLayerName, StringComparison.Ordinal);
+                    if (requireMigrationMarker && !hasMigrationMarker)
                     {
                         continue;
                     }

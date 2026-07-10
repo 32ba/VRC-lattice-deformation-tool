@@ -265,6 +265,117 @@ namespace Net._32Ba.LatticeDeformationTool.Tests
         }
 
         [Test]
+        public void TryMigrate_DisabledLegacyDoesNotMistakeUnrelatedIdenticalBrushLayerForMigration()
+        {
+            var fixture = CreateFixture("LegacyBrushMigrationMarker");
+            try
+            {
+                var expected = CreateDisplacements(fixture.Mesh.vertexCount, 0.33f);
+                SetLegacyDisplacements(fixture.Legacy, expected);
+
+                var existing = fixture.GameObject.AddComponent<LatticeDeformer>();
+                AssignTargetMeshFilter(existing, fixture.Filter, fixture.Mesh);
+                int unrelatedGroup = existing.AddGroup("Unrelated Group");
+                existing.ActiveGroupIndex = unrelatedGroup;
+                int unrelatedLayerIndex = existing.AddLayer(
+                    "Unrelated Identical Brush",
+                    MeshDeformerLayerType.Brush);
+                existing.ActiveGroup.LayersList[unrelatedLayerIndex].BrushDisplacements =
+                    (Vector3[])expected.Clone();
+
+                int groupMarkerOnly = existing.AddGroup(
+                    LegacyBrushDeformerMigration.MigratedGroupName);
+                existing.ActiveGroupIndex = groupMarkerOnly;
+                int groupMarkerOnlyLayer = existing.AddLayer(
+                    "Unrelated Layer In Marker-Named Group",
+                    MeshDeformerLayerType.Brush);
+                existing.ActiveGroup.LayersList[groupMarkerOnlyLayer].BrushDisplacements =
+                    (Vector3[])expected.Clone();
+
+                int layerMarkerOnlyGroup = existing.AddGroup("Unrelated Group With Marker-Named Layer");
+                existing.ActiveGroupIndex = layerMarkerOnlyGroup;
+                int layerMarkerOnly = existing.AddLayer(
+                    LegacyBrushDeformerMigration.MigratedLayerName,
+                    MeshDeformerLayerType.Brush);
+                existing.ActiveGroup.LayersList[layerMarkerOnly].BrushDisplacements =
+                    (Vector3[])expected.Clone();
+                int groupsBefore = existing.GroupCount;
+
+                fixture.Legacy.enabled = false;
+
+                Assert.That(
+                    LegacyBrushDeformerMigration.TryMigrate(
+                        fixture.Legacy,
+                        out var migrated,
+                        out var error),
+                    Is.True,
+                    error);
+
+                Assert.That(migrated, Is.SameAs(existing));
+                Assert.That(existing.GroupCount, Is.EqualTo(groupsBefore + 1));
+                Assert.That(
+                    existing.Groups.Any(group =>
+                        group != null &&
+                        group.Name == LegacyBrushDeformerMigration.MigratedGroupName &&
+                        group.Layers.Any(layer =>
+                            layer != null &&
+                            layer.Name == LegacyBrushDeformerMigration.MigratedLayerName)),
+                    Is.True,
+                    "Idempotence requires an explicit migration marker, not payload coincidence alone.");
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void TryMigrate_DisabledMarkedBackupStillRejectsDifferentKnownTargetSource()
+        {
+            var fixture = CreateFixture("LegacyBrushMigrationMarkedDifferentSource");
+            Mesh differentSource = null;
+            try
+            {
+                SetLegacyDisplacements(
+                    fixture.Legacy,
+                    CreateDisplacements(fixture.Mesh.vertexCount, 0.37f));
+                Assert.That(
+                    LegacyBrushDeformerMigration.TryMigrate(
+                        fixture.Legacy,
+                        out var target,
+                        out var firstError),
+                    Is.True,
+                    firstError);
+
+                differentSource = UnityEngine.Object.Instantiate(fixture.Mesh);
+                differentSource.name = "Different Source After Marked Migration";
+                var serializedTarget = new SerializedObject(target);
+                serializedTarget.FindProperty("_serializedSourceMesh").objectReferenceValue = differentSource;
+                serializedTarget.ApplyModifiedPropertiesWithoutUndo();
+
+                string targetBefore = EditorJsonUtility.ToJson(target);
+                string legacyBefore = EditorJsonUtility.ToJson(fixture.Legacy);
+
+                Assert.That(
+                    LegacyBrushDeformerMigration.TryMigrate(
+                        fixture.Legacy,
+                        out var repeatedTarget,
+                        out var repeatedError),
+                    Is.False);
+                Assert.That(repeatedTarget, Is.Null);
+                Assert.That(repeatedError, Does.Contain("different source mesh"));
+                Assert.That(EditorJsonUtility.ToJson(target), Is.EqualTo(targetBefore));
+                Assert.That(EditorJsonUtility.ToJson(fixture.Legacy), Is.EqualTo(legacyBefore));
+                Assert.That(fixture.Legacy.enabled, Is.False);
+            }
+            finally
+            {
+                if (differentSource != null) UnityEngine.Object.DestroyImmediate(differentSource);
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
         public void TryMigrate_VertexCountMismatchFailsWithoutPersistentMutation()
         {
             var fixture = CreateFixture("LegacyBrushMigrationMismatch");
@@ -316,6 +427,98 @@ namespace Net._32Ba.LatticeDeformationTool.Tests
             finally
             {
                 fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BrushEditor_ClearAllRespectsPreviewRendererAssignmentPolicy()
+        {
+            var fixture = CreateFixture("LegacyBrushClearAssignment");
+            try
+            {
+                SetLegacyDisplacements(
+                    fixture.Legacy,
+                    CreateDisplacements(fixture.Mesh.vertexCount, 0.75f));
+
+                fixture.Legacy.RestoreOriginalMesh();
+                Assert.That(fixture.Filter.sharedMesh, Is.SameAs(fixture.Mesh));
+
+                BrushDeformerEditor.ClearAllDisplacements(
+                    fixture.Legacy,
+                    assignRuntimeMesh: false);
+
+                Assert.That(
+                    fixture.Filter.sharedMesh,
+                    Is.SameAs(fixture.Mesh),
+                    "NDMF preview mode must leave the original renderer mesh untouched.");
+                Assert.That(fixture.Legacy.RuntimeMesh, Is.Not.Null);
+                Assert.That(fixture.Legacy.Displacements, Is.All.EqualTo(Vector3.zero));
+
+                SetLegacyDisplacements(
+                    fixture.Legacy,
+                    CreateDisplacements(fixture.Mesh.vertexCount, 0.5f));
+                fixture.Legacy.RestoreOriginalMesh();
+
+                BrushDeformerEditor.ClearAllDisplacements(
+                    fixture.Legacy,
+                    assignRuntimeMesh: true);
+
+                Assert.That(fixture.Legacy.RuntimeMesh, Is.Not.Null);
+                Assert.That(fixture.Filter.sharedMesh, Is.SameAs(fixture.Legacy.RuntimeMesh));
+                Assert.That(fixture.Legacy.Displacements, Is.All.EqualTo(Vector3.zero));
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BrushEditor_MultiObjectMigrationRollsBackEarlierTargetsWhenLaterValidationFails()
+        {
+            var valid = CreateFixture("LegacyBrushBatchValid");
+            var invalid = CreateFixture("LegacyBrushBatchInvalid");
+            try
+            {
+                var validDisplacements = CreateDisplacements(valid.Mesh.vertexCount, 0.41f);
+                SetLegacyDisplacements(
+                    valid.Legacy,
+                    validDisplacements);
+                SetLegacyDisplacements(
+                    invalid.Legacy,
+                    CreateDisplacements(invalid.Mesh.vertexCount - 1, 0.43f));
+
+                var runtimeBeforeMigration = valid.Legacy.Deform(true);
+                Assert.That(runtimeBeforeMigration, Is.Not.Null);
+                Assert.That(valid.Filter.sharedMesh, Is.SameAs(runtimeBeforeMigration));
+
+                Assert.That(
+                    BrushDeformerEditor.TryMigrateAll(
+                        new[] { valid.Legacy, invalid.Legacy },
+                        out var failure),
+                    Is.False);
+
+                Assert.That(failure, Does.Contain(invalid.GameObject.name));
+                Assert.That(valid.Legacy.enabled, Is.True);
+                Assert.That(invalid.Legacy.enabled, Is.True);
+                Assert.That(valid.GameObject.GetComponent<LatticeDeformer>(), Is.Null);
+                Assert.That(invalid.GameObject.GetComponent<LatticeDeformer>(), Is.Null);
+                Assert.That(valid.Legacy.RuntimeMesh, Is.Not.Null);
+                Assert.That(valid.Filter.sharedMesh, Is.SameAs(valid.Legacy.RuntimeMesh));
+                var restoredVertices = valid.Legacy.RuntimeMesh.vertices;
+                var sourceVertices = valid.Mesh.vertices;
+                for (int i = 0; i < restoredVertices.Length; i++)
+                {
+                    var expected = sourceVertices[i] + validDisplacements[i];
+                    Assert.That(restoredVertices[i].x, Is.EqualTo(expected.x).Within(1e-6f));
+                    Assert.That(restoredVertices[i].y, Is.EqualTo(expected.y).Within(1e-6f));
+                    Assert.That(restoredVertices[i].z, Is.EqualTo(expected.z).Within(1e-6f));
+                }
+            }
+            finally
+            {
+                valid.Dispose();
+                invalid.Dispose();
             }
         }
 

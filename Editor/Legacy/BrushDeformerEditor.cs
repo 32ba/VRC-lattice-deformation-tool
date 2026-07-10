@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using nadena.dev.ndmf.preview;
 using UnityEditor;
 using UnityEditor.EditorTools;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using Net._32Ba.LatticeDeformationTool;
 
@@ -84,10 +85,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearAllDisplacements)))
             {
-                Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ClearAllDisplacements));
-                deformer.ClearDisplacements();
-                deformer.Deform(!LatticePreviewUtility.ShouldAssignRuntimeMesh());
-                LatticePreviewUtility.RequestSceneRepaint();
+                ClearAllDisplacements(
+                    deformer,
+                    LatticePreviewUtility.ShouldAssignRuntimeMesh());
             }
             EditorGUI.indentLevel--;
 
@@ -157,19 +157,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (GUILayout.Button(LatticeLocalization.Content(LocKey.MigrateLegacyBrush)))
             {
-                bool succeeded = true;
-                string failure = null;
-                foreach (var instance in EnumerateTargets())
-                {
-                    if (LegacyBrushDeformerMigration.TryMigrate(instance, out _, out var error))
-                    {
-                        continue;
-                    }
-
-                    succeeded = false;
-                    failure = $"{instance.name}: {error}";
-                    break;
-                }
+                bool succeeded = TryMigrateAll(EnumerateTargets(), out string failure);
 
                 if (succeeded)
                 {
@@ -192,6 +180,217 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 EditorGUILayout.HelpBox(_migrationMessage, _migrationMessageType);
             }
+        }
+
+        internal static bool TryMigrateAll(
+            IEnumerable<BrushDeformer> instances,
+            out string failure)
+        {
+            failure = null;
+            if (instances == null)
+            {
+                failure = "No legacy Brush Deformer was selected.";
+                return false;
+            }
+
+            Undo.IncrementCurrentGroup();
+            int batchUndoGroup = Undo.GetCurrentGroup();
+            Undo.SetCurrentGroupName("Migrate Legacy Brush Deformers");
+            bool foundInstance = false;
+            var runtimePreviewSnapshots = new Dictionary<BrushDeformer, RuntimePreviewSnapshot>();
+
+            try
+            {
+                foreach (var instance in instances)
+                {
+                    if (instance == null)
+                    {
+                        continue;
+                    }
+
+                    foundInstance = true;
+                    if (TryCaptureRuntimePreview(instance, out var runtimePreview))
+                    {
+                        runtimePreviewSnapshots[instance] = runtimePreview;
+                    }
+                    if (LegacyBrushDeformerMigration.TryMigrate(instance, out _, out var error))
+                    {
+                        continue;
+                    }
+
+                    failure = $"{instance.name}: {error}";
+                    RollBackBatch(
+                        batchUndoGroup,
+                        runtimePreviewSnapshots,
+                        ref failure);
+                    return false;
+                }
+
+                if (!foundInstance)
+                {
+                    failure = "No legacy Brush Deformer was selected.";
+                    RollBackBatch(
+                        batchUndoGroup,
+                        runtimePreviewSnapshots,
+                        ref failure);
+                    return false;
+                }
+
+                Undo.CollapseUndoOperations(batchUndoGroup);
+                return true;
+            }
+            catch (System.Exception ex)
+            {
+                failure = ex.Message;
+                RollBackBatch(
+                    batchUndoGroup,
+                    runtimePreviewSnapshots,
+                    ref failure);
+                return false;
+            }
+        }
+
+        private static bool TryCaptureRuntimePreview(
+            BrushDeformer instance,
+            out RuntimePreviewSnapshot snapshot)
+        {
+            snapshot = default;
+            var runtimeMesh = instance != null ? instance.RuntimeMesh : null;
+            if (runtimeMesh == null)
+            {
+                return false;
+            }
+
+            var serialized = new SerializedObject(instance);
+            serialized.UpdateIfRequiredOrScript();
+            var skinnedRenderer = serialized.FindProperty("_skinnedMeshRenderer")
+                ?.objectReferenceValue as SkinnedMeshRenderer;
+            var meshFilter = serialized.FindProperty("_meshFilter")
+                ?.objectReferenceValue as MeshFilter;
+            bool isAssigned = (skinnedRenderer != null &&
+                               ReferenceEquals(skinnedRenderer.sharedMesh, runtimeMesh)) ||
+                              (meshFilter != null &&
+                               ReferenceEquals(meshFilter.sharedMesh, runtimeMesh));
+            if (!isAssigned)
+            {
+                return false;
+            }
+
+            var sourceMesh = instance.SourceMesh;
+            if (sourceMesh == null)
+            {
+                sourceMesh = serialized.FindProperty("_serializedSourceMesh")
+                    ?.objectReferenceValue as Mesh;
+            }
+
+            snapshot = new RuntimePreviewSnapshot(
+                instance,
+                skinnedRenderer,
+                meshFilter,
+                sourceMesh);
+            return true;
+        }
+
+        private static void RollBackBatch(
+            int batchUndoGroup,
+            IReadOnlyDictionary<BrushDeformer, RuntimePreviewSnapshot> runtimePreviewSnapshots,
+            ref string failure)
+        {
+            try
+            {
+                Undo.RevertAllDownToGroup(batchUndoGroup);
+            }
+            catch (System.Exception ex)
+            {
+                failure = $"{failure} Rollback failed: {ex.Message}";
+                return;
+            }
+
+            foreach (var snapshot in runtimePreviewSnapshots.Values)
+            {
+                var instance = snapshot.Instance;
+                if (instance == null || !instance.enabled)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (snapshot.SourceMesh == null)
+                    {
+                        failure = $"{failure} Runtime preview restoration failed for " +
+                                  $"{instance.name}: the original source mesh is missing.";
+                        continue;
+                    }
+
+                    if (snapshot.SkinnedRenderer != null)
+                    {
+                        snapshot.SkinnedRenderer.sharedMesh = snapshot.SourceMesh;
+                    }
+                    if (snapshot.MeshFilter != null)
+                    {
+                        snapshot.MeshFilter.sharedMesh = snapshot.SourceMesh;
+                    }
+
+                    instance.CacheSourceMesh();
+                    if (instance.Deform(true) == null)
+                    {
+                        failure = $"{failure} Runtime preview restoration failed for " +
+                                  $"{instance.name}: the preview mesh could not be rebuilt.";
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    failure = $"{failure} Runtime preview restoration failed for " +
+                              $"{instance.name}: {ex.Message}";
+                }
+            }
+        }
+
+        private readonly struct RuntimePreviewSnapshot
+        {
+            internal RuntimePreviewSnapshot(
+                BrushDeformer instance,
+                SkinnedMeshRenderer skinnedRenderer,
+                MeshFilter meshFilter,
+                Mesh sourceMesh)
+            {
+                Instance = instance;
+                SkinnedRenderer = skinnedRenderer;
+                MeshFilter = meshFilter;
+                SourceMesh = sourceMesh;
+            }
+
+            internal BrushDeformer Instance { get; }
+            internal SkinnedMeshRenderer SkinnedRenderer { get; }
+            internal MeshFilter MeshFilter { get; }
+            internal Mesh SourceMesh { get; }
+        }
+
+        internal static void ClearAllDisplacements(
+            BrushDeformer deformer,
+            bool assignRuntimeMesh)
+        {
+            if (deformer == null)
+            {
+                return;
+            }
+
+            Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ClearAllDisplacements));
+            deformer.ClearDisplacements();
+            EditorUtility.SetDirty(deformer);
+            if (PrefabUtility.IsPartOfPrefabInstance(deformer))
+            {
+                PrefabUtility.RecordPrefabInstancePropertyModifications(deformer);
+            }
+            var scene = deformer.gameObject.scene;
+            if (scene.IsValid() && scene.isLoaded)
+            {
+                EditorSceneManager.MarkSceneDirty(scene);
+            }
+
+            deformer.Deform(assignRuntimeMesh);
+            LatticePreviewUtility.RequestSceneRepaint();
         }
 
         private void AutoAssignLocalRendererReferences()
