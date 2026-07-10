@@ -214,7 +214,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static void ClearProxy(Renderer original)
         {
-            if (original == null)
+            // A destroyed UnityEngine.Object compares equal to null, but its managed
+            // reference is still the dictionary key that must be removed.
+            if (object.ReferenceEquals(original, null))
             {
                 return;
             }
@@ -231,6 +233,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool TryGetRegisteredProxy(Renderer original, out Renderer proxy)
         {
             return s_latestProxyMap.TryGetValue(original, out proxy);
+        }
+
+        internal static bool HasRegisteredProxy(Renderer original)
+        {
+            return !object.ReferenceEquals(original, null) && s_latestProxyMap.ContainsKey(original);
         }
 
         internal static bool TryGetPreviewProxy(Renderer original, out Renderer proxy)

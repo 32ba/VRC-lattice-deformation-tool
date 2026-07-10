@@ -108,6 +108,45 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void PenetrationDetectionCacheKey_TracksGeometryAndTransformState()
+        {
+            var targetMatrix = Matrix4x4.TRS(
+                new Vector3(1f, 2f, 3f),
+                Quaternion.Euler(10f, 20f, 30f),
+                new Vector3(1f, 2f, 1f));
+            var referenceMatrix = Matrix4x4.TRS(
+                new Vector3(-1f, 0.5f, 2f),
+                Quaternion.Euler(0f, 45f, 0f),
+                Vector3.one).inverse;
+
+            var key = new PenetrationDetectionCacheKey(
+                101, 2, 11, 12, 13, 14, 100, 200, targetMatrix, referenceMatrix);
+            var same = new PenetrationDetectionCacheKey(
+                101, 2, 11, 12, 13, 14, 100, 200, targetMatrix, referenceMatrix);
+            var changedLayer = new PenetrationDetectionCacheKey(
+                102, 2, 11, 12, 13, 14, 100, 200, targetMatrix, referenceMatrix);
+            var changedRuntimeMesh = new PenetrationDetectionCacheKey(
+                101, 2, 11, 12, 13, 15, 100, 200, targetMatrix, referenceMatrix);
+            var changedTransform = new PenetrationDetectionCacheKey(
+                101,
+                2,
+                11,
+                12,
+                13,
+                14,
+                100,
+                200,
+                Matrix4x4.Translate(Vector3.right) * targetMatrix,
+                referenceMatrix);
+
+            Assert.That(same, Is.EqualTo(key));
+            Assert.That(same.GetHashCode(), Is.EqualTo(key.GetHashCode()));
+            Assert.That(changedLayer, Is.Not.EqualTo(key));
+            Assert.That(changedRuntimeMesh, Is.Not.EqualTo(key));
+            Assert.That(changedTransform, Is.Not.EqualTo(key));
+        }
+
+        [Test]
         public void SkinnedVertexHelper_ReturnsNullForInvalidOrUnskinnedInputs()
         {
             Assert.That(SkinnedVertexHelper.ComputeWorldPositions(null, new[] { Vector3.zero }), Is.Null);

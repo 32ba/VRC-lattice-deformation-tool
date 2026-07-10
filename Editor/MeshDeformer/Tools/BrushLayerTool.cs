@@ -10,6 +10,77 @@ using Net._32Ba.LatticeDeformationTool;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
+    internal readonly struct PenetrationDetectionCacheKey : IEquatable<PenetrationDetectionCacheKey>
+    {
+        private readonly int _layeredStateHash;
+        private readonly int _settingsRevision;
+        private readonly int _referenceRendererId;
+        private readonly int _referenceMeshId;
+        private readonly int _sourceMeshId;
+        private readonly int _runtimeMeshId;
+        private readonly int _targetVertexCount;
+        private readonly int _referenceVertexCount;
+        private readonly Matrix4x4 _targetLocalToWorld;
+        private readonly Matrix4x4 _referenceWorldToLocal;
+
+        internal PenetrationDetectionCacheKey(
+            int layeredStateHash,
+            int settingsRevision,
+            int referenceRendererId,
+            int referenceMeshId,
+            int sourceMeshId,
+            int runtimeMeshId,
+            int targetVertexCount,
+            int referenceVertexCount,
+            Matrix4x4 targetLocalToWorld,
+            Matrix4x4 referenceWorldToLocal)
+        {
+            _layeredStateHash = layeredStateHash;
+            _settingsRevision = settingsRevision;
+            _referenceRendererId = referenceRendererId;
+            _referenceMeshId = referenceMeshId;
+            _sourceMeshId = sourceMeshId;
+            _runtimeMeshId = runtimeMeshId;
+            _targetVertexCount = targetVertexCount;
+            _referenceVertexCount = referenceVertexCount;
+            _targetLocalToWorld = targetLocalToWorld;
+            _referenceWorldToLocal = referenceWorldToLocal;
+        }
+
+        public bool Equals(PenetrationDetectionCacheKey other)
+        {
+            return _layeredStateHash == other._layeredStateHash &&
+                   _settingsRevision == other._settingsRevision &&
+                   _referenceRendererId == other._referenceRendererId &&
+                   _referenceMeshId == other._referenceMeshId &&
+                   _sourceMeshId == other._sourceMeshId &&
+                   _runtimeMeshId == other._runtimeMeshId &&
+                   _targetVertexCount == other._targetVertexCount &&
+                   _referenceVertexCount == other._referenceVertexCount &&
+                   _targetLocalToWorld.Equals(other._targetLocalToWorld) &&
+                   _referenceWorldToLocal.Equals(other._referenceWorldToLocal);
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is PenetrationDetectionCacheKey other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            int first = HashCode.Combine(
+                _layeredStateHash,
+                _settingsRevision,
+                _referenceRendererId,
+                _referenceMeshId,
+                _sourceMeshId,
+                _runtimeMeshId,
+                _targetVertexCount,
+                _referenceVertexCount);
+            return HashCode.Combine(first, _targetLocalToWorld, _referenceWorldToLocal);
+        }
+    }
+
     [ExcludeFromCodeCoverage]
     internal sealed class BrushToolHandler
     {
@@ -45,6 +116,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_backfaceCulling = true;
         private static bool s_showPenetration = false;
         private static Renderer s_penetrationReference = null;
+        private static int s_penetrationSettingsRevision;
 
         // Overlay foldout states
         private static bool s_showMirrorSection = false;
@@ -67,6 +139,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Dictionary<int, float> _geodesicDistanceCache;
         private int _geodesicCacheStartVertex = -1;
         private HashSet<int> _penetratingVertices;
+        private PenetrationDetectionCacheKey _penetrationCacheKey;
+        private bool _hasPenetrationCacheKey;
+        private bool _isStrokeActive;
+        private int _strokeInitialStateHash;
+        private LatticeDeformer _strokeDeformer;
 
         private static MethodInfo s_intersectRayMeshMethod;
         private static bool s_intersectRayMeshResolved;
@@ -238,6 +315,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (s_showPenetration == value) return;
                 s_showPenetration = value;
+                unchecked
+                {
+                    s_penetrationSettingsRevision++;
+                }
                 SceneView.RepaintAll();
             }
         }
@@ -249,6 +330,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (s_penetrationReference == value) return;
                 s_penetrationReference = value;
+                unchecked
+                {
+                    s_penetrationSettingsRevision++;
+                }
                 SceneView.RepaintAll();
             }
         }
@@ -281,12 +366,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal void Deactivate()
         {
             Undo.undoRedoPerformed -= OnUndoRedo;
+            EndStroke();
             InvalidateCache();
             _activeDeformer = null;
         }
 
         private void OnUndoRedo()
         {
+            ResetStrokeState();
             if (_activeDeformer != null)
             {
                 bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
@@ -294,6 +381,32 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             SceneView.RepaintAll();
+        }
+
+        private void BeginStroke(LatticeDeformer deformer)
+        {
+            EndStroke();
+            _isStrokeActive = deformer != null;
+            _strokeDeformer = deformer;
+            _strokeInitialStateHash = deformer != null ? deformer.ComputeLayeredStateHash() : 0;
+        }
+
+        private void EndStroke()
+        {
+            if (_isStrokeActive && _strokeDeformer != null &&
+                _strokeDeformer.ComputeLayeredStateHash() != _strokeInitialStateHash)
+            {
+                LatticePrefabUtility.MarkModified(_strokeDeformer);
+            }
+
+            ResetStrokeState();
+        }
+
+        private void ResetStrokeState()
+        {
+            _isStrokeActive = false;
+            _strokeInitialStateHash = 0;
+            _strokeDeformer = null;
         }
 
         internal void OnToolGUI(EditorWindow window, LatticeDeformer deformer)
@@ -380,6 +493,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 UpdatePenetrationDetection(deformer);
                 DrawPenetrationHighlight(meshTransform);
+            }
+            else
+            {
+                InvalidatePenetrationCache();
             }
 
             // Raycast to find brush center on mesh surface.
@@ -470,12 +587,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Handles.matrix = prevMatrix;
 
                 // Handle brush painting on left mouse drag
-                if (evt.type == EventType.MouseDrag && evt.button == 0)
+                if (evt.type == EventType.MouseDrag && evt.button == 0 && !evt.alt && _isStrokeActive)
                 {
                     ApplyBrush(deformer, meshTransform, localHitPoint, localHitNormal, evt);
                     evt.Use();
                 }
-                else if (evt.type == EventType.MouseDown && evt.button == 0)
+                else if (evt.type == EventType.MouseDown && evt.button == 0 && !evt.alt)
                 {
                     _lastMousePosition = evt.mousePosition;
 
@@ -485,6 +602,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     // Build geodesic distance cache at stroke start
                     UpdateGeodesicDistanceCache(localHitPoint);
 
+                    BeginStroke(deformer);
                     Undo.RecordObject(deformer, GetUndoLabel());
                     deformer.EnsureDisplacementCapacity();
 
@@ -493,9 +611,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
                 else if (evt.type == EventType.MouseUp && evt.button == 0)
                 {
+                    bool hadActiveStroke = _isStrokeActive;
+                    EndStroke();
                     ClearConnectedVerticesCache();
                     ClearGeodesicDistanceCache();
-                    evt.Use();
+                    if (hadActiveStroke)
+                    {
+                        evt.Use();
+                    }
                 }
             }
             else
@@ -503,6 +626,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 // Even without hit, handle mouse up to stop painting
                 if (evt.type == EventType.MouseUp && evt.button == 0)
                 {
+                    EndStroke();
                     ClearConnectedVerticesCache();
                     ClearGeodesicDistanceCache();
                 }
@@ -1142,6 +1266,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             _cachedMesh = mesh;
+            InvalidatePenetrationCache();
             _meshVertices = mesh.vertices;
             _meshNormals = mesh.normals;
             _meshTriangles = mesh.triangles;
@@ -1198,7 +1323,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _meshTriangles = null;
             _worldPositions = null;
             _adjacency = null;
-            _penetratingVertices = null;
+            InvalidatePenetrationCache();
             ClearConnectedVerticesCache();
             ClearGeodesicDistanceCache();
         }
@@ -1409,7 +1534,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (!s_showPenetration || s_penetrationReference == null || _meshVertices == null)
             {
-                _penetratingVertices = null;
+                InvalidatePenetrationCache();
                 return;
             }
 
@@ -1426,13 +1551,38 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (refMesh == null)
             {
-                _penetratingVertices = null;
+                InvalidatePenetrationCache();
                 return;
             }
 
             // Compute transform from deformer space to reference space
             var deformerTransform = deformer.MeshTransform;
             var refTransform = s_penetrationReference.transform;
+            if (deformerTransform == null || refTransform == null)
+            {
+                InvalidatePenetrationCache();
+                return;
+            }
+
+            var sourceMesh = deformer.SourceMesh;
+            var runtimeMesh = deformer.RuntimeMesh;
+            var nextKey = new PenetrationDetectionCacheKey(
+                deformer.ComputeLayeredStateHash(),
+                s_penetrationSettingsRevision,
+                s_penetrationReference.GetInstanceID(),
+                refMesh.GetInstanceID(),
+                sourceMesh != null ? sourceMesh.GetInstanceID() : 0,
+                runtimeMesh != null ? runtimeMesh.GetInstanceID() : 0,
+                _meshVertices.Length,
+                refMesh.vertexCount,
+                deformerTransform.localToWorldMatrix,
+                refTransform.worldToLocalMatrix);
+
+            if (_hasPenetrationCacheKey && _penetrationCacheKey.Equals(nextKey))
+            {
+                return;
+            }
+
             Matrix4x4 deformedToRef = refTransform.worldToLocalMatrix * deformerTransform.localToWorldMatrix;
 
             // Apply current displacements to get deformed positions
@@ -1442,7 +1592,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 deformedVertices[i] = _meshVertices[i] + deformer.GetDisplacement(i);
             }
 
-            _penetratingVertices = PenetrationDetector.DetectPenetration(deformedVertices, refMesh, deformedToRef);
+            var detected = PenetrationDetector.DetectPenetration(deformedVertices, refMesh, deformedToRef);
+            _penetratingVertices = detected;
+            _penetrationCacheKey = nextKey;
+            _hasPenetrationCacheKey = true;
+        }
+
+        private void InvalidatePenetrationCache()
+        {
+            _penetratingVertices = null;
+            _penetrationCacheKey = default;
+            _hasPenetrationCacheKey = false;
         }
 
         private void DrawPenetrationHighlight(Transform meshTransform)
@@ -1655,8 +1815,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (deformer == null) return;
             if (deformer.ActiveLayerType != MeshDeformerLayerType.Brush) return;
+            int previousStateHash = deformer.ComputeLayeredStateHash();
             Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ClearAll));
             deformer.ClearDisplacements();
+            if (deformer.ComputeLayeredStateHash() != previousStateHash)
+            {
+                LatticePrefabUtility.MarkModified(deformer);
+            }
             bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
             deformer.Deform(assignToRenderer);
             LatticePreviewUtility.RequestSceneRepaint();
@@ -1666,8 +1831,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (deformer == null) return;
             if (!TryGetActiveLayer(deformer, out var layer)) return;
+            int previousStateHash = deformer.ComputeLayeredStateHash();
             Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ClearMask));
             layer.ClearVertexMask();
+            if (deformer.ComputeLayeredStateHash() != previousStateHash)
+            {
+                LatticePrefabUtility.MarkModified(deformer);
+            }
             bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
             deformer.Deform(assignToRenderer);
             LatticePreviewUtility.RequestSceneRepaint();

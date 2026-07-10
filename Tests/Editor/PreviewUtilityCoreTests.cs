@@ -428,6 +428,106 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeDeformerPreviewFilter_BlendShapeWeightStateHash_IsStableAndTracksChanges()
+        {
+            var go = new GameObject("blendshape-state-hash");
+            var source = CreateBlendShapeMesh(2);
+            var replacement = CreateBlendShapeMesh(2);
+            try
+            {
+                var renderer = go.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = source;
+
+                int initial = LatticeDeformerPreviewFilter.ComputeBlendShapeWeightStateHash(renderer, source);
+                int unchanged = LatticeDeformerPreviewFilter.ComputeBlendShapeWeightStateHash(renderer, source);
+                Assert.That(unchanged, Is.EqualTo(initial));
+
+                renderer.SetBlendShapeWeight(0, 37.5f);
+                int weightChanged = LatticeDeformerPreviewFilter.ComputeBlendShapeWeightStateHash(renderer, source);
+                Assert.That(weightChanged, Is.Not.EqualTo(initial));
+                Assert.That(
+                    LatticeDeformerPreviewFilter.ComputeBlendShapeWeightStateHash(renderer, source),
+                    Is.EqualTo(weightChanged));
+
+                int sourceChanged = LatticeDeformerPreviewFilter.ComputeBlendShapeWeightStateHash(renderer, replacement);
+                Assert.That(sourceChanged, Is.Not.EqualTo(weightChanged));
+
+                source.AddBlendShapeFrame(
+                    "Shape2",
+                    100f,
+                    new Vector3[source.vertexCount],
+                    new Vector3[source.vertexCount],
+                    new Vector3[source.vertexCount]);
+                int countChanged = LatticeDeformerPreviewFilter.ComputeBlendShapeWeightStateHash(renderer, source);
+                Assert.That(countChanged, Is.Not.EqualTo(weightChanged));
+            }
+            finally
+            {
+                Object.DestroyImmediate(source);
+                Object.DestroyImmediate(replacement);
+                Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
+        public void LatticeDeformerPreviewFilter_RestoreProxyMesh_RestoresUpstreamMeshAndClearsRegistration()
+        {
+            var original = new GameObject("restore-proxy-original");
+            var proxy = new GameObject("restore-proxy-target");
+            var upstreamMesh = new Mesh();
+            var previewMesh = new Mesh();
+            try
+            {
+                var originalRenderer = original.AddComponent<MeshRenderer>();
+                proxy.AddComponent<MeshFilter>().sharedMesh = upstreamMesh;
+                var proxyRenderer = proxy.AddComponent<MeshRenderer>();
+                LatticePreviewUtility.RegisterProxy(originalRenderer, proxyRenderer);
+
+                LatticeDeformerPreviewFilter.AssignRendererMesh(proxyRenderer, previewMesh);
+                Assert.That(LatticeDeformerPreviewFilter.GetRendererMesh(proxyRenderer), Is.SameAs(previewMesh));
+
+                LatticeDeformerPreviewFilter.RestoreProxyMesh(originalRenderer, proxyRenderer, upstreamMesh);
+
+                Assert.That(LatticeDeformerPreviewFilter.GetRendererMesh(proxyRenderer), Is.SameAs(upstreamMesh));
+                Assert.That(LatticePreviewUtility.TryGetPreviewProxy(originalRenderer, out _), Is.False);
+            }
+            finally
+            {
+                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
+                Object.DestroyImmediate(upstreamMesh);
+                Object.DestroyImmediate(previewMesh);
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(proxy);
+            }
+        }
+
+        [Test]
+        public void LatticeDeformerPreviewFilter_RestoreProxyMesh_ClearsDestroyedOriginalAndProxy()
+        {
+            var original = new GameObject("destroyed-proxy-original");
+            var proxy = new GameObject("destroyed-proxy-target");
+            var originalRenderer = original.AddComponent<MeshRenderer>();
+            var proxyRenderer = proxy.AddComponent<MeshRenderer>();
+            try
+            {
+                LatticePreviewUtility.RegisterProxy(originalRenderer, proxyRenderer);
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(proxy);
+
+                Assert.DoesNotThrow(() =>
+                    LatticeDeformerPreviewFilter.RestoreProxyMesh(originalRenderer, proxyRenderer, null));
+                Assert.That(LatticePreviewUtility.HasRegisteredProxy(originalRenderer), Is.False);
+                Assert.That(LatticePreviewUtility.TryGetPreviewProxy(originalRenderer, out _), Is.False);
+            }
+            finally
+            {
+                LatticePreviewUtility.ClearProxy(originalRenderer);
+                if (original != null) Object.DestroyImmediate(original);
+                if (proxy != null) Object.DestroyImmediate(proxy);
+            }
+        }
+
+        [Test]
         public void LatticePreviewUtility_RegisterClearAndLog_HandleNullAndDebugState()
         {
             bool previousDebug = LatticePreviewUtility.DebugAlignLogs;
@@ -502,7 +602,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void LatticePreviewUtility_GetRendererLocalBounds_TransformsWorldBounds()
+        public void LatticePreviewUtility_GetRendererLocalBounds_DoesNotDoubleApplyNonUniformScale()
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             try
@@ -511,8 +611,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 go.transform.localScale = new Vector3(2f, 3f, 4f);
                 var renderer = go.GetComponent<Renderer>();
 
+                var meshBounds = LatticePreviewUtility.GetMeshLocalBounds(renderer);
                 var bounds = LatticePreviewUtility.GetRendererLocalBounds(renderer);
 
+                Assert.That(meshBounds.size.x, Is.EqualTo(1f).Within(1e-5f));
+                Assert.That(meshBounds.size.y, Is.EqualTo(1f).Within(1e-5f));
+                Assert.That(meshBounds.size.z, Is.EqualTo(1f).Within(1e-5f));
                 Assert.That(bounds.center.x, Is.EqualTo(0f).Within(1e-5f));
                 Assert.That(bounds.center.y, Is.EqualTo(0f).Within(1e-5f));
                 Assert.That(bounds.center.z, Is.EqualTo(0f).Within(1e-5f));
@@ -715,6 +819,29 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 Object.DestroyImmediate(target);
             }
+        }
+
+        private static Mesh CreateBlendShapeMesh(int blendShapeCount)
+        {
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+
+            for (int shape = 0; shape < blendShapeCount; shape++)
+            {
+                var deltas = new Vector3[mesh.vertexCount];
+                deltas[shape % deltas.Length] = Vector3.forward * (shape + 1) * 0.1f;
+                mesh.AddBlendShapeFrame(
+                    $"Shape{shape}",
+                    100f,
+                    deltas,
+                    new Vector3[mesh.vertexCount],
+                    new Vector3[mesh.vertexCount]);
+            }
+
+            return mesh;
         }
 
         private sealed class FakePreviewSession
