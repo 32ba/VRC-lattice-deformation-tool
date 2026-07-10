@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -34,6 +35,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private bool _blendShapeTestMode = false;
         private float _blendShapeTestWeight = 0f;
         private Mesh _preTestMesh = null;
+        private string[] _preTestBlendShapeNames = Array.Empty<string>();
+        private float[] _preTestBlendShapeWeights = Array.Empty<float>();
         private bool _preTestMeshWasOverridden = false;
         private bool _preTestWeightsWereOverridden = false;
         private SerializedProperty _weightTransferSettingsProp;
@@ -825,6 +828,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         DrawSettingsExcludingGrid(settingsProp, allowStructureEdits: true);
                         DrawAlignmentSettings();
                     }
+
+                    DrawActiveLayerBlendShapeSection();
+
                     if (serializedObject.ApplyModifiedProperties())
                         NotifyPropertyChanges();
                 };
@@ -1181,6 +1187,46 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 SceneView.RepaintAll();
             }
             EditorGUI.EndDisabledGroup();
+        }
+
+        private void DrawActiveLayerBlendShapeSection()
+        {
+            if (_layersProp == null || _activeLayerIndexProp == null || _layersProp.arraySize == 0)
+            {
+                return;
+            }
+
+            int activeLayerIndex = Mathf.Clamp(_activeLayerIndexProp.intValue, 0, _layersProp.arraySize - 1);
+            var layerProp = _layersProp.GetArrayElementAtIndex(activeLayerIndex);
+            if (layerProp == null)
+            {
+                return;
+            }
+
+            var outputProp = layerProp.FindPropertyRelative("_blendShapeOutput");
+            var nameProp = layerProp.FindPropertyRelative("_blendShapeName");
+            var curveProp = layerProp.FindPropertyRelative("_blendShapeCurve");
+            if (outputProp == null)
+            {
+                return;
+            }
+
+            EditorGUILayout.Space(4f);
+            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.BlendShapeOutput), EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(outputProp, LatticeLocalization.Content(LocKey.BlendShapeOutput));
+
+            if (outputProp.intValue == (int)BlendShapeOutputMode.OutputAsBlendShape)
+            {
+                if (nameProp != null)
+                {
+                    EditorGUILayout.PropertyField(nameProp, LatticeLocalization.Content(LocKey.BlendShapeName));
+                }
+
+                if (curveProp != null)
+                {
+                    EditorGUILayout.PropertyField(curveProp, LatticeLocalization.Content(LocKey.Curve));
+                }
+            }
         }
 
         private void DrawBuildOptions()
@@ -1868,6 +1914,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void EnterBlendShapeTestMode(LatticeDeformer deformer, SkinnedMeshRenderer smr)
         {
             _preTestMesh = smr.sharedMesh;
+            CapturePreTestBlendShapeWeights(smr, _preTestMesh);
 
             // Record which properties were already overridden before test mode
             if (PrefabUtility.IsPartOfPrefabInstance(smr))
@@ -1903,6 +1950,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     if (_preTestMesh != null)
                     {
                         smr.sharedMesh = _preTestMesh;
+                        RestorePreTestBlendShapeWeights(smr, _preTestMesh);
                     }
 
                     // Revert only the prefab overrides that test mode created
@@ -1926,9 +1974,55 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             _preTestMesh = null;
+            _preTestBlendShapeNames = Array.Empty<string>();
+            _preTestBlendShapeWeights = Array.Empty<float>();
             _preTestMeshWasOverridden = false;
             _preTestWeightsWereOverridden = false;
             SceneView.RepaintAll();
+        }
+
+        private void CapturePreTestBlendShapeWeights(SkinnedMeshRenderer smr, Mesh mesh)
+        {
+            if (smr == null || mesh == null || mesh.blendShapeCount == 0)
+            {
+                _preTestBlendShapeNames = Array.Empty<string>();
+                _preTestBlendShapeWeights = Array.Empty<float>();
+                return;
+            }
+
+            int count = mesh.blendShapeCount;
+            _preTestBlendShapeNames = new string[count];
+            _preTestBlendShapeWeights = new float[count];
+            for (int i = 0; i < count; i++)
+            {
+                _preTestBlendShapeNames[i] = mesh.GetBlendShapeName(i);
+                _preTestBlendShapeWeights[i] = smr.GetBlendShapeWeight(i);
+            }
+        }
+
+        private void RestorePreTestBlendShapeWeights(SkinnedMeshRenderer smr, Mesh mesh)
+        {
+            if (smr == null || mesh == null ||
+                _preTestBlendShapeNames == null || _preTestBlendShapeWeights == null)
+            {
+                return;
+            }
+
+            int count = Mathf.Min(_preTestBlendShapeNames.Length, _preTestBlendShapeWeights.Length);
+            for (int i = 0; i < count; i++)
+            {
+                string shapeName = _preTestBlendShapeNames[i];
+                if (string.IsNullOrEmpty(shapeName))
+                {
+                    continue;
+                }
+
+                int shapeIndex = mesh.GetBlendShapeIndex(shapeName);
+                if (shapeIndex >= 0)
+                {
+                    smr.SetBlendShapeWeight(shapeIndex, _preTestBlendShapeWeights[i]);
+                }
+            }
         }
 
         private void ApplyBlendShapeTestWeight(LatticeDeformer deformer, SkinnedMeshRenderer smr)

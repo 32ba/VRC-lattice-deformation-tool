@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
@@ -2897,6 +2898,182 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 // Only A + C should contribute
                 var expected = sourceVertices[0] + dispA + dispC;
                 AssertApproximately(expected, runtimeMesh.vertices[0], 2e-3f);
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void BlendShapeTestMode_PrivateEnterExit_RestoresWeightsByOriginalName()
+        {
+            var root = new GameObject("BlendShapeTestMode_PrivateEnterExit_RestoresWeightsByOriginalName");
+            Mesh sourceMesh = null;
+            UnityEditor.Editor editor = null;
+            try
+            {
+                var smr = root.AddComponent<SkinnedMeshRenderer>();
+                sourceMesh = CreateRuntimeCubeMesh();
+                sourceMesh.bindposes = new[] { Matrix4x4.identity };
+                var boneWeight = new BoneWeight { boneIndex0 = 0, weight0 = 1f };
+                var boneWeights = new BoneWeight[sourceMesh.vertexCount];
+                for (int i = 0; i < boneWeights.Length; i++)
+                {
+                    boneWeights[i] = boneWeight;
+                }
+                sourceMesh.boneWeights = boneWeights;
+
+                string[] names = { "Smile", "Blink", "Angry" };
+                float[] weights = { 75f, 25f, 50f };
+                for (int shape = 0; shape < names.Length; shape++)
+                {
+                    var delta = new Vector3[sourceMesh.vertexCount];
+                    delta[shape] = new Vector3(0.05f * (shape + 1), 0f, 0f);
+                    sourceMesh.AddBlendShapeFrame(names[shape], 100f, delta, null, null);
+                }
+
+                smr.sharedMesh = sourceMesh;
+                smr.bones = new[] { root.transform };
+                for (int shape = 0; shape < names.Length; shape++)
+                {
+                    smr.SetBlendShapeWeight(shape, weights[shape]);
+                }
+
+                var deformer = root.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                deformer.Deform(false);
+                int brushLayer = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushLayer;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.2f, 0f, 0f));
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "TestBS";
+
+                editor = UnityEditor.Editor.CreateEditor(deformer);
+                var enter = editor.GetType().GetMethod("EnterBlendShapeTestMode", s_privateInstance);
+                var exit = editor.GetType().GetMethod("ExitBlendShapeTestMode", s_privateInstance);
+                Assert.That(enter, Is.Not.Null);
+                Assert.That(exit, Is.Not.Null);
+
+                enter.Invoke(editor, new object[] { deformer, smr });
+                var runtimeMesh = smr.sharedMesh;
+                int testShape = runtimeMesh.GetBlendShapeIndex("TestBS");
+                Assert.That(testShape, Is.GreaterThanOrEqualTo(0));
+                smr.SetBlendShapeWeight(testShape, 60f);
+
+                exit.Invoke(editor, null);
+
+                Assert.That(smr.sharedMesh, Is.SameAs(sourceMesh));
+                for (int shape = 0; shape < names.Length; shape++)
+                {
+                    int originalIndex = sourceMesh.GetBlendShapeIndex(names[shape]);
+                    Assert.That(smr.GetBlendShapeWeight(originalIndex), Is.EqualTo(weights[shape]).Within(0.01f), names[shape]);
+                }
+            }
+            finally
+            {
+                if (editor != null)
+                {
+                    Object.DestroyImmediate(editor);
+                }
+
+                Object.DestroyImmediate(root);
+                if (sourceMesh != null)
+                {
+                    Object.DestroyImmediate(sourceMesh);
+                }
+            }
+        }
+
+        [Test]
+        public void LayerBlendShapeOutput_ProducesIndependentShapeAndExcludesFromGroupOutput()
+        {
+            var fixture = CreateFixture("LayerBlendShapeOutput_Independent");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var sourceVertices = fixture.SourceMesh.vertices;
+
+                int layerA = deformer.AddLayer("LayerShape", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = layerA;
+                deformer.EnsureDisplacementCapacity();
+                var deltaA = new Vector3(0.11f, 0f, 0f);
+                deformer.SetDisplacement(0, deltaA);
+                deformer.Layers[layerA].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.Layers[layerA].BlendShapeName = "LayerOnly";
+
+                int layerB = deformer.AddLayer("GroupShapeLayer", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = layerB;
+                deformer.EnsureDisplacementCapacity();
+                var deltaB = new Vector3(0f, 0.17f, 0f);
+                deformer.SetDisplacement(0, deltaB);
+
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "GroupOnly";
+
+                ReleaseRuntimeMesh(deformer);
+                var mesh = deformer.Deform(false);
+                Assert.That(mesh, Is.Not.Null);
+
+                int layerShape = mesh.GetBlendShapeIndex("LayerOnly");
+                int groupShape = mesh.GetBlendShapeIndex("GroupOnly");
+                Assert.That(layerShape, Is.GreaterThanOrEqualTo(0));
+                Assert.That(groupShape, Is.GreaterThanOrEqualTo(0));
+
+                var layerDeltas = new Vector3[mesh.vertexCount];
+                mesh.GetBlendShapeFrameVertices(layerShape, mesh.GetBlendShapeFrameCount(layerShape) - 1, layerDeltas, null, null);
+                AssertApproximately(deltaA, layerDeltas[0], 2e-3f);
+
+                var groupDeltas = new Vector3[mesh.vertexCount];
+                mesh.GetBlendShapeFrameVertices(groupShape, mesh.GetBlendShapeFrameCount(groupShape) - 1, groupDeltas, null, null);
+                AssertApproximately(deltaB, groupDeltas[0], 2e-3f);
+
+                AssertApproximately(sourceVertices[0], mesh.vertices[0], 2e-3f);
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void GeneratedBlendShape_RecalculateNormals_WritesNormalDeltas()
+        {
+            var fixture = CreateFixture("GeneratedBlendShape_NormalDeltas");
+            try
+            {
+                var deformer = fixture.Deformer;
+                int layer = deformer.AddLayer("NormalDeltaLayer", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = layer;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0f, 0.35f, 0.2f));
+
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "NormalDeltaShape";
+
+                ReleaseRuntimeMesh(deformer);
+                var mesh = deformer.Deform(false);
+                Assert.That(mesh, Is.Not.Null);
+
+                int shape = mesh.GetBlendShapeIndex("NormalDeltaShape");
+                Assert.That(shape, Is.GreaterThanOrEqualTo(0));
+
+                var deltas = new Vector3[mesh.vertexCount];
+                var normals = new Vector3[mesh.vertexCount];
+                mesh.GetBlendShapeFrameVertices(shape, mesh.GetBlendShapeFrameCount(shape) - 1, deltas, normals, null);
+
+                bool hasNormalDelta = false;
+                for (int i = 0; i < normals.Length; i++)
+                {
+                    if (normals[i].sqrMagnitude > 1e-8f)
+                    {
+                        hasNormalDelta = true;
+                        break;
+                    }
+                }
+
+                Assert.That(hasNormalDelta, Is.True, "Generated BlendShape should include normal deltas when normal recalculation is enabled.");
             }
             finally
             {
