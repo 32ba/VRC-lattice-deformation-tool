@@ -1029,6 +1029,30 @@ msgstr "筆刷變形"
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning"
+msgstr "目前的 NDMF 流程不會處理此舊版元件。繼續編輯前，請將變形資料遷移到 Mesh Deformer。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning.tooltip"
+msgstr "遷移後，原始元件會被停用並保留為備份。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush"
+msgstr "遷移到 Mesh Deformer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush.tooltip"
+msgstr "將所有位移與網格重建設定複製到 Mesh Deformer 筆刷圖層，然後停用此舊版元件。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded"
+msgstr "遷移完成。舊版元件已停用並保留為備份。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded.tooltip"
+msgstr "遷移後的 Mesh Deformer 已包含舊版筆刷變形資料。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed"
+msgstr "遷移失敗：{0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed.tooltip"
+msgstr "驗證失敗時不會保留永久的遷移變更。"
+
 # Update notification
 msgid "net.32ba.lattice-deformation-tool.localization.update-available"
 msgstr "有新版本可用"

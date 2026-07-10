@@ -1029,6 +1029,30 @@ msgstr "브러시 변형"
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning"
+msgstr "이 레거시 컴포넌트는 현재 NDMF 파이프라인에서 처리되지 않습니다. 편집을 계속하기 전에 변형 데이터를 Mesh Deformer로 마이그레이션하세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning.tooltip"
+msgstr "마이그레이션 후에도 원본 컴포넌트는 비활성화된 백업으로 유지됩니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush"
+msgstr "Mesh Deformer로 마이그레이션"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush.tooltip"
+msgstr "모든 변위와 메시 재구성 설정을 Mesh Deformer 브러시 레이어로 복사한 뒤 이 레거시 컴포넌트를 비활성화합니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded"
+msgstr "마이그레이션이 완료되었습니다. 레거시 컴포넌트는 비활성화되어 백업으로 유지됩니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded.tooltip"
+msgstr "마이그레이션된 Mesh Deformer에 기존 브러시 변형 데이터가 저장되었습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed"
+msgstr "마이그레이션 실패: {0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed.tooltip"
+msgstr "검증에 실패하면 영구적인 마이그레이션 변경 사항이 유지되지 않습니다."
+
 # Update notification
 msgid "net.32ba.lattice-deformation-tool.localization.update-available"
 msgstr "새 버전을 사용할 수 있습니다"

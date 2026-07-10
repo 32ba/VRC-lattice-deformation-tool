@@ -1026,6 +1026,30 @@ msgstr "Brush Deformation"
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr "Section for brush-based vertex deformation settings."
 
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning"
+msgstr "This legacy component is not processed by the current NDMF pipeline. Migrate its deformation data to Mesh Deformer before continuing to edit it."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning.tooltip"
+msgstr "The original component will be kept as a disabled backup after migration."
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush"
+msgstr "Migrate to Mesh Deformer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush.tooltip"
+msgstr "Copies every displacement and rebuild option into a Mesh Deformer brush layer, then disables this legacy component."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded"
+msgstr "Migration completed. The legacy component was disabled and retained as a backup."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded.tooltip"
+msgstr "The migrated Mesh Deformer now contains the legacy brush deformation data."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed"
+msgstr "Migration failed: {0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed.tooltip"
+msgstr "No persistent migration changes are kept when validation fails."
+
 # Update notification
 msgid "net.32ba.lattice-deformation-tool.localization.update-available"
 msgstr "A new version is available"

@@ -21,6 +21,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SerializedProperty _recalcBoneWeightsProp;
         private SerializedProperty _weightTransferSettingsProp;
 
+        private string _migrationMessage;
+        private MessageType _migrationMessageType;
+
         private static bool s_showOptions = false;
         private static bool s_showWeightTransferSettings = false;
 
@@ -49,6 +52,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             AutoAssignLocalRendererReferences();
             serializedObject.Update();
+
+            DrawLegacyMigration();
+            EditorGUILayout.Space();
 
             bool hasSkinnedAssigned = _skinnedRendererProp != null && !_skinnedRendererProp.hasMultipleDifferentValues && _skinnedRendererProp.objectReferenceValue != null;
             bool hasMeshAssigned = _meshFilterProp != null && !_meshFilterProp.hasMultipleDifferentValues && _meshFilterProp.objectReferenceValue != null;
@@ -140,6 +146,51 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 ToolManager.SetActiveTool<MeshDeformerTool>();
                 LatticePreviewUtility.RequestSceneRepaint();
+            }
+        }
+
+        private void DrawLegacyMigration()
+        {
+            EditorGUILayout.HelpBox(
+                LatticeLocalization.Tr(LocKey.LegacyBrushMigrationWarning),
+                MessageType.Warning);
+
+            if (GUILayout.Button(LatticeLocalization.Content(LocKey.MigrateLegacyBrush)))
+            {
+                bool succeeded = true;
+                string failure = null;
+                foreach (var instance in EnumerateTargets())
+                {
+                    if (LegacyBrushDeformerMigration.TryMigrate(instance, out _, out var error))
+                    {
+                        continue;
+                    }
+
+                    succeeded = false;
+                    failure = $"{instance.name}: {error}";
+                    break;
+                }
+
+                if (succeeded)
+                {
+                    _migrationMessage = LatticeLocalization.Tr(LocKey.LegacyBrushMigrationSucceeded);
+                    _migrationMessageType = MessageType.Info;
+                }
+                else
+                {
+                    _migrationMessage = string.Format(
+                        LatticeLocalization.Tr(LocKey.LegacyBrushMigrationFailed),
+                        failure ?? "Unknown error");
+                    _migrationMessageType = MessageType.Error;
+                }
+
+                serializedObject.UpdateIfRequiredOrScript();
+                Repaint();
+            }
+
+            if (!string.IsNullOrEmpty(_migrationMessage))
+            {
+                EditorGUILayout.HelpBox(_migrationMessage, _migrationMessageType);
             }
         }
 
