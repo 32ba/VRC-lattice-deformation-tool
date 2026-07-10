@@ -976,6 +976,9 @@ msgstr "Offset"
 msgid "net.32ba.lattice-deformation-tool.localization.offset.tooltip"
 msgstr "Nudge the cage display position (visual only, doesn't affect deformation)."
 
+msgid "net.32ba.lattice-deformation-tool.localization.offset-tooltip"
+msgstr "Offset applied directly in proxy-local space before automatic centering and clamping"
+
 msgid "net.32ba.lattice-deformation-tool.localization.debug-log-alignment"
 msgstr "(Debug) Log Preview Alignment to Console"
 

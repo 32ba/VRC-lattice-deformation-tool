@@ -976,6 +976,9 @@ msgstr "オフセット"
 msgid "net.32ba.lattice-deformation-tool.localization.offset.tooltip"
 msgstr "ケージの表示位置を微調整（表示のみ、変形には影響なし）。"
 
+msgid "net.32ba.lattice-deformation-tool.localization.offset-tooltip"
+msgstr "自動センタリングとクランプの前にプロキシのローカル空間へ直接適用するオフセット"
+
 msgid "net.32ba.lattice-deformation-tool.localization.debug-log-alignment"
 msgstr "(Debug) プレビューアラインをコンソールにログ出力"
 

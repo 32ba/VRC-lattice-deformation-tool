@@ -236,6 +236,87 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeLocalization_AllCatalogsContainLegacyBrushMigrationMessages()
+        {
+            var method = typeof(LatticeLocalization).GetMethod(
+                "EnsureCatalogLoaded",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null);
+
+            string[] keys =
+            {
+                LocKey.LegacyBrushMigrationWarning,
+                LocKey.MigrateLegacyBrush,
+                LocKey.LegacyBrushMigrationSucceeded,
+                LocKey.LegacyBrushMigrationFailed
+            };
+
+            foreach (LatticeLocalization.Language language in Enum.GetValues(typeof(LatticeLocalization.Language)))
+            {
+                var catalog = method.Invoke(null, new object[] { language, true })
+                    as IReadOnlyDictionary<string, string>;
+
+                Assert.That(catalog, Is.Not.Null, language.ToString());
+                foreach (string key in keys)
+                {
+                    Assert.That(catalog.ContainsKey(key), Is.True, $"{language}: {key}");
+                    Assert.That(catalog[key], Is.Not.Null.And.Not.Empty, $"{language}: {key}");
+                    Assert.That(catalog.ContainsKey(key + ".tooltip"), Is.True, $"{language}: {key}.tooltip");
+                    Assert.That(
+                        catalog[key + ".tooltip"],
+                        Is.Not.Null.And.Not.Empty,
+                        $"{language}: {key}.tooltip");
+                }
+
+                Assert.That(
+                    catalog[LocKey.LegacyBrushMigrationFailed],
+                    Does.Contain("{0}"),
+                    $"{language}: failure reason placeholder");
+            }
+        }
+
+        [Test]
+        public void LatticeLocalization_AllPoFilesDeclareIdenticalMessageIds()
+        {
+            string[] relativePaths =
+            {
+                "Editor/Localization/en.po",
+                "Editor/Localization/ja.po",
+                "Editor/Localization/ko.po",
+                "Editor/Localization/zh-Hans.po",
+                "Editor/Localization/zh-Hant.po"
+            };
+
+            var keySets = relativePaths.ToDictionary(
+                relativePath => relativePath,
+                relativePath =>
+                {
+                    string absolutePath = InvokeLocalizationPrivate<string>(
+                        "ResolveCatalogPath",
+                        relativePath);
+                    Assert.That(absolutePath, Is.Not.Null.And.Not.Empty, relativePath);
+                    Assert.That(File.Exists(absolutePath), Is.True, relativePath);
+                    return LatticeLocalization.ParsePo(File.ReadAllLines(absolutePath))
+                        .Keys
+                        .ToHashSet(StringComparer.Ordinal);
+                });
+
+            var baseline = keySets[relativePaths[0]];
+            foreach (string relativePath in relativePaths.Skip(1))
+            {
+                var current = keySets[relativePath];
+                Assert.That(
+                    baseline.Except(current).OrderBy(key => key),
+                    Is.Empty,
+                    $"{relativePath} is missing msgid values declared by {relativePaths[0]}");
+                Assert.That(
+                    current.Except(baseline).OrderBy(key => key),
+                    Is.Empty,
+                    $"{relativePath} declares msgid values missing from {relativePaths[0]}");
+            }
+        }
+
+        [Test]
         public void LatticeLocalization_PrivateLoadCatalog_HandlesMissingAndInvalidRoot()
         {
             var root = Path.Combine(Path.GetTempPath(), "lattice-localization-missing-" + Guid.NewGuid().ToString("N"));
