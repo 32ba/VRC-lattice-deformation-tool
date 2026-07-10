@@ -389,6 +389,10 @@ namespace Net._32Ba.LatticeDeformationTool
 
         internal List<LatticeLayer> SerializedLayers => _layers;
 
+        internal int SerializedActiveLayerIndex => _activeLayerIndex;
+
+        internal void SetSerializedActiveLayerIndex(int value) => _activeLayerIndex = value;
+
         internal bool HasMalformedSerializedMetadata =>
             _blendShapeOutput != BlendShapeOutputMode.Disabled &&
             _blendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape;
@@ -538,6 +542,18 @@ namespace Net._32Ba.LatticeDeformationTool
                 Name = name;
                 Curve = curve ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
                 Deltas = deltas;
+            }
+        }
+
+        private readonly struct GroupSelectionSnapshot
+        {
+            public readonly DeformerGroup Group;
+            public readonly int ActiveLayerIndex;
+
+            public GroupSelectionSnapshot(DeformerGroup group, int activeLayerIndex)
+            {
+                Group = group;
+                ActiveLayerIndex = activeLayerIndex;
             }
         }
 
@@ -952,8 +968,11 @@ namespace Net._32Ba.LatticeDeformationTool
             if (index < 0 || index >= layers.Count || layers.Count <= 1)
                 return false;
 
+            // Capture the raw selection before shrinking the list. The public getter
+            // clamps against the current count, so reading it after RemoveAt would hide
+            // a just-removed last index and leave the serialized value dangling.
+            int active = group.SerializedActiveLayerIndex;
             layers.RemoveAt(index);
-            int active = group.ActiveLayerIndex;
             if (active == index)
                 group.ActiveLayerIndex = Mathf.Min(index, layers.Count - 1);
             else if (active > index)
@@ -1949,18 +1968,14 @@ namespace Net._32Ba.LatticeDeformationTool
                 case DeformationDataVersion.V1_2_1:
                     return TryUpgradeV1_2_1ToV1_3_0();
                 case DeformationDataVersion.V1_3_0:
-                    return CommitReleaseVersion(DeformationDataVersion.V1_3_1);
+                    return TryNormalizePublishedGroupSelectionAndCommit(
+                        DeformationDataVersion.V1_3_1);
                 case DeformationDataVersion.V1_3_1:
-                    return CommitReleaseVersion(DeformationDataVersion.V1_4_0);
+                    return TryNormalizePublishedGroupSelectionAndCommit(
+                        DeformationDataVersion.V1_4_0);
 
                 case DeformationDataVersion.V1_4_0:
-                    NormalizeAuthoritativeGroupShapeVersion();
-                    if (ShouldPreserveHistoricalGroupBlendShapeSemantics())
-                    {
-                        _legacyPublishedBlendShapeSemantics = true;
-                    }
-                    _legacyAbsoluteLatticeEvaluation = HasMeaningfulSerializedLatticeData();
-                    return CommitReleaseVersion(DeformationDataVersion.CurrentDevelopment);
+                    return TryUpgradeV1_4_0ToCurrent();
 
                 default:
                     _migrationStatus = DeformationDataMigrationStatus.InvalidData;
@@ -2125,6 +2140,7 @@ namespace Net._32Ba.LatticeDeformationTool
             DeformationDataVersion originalVersion = _deformationDataVersion;
             DeformationDataVersion originalSourceVersion = _deformationDataSourceVersion;
             bool originalPublishedBlendShapeSemantics = _legacyPublishedBlendShapeSemantics;
+            List<GroupSelectionSnapshot> selectionSnapshots = null;
 
             try
             {
@@ -2168,6 +2184,8 @@ namespace Net._32Ba.LatticeDeformationTool
 
                 _groups = migratedGroups;
                 _layers = new List<LatticeLayer>();
+                // The recovery group owns the preserved flat selection from this point.
+                _activeLayerIndex = 0;
                 _layerModelVersion = k_CurrentLayerModelVersion;
                 // Existing groups are authoritative; keep the user's selected group.
                 _activeGroupIndex = originalActiveGroup;
@@ -2180,6 +2198,8 @@ namespace Net._32Ba.LatticeDeformationTool
                 {
                     throw new InvalidOperationException("The active 1.2.1 group index is invalid.");
                 }
+
+                selectionSnapshots = CanonicalizePublishedRemoveLastSelections();
 
                 if (!CommitReleaseVersion(DeformationDataVersion.V1_3_0))
                 {
@@ -2198,9 +2218,130 @@ namespace Net._32Ba.LatticeDeformationTool
                 _deformationDataVersion = originalVersion;
                 _deformationDataSourceVersion = originalSourceVersion;
                 _legacyPublishedBlendShapeSemantics = originalPublishedBlendShapeSemantics;
+                RestoreGroupSelections(selectionSnapshots);
                 _migrationStatus = DeformationDataMigrationStatus.InvalidData;
                 return false;
             }
+        }
+
+        private bool TryNormalizePublishedGroupSelectionAndCommit(DeformationDataVersion next)
+        {
+            DeformationDataVersion originalVersion = _deformationDataVersion;
+            DeformationDataVersion originalSourceVersion = _deformationDataSourceVersion;
+            List<GroupSelectionSnapshot> selectionSnapshots = null;
+            try
+            {
+                selectionSnapshots = CanonicalizePublishedRemoveLastSelections();
+                if (!CommitReleaseVersion(next))
+                {
+                    RestoreGroupSelections(selectionSnapshots);
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception)
+            {
+                RestoreGroupSelections(selectionSnapshots);
+                _deformationDataVersion = originalVersion;
+                _deformationDataSourceVersion = originalSourceVersion;
+                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
+                return false;
+            }
+        }
+
+        private bool TryUpgradeV1_4_0ToCurrent()
+        {
+            DeformationDataVersion originalVersion = _deformationDataVersion;
+            DeformationDataVersion originalSourceVersion = _deformationDataSourceVersion;
+            int originalLayerModelVersion = _layerModelVersion;
+            bool originalPublishedSemantics = _legacyPublishedBlendShapeSemantics;
+            bool originalAbsoluteEvaluation = _legacyAbsoluteLatticeEvaluation;
+            List<GroupSelectionSnapshot> selectionSnapshots = null;
+            try
+            {
+                NormalizeAuthoritativeGroupShapeVersion();
+                if (ShouldPreserveHistoricalGroupBlendShapeSemantics())
+                {
+                    _legacyPublishedBlendShapeSemantics = true;
+                }
+                _legacyAbsoluteLatticeEvaluation = HasMeaningfulSerializedLatticeData();
+                selectionSnapshots = CanonicalizePublishedRemoveLastSelections();
+                if (!CommitReleaseVersion(DeformationDataVersion.CurrentDevelopment))
+                {
+                    throw new InvalidOperationException("Could not commit the 1.4.0→current migration boundary.");
+                }
+
+                return true;
+            }
+            catch (Exception)
+            {
+                RestoreGroupSelections(selectionSnapshots);
+                _deformationDataVersion = originalVersion;
+                _deformationDataSourceVersion = originalSourceVersion;
+                _layerModelVersion = originalLayerModelVersion;
+                _legacyPublishedBlendShapeSemantics = originalPublishedSemantics;
+                _legacyAbsoluteLatticeEvaluation = originalAbsoluteEvaluation;
+                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Releases 1.2.1 through 1.4.0 read ActiveLayerIndex only after removing a
+        /// layer. Removing the selected last layer therefore serialized exactly one past
+        /// the new Count. That exact, tag-proven pattern is recoverable without guessing;
+        /// every other out-of-range value remains invalid.
+        /// </summary>
+        private List<GroupSelectionSnapshot> CanonicalizePublishedRemoveLastSelections()
+        {
+            var snapshots = new List<GroupSelectionSnapshot>();
+            if (!CanContainPublishedRemoveLastSelectionBug() || _groups == null)
+            {
+                return snapshots;
+            }
+
+            for (int groupIndex = 0; groupIndex < _groups.Count; groupIndex++)
+            {
+                var group = _groups[groupIndex];
+                var layers = group?.SerializedLayers;
+                if (layers == null || layers.Count == 0 ||
+                    group.SerializedActiveLayerIndex != layers.Count)
+                {
+                    continue;
+                }
+
+                snapshots.Add(new GroupSelectionSnapshot(group, group.SerializedActiveLayerIndex));
+            }
+
+            for (int index = 0; index < snapshots.Count; index++)
+            {
+                var snapshot = snapshots[index];
+                snapshot.Group.SetSerializedActiveLayerIndex(snapshot.ActiveLayerIndex - 1);
+            }
+
+            return snapshots;
+        }
+
+        private static void RestoreGroupSelections(List<GroupSelectionSnapshot> snapshots)
+        {
+            if (snapshots == null) return;
+            for (int index = snapshots.Count - 1; index >= 0; index--)
+            {
+                var snapshot = snapshots[index];
+                snapshot.Group?.SetSerializedActiveLayerIndex(snapshot.ActiveLayerIndex);
+            }
+        }
+
+        private bool CanContainPublishedRemoveLastSelectionBug()
+        {
+            if (_deformationDataVersion == DeformationDataVersion.Unversioned)
+            {
+                return HasNonNullGroups(_groups);
+            }
+
+            return _deformationDataVersion >= DeformationDataVersion.V1_2_1 &&
+                   _deformationDataVersion <= DeformationDataVersion.V1_4_0;
         }
 
         private bool ShouldPreserveHistoricalGroupBlendShapeSemantics()
@@ -2400,6 +2541,11 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private bool HasMalformedLatticeAsset()
         {
+            if (HasMalformedSerializedSelection())
+            {
+                return true;
+            }
+
             if (_blendShapeOutput != BlendShapeOutputMode.Disabled &&
                 _blendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape)
             {
@@ -2450,6 +2596,126 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Validates raw selection indices before any migration or model-normalization
+        /// code can clamp them. Active selection is serialized user data: silently
+        /// choosing another group/layer would make a corrupt payload appear to migrate
+        /// successfully while changing which deformation the Inspector edits.
+        /// </summary>
+        private bool HasMalformedSerializedSelection()
+        {
+            // Missing fields from old YAML retain these field-initializer lists. A
+            // runtime null therefore represents an explicit/corrupt payload, and the
+            // normalization paths below must not replace it with a guessed empty list.
+            if (_groups == null || _layers == null)
+            {
+                return true;
+            }
+
+            if (_groups.Count == 0)
+            {
+                if (_activeGroupIndex != 0)
+                {
+                    return true;
+                }
+            }
+            else
+            {
+                if (_activeGroupIndex < 0 || _activeGroupIndex >= _groups.Count)
+                {
+                    return true;
+                }
+
+                for (int groupIndex = 0; groupIndex < _groups.Count; groupIndex++)
+                {
+                    var group = _groups[groupIndex];
+                    // Group-schema releases never assigned semantics to a null inline
+                    // entry. Dropping it or replacing it with a default group would be
+                    // a guessed repair, even when that entry is not currently selected.
+                    if (group == null)
+                    {
+                        return true;
+                    }
+
+                    var layers = group.SerializedLayers;
+                    int activeLayer = group.SerializedActiveLayerIndex;
+                    if (layers == null)
+                    {
+                        return true;
+                    }
+
+                    if (layers.Count == 0)
+                    {
+                        if (activeLayer != 0)
+                        {
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        bool knownPublishedRemoveLastPattern =
+                            CanContainPublishedRemoveLastSelectionBug() &&
+                            activeLayer == layers.Count;
+                        if (activeLayer < 0 ||
+                            (activeLayer >= layers.Count && !knownPublishedRemoveLastPattern))
+                        {
+                            return true;
+                        }
+
+                        // As with groups, every inline layer slot must carry an actual
+                        // payload. EnsureGroupsCore must not silently manufacture a
+                        // neutral layer in place of corrupted serialized data.
+                        for (int layerIndex = 0; layerIndex < layers.Count; layerIndex++)
+                        {
+                            if (layers[layerIndex] == null)
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (_layers.Count == 0)
+            {
+                // Published group initialization could leave the obsolete component
+                // facade index behind after moving its selected flat layer into a
+                // DeformerGroup. It has no target once the flat list is empty; preserve
+                // it through classification, then canonicalize it at the structural
+                // 1.2.1→1.3.0 boundary. Later/current payloads must already be canonical.
+                bool awaitingPublishedGroupNormalization = _groups.Count > 0 &&
+                    (_deformationDataVersion == DeformationDataVersion.Unversioned ||
+                     _deformationDataVersion == DeformationDataVersion.V1_2_0 ||
+                     _deformationDataVersion == DeformationDataVersion.V1_2_1);
+                if (awaitingPublishedGroupNormalization)
+                {
+                    return false;
+                }
+
+                // The single-settings schema used both the default zero and -1 as the
+                // base-lattice selection sentinel before a flat list existed.
+                return _activeLayerIndex < -1 || _activeLayerIndex > 0;
+            }
+
+            // A conceptual-v2 flat payload could historically contain null holes; the
+            // immutable staged migration contract deterministically filters those while
+            // remapping a non-null active layer. Once authoritative groups exist, the
+            // same null is corruption in the stale backup and must fail closed.
+            if (_groups != null && _groups.Count > 0)
+            {
+                for (int layerIndex = 0; layerIndex < _layers.Count; layerIndex++)
+                {
+                    if (_layers[layerIndex] == null)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return _activeLayerIndex < 0 || _activeLayerIndex >= _layers.Count ||
+                   _layers[_activeLayerIndex] == null;
         }
 
         /// <summary>
@@ -3199,6 +3465,10 @@ namespace Net._32Ba.LatticeDeformationTool
             _groups = migratedGroups;
             _activeGroupIndex = migratedGroups.Count - 1;
             _layers = new List<LatticeLayer>();
+            // The selected flat layer now lives in the migrated group. Keep the raw
+            // facade index canonical so subsequent fail-closed preflights do not treat
+            // an otherwise successful migration as a dangling selection.
+            _activeLayerIndex = 0;
             _layerModelVersion = k_CurrentLayerModelVersion;
 
             InvalidateCache();

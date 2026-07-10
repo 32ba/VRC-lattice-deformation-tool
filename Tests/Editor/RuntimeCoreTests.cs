@@ -1200,9 +1200,17 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     .SetValue(deformer, null);
                 deformer.InvalidateCache();
 
-                typeof(LatticeDeformer)
-                    .GetField("_groups", BindingFlags.Instance | BindingFlags.NonPublic)
-                    .SetValue(deformer, null);
+                var groupsField = typeof(LatticeDeformer)
+                    .GetField("_groups", BindingFlags.Instance | BindingFlags.NonPublic);
+                groupsField.SetValue(deformer, null);
+                InvokePrivate(deformer, "EnsureLayers");
+                Assert.That(deformer.GroupCount, Is.Zero);
+                Assert.That(deformer.MigrationStatus,
+                    Is.EqualTo(DeformationDataMigrationStatus.InvalidData));
+                Assert.That(groupsField.GetValue(deformer), Is.Null,
+                    "A malformed explicit-null payload must remain untouched.");
+
+                groupsField.SetValue(deformer, new List<DeformerGroup>());
                 InvokePrivate(deformer, "EnsureLayers");
                 Assert.That(deformer.GroupCount, Is.GreaterThan(0));
 
