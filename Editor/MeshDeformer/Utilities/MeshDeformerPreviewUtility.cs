@@ -13,7 +13,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         private const string k_PreviewAlignedKey = "Net32Ba.LatticeDeformer.UsePreviewAlignedCage";
         private const string k_DebugAlignKey = "Net32Ba.LatticeDeformer.DebugAlignLogs";
-        private static readonly Dictionary<Renderer, Renderer> s_latestProxyMap = new();
+        private static readonly Dictionary<Renderer, ProxyRegistration> s_latestProxyMap = new();
+        private static long s_nextProxyRegistrationGeneration;
+
+        private readonly struct ProxyRegistration
+        {
+            internal readonly Renderer Proxy;
+            internal readonly long Generation;
+            internal readonly Mesh RestorationMesh;
+
+            internal ProxyRegistration(Renderer proxy, long generation, Mesh restorationMesh)
+            {
+                Proxy = proxy;
+                Generation = generation;
+                RestorationMesh = restorationMesh;
+            }
+        }
 
         /// <summary>
         /// Determines whether the runtime mesh should be assigned back to the renderer.
@@ -202,14 +217,44 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             SceneView.RepaintAll();
         }
 
-        internal static void RegisterProxy(Renderer original, Renderer proxy)
+        internal static long RegisterProxy(Renderer original, Renderer proxy)
         {
+            return RegisterProxy(original, proxy, null, out _);
+        }
+
+        internal static long RegisterProxy(
+            Renderer original,
+            Renderer proxy,
+            Mesh observedProxyMesh,
+            out Mesh restorationMesh)
+        {
+            restorationMesh = observedProxyMesh;
             if (original == null || proxy == null)
             {
-                return;
+                return 0;
             }
 
-            s_latestProxyMap[original] = proxy;
+            if (s_latestProxyMap.TryGetValue(original, out var previous) &&
+                object.ReferenceEquals(previous.Proxy, proxy))
+            {
+                // NDMF may instantiate the replacement node before disposing the old
+                // one, reusing the same proxy renderer. Preserve the first upstream
+                // mesh instead of treating the old preview mesh as upstream input.
+                restorationMesh = previous.RestorationMesh;
+            }
+
+            long generation;
+            unchecked
+            {
+                generation = ++s_nextProxyRegistrationGeneration;
+                if (generation == 0)
+                {
+                    generation = ++s_nextProxyRegistrationGeneration;
+                }
+            }
+
+            s_latestProxyMap[original] = new ProxyRegistration(proxy, generation, restorationMesh);
+            return generation;
         }
 
         internal static void ClearProxy(Renderer original)
@@ -224,6 +269,43 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             s_latestProxyMap.Remove(original);
         }
 
+        /// <summary>
+        /// Removes a proxy registration only when it is still owned by the caller that
+        /// created <paramref name="generation"/>. Preview nodes can overlap briefly while
+        /// NDMF replaces them; an older node must not clear the newer node's registration.
+        /// </summary>
+        internal static bool ClearProxy(Renderer original, Renderer proxy, long generation)
+        {
+            if (object.ReferenceEquals(original, null) || generation == 0 ||
+                !s_latestProxyMap.TryGetValue(original, out var registration) ||
+                registration.Generation != generation ||
+                !object.ReferenceEquals(registration.Proxy, proxy))
+            {
+                return false;
+            }
+
+            return s_latestProxyMap.Remove(original);
+        }
+
+        internal static bool IsCurrentProxyRegistration(
+            Renderer original,
+            Renderer proxy,
+            long generation)
+        {
+            return !object.ReferenceEquals(original, null) &&
+                   generation != 0 &&
+                   s_latestProxyMap.TryGetValue(original, out var registration) &&
+                   registration.Generation == generation &&
+                   object.ReferenceEquals(registration.Proxy, proxy);
+        }
+
+        internal static bool IsProxyRegistered(Renderer original, Renderer proxy)
+        {
+            return !object.ReferenceEquals(original, null) &&
+                   s_latestProxyMap.TryGetValue(original, out var registration) &&
+                   object.ReferenceEquals(registration.Proxy, proxy);
+        }
+
         internal static void LogAlign(string tag, string msg)
         {
             if (!DebugAlignLogs) return;
@@ -232,7 +314,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static bool TryGetRegisteredProxy(Renderer original, out Renderer proxy)
         {
-            return s_latestProxyMap.TryGetValue(original, out proxy);
+            proxy = null;
+            if (object.ReferenceEquals(original, null) ||
+                !s_latestProxyMap.TryGetValue(original, out var registration))
+            {
+                return false;
+            }
+
+            proxy = registration.Proxy;
+            if (proxy != null)
+            {
+                return true;
+            }
+
+            // Do not retain entries whose proxy was destroyed without a normal node
+            // disposal callback.
+            s_latestProxyMap.Remove(original);
+            proxy = null;
+            return false;
         }
 
         internal static bool HasRegisteredProxy(Renderer original)

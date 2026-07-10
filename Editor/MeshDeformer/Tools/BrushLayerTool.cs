@@ -412,11 +412,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal void OnToolGUI(EditorWindow window, LatticeDeformer deformer)
         {
             UnityEngine.Profiling.Profiler.BeginSample("BrushTool.OnToolGUI");
-            if (Event.current != null && Event.current.commandName == "UndoRedoPerformed")
+            try
             {
-                UnityEngine.Profiling.Profiler.EndSample();
-                return;
-            }
+                if (Event.current != null && Event.current.commandName == "UndoRedoPerformed")
+                {
+                    return;
+                }
 
             if (deformer.ActiveLayerType != MeshDeformerLayerType.Brush)
             {
@@ -561,30 +562,35 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 // The raycast hit point is where the user sees the mesh (post-skinning),
                 // so we draw there. The radius is in mesh-local space, so scale it to world.
                 var prevMatrix = Handles.matrix;
-                Handles.matrix = Matrix4x4.identity;
-
-                // s_brushRadius is in world-space units — draw directly
-                Color brushColor = GetBrushColor();
-                Handles.color = brushColor;
-                Handles.DrawWireDisc(hit.point, hit.normal, s_brushRadius);
-                Color fillColor = brushColor;
-                fillColor.a = 0.1f;
-                Handles.color = fillColor;
-                Handles.DrawSolidDisc(hit.point, hit.normal, s_brushRadius);
-
-                // Draw affected vertex dots within brush radius
-                if (s_showAffectedVertices && _meshVertices != null)
+                try
                 {
-                    // Update geodesic cache for preview visualization during hover
-                    if (s_useSurfaceDistance)
+                    Handles.matrix = Matrix4x4.identity;
+
+                    // s_brushRadius is in world-space units — draw directly
+                    Color brushColor = GetBrushColor();
+                    Handles.color = brushColor;
+                    Handles.DrawWireDisc(hit.point, hit.normal, s_brushRadius);
+                    Color fillColor = brushColor;
+                    fillColor.a = 0.1f;
+                    Handles.color = fillColor;
+                    Handles.DrawSolidDisc(hit.point, hit.normal, s_brushRadius);
+
+                    // Draw affected vertex dots within brush radius
+                    if (s_showAffectedVertices && _meshVertices != null)
                     {
-                        UpdateGeodesicDistanceCache(localHitPoint);
+                        // Update geodesic cache for preview visualization during hover
+                        if (s_useSurfaceDistance)
+                        {
+                            UpdateGeodesicDistanceCache(localHitPoint);
+                        }
+
+                        DrawAffectedVertices(deformer, localHitPoint, meshTransform);
                     }
-
-                    DrawAffectedVertices(deformer, localHitPoint, meshTransform);
                 }
-
-                Handles.matrix = prevMatrix;
+                finally
+                {
+                    Handles.matrix = prevMatrix;
+                }
 
                 // Handle brush painting on left mouse drag
                 if (evt.type == EventType.MouseDrag && evt.button == 0 && !evt.alt && _isStrokeActive)
@@ -643,7 +649,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
             }
-            UnityEngine.Profiling.Profiler.EndSample();
+            }
+            finally
+            {
+                UnityEngine.Profiling.Profiler.EndSample();
+            }
         }
 
         private void ApplyBrush(LatticeDeformer deformer, Transform meshTransform, Vector3 localHitPoint, Vector3 localHitNormal, Event evt)
@@ -1268,15 +1278,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _cachedMesh = mesh;
             InvalidatePenetrationCache();
             _meshVertices = mesh.vertices;
-            _meshNormals = mesh.normals;
             _meshTriangles = mesh.triangles;
+            _meshNormals = MeshNormalUtility.GetOrCalculateNormals(
+                mesh,
+                _meshVertices,
+                _meshTriangles);
             _adjacency = null;
-
-            if (_meshNormals == null || _meshNormals.Length != _meshVertices.Length)
-            {
-                mesh.RecalculateNormals();
-                _meshNormals = mesh.normals;
-            }
 
             RefreshWorldPositions(deformer);
         }
@@ -1331,8 +1338,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static Material s_brushDotMaterial;
         private static Texture2D s_brushCircleTex;
 
-        private static void BeginBatchedDotDraw()
+        private static void BeginBatchedDotDraw(
+            out bool matrixPushed,
+            out bool drawingQuads)
         {
+            matrixPushed = false;
+            drawingQuads = false;
             if (s_brushCircleTex == null)
             {
                 const int size = 32;
@@ -1365,14 +1376,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             s_brushDotMaterial.SetPass(0);
             GL.PushMatrix();
+            matrixPushed = true;
             GL.MultMatrix(Matrix4x4.identity);
             GL.Begin(GL.QUADS);
+            drawingQuads = true;
         }
 
-        private static void EndBatchedDotDraw()
+        private static void EndBatchedDotDraw(bool matrixPushed, bool drawingQuads)
         {
-            GL.End();
-            GL.PopMatrix();
+            try
+            {
+                if (drawingQuads) GL.End();
+            }
+            finally
+            {
+                if (matrixPushed) GL.PopMatrix();
+            }
         }
 
         private static void DrawBatchedDot(Vector3 worldPos, Color col, float radius, Vector3 camRight, Vector3 camUp)
@@ -1401,40 +1420,48 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var camUp = cam.transform.up;
             float baseSize = HandleUtility.GetHandleSize(meshTransform.position) * 0.004f;
 
-            BeginBatchedDotDraw();
-            for (int i = 0; i < vertexCount; i++)
+            bool matrixPushed = false;
+            bool drawingQuads = false;
+            try
             {
-                if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
-                    continue;
-
-                var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
-
-                float falloff;
-                if (s_useSurfaceDistance && _geodesicDistanceCache != null)
+                BeginBatchedDotDraw(out matrixPushed, out drawingQuads);
+                for (int i = 0; i < vertexCount; i++)
                 {
-                    if (!_geodesicDistanceCache.TryGetValue(i, out float geodesicDist))
+                    if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
                         continue;
-                    float t = geodesicDist / localRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
-                else
-                {
-                    float distSq = (vertex - localHitPoint).sqrMagnitude;
-                    if (distSq > radiusSq) continue;
-                    float dist = Mathf.Sqrt(distSq);
-                    float t = dist / localRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
 
-                if (falloff < 0.01f) continue;
+                    var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
 
-                var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
-                Color dotColor = HeatmapColor(falloff);
-                dotColor.a = 0.4f + 0.5f * falloff;
-                float dotSize = Mathf.Lerp(s_vertexDotSize * 0.6f, s_vertexDotSize * 1.4f, falloff);
-                DrawBatchedDot(worldPos, dotColor, baseSize * dotSize, camRight, camUp);
+                    float falloff;
+                    if (s_useSurfaceDistance && _geodesicDistanceCache != null)
+                    {
+                        if (!_geodesicDistanceCache.TryGetValue(i, out float geodesicDist))
+                            continue;
+                        float t = geodesicDist / localRadius;
+                        falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                    }
+                    else
+                    {
+                        float distSq = (vertex - localHitPoint).sqrMagnitude;
+                        if (distSq > radiusSq) continue;
+                        float dist = Mathf.Sqrt(distSq);
+                        float t = dist / localRadius;
+                        falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                    }
+
+                    if (falloff < 0.01f) continue;
+
+                    var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
+                    Color dotColor = HeatmapColor(falloff);
+                    dotColor.a = 0.4f + 0.5f * falloff;
+                    float dotSize = Mathf.Lerp(s_vertexDotSize * 0.6f, s_vertexDotSize * 1.4f, falloff);
+                    DrawBatchedDot(worldPos, dotColor, baseSize * dotSize, camRight, camUp);
+                }
             }
-            EndBatchedDotDraw();
+            finally
+            {
+                EndBatchedDotDraw(matrixPushed, drawingQuads);
+            }
         }
 
         private void DrawDisplacementHeatmap(LatticeDeformer deformer, Transform meshTransform)
@@ -1464,23 +1491,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var camUp = cam.transform.up;
             float baseSize = HandleUtility.GetHandleSize(meshTransform.position) * 0.003f;
 
-            BeginBatchedDotDraw();
-            for (int i = 0; i < vertexCount; i++)
+            bool matrixPushed = false;
+            bool drawingQuads = false;
+            try
             {
-                float mag = displacements[i].magnitude;
-                if (mag < 1e-6f) continue;
+                BeginBatchedDotDraw(out matrixPushed, out drawingQuads);
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    float mag = displacements[i].magnitude;
+                    if (mag < 1e-6f) continue;
 
-                float normalized = Mathf.Clamp01(mag / maxMag);
-                var vertex = _meshVertices[i] + displacements[i];
-                var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
+                    float normalized = Mathf.Clamp01(mag / maxMag);
+                    var vertex = _meshVertices[i] + displacements[i];
+                    var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
 
-                Color heatColor = HeatmapColor(normalized);
-                heatColor.a = 0.3f + 0.6f * normalized;
+                    Color heatColor = HeatmapColor(normalized);
+                    heatColor.a = 0.3f + 0.6f * normalized;
 
-                float dotRadius = baseSize * (1f + normalized * 2f);
-                DrawBatchedDot(worldPos, heatColor, dotRadius, camRight, camUp);
+                    float dotRadius = baseSize * (1f + normalized * 2f);
+                    DrawBatchedDot(worldPos, heatColor, dotRadius, camRight, camUp);
+                }
             }
-            EndBatchedDotDraw();
+            finally
+            {
+                EndBatchedDotDraw(matrixPushed, drawingQuads);
+            }
         }
 
         private static Color HeatmapColor(float t)
@@ -1512,22 +1547,30 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var camUp = cam.transform.up;
             float baseSize = HandleUtility.GetHandleSize(meshTransform.position) * 0.004f;
 
-            BeginBatchedDotDraw();
-            for (int i = 0; i < vertexCount; i++)
+            bool matrixPushed = false;
+            bool drawingQuads = false;
+            try
             {
-                float maskValue = mask[i];
-                if (maskValue > 1f - 1e-6f) continue; // Fully editable, skip
+                BeginBatchedDotDraw(out matrixPushed, out drawingQuads);
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    float maskValue = mask[i];
+                    if (maskValue > 1f - 1e-6f) continue; // Fully editable, skip
 
-                var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
-                var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
+                    var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
+                    var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
 
-                // Red = protected (mask=0), Green = editable (mask=1)
-                float protection = 1f - maskValue;
-                Color dotColor = Color.Lerp(new Color(0.2f, 1f, 0.2f, 0.4f), new Color(1f, 0.2f, 0.2f, 0.8f), protection);
-                float dotRadius = baseSize * (1f + protection * 2f);
-                DrawBatchedDot(worldPos, dotColor, dotRadius, camRight, camUp);
+                    // Red = protected (mask=0), Green = editable (mask=1)
+                    float protection = 1f - maskValue;
+                    Color dotColor = Color.Lerp(new Color(0.2f, 1f, 0.2f, 0.4f), new Color(1f, 0.2f, 0.2f, 0.8f), protection);
+                    float dotRadius = baseSize * (1f + protection * 2f);
+                    DrawBatchedDot(worldPos, dotColor, dotRadius, camRight, camUp);
+                }
             }
-            EndBatchedDotDraw();
+            finally
+            {
+                EndBatchedDotDraw(matrixPushed, drawingQuads);
+            }
         }
 
         private void UpdatePenetrationDetection(LatticeDeformer deformer)

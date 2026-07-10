@@ -89,8 +89,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        internal static void RestoreProxyMesh(Renderer original, Renderer proxy, Mesh previousProxyMesh)
+        internal static void RestoreProxyMesh(
+            Renderer original,
+            Renderer proxy,
+            Mesh previousProxyMesh,
+            long registrationGeneration)
         {
+            // A replacement node may already own this original/proxy pair. In that
+            // case the older node must neither overwrite the replacement mesh nor
+            // remove the replacement's alignment registration.
+            bool ownsRegistration = LatticePreviewUtility.IsCurrentProxyRegistration(
+                original,
+                proxy,
+                registrationGeneration);
+            if (!ownsRegistration && LatticePreviewUtility.IsProxyRegistered(original, proxy))
+            {
+                // A newer node is using the same proxy renderer.
+                return;
+            }
+
             try
             {
                 if (proxy != null)
@@ -100,7 +117,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
             finally
             {
-                LatticePreviewUtility.ClearProxy(original);
+                LatticePreviewUtility.ClearProxy(original, proxy, registrationGeneration);
             }
         }
 
@@ -249,13 +266,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         continue;
                     }
 
-                    LatticePreviewUtility.RegisterProxy(original, proxy);
-
+                    var observedProxyMesh = GetRendererMesh(proxy);
+                    long registrationGeneration = LatticePreviewUtility.RegisterProxy(
+                        original,
+                        proxy,
+                        observedProxyMesh,
+                        out var restorationMesh);
                     var target = new Target
                     {
                         OriginalRenderer = original,
                         ProxyRenderer = proxy,
-                        PreviousProxyMesh = GetRendererMesh(proxy),
+                        PreviousProxyMesh = restorationMesh,
+                        RegistrationGeneration = registrationGeneration,
                     };
 
                     ApplyPreviewMesh(target);
@@ -296,7 +318,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     RestoreProxyMesh(
                         target.OriginalRenderer,
                         target.ProxyRenderer,
-                        target.PreviousProxyMesh);
+                        target.PreviousProxyMesh,
+                        target.RegistrationGeneration);
                 }
 
                 if (_previewMesh != null)
@@ -307,7 +330,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             private void ApplyPreviewMesh(Target target)
             {
-                if (target == null)
+                if (target == null ||
+                    !LatticePreviewUtility.IsCurrentProxyRegistration(
+                        target.OriginalRenderer,
+                        target.ProxyRenderer,
+                        target.RegistrationGeneration))
                 {
                     return;
                 }
@@ -371,13 +398,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     return null;
                 }
 
-                LatticePreviewUtility.RegisterProxy(original, proxy);
-
+                var observedProxyMesh = GetRendererMesh(proxy);
+                long registrationGeneration = LatticePreviewUtility.RegisterProxy(
+                    original,
+                    proxy,
+                    observedProxyMesh,
+                    out var restorationMesh);
                 var target = new Target
                 {
                     OriginalRenderer = original,
                     ProxyRenderer = proxy,
-                    PreviousProxyMesh = GetRendererMesh(proxy),
+                    PreviousProxyMesh = restorationMesh,
+                    RegistrationGeneration = registrationGeneration,
                 };
 
                 ApplyPreviewMesh(target);
@@ -391,6 +423,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             public Renderer OriginalRenderer;
             public Renderer ProxyRenderer;
             public Mesh PreviousProxyMesh;
+            public long RegistrationGeneration;
         }
 
         private static Mesh GeneratePreviewMesh(LatticeDeformer deformer)

@@ -42,6 +42,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private enum ActiveHandler { None, Lattice, Brush, VertexSelection }
         private ActiveHandler _currentHandler = ActiveHandler.None;
+        private LatticeDeformer _currentHandlerTarget;
+
+        internal static bool NeedsHandlerReactivation(
+            LatticeDeformer currentTarget,
+            LatticeDeformer nextTarget)
+        {
+            return !ReferenceEquals(currentTarget, nextTarget);
+        }
 
         public override GUIContent toolbarIcon
         {
@@ -83,7 +91,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
 
             var desired = DetermineHandler(deformer);
-            if (desired != _currentHandler)
+            if (desired != _currentHandler ||
+                NeedsHandlerReactivation(_currentHandlerTarget, deformer))
             {
                 DeactivateCurrentHandler();
                 ActivateHandler(desired, deformer);
@@ -117,6 +126,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void ActivateHandler(ActiveHandler handler, LatticeDeformer deformer)
         {
             _currentHandler = handler;
+            _currentHandlerTarget = deformer;
             switch (handler)
             {
                 case ActiveHandler.Lattice:
@@ -146,6 +156,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     break;
             }
             _currentHandler = ActiveHandler.None;
+            _currentHandlerTarget = null;
         }
     }
 

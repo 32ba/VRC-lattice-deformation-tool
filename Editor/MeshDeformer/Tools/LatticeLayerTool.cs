@@ -26,6 +26,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Antisymmetric = 2
         }
 
+        private readonly struct HandlesZTestScope : IDisposable
+        {
+            private readonly CompareFunction _previous;
+
+            internal HandlesZTestScope(CompareFunction value)
+            {
+                _previous = Handles.zTest;
+                Handles.zTest = value;
+            }
+
+            public void Dispose()
+            {
+                Handles.zTest = _previous;
+            }
+        }
+
         private static GUIContent s_icon;
         private static bool s_showIndices = false;
         private static bool s_includeInteriorControls = false;
@@ -391,8 +407,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
-            var previousZTest = Handles.zTest;
-            Handles.zTest = OccludeWithSceneGeometry ? CompareFunction.LessEqual : CompareFunction.Always;
+            using var zTestScope = new HandlesZTestScope(
+                OccludeWithSceneGeometry ? CompareFunction.LessEqual : CompareFunction.Always);
 
             if (MirrorEditing)
             {
@@ -636,7 +652,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
-            Handles.zTest = previousZTest;
         }
 
         private void OnUndoRedo()

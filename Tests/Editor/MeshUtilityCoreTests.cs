@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.Reflection;
 using Net._32Ba.LatticeDeformationTool;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
@@ -147,6 +148,109 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void MeshNormalUtility_CalculatesVisualizationNormalsWithoutMutatingSourceMesh()
+        {
+            var source = new Mesh
+            {
+                name = "Normals Must Remain Unserialized",
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            try
+            {
+                Assert.That(source.normals, Is.Empty);
+
+                var calculated = MeshNormalUtility.GetOrCalculateNormals(
+                    source,
+                    source.vertices,
+                    source.triangles);
+
+                Assert.That(calculated, Has.Length.EqualTo(3));
+                Assert.That(calculated[0], Is.EqualTo(Vector3.forward));
+                Assert.That(calculated[1], Is.EqualTo(Vector3.forward));
+                Assert.That(calculated[2], Is.EqualTo(Vector3.forward));
+                Assert.That(
+                    source.normals,
+                    Is.Empty,
+                    "Editor visualization must not call RecalculateNormals on the shared source asset.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
+        public void MeshDeformerTool_TargetChangeRequiresHandlerReactivation()
+        {
+            var first = new GameObject("first-handler-target");
+            var second = new GameObject("second-handler-target");
+            try
+            {
+                var firstDeformer = first.AddComponent<LatticeDeformer>();
+                var secondDeformer = second.AddComponent<LatticeDeformer>();
+
+                Assert.That(
+                    MeshDeformerTool.NeedsHandlerReactivation(firstDeformer, firstDeformer),
+                    Is.False);
+                Assert.That(
+                    MeshDeformerTool.NeedsHandlerReactivation(firstDeformer, secondDeformer),
+                    Is.True,
+                    "The same handler type still owns target-specific caches and gesture state.");
+                Assert.That(
+                    MeshDeformerTool.NeedsHandlerReactivation(null, firstDeformer),
+                    Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(first);
+                Object.DestroyImmediate(second);
+            }
+        }
+
+        [Test]
+        public void VertexSelectionHandler_TargetSwitchClearsInFlightGestureState()
+        {
+            var first = new GameObject("first-gesture-target");
+            var second = new GameObject("second-gesture-target");
+            var handler = new VertexSelectionHandler();
+            try
+            {
+                var firstDeformer = first.AddComponent<LatticeDeformer>();
+                var secondDeformer = second.AddComponent<LatticeDeformer>();
+
+                handler.Activate(firstDeformer);
+                SetHandlerField(handler, "_isDraggingSelection", true);
+                SetHandlerField(handler, "_selectionStartPos", new Vector2(41f, 73f));
+                SetHandlerField(handler, "_isTransforming", true);
+                SetHandlerField(handler, "_preTransformDisplacements", new[] { Vector3.one });
+                SetHandlerField(handler, "_preTransformPositions", new[] { Vector3.right });
+                SetHandlerField(handler, "_handleRotation", Quaternion.Euler(10f, 20f, 30f));
+                SetHandlerField(handler, "_handleScale", new Vector3(2f, 3f, 4f));
+
+                handler.Deactivate();
+                handler.Activate(secondDeformer);
+
+                Assert.That(GetHandlerField<bool>(handler, "_isDraggingSelection"), Is.False);
+                Assert.That(GetHandlerField<Vector2>(handler, "_selectionStartPos"), Is.EqualTo(Vector2.zero));
+                Assert.That(GetHandlerField<bool>(handler, "_isTransforming"), Is.False);
+                Assert.That(GetHandlerField<Vector3[]>(handler, "_preTransformDisplacements"), Is.Null);
+                Assert.That(GetHandlerField<Vector3[]>(handler, "_preTransformPositions"), Is.Null);
+                Assert.That(GetHandlerField<Quaternion>(handler, "_handleRotation"), Is.EqualTo(Quaternion.identity));
+                Assert.That(GetHandlerField<Vector3>(handler, "_handleScale"), Is.EqualTo(Vector3.one));
+                Assert.That(
+                    GetHandlerField<LatticeDeformer>(handler, "_activeDeformer"),
+                    Is.SameAs(secondDeformer));
+            }
+            finally
+            {
+                handler.Deactivate();
+                Object.DestroyImmediate(first);
+                Object.DestroyImmediate(second);
+            }
+        }
+
+        [Test]
         public void SkinnedVertexHelper_ReturnsNullForInvalidOrUnskinnedInputs()
         {
             Assert.That(SkinnedVertexHelper.ComputeWorldPositions(null, new[] { Vector3.zero }), Is.Null);
@@ -287,6 +391,24 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 boneIndex0 = 0,
                 weight0 = 1f
             };
+        }
+
+        private static void SetHandlerField<T>(VertexSelectionHandler handler, string name, T value)
+        {
+            var field = typeof(VertexSelectionHandler).GetField(
+                name,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null, name);
+            field.SetValue(handler, value);
+        }
+
+        private static T GetHandlerField<T>(VertexSelectionHandler handler, string name)
+        {
+            var field = typeof(VertexSelectionHandler).GetField(
+                name,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null, name);
+            return (T)field.GetValue(handler);
         }
     }
 }
