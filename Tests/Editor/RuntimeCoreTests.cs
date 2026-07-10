@@ -334,10 +334,103 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeAsset_CurrentSerializedVersion_PreservesIntentionalAllZeroControlPoints()
+        {
+            var asset = new LatticeAsset();
+            asset.EnsureInitialized();
+            for (int i = 0; i < asset.ControlPointCount; i++)
+            {
+                asset.SetControlPointLocal(i, Vector3.zero);
+            }
+
+            var versionField = typeof(LatticeAsset)
+                .GetField("_serializationVersion", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(versionField, Is.Not.Null);
+            int currentVersion = (int)versionField.GetValue(asset);
+            Assert.That(currentVersion, Is.GreaterThan(0), "New instances must start at the current serialized model version.");
+
+            ((ISerializationCallbackReceiver)asset).OnAfterDeserialize();
+
+            Assert.That((int)versionField.GetValue(asset), Is.EqualTo(currentVersion));
+            Assert.That(asset.ControlPointsLocal.ToArray(), Is.All.EqualTo(Vector3.zero));
+            Assert.That(asset.HasCustomizedControlPoints(), Is.True);
+
+            string json = JsonUtility.ToJson(asset);
+            var roundTrip = JsonUtility.FromJson<LatticeAsset>(json);
+            ((ISerializationCallbackReceiver)roundTrip).OnAfterDeserialize();
+
+            Assert.That((int)versionField.GetValue(roundTrip), Is.EqualTo(currentVersion));
+            Assert.That(roundTrip.ControlPointsLocal.ToArray(), Is.All.EqualTo(Vector3.zero));
+        }
+
+        [Test]
+        public void LatticeAsset_LegacyMissingVersion_AllZeroControlPointsMigrateToNeutral()
+        {
+            var asset = new LatticeAsset();
+            asset.GridSize = new Vector3Int(2, 2, 2);
+            for (int i = 0; i < asset.ControlPointCount; i++)
+            {
+                asset.SetControlPointLocal(i, Vector3.zero);
+            }
+
+            var versionField = typeof(LatticeAsset)
+                .GetField("_serializationVersion", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(versionField, Is.Not.Null);
+            int currentVersion = (int)versionField.GetValue(asset);
+
+            string json = JsonUtility.ToJson(asset);
+            Assert.That(json, Does.Contain("_serializationVersion"));
+            string versionAtStart = $"\"_serializationVersion\":{currentVersion},";
+            string versionAfterField = $",\"_serializationVersion\":{currentVersion}";
+            string legacyJson = json
+                .Replace(versionAtStart, "")
+                .Replace(versionAfterField, "");
+            Assert.That(legacyJson, Does.Not.Contain("_serializationVersion"));
+
+            var legacy = JsonUtility.FromJson<LatticeAsset>(legacyJson);
+            ((ISerializationCallbackReceiver)legacy).OnAfterDeserialize();
+
+            Assert.That((int)versionField.GetValue(legacy), Is.EqualTo(currentVersion));
+            Assert.That(legacy.HasCustomizedControlPoints(), Is.False);
+            Assert.That(legacy.GetControlPointLocal(0), Is.EqualTo(new Vector3(-0.5f, -0.5f, -0.5f)));
+            Assert.That(legacy.GetControlPointLocal(7), Is.EqualTo(new Vector3(0.5f, 0.5f, 0.5f)));
+        }
+
+        [Test]
+        public void LatticeAsset_ExplicitLegacyVersion_AllZeroControlPointsMigrateOnlyOnce()
+        {
+            var asset = new LatticeAsset();
+            asset.GridSize = new Vector3Int(2, 2, 2);
+            for (int i = 0; i < asset.ControlPointCount; i++)
+            {
+                asset.SetControlPointLocal(i, Vector3.zero);
+            }
+
+            var versionField = typeof(LatticeAsset)
+                .GetField("_serializationVersion", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(versionField, Is.Not.Null);
+            versionField.SetValue(asset, 0);
+
+            ((ISerializationCallbackReceiver)asset).OnAfterDeserialize();
+            Assert.That(asset.HasCustomizedControlPoints(), Is.False);
+
+            for (int i = 0; i < asset.ControlPointCount; i++)
+            {
+                asset.SetControlPointLocal(i, Vector3.zero);
+            }
+
+            ((ISerializationCallbackReceiver)asset).OnAfterDeserialize();
+            Assert.That(asset.ControlPointsLocal.ToArray(), Is.All.EqualTo(Vector3.zero));
+            Assert.That(asset.HasCustomizedControlPoints(), Is.True);
+        }
+
+        [Test]
         public void LatticeAsset_PrivateHelpers_HandleDefensiveBranches()
         {
             var asset = new LatticeAsset();
             var type = typeof(LatticeAsset);
+
+            Assert.That(asset.HasCustomizedControlPoints(), Is.False);
 
             type.GetField("_controlPointsLocal", BindingFlags.Instance | BindingFlags.NonPublic)
                 .SetValue(asset, null);
@@ -396,7 +489,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(
                 () => InvokePrivate(
                     asset,
-                    "PopulateControlPointsWithJobs",
+                    "PopulateNeutralControlPoints",
                     Vector3.zero,
                     Vector3.one,
                     new Vector3Int(2, 2, 2),
@@ -434,7 +527,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var target = new Vector3[8];
             InvokePrivate(
                 asset,
-                "PopulateControlPointsWithJobs",
+                "PopulateNeutralControlPoints",
                 new Vector3(-1f, -1f, -1f),
                 Vector3.one * 2f,
                 new Vector3Int(2, 2, 2),
@@ -459,21 +552,18 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             asset.EnsureInitialized();
             asset.RelaxInteriorControlPoints(2);
 
-            var emptyTarget = Array.Empty<Vector3>();
-            InvokePrivate(asset, "PopulateControlPointsWithJobs", emptyTarget);
-
             type.GetField("_gridSize", BindingFlags.Instance | BindingFlags.NonPublic)
                 .SetValue(asset, Vector3Int.zero);
             InvokePrivate(asset, "EnsureControlPointCapacity");
             InvokePrivate(asset, "PopulateControlPoints");
-            Assert.That(asset.ControlPointCount, Is.EqualTo(0));
+            Assert.That(asset.ControlPointCount, Is.EqualTo(8));
 
             type.GetField("_gridSize", BindingFlags.Instance | BindingFlags.NonPublic)
                 .SetValue(asset, new Vector3Int(2, 2, 2));
             type.GetField("_controlPointsLocal", BindingFlags.Instance | BindingFlags.NonPublic)
                 .SetValue(asset, new Vector3[8]);
             InvokePrivate(asset, "EnsureControlPointCapacity");
-            Assert.That(asset.ControlPointsLocal[7], Is.EqualTo(new Vector3(0.5f, 0.5f, 0.5f)));
+            Assert.That(asset.ControlPointsLocal.ToArray(), Is.All.EqualTo(Vector3.zero));
 
             Assert.That(
                 () => InvokePrivate(
@@ -586,7 +676,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(deformer.ImportBlendShapeAsLayer(-1), Is.EqualTo(-1));
                 int layer = deformer.ImportBlendShapeAsLayer(0);
                 Assert.That(layer, Is.GreaterThanOrEqualTo(0));
-                deformer.ActiveLayerIndex = layer;
+                Assert.That(deformer.ActiveLayerIndex, Is.EqualTo(layer));
                 Assert.That(deformer.ActiveLayerType, Is.EqualTo(MeshDeformerLayerType.Brush));
                 Assert.That(deformer.GetDisplacement(0), Is.EqualTo(Vector3.forward));
             }
@@ -848,12 +938,25 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 LatticeDeformer.CollectControlPointsLocal(null, Span<Vector3>.Empty);
                 LatticeDeformer.CollectControlPointsLocal(clone, Span<Vector3>.Empty);
+                LatticeDeformer.CollectControlPointOffsetsLocal(null, Span<Vector3>.Empty);
+                LatticeDeformer.CollectControlPointOffsetsLocal(clone, Span<Vector3>.Empty);
 
                 var controlPoints = new Vector3[clone.ControlPointCount];
                 LatticeDeformer.CollectControlPointsLocal(clone, controlPoints);
                 Assert.That(controlPoints[0], Is.EqualTo(clone.GetControlPointLocal(0)));
                 Assert.That(
                     () => LatticeDeformer.CollectControlPointsLocal(clone, new Vector3[controlPoints.Length + 1]),
+                    Throws.InvalidOperationException);
+
+                var offsets = new Vector3[clone.ControlPointCount];
+                LatticeDeformer.CollectControlPointOffsetsLocal(clone, offsets);
+                Assert.That(offsets, Is.All.EqualTo(Vector3.zero));
+
+                clone.SetControlPointLocal(0, clone.GetControlPointLocal(0) + Vector3.right);
+                LatticeDeformer.CollectControlPointOffsetsLocal(clone, offsets);
+                Assert.That(offsets[0], Is.EqualTo(Vector3.right));
+                Assert.That(
+                    () => LatticeDeformer.CollectControlPointOffsetsLocal(clone, new Vector3[offsets.Length + 1]),
                     Throws.InvalidOperationException);
             }
             finally
@@ -1245,12 +1348,21 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var go = new GameObject("runtime-core-merge-branches");
             var deformer = go.AddComponent<LatticeDeformer>();
             var mesh = CreateSymmetricQuadMesh("RuntimeCoreMergeBounds");
+            var noSubMesh = new Mesh { name = "RuntimeCoreNoSubMesh" };
             try
             {
                 typeof(LatticeDeformer)
                     .GetField("_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic)
                     .SetValue(deformer, mesh);
                 Assert.That(deformer.Deform(), Is.Null);
+
+                var truncatedVertices = new[] { new Vector3(5f, 6f, 7f) };
+                var truncatedBounds = InvokeStaticPrivate<Bounds>(
+                    "CalculateReferencedBounds",
+                    mesh,
+                    truncatedVertices,
+                    new Bounds(Vector3.one, Vector3.one));
+                Assert.That(truncatedBounds.center, Is.EqualTo(truncatedVertices[0]));
 
                 mesh.subMeshCount = 1;
                 mesh.SetIndices(Array.Empty<int>(), MeshTopology.Triangles, 0);
@@ -1260,11 +1372,86 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     mesh.vertices,
                     new Bounds(Vector3.one, Vector3.one));
                 Assert.That(fallbackBounds.center.x, Is.EqualTo(0f).Within(1e-6f));
+
+                noSubMesh.vertices = new[] { new Vector3(-2f, 0f, 0f), new Vector3(4f, 2f, 0f) };
+                noSubMesh.subMeshCount = 0;
+                var noSubMeshBounds = InvokeStaticPrivate<Bounds>(
+                    "CalculateReferencedBounds",
+                    noSubMesh,
+                    noSubMesh.vertices,
+                    new Bounds(Vector3.one, Vector3.one));
+                Assert.That(noSubMeshBounds.center, Is.EqualTo(new Vector3(1f, 1f, 0f)));
+                Assert.That(noSubMeshBounds.size, Is.EqualTo(new Vector3(6f, 2f, 0f)));
             }
             finally
             {
+                UnityEngine.Object.DestroyImmediate(noSubMesh);
                 UnityEngine.Object.DestroyImmediate(mesh);
                 UnityEngine.Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
+        public void LatticeDeformer_OnDestroy_RestoresSourceAndReleasesRuntimeMeshIdempotently()
+        {
+            var go = new GameObject("runtime-core-destroy-runtime");
+            var mesh = CreateSymmetricQuadMesh("RuntimeCoreDestroyRuntimeMesh");
+            try
+            {
+                LatticeDeformer.SuppressRestoreOnDisable = false;
+                var filter = go.AddComponent<MeshFilter>();
+                filter.sharedMesh = mesh;
+                var deformer = go.AddComponent<LatticeDeformer>();
+                var runtimeMesh = deformer.Deform();
+                Assert.That(runtimeMesh, Is.Not.Null);
+                Assert.That(filter.sharedMesh, Is.SameAs(runtimeMesh));
+
+                InvokePrivate(deformer, "OnDestroy");
+
+                Assert.That(filter.sharedMesh, Is.SameAs(mesh));
+                Assert.That(deformer.RuntimeMesh, Is.Null);
+                Assert.That(runtimeMesh == null, Is.True, "The owned runtime mesh should be destroyed.");
+                Assert.DoesNotThrow(() => InvokePrivate(deformer, "OnDestroy"));
+                Assert.That(filter.sharedMesh, Is.SameAs(mesh));
+            }
+            finally
+            {
+                LatticeDeformer.SuppressRestoreOnDisable = false;
+                UnityEngine.Object.DestroyImmediate(go);
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void LatticeDeformer_OnDestroy_WhenRestoreSuppressed_PreservesExportMesh()
+        {
+            var go = new GameObject("runtime-core-destroy-suppressed");
+            var sourceMesh = CreateSymmetricQuadMesh("RuntimeCoreDestroySuppressedSource");
+            var exportMesh = CreateSymmetricQuadMesh("RuntimeCoreDestroySuppressedExport");
+            try
+            {
+                var filter = go.AddComponent<MeshFilter>();
+                filter.sharedMesh = sourceMesh;
+                var deformer = go.AddComponent<LatticeDeformer>();
+                var runtimeMesh = deformer.Deform();
+                Assert.That(runtimeMesh, Is.Not.Null);
+                Assert.That(filter.sharedMesh, Is.SameAs(runtimeMesh));
+
+                filter.sharedMesh = exportMesh;
+                LatticeDeformer.SuppressRestoreOnDisable = true;
+
+                InvokePrivate(deformer, "OnDestroy");
+
+                Assert.That(filter.sharedMesh, Is.SameAs(exportMesh));
+                Assert.That(deformer.RuntimeMesh, Is.Null);
+                Assert.That(runtimeMesh == null, Is.True, "The owned runtime mesh should be destroyed.");
+            }
+            finally
+            {
+                LatticeDeformer.SuppressRestoreOnDisable = false;
+                UnityEngine.Object.DestroyImmediate(go);
+                UnityEngine.Object.DestroyImmediate(exportMesh);
+                UnityEngine.Object.DestroyImmediate(sourceMesh);
             }
         }
 

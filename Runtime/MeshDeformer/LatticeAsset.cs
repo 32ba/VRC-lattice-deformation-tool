@@ -18,6 +18,7 @@ namespace Net._32Ba.LatticeDeformationTool
     public class LatticeAsset : ISerializationCallbackReceiver
     {
         private const int k_MinAxisResolution = 2;
+        private const int k_CurrentSerializationVersion = 1;
 
         [SerializeField]
         private Vector3Int _gridSize = new Vector3Int(3, 3, 3);
@@ -30,6 +31,17 @@ namespace Net._32Ba.LatticeDeformationTool
 
         [SerializeField]
         private LatticeInterpolationMode _interpolation = LatticeInterpolationMode.Trilinear;
+
+        // 0.0.1 serialized the lattice coordinate space under this exact field name.
+        // It was removed in 0.0.2 without a migration. Keep the raw integer private:
+        // World payloads must retain it permanently because 0.0.1 re-evaluated the
+        // owner's world-to-local transform every time it deformed. Values other than
+        // 0/1 are invalid and must be preserved rather than guessed.
+        [SerializeField, HideInInspector]
+        private int _applySpace;
+
+        [SerializeField, HideInInspector]
+        private int _serializationVersion;
 
 
 
@@ -58,6 +70,66 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public System.ReadOnlySpan<Vector3> ControlPointsLocal => _controlPointsLocal ?? System.Array.Empty<Vector3>();
 
+        internal int LegacyApplySpaceValue => _applySpace;
+
+        internal bool HasPendingLegacyWorldSpace => _applySpace == 1;
+
+        internal bool HasInvalidLegacyApplySpace => _applySpace < 0 || _applySpace > 1;
+
+        internal bool HasSerializedControlPointData => _controlPointsLocal != null && _controlPointsLocal.Length > 0;
+
+        internal bool HasNonDefaultSerializedConfiguration =>
+            _gridSize != new Vector3Int(3, 3, 3) ||
+            _localBounds.center != Vector3.zero ||
+            _localBounds.size != Vector3.one ||
+            _interpolation != LatticeInterpolationMode.Trilinear;
+
+        internal bool HasUnsupportedFutureSerializationVersion =>
+            _serializationVersion > k_CurrentSerializationVersion;
+
+        /// <summary>
+        /// Reports serialized shapes that cannot be repaired without guessing which
+        /// control point belongs to which lattice coordinate. Empty arrays are the
+        /// historical uninitialized sentinel and are therefore deliberately accepted.
+        /// </summary>
+        internal bool HasMalformedSerializedShape
+        {
+            get
+            {
+                if (_serializationVersion < 0 || HasInvalidLegacyApplySpace ||
+                    !IsKnownInterpolation(_interpolation) ||
+                    !IsFinite(_localBounds.center) ||
+                    !IsFinite(_localBounds.size) ||
+                    !TryGetExpectedControlPointCount(out int expected))
+                {
+                    return true;
+                }
+
+                int actual = _controlPointsLocal?.Length ?? 0;
+                if (actual == 0)
+                {
+                    // Only the pre-v1 schema used an empty array as an uninitialized
+                    // sentinel. An empty payload claiming to be v1 is corrupt.
+                    return _serializationVersion >= k_CurrentSerializationVersion;
+                }
+
+                if (actual != expected)
+                {
+                    return true;
+                }
+
+                for (int i = 0; i < _controlPointsLocal.Length; i++)
+                {
+                    if (!IsFinite(_controlPointsLocal[i]))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
+
         public bool HasCustomizedControlPoints(float tolerance = 1e-6f)
         {
             if (_controlPointsLocal == null)
@@ -66,7 +138,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             int count = ControlPointCount;
-            if (count == 0)
+            if (count <= 0 || _controlPointsLocal.Length != count)
             {
                 return false;
             }
@@ -103,6 +175,8 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public void ResizeGrid(Vector3Int newGridSize)
         {
+            EnsureControlPointCapacity();
+
             newGridSize.x = Mathf.Max(k_MinAxisResolution, newGridSize.x);
             newGridSize.y = Mathf.Max(k_MinAxisResolution, newGridSize.y);
             newGridSize.z = Mathf.Max(k_MinAxisResolution, newGridSize.z);
@@ -127,7 +201,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
             else
             {
-                PopulateControlPointsWithJobs(newPoints);
+                PopulateNeutralControlPoints(_localBounds.min, _localBounds.size, _gridSize, newPoints);
             }
 
             _controlPointsLocal = newPoints;
@@ -151,6 +225,109 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             _controlPointsLocal[index] = value;
+        }
+
+        /// <summary>
+        /// Validates whether the 0.0.1 World payload can be evaluated under the current
+        /// owner transform without mutating or consuming its serialized marker.
+        /// </summary>
+        internal bool CanEvaluateLegacyWorldSpace(Matrix4x4 worldToLocal)
+        {
+            if (_applySpace != 1 || !IsFiniteInvertibleMatrix(worldToLocal))
+            {
+                return false;
+            }
+
+            if (_controlPointsLocal == null || _controlPointsLocal.Length != ControlPointCount)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < _controlPointsLocal.Length; i++)
+            {
+                Vector3 point = worldToLocal.MultiplyPoint3x4(_controlPointsLocal[i]);
+                if (!IsFinite(point))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Copies absolute control points into the coordinate space used by the legacy
+        /// evaluator. World payloads are transformed dynamically; Local payloads are
+        /// copied verbatim. No serialized state is changed.
+        /// </summary>
+        internal bool TryCopyLegacyEvaluationControlPoints(
+            Matrix4x4 worldToLocal,
+            Span<Vector3> destination)
+        {
+            if (_controlPointsLocal == null || destination.Length != _controlPointsLocal.Length)
+            {
+                return false;
+            }
+
+            if (_applySpace == 0)
+            {
+                _controlPointsLocal.AsSpan().CopyTo(destination);
+                return true;
+            }
+
+            if (!CanEvaluateLegacyWorldSpace(worldToLocal))
+            {
+                return false;
+            }
+
+            for (int i = 0; i < _controlPointsLocal.Length; i++)
+            {
+                destination[i] = worldToLocal.MultiplyPoint3x4(_controlPointsLocal[i]);
+            }
+
+            return true;
+        }
+
+        internal void CopyLegacySerializationStateFrom(LatticeAsset source)
+        {
+            if (source == null)
+            {
+                return;
+            }
+
+            _applySpace = source._applySpace;
+        }
+
+        private static bool IsFinite(Vector3 value)
+        {
+            return !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
+                   !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
+                   !float.IsNaN(value.z) && !float.IsInfinity(value.z);
+        }
+
+        private static bool IsKnownInterpolation(LatticeInterpolationMode interpolation)
+        {
+            return interpolation == LatticeInterpolationMode.Trilinear ||
+                   interpolation == LatticeInterpolationMode.CubicBernstein;
+        }
+
+        private static bool IsFiniteInvertibleMatrix(Matrix4x4 matrix)
+        {
+            for (int row = 0; row < 4; row++)
+            {
+                for (int column = 0; column < 4; column++)
+                {
+                    float value = matrix[row, column];
+                    if (float.IsNaN(value) || float.IsInfinity(value))
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            float determinant = matrix.determinant;
+            return !float.IsNaN(determinant) && !float.IsInfinity(determinant) &&
+                   Mathf.Abs(determinant) > 1e-12f;
         }
 
         public void ResetControlPoints()
@@ -229,7 +406,35 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public void EnsureInitialized()
         {
+            // Deserialization and component migration must never resize a non-empty
+            // malformed payload or normalize an invalid grid. Explicit editing APIs
+            // such as ResizeGrid/ResetControlPoints remain available to repair it.
+            if (HasMalformedSerializedShape)
+            {
+                return;
+            }
+
             EnsureControlPointCapacity();
+        }
+
+        private bool TryGetExpectedControlPointCount(out int expected)
+        {
+            expected = 0;
+            if (_gridSize.x < k_MinAxisResolution ||
+                _gridSize.y < k_MinAxisResolution ||
+                _gridSize.z < k_MinAxisResolution)
+            {
+                return false;
+            }
+
+            long count = (long)_gridSize.x * _gridSize.y * _gridSize.z;
+            if (count <= 0 || count > int.MaxValue)
+            {
+                return false;
+            }
+
+            expected = (int)count;
+            return true;
         }
 
         private static int Index(Vector3Int grid, int x, int y, int z)
@@ -405,44 +610,27 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        [BurstCompile]
-        [ExcludeFromCodeCoverage]
-        private struct PopulateControlPointsJob : IJobParallelFor
-        {
-            [WriteOnly]
-            public NativeArray<float3> Result;
-
-            public int3 Grid;
-            public float3 BoundsMin;
-            public float3 BoundsSize;
-
-            public void Execute(int index)
-            {
-                int nx = Grid.x;
-                int ny = Grid.y;
-
-                int plane = nx * ny;
-                int z = index / plane;
-                int y = (index / nx) % ny;
-                int x = index % nx;
-
-                float wx = nx > 1 ? (float)x / (nx - 1) : 0f;
-                float wy = ny > 1 ? (float)y / (ny - 1) : 0f;
-                float wz = Grid.z > 1 ? (float)z / (Grid.z - 1) : 0f;
-
-                float3 normalized = new float3(wx, wy, wz);
-                float3 position = BoundsMin + BoundsSize * normalized;
-
-                Result[index] = position;
-            }
-        }
-
         private void EnsureControlPointCapacity()
         {
+            // Older code must never normalize or resize a payload written by a newer
+            // schema. The owning component will fail closed when it encounters it.
+            if (_serializationVersion > k_CurrentSerializationVersion)
+            {
+                return;
+            }
+
+            _gridSize.x = Math.Max(k_MinAxisResolution, _gridSize.x);
+            _gridSize.y = Math.Max(k_MinAxisResolution, _gridSize.y);
+            _gridSize.z = Math.Max(k_MinAxisResolution, _gridSize.z);
+
             int expected = ControlPointCount;
             if (expected <= 0)
             {
                 _controlPointsLocal = Array.Empty<Vector3>();
+                if (_serializationVersion < k_CurrentSerializationVersion)
+                {
+                    _serializationVersion = k_CurrentSerializationVersion;
+                }
                 return;
             }
 
@@ -451,18 +639,17 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 _controlPointsLocal = new Vector3[expected];
                 PopulateControlPoints();
-                return;
             }
-
-            for (int i = 0; i < _controlPointsLocal.Length; i++)
+            else if (_serializationVersion < k_CurrentSerializationVersion && AreAllControlPointsZero(_controlPointsLocal))
             {
-                if (_controlPointsLocal[i] != Vector3.zero)
-                {
-                    return;
-                }
+                // Older data used an all-zero array as an implicit uninitialized sentinel.
+                PopulateControlPoints();
             }
 
-            PopulateControlPoints();
+            if (_serializationVersion < k_CurrentSerializationVersion)
+            {
+                _serializationVersion = k_CurrentSerializationVersion;
+            }
         }
 
         private void PopulateControlPoints()
@@ -473,20 +660,32 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            PopulateControlPointsWithJobs(_localBounds.min, _localBounds.size, _gridSize, _controlPointsLocal);
+            PopulateNeutralControlPoints(_localBounds.min, _localBounds.size, _gridSize, _controlPointsLocal);
         }
 
-        private void PopulateControlPointsWithJobs(Vector3[] target)
+        private static bool AreAllControlPointsZero(Vector3[] points)
         {
-            if (target == null || target.Length == 0)
+            if (points == null || points.Length == 0)
             {
-                return;
+                return false;
             }
 
-            PopulateControlPointsWithJobs(_localBounds.min, _localBounds.size, _gridSize, target);
+            for (int i = 0; i < points.Length; i++)
+            {
+                if (points[i] != Vector3.zero)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
-        private void PopulateControlPointsWithJobs(Vector3 boundsMin, Vector3 boundsSize, Vector3Int grid, Vector3[] target)
+        private void PopulateNeutralControlPoints(
+            Vector3 boundsMin,
+            Vector3 boundsSize,
+            Vector3Int grid,
+            Vector3[] target)
         {
             int expected = grid.x * grid.y * grid.z;
             if (target == null || target.Length != expected || expected == 0)
@@ -494,19 +693,20 @@ namespace Net._32Ba.LatticeDeformationTool
                 throw new ArgumentException("Target array does not match grid dimensions.", nameof(target));
             }
 
-            using var targetNative = LatticeNativeArrayUtility.CreateFloat3Array(target.Length, Allocator.TempJob);
-
-            var job = new PopulateControlPointsJob
+            int index = 0;
+            for (int z = 0; z < grid.z; z++)
             {
-                Result = targetNative,
-                Grid = new int3(math.max(1, grid.x), math.max(1, grid.y), math.max(1, grid.z)),
-                BoundsMin = new float3(boundsMin.x, boundsMin.y, boundsMin.z),
-                BoundsSize = new float3(boundsSize.x, boundsSize.y, boundsSize.z)
-            };
-
-            job.Schedule(target.Length, math.max(1, grid.x)).Complete();
-
-            targetNative.CopyToManaged(target);
+                float wz = grid.z > 1 ? (float)z / (grid.z - 1) : 0f;
+                for (int y = 0; y < grid.y; y++)
+                {
+                    float wy = grid.y > 1 ? (float)y / (grid.y - 1) : 0f;
+                    for (int x = 0; x < grid.x; x++, index++)
+                    {
+                        float wx = grid.x > 1 ? (float)x / (grid.x - 1) : 0f;
+                        target[index] = boundsMin + Vector3.Scale(boundsSize, new Vector3(wx, wy, wz));
+                    }
+                }
+            }
         }
 
         
