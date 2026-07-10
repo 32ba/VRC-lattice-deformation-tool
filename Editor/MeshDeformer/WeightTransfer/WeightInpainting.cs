@@ -8,7 +8,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 {
     /// <summary>
     /// Implements Laplacian-based weight inpainting for vertices that couldn't be transferred.
-    /// Uses the biharmonic energy minimization approach from "Robust Skin Weights Transfer via Weight Inpainting".
+    /// Uses a cotangent harmonic approximation inspired by
+    /// "Robust Skin Weights Transfer via Weight Inpainting"; it does not implement the paper's
+    /// full mixed Dirichlet/Laplacian energy and mass-matrix formulation.
     /// Optimized with Burst-compiled sparse matrix solver.
     /// </summary>
     public class WeightInpainting
@@ -207,7 +209,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
             for (int i = 0; i < _vertexCount; i++)
             {
-                if (confidence[i] >= 0.5f)
+                if (RobustWeightTransfer.IsKnownConfidence(confidence[i]))
                     knownIndices.Add(i);
                 else
                     unknownIndices.Add(i);

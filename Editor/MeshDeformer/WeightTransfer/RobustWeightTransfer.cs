@@ -8,13 +8,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 {
     /// <summary>
     /// Main API for Robust Weight Transfer.
-    /// Implements "Robust Skin Weights Transfer via Weight Inpainting" (SIGGRAPH Asia 2023).
+    /// Uses a two-stage workflow inspired by "Robust Skin Weights Transfer via Weight Inpainting"
+    /// (SIGGRAPH Asia 2023), with cotangent harmonic interpolation as a practical approximation.
     /// </summary>
     public static class RobustWeightTransfer
     {
         private const float DefaultMaxTransferDistanceRatio = 0.05f;
         private const float DeformationPercentile = 0.95f;
         private const float DeformationMargin = 1.2f;
+        internal const float KnownConfidenceThreshold = 0.5f;
 
         /// <summary>
         /// Result of weight transfer operation.
@@ -123,7 +125,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 Array.Copy(sourceWeights, result.weights, vertexCount);
             }
 
-            // Confidence mask: 1.0 = transferred, 0.0 = needs inpainting
+            // Confidence mask: values at/above KnownConfidenceThreshold are known; 0 needs inpainting.
             var confidenceMask = new float[vertexCount];
 
             var sw = Stopwatch.StartNew();
@@ -142,22 +144,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             var stage1Time = sw.ElapsedMilliseconds;
             sw.Restart();
 
-            RunStage2InpaintingIfNeeded(settings, result.transferredCount, vertexCount, targetTriangles, targetVertices, sourceMesh.bindposes.Length, result.weights, confidenceMask, ref result.inpaintedCount);
+            RunStage2InpaintingIfNeeded(
+                settings,
+                targetTriangles,
+                targetVertices,
+                sourceMesh.bindposes.Length,
+                result.weights,
+                confidenceMask,
+                ref result.inpaintedCount);
+
+            // Anything Stage 2 could not resolve must take the explicit fallback path below.
+            ClearUnknownWeights(result.weights, confidenceMask);
 
             var stage2Time = sw.ElapsedMilliseconds;
             Debug.Log($"[WeightTransfer] Stage1: {stage1Time}ms, Stage2: {stage2Time}ms");
-
-            if (!settings.enableInpainting || result.transferredCount >= vertexCount)
-            {
-                // Fill non-transferred vertices with zero weights
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    if (confidenceMask[i] < 0.5f)
-                    {
-                        result.weights[i] = new BoneWeight();
-                    }
-                }
-            }
 
             int fallbackCount = ApplyZeroWeightFallback(result.weights, sourceWeights);
 
@@ -238,13 +238,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                         continue;
                     }
 
-                    // Transfer weight using barycentric interpolation
-                    outWeights[i] = InterpolateBoneWeight(
-                        sourceWeights[queryResult.triangleIndices.x],
-                        sourceWeights[queryResult.triangleIndices.y],
-                        sourceWeights[queryResult.triangleIndices.z],
-                        queryResult.barycentricCoords);
-
                     // Compute confidence based on distance and normal alignment
                     float distSq = (targetPos - queryResult.closestPoint).sqrMagnitude;
                     float distConfidence = 1f - Mathf.Sqrt(distSq) / safeMaxTransferDistance;
@@ -252,11 +245,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                     float normalConfidence = normalDenominator <= 1e-6f
                         ? 1f
                         : (normalDot - normalThresholdCos) / normalDenominator;
-                    outConfidence[i] = distConfidence * normalConfidence;
+                    float confidence = Mathf.Clamp01(distConfidence * normalConfidence);
+                    if (!IsKnownConfidence(confidence))
+                    {
+                        outConfidence[i] = 0f;
+                        continue;
+                    }
+
+                    // Transfer weight using barycentric interpolation only for a known match.
+                    outWeights[i] = InterpolateBoneWeight(
+                        sourceWeights[queryResult.triangleIndices.x],
+                        sourceWeights[queryResult.triangleIndices.y],
+                        sourceWeights[queryResult.triangleIndices.z],
+                        queryResult.barycentricCoords);
+                    outConfidence[i] = confidence;
 
                     transferredCount++;
                 }
             }
+        }
+
+        internal static bool IsKnownConfidence(float confidence)
+        {
+            return !float.IsNaN(confidence) &&
+                   !float.IsInfinity(confidence) &&
+                   confidence >= KnownConfidenceThreshold;
         }
 
         internal static bool ShouldRejectTransfer(Vector3 targetPos, Vector3 closestPoint, float maxDistSq, float normalDot, float normalThresholdCos)
@@ -334,7 +347,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         }
 
         /// <summary>
-        /// Stage 2: Laplacian-based weight inpainting for vertices not transferred in Stage 1.
+        /// Stage 2: cotangent harmonic weight interpolation for vertices not transferred in Stage 1.
         /// </summary>
         private static void Stage2Inpainting(
             Vector3[] targetVertices,
@@ -345,7 +358,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             WeightTransferSettings settings,
             ref int inpaintedCount)
         {
-            // Use WeightInpainting class for Laplacian-based interpolation
+            // Use WeightInpainting for the paper-inspired harmonic approximation.
             var inpainting = new WeightInpainting(
                 targetVertices,
                 targetTriangles,
@@ -354,12 +367,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
             inpainting.Inpaint(weights, confidence, boneCount);
 
-            // Count inpainted vertices
+            // Promote only unknown vertices that received finite, valid, normalized weights.
             for (int i = 0; i < confidence.Length; i++)
             {
-                if (confidence[i] < 0.5f)
+                if (IsKnownConfidence(confidence[i]))
                 {
+                    continue;
+                }
+
+                var weight = weights[i];
+                if (TryNormalizeInpaintedWeight(ref weight, boneCount))
+                {
+                    weights[i] = weight;
+                    confidence[i] = 1f;
                     inpaintedCount++;
+                }
+                else
+                {
+                    weights[i] = new BoneWeight();
+                    confidence[i] = 0f;
                 }
             }
         }
@@ -367,8 +393,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         [ExcludeFromCodeCoverage]
         private static void RunStage2InpaintingIfNeeded(
             WeightTransferSettings settings,
-            int transferredCount,
-            int vertexCount,
             int[] targetTriangles,
             Vector3[] targetVertices,
             int boneCount,
@@ -376,17 +400,99 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             float[] confidenceMask,
             ref int inpaintedCount)
         {
-            if (settings.enableInpainting && transferredCount < vertexCount && targetTriangles.Length > 0)
+            // Canonicalize NaN/Infinity and remove stale source weights before checking whether
+            // the interpolation problem has enough boundary data to be solvable.
+            ClearUnknownWeights(weights, confidenceMask);
+
+            int knownCount = CountKnownConfidence(confidenceMask);
+            int unknownCount = confidenceMask.Length - knownCount;
+            if (!settings.enableInpainting ||
+                knownCount == 0 ||
+                unknownCount == 0 ||
+                targetTriangles == null ||
+                targetTriangles.Length < 3 ||
+                boneCount <= 0)
             {
-                Stage2Inpainting(
-                    targetVertices,
-                    targetTriangles,
-                    boneCount,
-                    weights,
-                    confidenceMask,
-                    settings,
-                    ref inpaintedCount);
+                return;
             }
+
+            Stage2Inpainting(
+                targetVertices,
+                targetTriangles,
+                boneCount,
+                weights,
+                confidenceMask,
+                settings,
+                ref inpaintedCount);
+        }
+
+        private static int CountKnownConfidence(float[] confidence)
+        {
+            int count = 0;
+            for (int i = 0; i < confidence.Length; i++)
+            {
+                if (IsKnownConfidence(confidence[i]))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        private static void ClearUnknownWeights(BoneWeight[] weights, float[] confidence)
+        {
+            int count = Mathf.Min(weights.Length, confidence.Length);
+            for (int i = 0; i < count; i++)
+            {
+                if (IsKnownConfidence(confidence[i]))
+                {
+                    confidence[i] = Mathf.Clamp01(confidence[i]);
+                    continue;
+                }
+
+                confidence[i] = 0f;
+                weights[i] = new BoneWeight();
+            }
+        }
+
+        private static bool TryNormalizeInpaintedWeight(ref BoneWeight weight, int boneCount)
+        {
+            if (!IsValidInfluence(weight.weight0, weight.boneIndex0, boneCount) ||
+                !IsValidInfluence(weight.weight1, weight.boneIndex1, boneCount) ||
+                !IsValidInfluence(weight.weight2, weight.boneIndex2, boneCount) ||
+                !IsValidInfluence(weight.weight3, weight.boneIndex3, boneCount))
+            {
+                return false;
+            }
+
+            float total = weight.weight0 + weight.weight1 + weight.weight2 + weight.weight3;
+            if (!IsFinite(total) || total <= 1e-8f)
+            {
+                return false;
+            }
+
+            float inverseTotal = 1f / total;
+            weight.weight0 *= inverseTotal;
+            weight.weight1 *= inverseTotal;
+            weight.weight2 *= inverseTotal;
+            weight.weight3 *= inverseTotal;
+            return IsFinite(weight.weight0) &&
+                   IsFinite(weight.weight1) &&
+                   IsFinite(weight.weight2) &&
+                   IsFinite(weight.weight3);
+        }
+
+        private static bool IsValidInfluence(float weight, int boneIndex, int boneCount)
+        {
+            return IsFinite(weight) &&
+                   weight >= 0f &&
+                   (weight <= 0f || boneIndex >= 0 && boneIndex < boneCount);
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
         }
 
         /// <summary>

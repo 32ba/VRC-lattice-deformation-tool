@@ -1018,6 +1018,18 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void RobustWeightTransfer_IsKnownConfidence_RequiresFiniteThresholdValue()
+        {
+            Assert.That(RobustWeightTransfer.IsKnownConfidence(
+                RobustWeightTransfer.KnownConfidenceThreshold), Is.True);
+            Assert.That(RobustWeightTransfer.IsKnownConfidence(
+                RobustWeightTransfer.KnownConfidenceThreshold - 1e-6f), Is.False);
+            Assert.That(RobustWeightTransfer.IsKnownConfidence(float.NaN), Is.False);
+            Assert.That(RobustWeightTransfer.IsKnownConfidence(float.PositiveInfinity), Is.False);
+            Assert.That(RobustWeightTransfer.IsKnownConfidence(float.NegativeInfinity), Is.False);
+        }
+
+        [Test]
         public void RobustWeightTransfer_Transfer_ValidatesNullInputs()
         {
             var mesh = CreateTriangleMesh();
@@ -1110,6 +1122,70 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void RobustWeightTransfer_UniformOffsetFoundMatchesRemainUnknownBelowConfidenceThreshold()
+        {
+            var sourceMesh = CreateTriangleMesh();
+            var targetMesh = CreateTriangleMesh();
+            var sourceWeights = new[] { Bone(0, 1f), Bone(1, 1f), Bone(2, 1f) };
+            var settings = new WeightTransferSettings
+            {
+                maxTransferDistance = 0.001f,
+                normalAngleThreshold = 180f,
+                enableInpainting = true,
+                maxIterations = 64,
+                tolerance = 1e-6f
+            };
+
+            try
+            {
+                var targetVertices = targetMesh.vertices;
+                for (int i = 0; i < targetVertices.Length; i++)
+                {
+                    targetVertices[i] += Vector3.forward;
+                }
+                targetMesh.vertices = targetVertices;
+                targetMesh.normals = new[] { Vector3.forward, Vector3.forward, Vector3.forward };
+                targetMesh.RecalculateBounds();
+
+                float searchDistance = InvokePrivate<float>(
+                    "ResolveMaxTransferDistance",
+                    settings,
+                    sourceMesh.vertices,
+                    targetVertices);
+                using (var query = new MeshSpatialQuery(
+                           sourceMesh.vertices,
+                           sourceMesh.triangles,
+                           sourceMesh.normals))
+                {
+                    for (int i = 0; i < targetVertices.Length; i++)
+                    {
+                        Assert.That(query.FindClosestPoint(targetVertices[i], searchDistance).found, Is.True);
+                    }
+                }
+
+                var result = RobustWeightTransfer.Transfer(
+                    sourceMesh,
+                    sourceWeights,
+                    targetMesh,
+                    settings);
+
+                Assert.That(result.success, Is.True, result.errorMessage);
+                Assert.That(result.transferredCount, Is.EqualTo(0));
+                Assert.That(result.inpaintedCount, Is.EqualTo(0));
+                for (int i = 0; i < result.weights.Length; i++)
+                {
+                    Assert.That(result.weights[i].boneIndex0, Is.EqualTo(sourceWeights[i].boneIndex0));
+                    Assert.That(result.weights[i].weight0, Is.EqualTo(1f).Within(1e-6f));
+                }
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(sourceMesh);
+                UnityEngine.Object.DestroyImmediate(targetMesh);
+            }
+        }
+
+        [Test]
         public void RobustWeightTransfer_TransferWeights_ReturnsTransferredWeightsOnSuccess()
         {
             var sourceMesh = CreateTriangleMesh();
@@ -1189,10 +1265,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var triangles = new[] { 0, 1, 2 };
             var weights = new[] { Bone(0, 1f), new BoneWeight(), Bone(1, 1f) };
             var confidence = new[] { 1f, 0f, 1f };
-            int inpainted = 0;
-
-            InvokePrivate<object>(
-                "Stage2Inpainting",
+            var arguments = new object[]
+            {
                 vertices,
                 triangles,
                 2,
@@ -1203,9 +1277,152 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     maxIterations = 8,
                     tolerance = 1e-8f
                 },
-                inpainted);
+                0
+            };
+
+            InvokePrivate<object>("Stage2Inpainting", arguments);
 
             Assert.That(weights[1].weight0 + weights[1].weight1 + weights[1].weight2 + weights[1].weight3,
+                Is.EqualTo(1f).Within(1e-5f));
+            Assert.That(RobustWeightTransfer.IsKnownConfidence(confidence[1]), Is.True);
+            Assert.That((int)arguments[6], Is.EqualTo(1));
+
+            var isolatedWeights = new[]
+            {
+                Bone(0, 1f),
+                Bone(1, 1f),
+                Bone(0, 1f),
+                new BoneWeight()
+            };
+            var isolatedConfidence = new[] { 1f, 1f, 1f, 0f };
+            var isolatedArguments = new object[]
+            {
+                new[] { Vector3.zero, Vector3.right, Vector3.up, Vector3.forward },
+                triangles,
+                2,
+                isolatedWeights,
+                isolatedConfidence,
+                new WeightTransferSettings
+                {
+                    maxIterations = 8,
+                    tolerance = 1e-8f
+                },
+                0
+            };
+
+            InvokePrivate<object>("Stage2Inpainting", isolatedArguments);
+
+            Assert.That((int)isolatedArguments[6], Is.EqualTo(0));
+            Assert.That(isolatedConfidence[3], Is.EqualTo(0f));
+            Assert.That(isolatedWeights[3].weight0, Is.EqualTo(0f));
+
+            var invalidWeightArguments = new object[]
+            {
+                new BoneWeight { boneIndex0 = 0, weight0 = float.NaN },
+                2
+            };
+            Assert.That(
+                InvokePrivate<bool>("TryNormalizeInpaintedWeight", invalidWeightArguments),
+                Is.False);
+        }
+
+        [Test]
+        public void RobustWeightTransfer_RunStage2_RequiresPrerequisitesAndClearsUnknownWeights()
+        {
+            var vertices = new[] { Vector3.zero, Vector3.right, Vector3.up };
+            var triangles = new[] { 0, 1, 2 };
+            var settings = new WeightTransferSettings
+            {
+                enableInpainting = true,
+                maxIterations = 8,
+                tolerance = 1e-8f
+            };
+
+            var allUnknownWeights = new[] { Bone(0, 1f), Bone(1, 1f), Bone(1, 1f) };
+            var allUnknownConfidence = new[] { 0f, float.NaN, 0f };
+            var allUnknownArguments = new object[]
+            {
+                settings,
+                triangles,
+                vertices,
+                2,
+                allUnknownWeights,
+                allUnknownConfidence,
+                0
+            };
+
+            InvokePrivate<object>("RunStage2InpaintingIfNeeded", allUnknownArguments);
+
+            Assert.That((int)allUnknownArguments[6], Is.EqualTo(0));
+            Assert.That(allUnknownConfidence, Is.EqualTo(new[] { 0f, 0f, 0f }));
+            for (int i = 0; i < allUnknownWeights.Length; i++)
+            {
+                Assert.That(
+                    allUnknownWeights[i].weight0 +
+                    allUnknownWeights[i].weight1 +
+                    allUnknownWeights[i].weight2 +
+                    allUnknownWeights[i].weight3,
+                    Is.EqualTo(0f));
+            }
+
+            var missingTrianglesWeights = new[] { Bone(0, 1f), Bone(1, 1f), Bone(1, 1f) };
+            var missingTrianglesConfidence = new[] { 1f, 0f, 1f };
+            var missingTrianglesArguments = new object[]
+            {
+                settings,
+                Array.Empty<int>(),
+                vertices,
+                2,
+                missingTrianglesWeights,
+                missingTrianglesConfidence,
+                0
+            };
+
+            InvokePrivate<object>("RunStage2InpaintingIfNeeded", missingTrianglesArguments);
+
+            Assert.That((int)missingTrianglesArguments[6], Is.EqualTo(0));
+            Assert.That(missingTrianglesWeights[0].weight0, Is.EqualTo(1f));
+            Assert.That(missingTrianglesWeights[1].weight0, Is.EqualTo(0f));
+            Assert.That(missingTrianglesWeights[2].weight0, Is.EqualTo(1f));
+
+            var noBonesWeights = new[] { Bone(0, 1f), Bone(1, 1f), Bone(1, 1f) };
+            var noBonesConfidence = new[] { 1f, 0f, 1f };
+            var noBonesArguments = new object[]
+            {
+                settings,
+                triangles,
+                vertices,
+                0,
+                noBonesWeights,
+                noBonesConfidence,
+                0
+            };
+
+            InvokePrivate<object>("RunStage2InpaintingIfNeeded", noBonesArguments);
+
+            Assert.That((int)noBonesArguments[6], Is.EqualTo(0));
+            Assert.That(noBonesWeights[1].weight0, Is.EqualTo(0f));
+
+            var validWeights = new[] { Bone(0, 1f), Bone(1, 1f), Bone(1, 1f) };
+            var validConfidence = new[] { 1f, 0f, 1f };
+            var validArguments = new object[]
+            {
+                settings,
+                triangles,
+                vertices,
+                2,
+                validWeights,
+                validConfidence,
+                0
+            };
+
+            InvokePrivate<object>("RunStage2InpaintingIfNeeded", validArguments);
+
+            Assert.That((int)validArguments[6], Is.EqualTo(1));
+            Assert.That(RobustWeightTransfer.IsKnownConfidence(validConfidence[1]), Is.True);
+            Assert.That(
+                validWeights[1].weight0 + validWeights[1].weight1 +
+                validWeights[1].weight2 + validWeights[1].weight3,
                 Is.EqualTo(1f).Within(1e-5f));
         }
 
