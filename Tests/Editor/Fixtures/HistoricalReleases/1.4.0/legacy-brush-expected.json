@@ -1,0 +1,113 @@
+{
+    "tag": "1.4.0",
+    "kind": "legacy-brush",
+    "deformerPath": "",
+    "classifiedVersion": "V1_2_1",
+    "serializedLayerModelVersion": -1,
+    "serializedFlatLayerCount": -1,
+    "serializedGroups": [],
+    "serializedFlatLayers": [],
+    "serializedActiveFlatLayerIndex": -1,
+    "serializedFlatBlendShapeOutput": "",
+    "serializedFlatBlendShapeName": "",
+    "serializedFlatBlendShapeCurve": {
+        "preWrapMode": 8,
+        "postWrapMode": 8,
+        "keys": [
+            {
+                "time": 0.0,
+                "value": 0.0,
+                "inTangent": 0.0,
+                "outTangent": 1.0,
+                "inWeight": 0.0,
+                "outWeight": 0.0,
+                "weightedMode": 0
+            },
+            {
+                "time": 1.0,
+                "value": 1.0,
+                "inTangent": 1.0,
+                "outTangent": 0.0,
+                "inWeight": 0.0,
+                "outWeight": 0.0,
+                "weightedMode": 0
+            }
+        ]
+    },
+    "legacyAbsoluteEvaluation": false,
+    "tolerance": 0.00004999999873689376,
+    "activeGroupIndex": 0,
+    "groups": [],
+    "expectedVertices": [
+        {
+            "x": -0.5800000429153442,
+            "y": -0.5399999618530273,
+            "z": -0.1899999976158142
+        },
+        {
+            "x": 0.6000000238418579,
+            "y": -0.24000000953674317,
+            "z": 0.06999999284744263
+        },
+        {
+            "x": 0.5,
+            "y": 0.7199999690055847,
+            "z": -0.04999999701976776
+        },
+        {
+            "x": -0.6599999666213989,
+            "y": 0.4099999964237213,
+            "z": 0.5799999833106995
+        }
+    ],
+    "outputBlendShapes": [],
+    "componentSettings": {
+        "recalculateNormals": false,
+        "recalculateTangents": false,
+        "recalculateBounds": false,
+        "recalculateBoneWeights": false,
+        "weightTransfer": {
+            "maxTransferDistance": 0.0,
+            "normalAngleThreshold": 0.0,
+            "enableInpainting": false,
+            "maxIterations": 0,
+            "tolerance": 0.0
+        }
+    },
+    "legacyBrush": {
+        "displacements": [
+            {
+                "x": 0.14000000059604646,
+                "y": -0.05999999865889549,
+                "z": 0.029999999329447748
+            },
+            {
+                "x": -0.07999999821186066,
+                "y": 0.11999999731779099,
+                "z": -0.05000000074505806
+            },
+            {
+                "x": 0.03999999910593033,
+                "y": 0.009999999776482582,
+                "z": 0.10999999940395355
+            },
+            {
+                "x": -0.09000000357627869,
+                "y": -0.019999999552965165,
+                "z": 0.07000000029802323
+            }
+        ],
+        "recalculateNormals": false,
+        "recalculateTangents": true,
+        "recalculateBounds": false,
+        "recalculateBoneWeights": true,
+        "weightTransfer": {
+            "maxTransferDistance": 0.17000000178813935,
+            "normalAngleThreshold": 123.0,
+            "enableInpainting": false,
+            "maxIterations": 321,
+            "tolerance": 0.0004199999966658652
+        }
+    },
+    "transformProbes": []
+}

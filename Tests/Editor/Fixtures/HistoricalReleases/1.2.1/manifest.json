@@ -1,0 +1,68 @@
+{
+    "tag": "1.2.1",
+    "commitSha": "8c199ab68f056d29ba2ec8ad160d8ff53b0994b2",
+    "packageVersion": "1.2.1",
+    "unityVersion": "2022.3.22f1",
+    "generator": "Tools~/HistoricalFixtures/HistoricalFixtureGenerator.cs",
+    "generatorSha256": "572b37ae88f13a3e874dd2a923af83bdfba33a5c2e1790eca79f5f37d57df581",
+    "generationMode": "unity-batchmode-tag-checkout",
+    "goldenOutputSource": "historical-runtime-deform",
+    "fixtures": [
+        {
+            "kind": "lattice",
+            "prefab": "fixture.prefab",
+            "expected": "expected.json",
+            "source": "source.asset",
+            "goldenOutputSource": "LatticeDeformer.Deform(false)"
+        },
+        {
+            "kind": "legacy-brush",
+            "prefab": "legacy-brush.prefab",
+            "expected": "legacy-brush-expected.json",
+            "source": "source.asset",
+            "goldenOutputSource": "BrushDeformer.Deform(false)"
+        }
+    ],
+    "files": [
+        {
+            "path": "expected.json",
+            "sha256": "a57057ba55b0f41b2c9975459c7f3a16be2a72e9354ab28cbf255ebcb5c5c8a5"
+        },
+        {
+            "path": "expected.json.meta",
+            "sha256": "fc2b21bfdc1178e346984b7eb60a89e67e2e8fe3ed6ec5f5a5d2c69fd8290077"
+        },
+        {
+            "path": "fixture.prefab",
+            "sha256": "56a245b66da27a844f5d47d948b4f95ccac4c40c66f05264838f734edfb34961"
+        },
+        {
+            "path": "fixture.prefab.meta",
+            "sha256": "8d1b5b07aa63f714b053c4ac6f90f3d493eef7f5f48cc5b8d2464ec29121dd19"
+        },
+        {
+            "path": "legacy-brush-expected.json",
+            "sha256": "ce964052df325f6c242441c42c12b89b061b085e2bab63c182beaa7c9d6796a4"
+        },
+        {
+            "path": "legacy-brush-expected.json.meta",
+            "sha256": "da34204504337624ef9926f53a25b6b1672086e431e035375e51d8e78fe427f5"
+        },
+        {
+            "path": "legacy-brush.prefab",
+            "sha256": "2c2fc6ed89c3bbbd022f12c2cbe9a584310ff5dc4142e802d7c8a2545c012371"
+        },
+        {
+            "path": "legacy-brush.prefab.meta",
+            "sha256": "a790345f71e91a4c25a16f252e49fda4a0db5b8ef6b010fbde9978d16e3e3680"
+        },
+        {
+            "path": "source.asset",
+            "sha256": "7c8f4da58f6222fe6a2de9b08c3f2254f95731fbac9bdbc752f5cbcb74ff7643"
+        },
+        {
+            "path": "source.asset.meta",
+            "sha256": "004c0ea98b63ab9a2520c721bea0d5686c424e5c5171f28d44a2ba60ccad1b2d"
+        }
+    ]
+}

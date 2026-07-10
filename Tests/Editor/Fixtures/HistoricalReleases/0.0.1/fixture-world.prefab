@@ -1,0 +1,132 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &7587289889216268279
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1938158544735165149}
+  - component: {fileID: 5410501919993154046}
+  - component: {fileID: 3663444630608120526}
+  - component: {fileID: 3563039974530795283}
+  m_Layer: 0
+  m_Name: fixture-world
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!4 &1938158544735165149
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7587289889216268279}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.14976268, y: -0.3316583, z: 0.1760403, w: 0.91464955}
+  m_LocalPosition: {x: 3.25, y: -1.5, z: 2.75}
+  m_LocalScale: {x: 1.75, y: 0.45, z: 2.2}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!33 &5410501919993154046
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7587289889216268279}
+  m_Mesh: {fileID: 4300000, guid: 843e2aacf8ad1fb458eaa4556671f7fb, type: 2}
+--- !u!23 &3663444630608120526
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7587289889216268279}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 0}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &3563039974530795283
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7587289889216268279}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29946ddaafa0c41468ecfc2a1a3a4297, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _settings:
+    _gridSize: {x: 2, y: 2, z: 2}
+    _localBounds:
+      m_Center: {x: 3.0263455, y: -1.5862163, z: 2.9695666}
+      m_Extent: {x: 1.4372437, y: 0.8256969, z: 1.4402142}
+    _controlPointsLocal:
+    - {x: 1.5226018, y: -2.373913, z: 1.5008525}
+    - {x: 4.537689, y: -2.3682132, z: 1.4970524}
+    - {x: 1.5074018, y: -0.80991936, z: 1.4932524}
+    - {x: 4.5528893, y: -0.8156194, z: 1.4894525}
+    - {x: 1.4922018, y: -2.351113, z: 4.4534807}
+    - {x: 4.568089, y: -2.3454132, z: 4.4572806}
+    - {x: 1.4770018, y: -0.8327194, z: 4.4610806}
+    - {x: 4.583289, y: -0.8384194, z: 4.4648805}
+    _interpolation: 0
+    _applySpace: 1
+    _useJobsAndBurst: 1
+  _skinnedMeshRenderer: {fileID: 0}
+  _meshFilter: {fileID: 5410501919993154046}
+  _recalculateNormals: 0
+  _recalculateTangents: 1
+  _recalculateBounds: 0
+  _hasInitializedFromSource: 1
+  _cache:
+    _gridSize: {x: 2, y: 2, z: 2}
+    _localBounds:
+      m_Center: {x: 3.0263455, y: -1.5862163, z: 2.9695666}
+      m_Extent: {x: 1.4372437, y: 0.8256969, z: 1.4402142}
+    _interpolation: 0
+    _vertexCount: 0
+    _entries: []
+    _restVertices: []
+  _runtimeMesh: {fileID: 0}
+  _sourceMesh: {fileID: 4300000, guid: 843e2aacf8ad1fb458eaa4556671f7fb, type: 2}
