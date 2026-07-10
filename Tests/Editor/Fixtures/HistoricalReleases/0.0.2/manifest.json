@@ -4,7 +4,11 @@
     "packageVersion": "0.0.2",
     "unityVersion": "2022.3.22f1",
     "generator": "Tools~/HistoricalFixtures/HistoricalFixtureGenerator.cs",
-    "generatorSha256": "572b37ae88f13a3e874dd2a923af83bdfba33a5c2e1790eca79f5f37d57df581",
+    "generatorSha256": "48a4fa7bd9ce776e1a53052c7916f33284d940eeeb134ecc15757cddb9fc1d22",
+    "runner": "Tools~/HistoricalFixtures/Generate-HistoricalFixtures.ps1",
+    "runnerSha256": "d81ea92e5c8d28e28e42aae08cf07d059fc070da8b07a708f60616897ca94539",
+    "metaGuidScheme": "sha256-v1:tag/relative-asset-path",
+    "prefabFileIdScheme": "sha256-v1:tag/relative-prefab/class/ordinal",
     "generationMode": "unity-batchmode-tag-checkout",
     "goldenOutputSource": "historical-runtime-deform",
     "fixtures": [
@@ -19,19 +23,19 @@
     "files": [
         {
             "path": "expected.json",
-            "sha256": "5fc0f507cb8a4177132011a156ed63db05969ee3698a9bbb692428ae8f7b3232"
+            "sha256": "a8a95b2f3c75748c683080f50ad45f39f9ea0ec0bacb5414fb6155cafd45ecd2"
         },
         {
             "path": "expected.json.meta",
-            "sha256": "247e93120cf0558b57fec544c59ec71ac0fa90c43b8dea9aadca55b1457abccb"
+            "sha256": "45b0893f10215e047074e85dee7747e65a451f581c8b07cc1949b32a5343988d"
         },
         {
             "path": "fixture.prefab",
-            "sha256": "bab65568bea1d6a3d83ea664c8c0011bb55cf56f69e292e1b39b8cc969bb4673"
+            "sha256": "f3f6f7e09e80b78866d39562641b100040cce367788828a8466bf46091de0117"
         },
         {
             "path": "fixture.prefab.meta",
-            "sha256": "ef5db67ca5c74a0e69b9cce68aad87eee557d25edc76518a5cf0f0dd7b8ae196"
+            "sha256": "4b2fd007cf22b782959ab48e5abdea6d3e118ec9815868a757a8241279d0369b"
         },
         {
             "path": "source.asset",
@@ -39,7 +43,7 @@
         },
         {
             "path": "source.asset.meta",
-            "sha256": "4bed8266b90e2fc82ebba44a6f1daff4985ec21607f210d8f25b8570deae580b"
+            "sha256": "76d3981e260a5d84a2a894a3101d6c024aad3d0ad9ef2017f61400ed168abb69"
         }
     ]
 }

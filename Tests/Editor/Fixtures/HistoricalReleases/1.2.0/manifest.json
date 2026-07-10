@@ -4,7 +4,11 @@
     "packageVersion": "1.2.0",
     "unityVersion": "2022.3.22f1",
     "generator": "Tools~/HistoricalFixtures/HistoricalFixtureGenerator.cs",
-    "generatorSha256": "572b37ae88f13a3e874dd2a923af83bdfba33a5c2e1790eca79f5f37d57df581",
+    "generatorSha256": "48a4fa7bd9ce776e1a53052c7916f33284d940eeeb134ecc15757cddb9fc1d22",
+    "runner": "Tools~/HistoricalFixtures/Generate-HistoricalFixtures.ps1",
+    "runnerSha256": "d81ea92e5c8d28e28e42aae08cf07d059fc070da8b07a708f60616897ca94539",
+    "metaGuidScheme": "sha256-v1:tag/relative-asset-path",
+    "prefabFileIdScheme": "sha256-v1:tag/relative-prefab/class/ordinal",
     "generationMode": "unity-batchmode-tag-checkout",
     "goldenOutputSource": "historical-runtime-deform",
     "fixtures": [
@@ -19,19 +23,19 @@
     "files": [
         {
             "path": "expected.json",
-            "sha256": "c0f5aec2dc41fc599f68f2bd2fc2a1d979a39d82b13411a6749867965e5b77fd"
+            "sha256": "684f0096fe4bfd0cc84a12cd4c6e660b3ed6d8d84e24255cfb31d8cbe84db979"
         },
         {
             "path": "expected.json.meta",
-            "sha256": "c509366c977a5a441149fd35c3c03af26e97222af846fecc3e2248457a24ca11"
+            "sha256": "e7f4e0230e8a915f1239669f904416b38a04a86ef671071b1de573e73324bfe5"
         },
         {
             "path": "fixture.prefab",
-            "sha256": "74630ce490475804f152c02ab2e95c6371a6909fcfa959b0d646a7958b7d1870"
+            "sha256": "95f095da3b810bbf8a923d22a392676b1a7cd0625ef50a2a16f10b93519574b4"
         },
         {
             "path": "fixture.prefab.meta",
-            "sha256": "b0f474f4447d2ca9b130598c3d32d78668a484715b1dac2e0f39acf44aad2378"
+            "sha256": "4c890ca76e41f92499722e40aef55f8fd2c8446710c8940ccee60c13e95873f6"
         },
         {
             "path": "source.asset",
@@ -39,7 +43,7 @@
         },
         {
             "path": "source.asset.meta",
-            "sha256": "312acbbef0c09accf719b2153c94003fa6cd85a8bf242681e0db1017fced6040"
+            "sha256": "3ce9f550bde6e415226810029d803d3c8924435a2d96f30607e6215b4f51587d"
         }
     ]
 }

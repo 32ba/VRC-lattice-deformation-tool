@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
 using UnityEditor;
@@ -24,6 +26,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         private const string PackageRoot = "Packages/net.32ba.lattice-deformation-tool";
         private const string FixtureRoot = PackageRoot + "/Tests/Editor/Fixtures/HistoricalReleases";
         private const string GeneratorPath = "Tools~/HistoricalFixtures/HistoricalFixtureGenerator.cs";
+        private const string RunnerPath = "Tools~/HistoricalFixtures/Generate-HistoricalFixtures.ps1";
+        private const string MetaGuidScheme = "sha256-v1:tag/relative-asset-path";
+        private const string MetaGuidNamespace = "net.32ba.lattice-deformation-tool/historical-fixture-meta-guid/v1";
+        private const string PrefabFileIdScheme = "sha256-v1:tag/relative-prefab/class/ordinal";
+        private const string PrefabFileIdNamespace = "net.32ba.lattice-deformation-tool/historical-fixture-prefab-file-id/v1";
         private const string UnityVersion = "2022.3.22f1";
         private const string LatticeScriptGuid = "29946ddaafa0c41468ecfc2a1a3a4297";
         private const string LegacyBrushScriptGuid = "555ef150b22858c4f8a226a1a0f51c73";
@@ -65,6 +72,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 if (tag.HasLegacyBrush)
                 {
+                    yield return FixtureCase.Lattice(
+                        tag,
+                        "lattice-remove-active-last",
+                        "fixture-remove-active-last.prefab",
+                        "expected-remove-active-last.json");
                     yield return FixtureCase.LegacyBrush(
                         tag,
                         "legacy-brush.prefab",
@@ -99,11 +111,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         public void FixtureManifest_ContainsEveryPublishedTagAndRequiredActualUnityAssets()
         {
             var errors = new List<string>();
+            var seenMetaGuids = new HashSet<string>(StringComparer.Ordinal);
             TryRequireFile(PackageRoot + "/Tests/Editor/Fixtures.meta", errors, "corpus");
             TryRequireFile(FixtureRoot + ".meta", errors, "corpus");
             foreach (var tag in s_tags)
             {
-                ValidateReleaseFixtureManifest(tag, errors);
+                ValidateReleaseFixtureManifest(tag, seenMetaGuids, errors);
             }
 
             Assert.That(
@@ -218,6 +231,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     Is.EqualTo(DeformationDataVersion.CurrentDevelopment));
                 Assert.That(directDeformer.SourceDeformationDataVersion,
                     Is.EqualTo(fixture.Tag.Classification));
+                AssertGoldenGroups(fixture, expected, directDeformer);
                 Assert.That(CaptureRuntimeState(directDeformer), Is.EqualTo(stepwiseState),
                     "Direct and release-by-release upgrades diverged for an actual saved fixture.");
                 Assert.That(directDeformer.ComputeLayeredStateHash(), Is.EqualTo(stepwiseHash),
@@ -328,7 +342,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
-        private static void ValidateReleaseFixtureManifest(TagDefinition tag, List<string> errors)
+        private static void ValidateReleaseFixtureManifest(
+            TagDefinition tag,
+            ISet<string> seenMetaGuids,
+            List<string> errors)
         {
             string directory = $"{FixtureRoot}/{tag.Tag}";
             if (!Directory.Exists(AbsolutePath(directory)))
@@ -340,6 +357,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             if (!File.Exists(AbsolutePath(directory + ".meta")))
             {
                 errors.Add($"{tag.Tag}: directory meta is missing ({directory}.meta).");
+            }
+            else
+            {
+                ValidateDeterministicMetaGuid(
+                    directory + ".meta",
+                    tag.Tag,
+                    ".",
+                    seenMetaGuids,
+                    errors);
             }
 
             string manifestPath = directory + "/manifest.json";
@@ -372,6 +398,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Expect(errors, tag.Tag, "manifest unityVersion", manifest.unityVersion, UnityVersion);
             Expect(errors, tag.Tag, "manifest generationMode", manifest.generationMode, "unity-batchmode-tag-checkout");
             Expect(errors, tag.Tag, "manifest goldenOutputSource", manifest.goldenOutputSource, "historical-runtime-deform");
+            Expect(errors, tag.Tag, "manifest metaGuidScheme", manifest.metaGuidScheme, MetaGuidScheme);
+            Expect(errors, tag.Tag, "manifest prefabFileIdScheme", manifest.prefabFileIdScheme, PrefabFileIdScheme);
             Expect(errors, tag.Tag, "manifest generator", manifest.generator, GeneratorPath);
             string generatorAssetPath = PackageRoot + "/" + GeneratorPath;
             if (TryRequireFile(generatorAssetPath, errors, tag.Tag))
@@ -380,11 +408,23 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 if (!string.Equals(
                         manifest.generatorSha256,
                         actualGeneratorHash,
-                        StringComparison.OrdinalIgnoreCase))
+                        StringComparison.Ordinal))
                 {
                     errors.Add(
                         $"{tag.Tag}: generator SHA-256 mismatch; expected {manifest.generatorSha256}, " +
                         $"actual {actualGeneratorHash}.");
+                }
+            }
+            Expect(errors, tag.Tag, "manifest runner", manifest.runner, RunnerPath);
+            string runnerAssetPath = PackageRoot + "/" + RunnerPath;
+            if (TryRequireFile(runnerAssetPath, errors, tag.Tag))
+            {
+                string actualRunnerHash = ComputeSha256(AbsolutePath(runnerAssetPath));
+                if (!string.Equals(manifest.runnerSha256, actualRunnerHash, StringComparison.Ordinal))
+                {
+                    errors.Add(
+                        $"{tag.Tag}: runner SHA-256 mismatch; expected {manifest.runnerSha256}, " +
+                        $"actual {actualRunnerHash}.");
                 }
             }
 
@@ -413,6 +453,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 AddRequiredFile(requiredFiles, fixture.PrefabFile);
                 AddRequiredFile(requiredFiles, fixture.ExpectedFile);
                 ValidateManifestFixture(manifest, fixture, errors);
+                ValidateDeterministicPrefabFileIds(
+                    fixture.PrefabPath,
+                    tag.Tag,
+                    fixture.PrefabFile,
+                    errors);
             }
 
             var manifestFiles = manifest.files ?? Array.Empty<ManifestFile>();
@@ -446,9 +491,134 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 {
                     errors.Add($"{tag.Tag}: SHA-256 mismatch for {file}; expected {entry.sha256}, actual {actualHash}.");
                 }
+                if (file.EndsWith(".meta", StringComparison.Ordinal))
+                {
+                    ValidateDeterministicMetaGuid(
+                        assetPath,
+                        tag.Tag,
+                        file.Substring(0, file.Length - ".meta".Length),
+                        seenMetaGuids,
+                        errors);
+                }
             }
+            ValidateDeterministicMetaGuid(
+                manifestPath + ".meta",
+                tag.Tag,
+                "manifest.json",
+                seenMetaGuids,
+                errors);
 
             ValidateLoadableAssets(tag, fixtures, errors);
+        }
+
+        private static void ValidateDeterministicMetaGuid(
+            string metaAssetPath,
+            string tag,
+            string relativeAssetPath,
+            ISet<string> seenMetaGuids,
+            ICollection<string> errors)
+        {
+            string absolutePath = AbsolutePath(metaAssetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return;
+            }
+
+            MatchCollection matches = Regex.Matches(
+                File.ReadAllText(absolutePath),
+                @"(?m)^guid: ([0-9a-fA-F]{32})\r?$",
+                RegexOptions.CultureInvariant);
+            if (matches.Count != 1)
+            {
+                errors.Add($"{tag}: {relativeAssetPath}.meta must contain exactly one GUID.");
+                return;
+            }
+
+            string actual = matches[0].Groups[1].Value;
+            string expected = ComputeDeterministicMetaGuid(tag, relativeAssetPath);
+            if (!string.Equals(actual, expected, StringComparison.Ordinal))
+            {
+                errors.Add(
+                    $"{tag}: deterministic meta GUID mismatch for {relativeAssetPath}; " +
+                    $"expected {expected}, actual {actual}.");
+            }
+            if (!seenMetaGuids.Add(actual))
+            {
+                errors.Add($"{tag}: deterministic meta GUID is duplicated for {relativeAssetPath}: {actual}.");
+            }
+        }
+
+        private static string ComputeDeterministicMetaGuid(string tag, string relativeAssetPath)
+        {
+            string identity = MetaGuidNamespace + "\n" + tag + "\n" + relativeAssetPath.Replace('\\', '/');
+            using var sha = SHA256.Create();
+            byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(identity));
+            return string.Concat(hash.Take(16).Select(value => value.ToString("x2")));
+        }
+
+        private static void ValidateDeterministicPrefabFileIds(
+            string prefabAssetPath,
+            string tag,
+            string relativePrefabPath,
+            ICollection<string> errors)
+        {
+            string absolutePath = AbsolutePath(prefabAssetPath);
+            if (!File.Exists(absolutePath))
+            {
+                return;
+            }
+
+            MatchCollection anchors = Regex.Matches(
+                File.ReadAllText(absolutePath),
+                @"(?m)^--- !u!(\d+) &(\d+)\r?$",
+                RegexOptions.CultureInvariant);
+            if (anchors.Count == 0)
+            {
+                errors.Add($"{tag}: {relativePrefabPath} contains no local object anchors.");
+                return;
+            }
+
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            for (int ordinal = 0; ordinal < anchors.Count; ordinal++)
+            {
+                string classId = anchors[ordinal].Groups[1].Value;
+                string actual = anchors[ordinal].Groups[2].Value;
+                string expected = ComputeDeterministicPrefabFileId(
+                    tag,
+                    relativePrefabPath,
+                    classId,
+                    ordinal);
+                if (!string.Equals(actual, expected, StringComparison.Ordinal))
+                {
+                    errors.Add(
+                        $"{tag}: deterministic prefab fileID mismatch for {relativePrefabPath} " +
+                        $"anchor {ordinal}; expected {expected}, actual {actual}.");
+                }
+                if (!seen.Add(actual))
+                {
+                    errors.Add($"{tag}: duplicate prefab fileID in {relativePrefabPath}: {actual}.");
+                }
+            }
+        }
+
+        private static string ComputeDeterministicPrefabFileId(
+            string tag,
+            string relativePrefabPath,
+            string classId,
+            int ordinal)
+        {
+            string identity = PrefabFileIdNamespace + "\n" + tag + "\n" +
+                              relativePrefabPath.Replace('\\', '/') + "\n" + classId + "\n" +
+                              ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            using var sha = SHA256.Create();
+            byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(identity));
+            ulong value = 0;
+            for (int index = 0; index < sizeof(ulong); index++)
+            {
+                value = (value << 8) | hash[index];
+            }
+            value = (value & 0x3FFFFFFFFFFFFFFFUL) | 0x4000000000000000UL;
+            return value.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
         private static void ValidateManifestFixture(
@@ -629,6 +799,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 errors.Add($"{label}: pre-1.2.1 YAML unexpectedly contains group schema markers.");
             }
+
+            if (fixture.Kind != "lattice-world" && !yaml.Contains("_interpolation: 1"))
+            {
+                errors.Add(
+                    $"{label}: local lattice fixture must serialize CubicBernstein (_interpolation: 1).");
+            }
         }
 
         private static void ValidateExpectedDocument(
@@ -781,6 +957,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 errors.Add($"{fixture.Tag.Tag}/{fixture.Kind}: component rebuild/weight-transfer settings are missing.");
             }
+            ValidateNonDefaultCompatibilityContract(fixture, expected, errors);
             if (fixture.Kind == "lattice-world")
             {
                 if (expected.transformProbes == null || expected.transformProbes.Length == 0 ||
@@ -810,6 +987,123 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 errors.Add($"{fixture.Tag.Tag}/{fixture.Kind}: non-world fixtures must define transformProbes as [].");
             }
+        }
+
+        private static void ValidateNonDefaultCompatibilityContract(
+            FixtureCase fixture,
+            FixtureExpected expected,
+            ICollection<string> errors)
+        {
+            if (fixture.IsLegacyBrush)
+            {
+                return;
+            }
+
+            string label = fixture.Tag.Tag + "/" + fixture.Kind;
+            var finalGroups = expected.groups ?? Array.Empty<GoldenGroup>();
+            if (fixture.Kind != "lattice-world" && !ContainsCubicBernsteinLattice(finalGroups))
+            {
+                errors.Add($"{label}: local fixture golden must exercise CubicBernstein lattice interpolation.");
+            }
+
+            if (fixture.Tag.Classification != DeformationDataVersion.V1_2_1)
+            {
+                return;
+            }
+
+            bool removeActiveLast = fixture.Kind == "lattice-remove-active-last";
+            int requiredActiveGroupIndex = removeActiveLast ? 0 : 1;
+            if (expected.activeGroupIndex != requiredActiveGroupIndex)
+            {
+                errors.Add(
+                    $"{label}: group-schema fixture must preserve activeGroupIndex={requiredActiveGroupIndex}.");
+            }
+
+            var rawGroups = expected.serializedGroups ?? Array.Empty<GoldenGroup>();
+            if (rawGroups.Length < 2)
+            {
+                errors.Add($"{label}: group-schema fixture must serialize primary and secondary groups.");
+                return;
+            }
+
+            var primary = rawGroups[0];
+            if (removeActiveLast)
+            {
+                if (primary == null || primary.layers == null || primary.layers.Length == 0 ||
+                    primary.activeLayerIndex != primary.layers.Length ||
+                    primary.layers[primary.layers.Length - 1] == null ||
+                    primary.layers[primary.layers.Length - 1].type != "Lattice")
+                {
+                    errors.Add(
+                        $"{label}: raw RemoveLayer payload must retain the known one-past-end active index.");
+                }
+                if (finalGroups.Length == 0 || finalGroups[0] == null ||
+                    finalGroups[0].layers == null || finalGroups[0].layers.Length == 0 ||
+                    finalGroups[0].activeLayerIndex != finalGroups[0].layers.Length - 1)
+                {
+                    errors.Add(
+                        $"{label}: migrated RemoveLayer payload must canonicalize active index to the last remaining layer.");
+                }
+            }
+            else if (primary == null || primary.activeLayerIndex != 1 ||
+                     primary.layers == null || primary.layers.Length <= 1 ||
+                     primary.layers[1] == null || primary.layers[1].type != "Brush")
+            {
+                errors.Add(
+                    $"{label}: inactive primary group must preserve activeLayerIndex=1 selecting its Brush layer.");
+            }
+            if (!ContainsCubicBernsteinLattice(rawGroups))
+            {
+                errors.Add($"{label}: serialized group payload must contain a CubicBernstein lattice layer.");
+            }
+
+            for (int groupIndex = 0; groupIndex < rawGroups.Length; groupIndex++)
+            {
+                if (!(removeActiveLast && groupIndex == 0))
+                {
+                    ValidateGoldenActiveLayerIndex(rawGroups[groupIndex], label + $" raw group[{groupIndex}]", errors);
+                }
+                int canonicalActiveLayerIndex = rawGroups[groupIndex] == null ||
+                                                rawGroups[groupIndex].layers == null ||
+                                                rawGroups[groupIndex].layers.Length == 0
+                    ? 0
+                    : Mathf.Clamp(
+                        rawGroups[groupIndex].activeLayerIndex,
+                        0,
+                        rawGroups[groupIndex].layers.Length - 1);
+                if (groupIndex >= finalGroups.Length || finalGroups[groupIndex] == null ||
+                    rawGroups[groupIndex] == null ||
+                    finalGroups[groupIndex].activeLayerIndex != canonicalActiveLayerIndex)
+                {
+                    errors.Add(
+                        $"{label}: final group[{groupIndex}] does not preserve/canonicalize its raw activeLayerIndex.");
+                }
+            }
+            for (int groupIndex = 0; groupIndex < finalGroups.Length; groupIndex++)
+            {
+                ValidateGoldenActiveLayerIndex(finalGroups[groupIndex], label + $" final group[{groupIndex}]", errors);
+            }
+        }
+
+        private static void ValidateGoldenActiveLayerIndex(
+            GoldenGroup group,
+            string label,
+            ICollection<string> errors)
+        {
+            if (group == null || group.layers == null || group.layers.Length == 0 ||
+                group.activeLayerIndex < 0 || group.activeLayerIndex >= group.layers.Length)
+            {
+                errors.Add(label + ": activeLayerIndex is outside the serialized layer list.");
+            }
+        }
+
+        private static bool ContainsCubicBernsteinLattice(IEnumerable<GoldenGroup> groups)
+        {
+            return (groups ?? Array.Empty<GoldenGroup>())
+                .Where(group => group != null && group.layers != null)
+                .SelectMany(group => group.layers)
+                .Any(layer => layer != null && layer.type == "Lattice" && layer.settings != null &&
+                              layer.settings.interpolation == LatticeInterpolationMode.CubicBernstein.ToString());
         }
 
         private static FixtureExpected LoadExpected(FixtureCase fixture)
@@ -860,6 +1154,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             FixtureExpected expected,
             LatticeDeformer deformer)
         {
+            AssertNonDefaultCompatibilityContract(fixture, expected, deformer);
             float tolerance = expected.tolerance;
             Assert.That(deformer.ActiveGroupIndex, Is.EqualTo(expected.activeGroupIndex));
             Assert.That(deformer.Groups.Count, Is.EqualTo(expected.groups.Length));
@@ -926,6 +1221,79 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                             label + ".controlPoints");
                     }
                 }
+            }
+        }
+
+        private static void AssertNonDefaultCompatibilityContract(
+            FixtureCase fixture,
+            FixtureExpected expected,
+            LatticeDeformer deformer)
+        {
+            if (fixture.IsLegacyBrush)
+            {
+                return;
+            }
+
+            if (fixture.Kind != "lattice-world")
+            {
+                Assert.That(ContainsCubicBernsteinLattice(expected.groups), Is.True,
+                    "The local release golden must explicitly cover CubicBernstein interpolation.");
+                Assert.That(
+                    deformer.Groups
+                        .Where(group => group != null)
+                        .SelectMany(group => group.Layers)
+                        .Any(layer => layer != null && layer.Type == MeshDeformerLayerType.Lattice &&
+                                      layer.Settings.Interpolation == LatticeInterpolationMode.CubicBernstein),
+                    Is.True,
+                    "The upgraded local fixture lost its CubicBernstein lattice interpolation.");
+            }
+
+            if (fixture.Tag.Classification != DeformationDataVersion.V1_2_1)
+            {
+                return;
+            }
+
+            bool removeActiveLast = fixture.Kind == "lattice-remove-active-last";
+            int requiredActiveGroupIndex = removeActiveLast ? 0 : 1;
+            Assert.That(expected.activeGroupIndex, Is.EqualTo(requiredActiveGroupIndex));
+            Assert.That(deformer.ActiveGroupIndex, Is.EqualTo(requiredActiveGroupIndex),
+                "The historical active group selection was not preserved.");
+            Assert.That(expected.serializedGroups, Has.Length.GreaterThanOrEqualTo(2));
+            Assert.That(deformer.Groups, Has.Count.GreaterThanOrEqualTo(2));
+            if (removeActiveLast)
+            {
+                var rawPrimary = expected.serializedGroups[0];
+                Assert.That(rawPrimary.layers, Has.Length.GreaterThan(0));
+                Assert.That(rawPrimary.activeLayerIndex, Is.EqualTo(rawPrimary.layers.Length),
+                    "The actual tag fixture must retain the published one-past-end raw index.");
+                Assert.That(expected.groups[0].activeLayerIndex,
+                    Is.EqualTo(expected.groups[0].layers.Length - 1),
+                    "The migration golden must canonicalize the removed-last selection.");
+                Assert.That(deformer.Groups[0].ActiveLayerIndex,
+                    Is.EqualTo(deformer.Groups[0].Layers.Count - 1),
+                    "The removed-last selection was not canonicalized to the last remaining layer.");
+            }
+            else
+            {
+                Assert.That(expected.serializedGroups[0].activeLayerIndex, Is.EqualTo(1));
+                Assert.That(expected.serializedGroups[0].layers, Has.Length.GreaterThan(1));
+                Assert.That(expected.serializedGroups[0].layers[1].type, Is.EqualTo("Brush"));
+                Assert.That(deformer.Groups[0].ActiveLayerIndex, Is.EqualTo(1),
+                    "The inactive primary group's Brush-layer selection was not preserved.");
+                Assert.That(deformer.Groups[0].Layers, Has.Count.GreaterThan(1));
+                Assert.That(deformer.Groups[0].Layers[1].Type, Is.EqualTo(MeshDeformerLayerType.Brush));
+            }
+
+            Assert.That(deformer.Groups.Count, Is.EqualTo(expected.groups.Length));
+            for (int groupIndex = 0; groupIndex < expected.groups.Length; groupIndex++)
+            {
+                var goldenGroup = expected.groups[groupIndex];
+                Assert.That(goldenGroup.activeLayerIndex,
+                    Is.InRange(0, goldenGroup.layers.Length - 1),
+                    $"golden group[{groupIndex}].activeLayerIndex");
+                Assert.That(deformer.Groups[groupIndex].ActiveLayerIndex,
+                    Is.EqualTo(goldenGroup.activeLayerIndex),
+                    $"group[{groupIndex}].activeLayerIndex");
             }
         }
 
@@ -1048,6 +1416,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 "The compatibility flag must remain absent/false through classification.");
             Assert.That(Require(serialized, "_layerModelVersion").intValue,
                 Is.EqualTo(Mathf.Max(0, expected.serializedLayerModelVersion)));
+            Assert.That(Require(serialized, "_activeGroupIndex").intValue,
+                Is.EqualTo(expected.activeGroupIndex),
+                "The raw historical active group selection must survive deserialization/classification.");
             var flatLayers = Require(serialized, "_layers");
             int expectedLoadedFlatCount = Math.Max(0, expected.serializedFlatLayerCount);
             Assert.That(flatLayers.arraySize, Is.EqualTo(expectedLoadedFlatCount));
@@ -1084,6 +1455,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     expected.tolerance,
                     $"raw historical groups[{groupIndex}]");
             }
+
+            if (expectedRawGroupCount == 0 && expected.serializedFlatLayerCount < 0)
+            {
+                var goldenSettings = expected.groups[0].layers[0].settings;
+                var rawSettings = Require(serialized, "_settings");
+                Assert.That(RequireRelative(rawSettings, "_interpolation").intValue,
+                    Is.EqualTo((int)ParseEnum<LatticeInterpolationMode>(goldenSettings.interpolation)),
+                    "The raw single-settings interpolation must match the release golden.");
+            }
         }
 
         private static void AssertHybridNormalizationBoundary(
@@ -1119,10 +1499,19 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(expected.groups.Length, Is.EqualTo(expected.serializedGroups.Length + 1));
             for (int groupIndex = 0; groupIndex < expected.serializedGroups.Length; groupIndex++)
             {
+                var canonicalPublishedGroup = JsonUtility.FromJson<GoldenGroup>(
+                    JsonUtility.ToJson(expected.serializedGroups[groupIndex]));
+                canonicalPublishedGroup.activeLayerIndex = canonicalPublishedGroup.layers == null ||
+                                                          canonicalPublishedGroup.layers.Length == 0
+                    ? 0
+                    : Mathf.Clamp(
+                        canonicalPublishedGroup.activeLayerIndex,
+                        0,
+                        canonicalPublishedGroup.layers.Length - 1);
                 Assert.That(
                     JsonUtility.ToJson(expected.groups[groupIndex]),
-                    Is.EqualTo(JsonUtility.ToJson(expected.serializedGroups[groupIndex])),
-                    $"published group prefix[{groupIndex}]");
+                    Is.EqualTo(JsonUtility.ToJson(canonicalPublishedGroup)),
+                    $"canonical published group prefix[{groupIndex}]");
             }
             var recovery = expected.groups[expected.groups.Length - 1];
             Assert.That(recovery.name, Is.EqualTo("Recovered Legacy Flat Layers"));
@@ -2022,6 +2411,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             public string unityVersion;
             public string generator;
             public string generatorSha256;
+            public string runner;
+            public string runnerSha256;
+            public string metaGuidScheme;
+            public string prefabFileIdScheme;
             public string generationMode;
             public string goldenOutputSource;
             public ManifestFixture[] fixtures;

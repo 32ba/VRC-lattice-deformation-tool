@@ -7,24 +7,34 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 
 /// <summary>
 /// Batch-mode generator for real Unity-serialized historical deformation fixtures.
 ///
-/// This source is copied, together with its fixed .meta GUID, into an isolated Unity
-/// project's Assets/Editor directory. The historical tag's Runtime directory is copied
-/// into that project unchanged. All interaction with tag code is reflection-based so the
-/// same generator compiles against every published release from 0.0.1 through 1.4.0.
+/// This source and its PowerShell runner are copied into an isolated Unity project's
+/// Assets/Editor directory and verified against the SHA-256 values received on the
+/// command line. The historical tag's Runtime directory is copied into that project
+/// unchanged. All interaction with tag code is reflection-based so the same generator
+/// compiles against every published release from 0.0.1 through 1.4.0.
 /// </summary>
 public static class HistoricalFixtureGenerator
 {
     private const string RuntimeAssemblyName = "net.32ba.lattice-deformation-tool";
     private const string Namespace = "Net._32Ba.LatticeDeformationTool";
     private const string GeneratorPath = "Tools~/HistoricalFixtures/HistoricalFixtureGenerator.cs";
+    private const string RunnerPath = "Tools~/HistoricalFixtures/Generate-HistoricalFixtures.ps1";
+    private const string TemporaryGeneratorPath = "Assets/Editor/HistoricalFixtureGenerator.cs";
+    private const string TemporaryRunnerPath = "Assets/Editor/Generate-HistoricalFixtures.ps1";
     private const string GenerationMode = "unity-batchmode-tag-checkout";
     private const string GoldenOutputSource = "historical-runtime-deform";
+    private const string MetaGuidScheme = "sha256-v1:tag/relative-asset-path";
+    private const string MetaGuidNamespace = "net.32ba.lattice-deformation-tool/historical-fixture-meta-guid/v1";
+    private const string PrefabFileIdScheme = "sha256-v1:tag/relative-prefab/class/ordinal";
+    private const string PrefabFileIdNamespace = "net.32ba.lattice-deformation-tool/historical-fixture-prefab-file-id/v1";
     private const float Tolerance = 0.00005f;
 
     public static void Generate()
@@ -35,6 +45,10 @@ public static class HistoricalFixtureGenerator
             string commitSha = RequireArgument("-fixtureCommit");
             string packageVersion = RequireArgument("-fixturePackageVersion");
             string generatorSha = RequireArgument("-fixtureGeneratorSha");
+            string runnerSha = RequireArgument("-fixtureRunnerSha");
+
+            VerifyReceivedSourceHash(TemporaryGeneratorPath, generatorSha, "generator");
+            VerifyReceivedSourceHash(TemporaryRunnerPath, runnerSha, "runner");
 
             if (!string.Equals(Application.unityVersion, "2022.3.22f1", StringComparison.Ordinal))
             {
@@ -43,7 +57,7 @@ public static class HistoricalFixtureGenerator
             }
 
             EditorSettings.serializationMode = SerializationMode.ForceText;
-            GenerateRelease(tag, commitSha, packageVersion, generatorSha);
+            GenerateRelease(tag, commitSha, packageVersion, generatorSha, runnerSha);
             Debug.Log($"HISTORICAL_FIXTURE_GENERATION_SUCCEEDED tag={tag} commit={commitSha}");
         }
         catch (Exception exception)
@@ -57,7 +71,8 @@ public static class HistoricalFixtureGenerator
         string tag,
         string commitSha,
         string packageVersion,
-        string generatorSha)
+        string generatorSha,
+        string runnerSha)
     {
         string outputRoot = $"Assets/Generated/HistoricalReleases/{tag}";
         if (AssetDatabase.IsValidFolder(outputRoot))
@@ -94,6 +109,29 @@ public static class HistoricalFixtureGenerator
         });
         AddArtifactWithMeta(artifactPaths, localPrefabPath);
         AddArtifactWithMeta(artifactPaths, localExpectedPath);
+
+        if (HasPublishedLegacyBrush(tag))
+        {
+            string removePrefabPath = $"{outputRoot}/fixture-remove-active-last.prefab";
+            string removeExpectedPath = $"{outputRoot}/expected-remove-active-last.json";
+            ExpectedDocument removeExpected = CreateLatticeFixture(
+                tag,
+                source,
+                removePrefabPath,
+                worldSpace: false,
+                removeActiveLastLayer: true);
+            WriteJsonAsset(removeExpectedPath, removeExpected);
+            fixtureEntries.Add(new ManifestFixture
+            {
+                kind = "lattice-remove-active-last",
+                prefab = "fixture-remove-active-last.prefab",
+                expected = "expected-remove-active-last.json",
+                source = "source.asset",
+                goldenOutputSource = "LatticeDeformer.Deform(false)",
+            });
+            AddArtifactWithMeta(artifactPaths, removePrefabPath);
+            AddArtifactWithMeta(artifactPaths, removeExpectedPath);
+        }
 
         if (tag == "0.0.1")
         {
@@ -134,6 +172,12 @@ public static class HistoricalFixtureGenerator
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
 
+        NormalizeGeneratedPrefabFileIds(outputRoot, tag, artifactPaths);
+        // Unity assigns random GUIDs to newly-created .meta files. Normalize them before
+        // hashing so identical tag/generator/runner inputs produce a byte-identical
+        // corpus, including prefab references to source.asset.
+        NormalizeGeneratedMetaGuids(outputRoot, tag, artifactPaths);
+
         var files = artifactPaths
             .OrderBy(path => path, StringComparer.Ordinal)
             .Select(path => new ManifestFile
@@ -151,6 +195,10 @@ public static class HistoricalFixtureGenerator
             unityVersion = Application.unityVersion,
             generator = GeneratorPath,
             generatorSha256 = generatorSha,
+            runner = RunnerPath,
+            runnerSha256 = runnerSha,
+            metaGuidScheme = MetaGuidScheme,
+            prefabFileIdScheme = PrefabFileIdScheme,
             generationMode = GenerationMode,
             goldenOutputSource = GoldenOutputSource,
             fixtures = fixtureEntries.ToArray(),
@@ -161,6 +209,7 @@ public static class HistoricalFixtureGenerator
         WriteJsonAsset(manifestPath, manifest);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        NormalizeGeneratedMetaGuids(outputRoot, tag, new[] { manifestPath });
 
         AssertFileAndMetaExist(manifestPath);
         foreach (string path in artifactPaths)
@@ -176,10 +225,20 @@ public static class HistoricalFixtureGenerator
         string tag,
         Mesh source,
         string prefabPath,
-        bool worldSpace)
+        bool worldSpace,
+        bool removeActiveLastLayer = false)
     {
+        if (worldSpace && removeActiveLastLayer)
+        {
+            throw new ArgumentException("World-space and remove-active-last fixture modes cannot be combined.");
+        }
         Type deformerType = RequireHistoricalType("LatticeDeformer");
-        var root = new GameObject(worldSpace ? "Historical Lattice World Fixture" : "Historical Lattice Fixture");
+        var root = new GameObject(
+            worldSpace
+                ? "Historical Lattice World Fixture"
+                : removeActiveLastLayer
+                    ? "Historical Remove Active Last Fixture"
+                    : "Historical Lattice Fixture");
         root.SetActive(false);
 
         if (worldSpace)
@@ -212,6 +271,10 @@ public static class HistoricalFixtureGenerator
             // eagerly creating their default group; that historical state is intentional.
             Call(component, "EnsureLayerModelReady");
             ConfigurePublishedGroupSchema(component, source);
+            if (removeActiveLastLayer)
+            {
+                ApplyPublishedRemoveActiveLastLayer(component);
+            }
         }
         else
         {
@@ -234,7 +297,7 @@ public static class HistoricalFixtureGenerator
         Vector3[] expectedVertices = result.vertices.ToArray();
         OutputBlendShapeExpected[] outputBlendShapes = BuildOutputBlendShapes(result);
         GroupExpected[] serializedGroups = groupSchema
-            ? BuildNormalizedGroups(component, groupSchema: true)
+            ? BuildNormalizedGroups(component, groupSchema: true, captureRawActiveLayerIndex: true)
             : Array.Empty<GroupExpected>();
         LayerExpected[] serializedFlatLayers = groupSchema
             ? BuildSerializedFlatLayers(component)
@@ -365,7 +428,11 @@ public static class HistoricalFixtureGenerator
         return new ExpectedDocument
         {
             tag = tag,
-            kind = worldSpace ? "lattice-world" : "lattice",
+            kind = worldSpace
+                ? "lattice-world"
+                : removeActiveLastLayer
+                    ? "lattice-remove-active-last"
+                    : "lattice",
             deformerPath = string.Empty,
             classifiedVersion = ClassifySerializedShape(tag, groupSchema),
             serializedLayerModelVersion = serializedLayerModelVersion,
@@ -505,7 +572,11 @@ public static class HistoricalFixtureGenerator
                 new Vector3(2.4f, 1.8f, 1.6f)));
         }
 
-        SetEnumProperty(settings, "Interpolation", 0);
+        // Keep the world-space fixture on the historical default while making every
+        // local single-settings fixture exercise the non-default interpolation path.
+        // The golden vertices below are captured from the tag's own Deform(false), so
+        // this also makes CubicBernstein part of the release compatibility contract.
+        SetEnumProperty(settings, "Interpolation", worldSpace ? 0 : 1);
         PropertyInfo useJobs = settings.GetType().GetProperty("UseJobsAndBurst", BindingFlags.Instance | BindingFlags.Public);
         if (useJobs != null && useJobs.CanWrite)
         {
@@ -548,9 +619,18 @@ public static class HistoricalFixtureGenerator
         SetEnumProperty(latticeLayer, "BlendShapeOutput", 1);
         SetProperty(latticeLayer, "BlendShapeName", "Historical Lattice Layer Shape");
         object latticeSettings = GetProperty(latticeLayer, "Settings");
-        ConfigureGroupLatticeSettings(latticeSettings, 0.16f, new Vector3(0.02f, -0.04f, 0.03f));
+        ConfigureGroupLatticeSettings(
+            latticeSettings,
+            0.16f,
+            new Vector3(0.02f, -0.04f, 0.03f),
+            interpolationValue: 1);
 
         int brushIndex = Convert.ToInt32(CallAddLayer(component, "Historical Brush Layer", 1));
+        if (brushIndex != 1)
+        {
+            throw new InvalidOperationException(
+                "The primary group fixture must retain a non-default active Brush layer index.");
+        }
         primaryLayers = AsList(GetProperty(component, "Layers"));
         object brushLayer = primaryLayers[brushIndex];
         SetProperty(brushLayer, "Enabled", true);
@@ -571,6 +651,11 @@ public static class HistoricalFixtureGenerator
         SetProperty(primaryGroup, "ActiveLayerIndex", brushIndex);
 
         int secondaryGroupIndex = Convert.ToInt32(Call(component, "AddGroup", "Historical Secondary Group"));
+        if (secondaryGroupIndex != 1)
+        {
+            throw new InvalidOperationException(
+                "The group fixture must retain a non-default active secondary group index.");
+        }
         SetProperty(component, "ActiveGroupIndex", secondaryGroupIndex);
         groups = AsList(GetProperty(component, "Groups"));
         object secondaryGroup = groups[secondaryGroupIndex];
@@ -590,20 +675,60 @@ public static class HistoricalFixtureGenerator
         ConfigureGroupLatticeSettings(
             GetProperty(secondaryLayer, "Settings"),
             0.085f,
-            new Vector3(-0.06f, 0.05f, -0.02f));
+            new Vector3(-0.06f, 0.05f, -0.02f),
+            interpolationValue: 0);
         SetProperty(secondaryGroup, "ActiveLayerIndex", secondaryLayerIndex);
 
-        SetProperty(component, "ActiveGroupIndex", 0);
+        // Deliberately serialize a non-zero active group. This selection is part of
+        // the raw, stepwise, direct-upgrade, and save/reload compatibility contract.
+        SetProperty(component, "ActiveGroupIndex", secondaryGroupIndex);
         Call(component, "InvalidateCache");
     }
 
-    private static void ConfigureGroupLatticeSettings(object settings, float editScale, Vector3 center)
+    private static void ConfigureGroupLatticeSettings(
+        object settings,
+        float editScale,
+        Vector3 center,
+        int interpolationValue)
     {
         SetProperty(settings, "GridSize", new Vector3Int(2, 2, 2));
         SetProperty(settings, "LocalBounds", new Bounds(center, new Vector3(2.2f, 1.9f, 1.7f)));
-        SetEnumProperty(settings, "Interpolation", 0);
+        SetEnumProperty(settings, "Interpolation", interpolationValue);
         Call(settings, "ResetControlPoints");
         ApplyControlPointEdits(settings, editScale);
+    }
+
+    private static void ApplyPublishedRemoveActiveLastLayer(Component component)
+    {
+        SetProperty(component, "ActiveGroupIndex", 0);
+        IList groups = AsList(GetProperty(component, "Groups"));
+        object primaryGroup = groups[0];
+        IList layers = AsList(GetProperty(primaryGroup, "LayersList"));
+        if (layers.Count < 2)
+        {
+            throw new InvalidOperationException(
+                "Remove-active-last fixture requires at least two layers before removal.");
+        }
+
+        int removedIndex = layers.Count - 1;
+        SetProperty(primaryGroup, "ActiveLayerIndex", removedIndex);
+        if (!Convert.ToBoolean(Call(component, "RemoveLayer", removedIndex)))
+        {
+            throw new InvalidOperationException(
+                $"Published RemoveLayer({removedIndex}) unexpectedly rejected the fixture operation.");
+        }
+
+        layers = AsList(GetProperty(primaryGroup, "LayersList"));
+        int rawActiveLayerIndex = Convert.ToInt32(GetField(primaryGroup, "_activeLayerIndex"));
+        int publicActiveLayerIndex = Convert.ToInt32(GetProperty(primaryGroup, "ActiveLayerIndex"));
+        if (rawActiveLayerIndex != layers.Count ||
+            publicActiveLayerIndex != Math.Max(0, layers.Count - 1))
+        {
+            throw new InvalidOperationException(
+                "Published RemoveLayer no longer produced the known one-past-end raw active index. " +
+                $"Raw={rawActiveLayerIndex} Public={publicActiveLayerIndex} Count={layers.Count}.");
+        }
+        Call(component, "InvalidateCache");
     }
 
     private static void ApplyControlPointEdits(object settings, float scale)
@@ -619,7 +744,10 @@ public static class HistoricalFixtureGenerator
         }
     }
 
-    private static GroupExpected[] BuildNormalizedGroups(Component component, bool groupSchema)
+    private static GroupExpected[] BuildNormalizedGroups(
+        Component component,
+        bool groupSchema,
+        bool captureRawActiveLayerIndex = false)
     {
         if (!groupSchema)
         {
@@ -669,7 +797,9 @@ public static class HistoricalFixtureGenerator
             {
                 name = Convert.ToString(GetProperty(group, "Name"), CultureInfo.InvariantCulture),
                 enabled = Convert.ToBoolean(GetProperty(group, "Enabled")),
-                activeLayerIndex = Convert.ToInt32(GetProperty(group, "ActiveLayerIndex")),
+                activeLayerIndex = captureRawActiveLayerIndex
+                    ? Convert.ToInt32(GetField(group, "_activeLayerIndex"))
+                    : Convert.ToInt32(GetProperty(group, "ActiveLayerIndex")),
                 blendShapeOutput = EnumName(GetProperty(group, "BlendShapeOutput")),
                 blendShapeName = Convert.ToString(GetProperty(group, "BlendShapeName"), CultureInfo.InvariantCulture),
                 blendShapeCurve = CurveExpected.From((AnimationCurve)GetProperty(group, "BlendShapeCurve")),
@@ -726,23 +856,31 @@ public static class HistoricalFixtureGenerator
         string serializedFlatBlendShapeName,
         CurveExpected serializedFlatBlendShapeCurve)
     {
-        if (serializedFlatLayers.Length == 0)
+        int recoveryCount = serializedFlatLayers.Length == 0 ? 0 : 1;
+        var projected = new GroupExpected[serializedGroups.Length + recoveryCount];
+        for (int groupIndex = 0; groupIndex < serializedGroups.Length; groupIndex++)
         {
-            return serializedGroups.ToArray();
+            GroupExpected clone = JsonUtility.FromJson<GroupExpected>(
+                JsonUtility.ToJson(serializedGroups[groupIndex]));
+            clone.activeLayerIndex = clone.layers == null || clone.layers.Length == 0
+                ? 0
+                : Math.Max(0, Math.Min(clone.activeLayerIndex, clone.layers.Length - 1));
+            projected[groupIndex] = clone;
         }
 
-        var projected = new GroupExpected[serializedGroups.Length + 1];
-        Array.Copy(serializedGroups, projected, serializedGroups.Length);
-        projected[projected.Length - 1] = new GroupExpected
+        if (recoveryCount != 0)
         {
-            name = "Recovered Legacy Flat Layers",
-            enabled = false,
-            activeLayerIndex = Math.Max(0, Math.Min(serializedActiveFlatLayerIndex, serializedFlatLayers.Length - 1)),
-            blendShapeOutput = serializedFlatBlendShapeOutput,
-            blendShapeName = serializedFlatBlendShapeName,
-            blendShapeCurve = serializedFlatBlendShapeCurve,
-            layers = serializedFlatLayers,
-        };
+            projected[projected.Length - 1] = new GroupExpected
+            {
+                name = "Recovered Legacy Flat Layers",
+                enabled = false,
+                activeLayerIndex = Math.Max(0, Math.Min(serializedActiveFlatLayerIndex, serializedFlatLayers.Length - 1)),
+                blendShapeOutput = serializedFlatBlendShapeOutput,
+                blendShapeName = serializedFlatBlendShapeName,
+                blendShapeCurve = serializedFlatBlendShapeCurve,
+                layers = serializedFlatLayers,
+            };
+        }
         return projected;
     }
 
@@ -1289,6 +1427,239 @@ public static class HistoricalFixtureGenerator
         throw new ArgumentException($"Missing required command-line argument {name}.");
     }
 
+    private static void VerifyReceivedSourceHash(string assetPath, string receivedSha, string description)
+    {
+        if (string.IsNullOrEmpty(receivedSha) || receivedSha.Length != 64 ||
+            receivedSha.Any(character => !Uri.IsHexDigit(character)))
+        {
+            throw new InvalidOperationException(
+                $"Received {description} SHA-256 is not a 64-character hexadecimal digest: {receivedSha}");
+        }
+
+        string actualSha = ComputeSha256(ToAbsolutePath(assetPath));
+        if (!string.Equals(receivedSha, actualSha, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Copied {description} source SHA-256 mismatch. Received={receivedSha} Actual={actualSha} Path={assetPath}");
+        }
+    }
+
+    private static void NormalizeGeneratedMetaGuids(
+        string outputRoot,
+        string tag,
+        IEnumerable<string> artifactPaths)
+    {
+        string outputAbsolute = ToAbsolutePath(outputRoot);
+        string outputPrefix = outputRoot.TrimEnd('/') + "/";
+        string[] assets = (artifactPaths ?? Array.Empty<string>())
+            .Where(path => !string.IsNullOrEmpty(path) &&
+                           !path.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
+            .Append(outputRoot)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+        var guidMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var desiredGuids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string assetPath in assets)
+        {
+            string identity;
+            if (string.Equals(assetPath, outputRoot, StringComparison.Ordinal))
+            {
+                identity = ".";
+            }
+            else if (assetPath.StartsWith(outputPrefix, StringComparison.Ordinal))
+            {
+                identity = assetPath.Substring(outputPrefix.Length).Replace('\\', '/');
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    $"Generated asset escaped its tag output root: {assetPath} (root {outputRoot}).");
+            }
+
+            string metaPath = ToAbsolutePath(assetPath) + ".meta";
+            string metaText = File.ReadAllText(metaPath);
+            Match match = Regex.Match(
+                metaText,
+                @"(?m)^guid: ([0-9a-fA-F]{32})\r?$",
+                RegexOptions.CultureInvariant);
+            if (!match.Success || match.NextMatch().Success)
+            {
+                throw new InvalidDataException($"Expected exactly one GUID in generated meta: {metaPath}");
+            }
+
+            string originalGuid = match.Groups[1].Value.ToLowerInvariant();
+            string desiredGuid = ComputeDeterministicMetaGuid(tag, identity);
+            if (guidMap.TryGetValue(originalGuid, out string existing) &&
+                !string.Equals(existing, desiredGuid, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    $"Generated metas reused GUID {originalGuid} for multiple deterministic identities.");
+            }
+            if (!desiredGuids.Add(desiredGuid))
+            {
+                throw new InvalidDataException($"Deterministic fixture meta GUID collision: {desiredGuid}");
+            }
+
+            guidMap[originalGuid] = desiredGuid;
+        }
+
+        string tagMetaPath = outputAbsolute + ".meta";
+        var filesToRewrite = Directory.GetFiles(outputAbsolute, "*", SearchOption.AllDirectories)
+            .Append(tagMetaPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        foreach (string filePath in filesToRewrite)
+        {
+            string text = File.ReadAllText(filePath);
+            string rewritten = Regex.Replace(
+                text,
+                @"\b[0-9a-fA-F]{32}\b",
+                match => guidMap.TryGetValue(match.Value, out string replacement)
+                    ? replacement
+                    : match.Value,
+                RegexOptions.CultureInvariant);
+            if (!string.Equals(text, rewritten, StringComparison.Ordinal))
+            {
+                File.WriteAllText(filePath, rewritten, utf8NoBom);
+            }
+        }
+
+        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        for (int i = 0; i < assets.Length; i++)
+        {
+            string assetPath = assets[i];
+            string identity = string.Equals(assetPath, outputRoot, StringComparison.Ordinal)
+                ? "."
+                : assetPath.Substring(outputPrefix.Length).Replace('\\', '/');
+            string actualGuid = AssetDatabase.AssetPathToGUID(assetPath);
+            string expectedGuid = ComputeDeterministicMetaGuid(tag, identity);
+            if (!string.Equals(actualGuid, expectedGuid, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    $"Unity did not retain deterministic meta GUID for {assetPath}. Expected={expectedGuid} Actual={actualGuid}");
+            }
+        }
+    }
+
+    private static void NormalizeGeneratedPrefabFileIds(
+        string outputRoot,
+        string tag,
+        IEnumerable<string> artifactPaths)
+    {
+        string outputPrefix = outputRoot.TrimEnd('/') + "/";
+        string[] prefabPaths = (artifactPaths ?? Array.Empty<string>())
+            .Where(path => path != null && path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+        var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        foreach (string prefabPath in prefabPaths)
+        {
+            if (!prefabPath.StartsWith(outputPrefix, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Generated prefab escaped its tag output root: {prefabPath} (root {outputRoot}).");
+            }
+
+            string relativePath = prefabPath.Substring(outputPrefix.Length).Replace('\\', '/');
+            string absolutePath = ToAbsolutePath(prefabPath);
+            string text = File.ReadAllText(absolutePath);
+            MatchCollection anchors = Regex.Matches(
+                text,
+                @"(?m)^--- !u!(\d+) &(\d+)\r?$",
+                RegexOptions.CultureInvariant);
+            if (anchors.Count == 0)
+            {
+                throw new InvalidDataException($"Generated prefab contains no local object anchors: {prefabPath}");
+            }
+
+            var fileIdMap = new Dictionary<string, string>(StringComparer.Ordinal);
+            var desiredFileIds = new HashSet<string>(StringComparer.Ordinal);
+            for (int ordinal = 0; ordinal < anchors.Count; ordinal++)
+            {
+                string classId = anchors[ordinal].Groups[1].Value;
+                string originalFileId = anchors[ordinal].Groups[2].Value;
+                string desiredFileId = ComputeDeterministicPrefabFileId(tag, relativePath, classId, ordinal);
+                if (fileIdMap.ContainsKey(originalFileId))
+                {
+                    throw new InvalidDataException(
+                        $"Generated prefab repeats local fileID {originalFileId}: {prefabPath}");
+                }
+                if (!desiredFileIds.Add(desiredFileId))
+                {
+                    throw new InvalidDataException(
+                        $"Deterministic prefab fileID collision {desiredFileId}: {prefabPath}");
+                }
+                fileIdMap.Add(originalFileId, desiredFileId);
+            }
+
+            string rewritten = Regex.Replace(
+                text,
+                @"(?<=&)\d+|(?<=fileID: )-?\d+",
+                match => fileIdMap.TryGetValue(match.Value, out string replacement)
+                    ? replacement
+                    : match.Value,
+                RegexOptions.CultureInvariant);
+            File.WriteAllText(absolutePath, rewritten, utf8NoBom);
+        }
+
+        AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+        foreach (string prefabPath in prefabPaths)
+        {
+            string relativePath = prefabPath.Substring(outputPrefix.Length).Replace('\\', '/');
+            MatchCollection anchors = Regex.Matches(
+                File.ReadAllText(ToAbsolutePath(prefabPath)),
+                @"(?m)^--- !u!(\d+) &(\d+)\r?$",
+                RegexOptions.CultureInvariant);
+            for (int ordinal = 0; ordinal < anchors.Count; ordinal++)
+            {
+                string expected = ComputeDeterministicPrefabFileId(
+                    tag,
+                    relativePath,
+                    anchors[ordinal].Groups[1].Value,
+                    ordinal);
+                string actual = anchors[ordinal].Groups[2].Value;
+                if (!string.Equals(actual, expected, StringComparison.Ordinal))
+                {
+                    throw new InvalidDataException(
+                        $"Unity did not retain deterministic prefab fileID for {prefabPath} anchor {ordinal}. " +
+                        $"Expected={expected} Actual={actual}");
+                }
+            }
+        }
+    }
+
+    private static string ComputeDeterministicMetaGuid(string tag, string relativeAssetPath)
+    {
+        string identity = MetaGuidNamespace + "\n" + tag + "\n" + relativeAssetPath.Replace('\\', '/');
+        using var sha = SHA256.Create();
+        byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(identity));
+        return string.Concat(hash.Take(16).Select(value => value.ToString("x2", CultureInfo.InvariantCulture)));
+    }
+
+    private static string ComputeDeterministicPrefabFileId(
+        string tag,
+        string relativePrefabPath,
+        string classId,
+        int ordinal)
+    {
+        string identity = PrefabFileIdNamespace + "\n" + tag + "\n" +
+                          relativePrefabPath.Replace('\\', '/') + "\n" + classId + "\n" +
+                          ordinal.ToString(CultureInfo.InvariantCulture);
+        using var sha = SHA256.Create();
+        byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(identity));
+        ulong value = 0;
+        for (int i = 0; i < sizeof(ulong); i++)
+        {
+            value = (value << 8) | hash[i];
+        }
+        value = (value & 0x3FFFFFFFFFFFFFFFUL) | 0x4000000000000000UL;
+        return value.ToString(CultureInfo.InvariantCulture);
+    }
+
     private static void WriteJsonAsset(string assetPath, object value)
     {
         File.WriteAllText(ToAbsolutePath(assetPath), JsonUtility.ToJson(value, prettyPrint: true) + "\n");
@@ -1496,6 +1867,10 @@ public static class HistoricalFixtureGenerator
         public string unityVersion;
         public string generator;
         public string generatorSha256;
+        public string runner;
+        public string runnerSha256;
+        public string metaGuidScheme;
+        public string prefabFileIdScheme;
         public string generationMode;
         public string goldenOutputSource;
         public ManifestFixture[] fixtures;

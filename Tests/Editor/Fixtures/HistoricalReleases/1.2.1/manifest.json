@@ -4,7 +4,11 @@
     "packageVersion": "1.2.1",
     "unityVersion": "2022.3.22f1",
     "generator": "Tools~/HistoricalFixtures/HistoricalFixtureGenerator.cs",
-    "generatorSha256": "572b37ae88f13a3e874dd2a923af83bdfba33a5c2e1790eca79f5f37d57df581",
+    "generatorSha256": "48a4fa7bd9ce776e1a53052c7916f33284d940eeeb134ecc15757cddb9fc1d22",
+    "runner": "Tools~/HistoricalFixtures/Generate-HistoricalFixtures.ps1",
+    "runnerSha256": "d81ea92e5c8d28e28e42aae08cf07d059fc070da8b07a708f60616897ca94539",
+    "metaGuidScheme": "sha256-v1:tag/relative-asset-path",
+    "prefabFileIdScheme": "sha256-v1:tag/relative-prefab/class/ordinal",
     "generationMode": "unity-batchmode-tag-checkout",
     "goldenOutputSource": "historical-runtime-deform",
     "fixtures": [
@@ -12,6 +16,13 @@
             "kind": "lattice",
             "prefab": "fixture.prefab",
             "expected": "expected.json",
+            "source": "source.asset",
+            "goldenOutputSource": "LatticeDeformer.Deform(false)"
+        },
+        {
+            "kind": "lattice-remove-active-last",
+            "prefab": "fixture-remove-active-last.prefab",
+            "expected": "expected-remove-active-last.json",
             "source": "source.asset",
             "goldenOutputSource": "LatticeDeformer.Deform(false)"
         },
@@ -25,20 +36,36 @@
     ],
     "files": [
         {
+            "path": "expected-remove-active-last.json",
+            "sha256": "d64bee35a3cd53573d07111e1a328b9e34358b754498d5e6f9410a94d494f03d"
+        },
+        {
+            "path": "expected-remove-active-last.json.meta",
+            "sha256": "eaa89d67a0b2c153bfa5a9814fe1db7d5bd6b201a91e97709251c0bc7623cec8"
+        },
+        {
             "path": "expected.json",
-            "sha256": "a57057ba55b0f41b2c9975459c7f3a16be2a72e9354ab28cbf255ebcb5c5c8a5"
+            "sha256": "138f1587c61bfc1ecab29b6ec55d13f4cba3cae05e85063d9d03fac66044037a"
         },
         {
             "path": "expected.json.meta",
-            "sha256": "fc2b21bfdc1178e346984b7eb60a89e67e2e8fe3ed6ec5f5a5d2c69fd8290077"
+            "sha256": "949830502b192310ad84e489fff292168c455f8d9989612ebee52704c4def08e"
+        },
+        {
+            "path": "fixture-remove-active-last.prefab",
+            "sha256": "dc61eaa504f93ed2eb381c2e0d308a984ff4fcc0b7eeea9dc5ae21bb1a7cd6bc"
+        },
+        {
+            "path": "fixture-remove-active-last.prefab.meta",
+            "sha256": "99aef89cb512b9693df2f4b987ced6b9ff7247b268cfc790320b82407bfdcec5"
         },
         {
             "path": "fixture.prefab",
-            "sha256": "56a245b66da27a844f5d47d948b4f95ccac4c40c66f05264838f734edfb34961"
+            "sha256": "2760be3ee7e8c7c67f09f87e42912fccc03e6db2e6cc7fa8d85ae06dd639ed7b"
         },
         {
             "path": "fixture.prefab.meta",
-            "sha256": "8d1b5b07aa63f714b053c4ac6f90f3d493eef7f5f48cc5b8d2464ec29121dd19"
+            "sha256": "09ab09ec5d877f53dd8780332ec0c4f7cdf611acbdc9ca5ab7063a11abe0c2cb"
         },
         {
             "path": "legacy-brush-expected.json",
@@ -46,15 +73,15 @@
         },
         {
             "path": "legacy-brush-expected.json.meta",
-            "sha256": "da34204504337624ef9926f53a25b6b1672086e431e035375e51d8e78fe427f5"
+            "sha256": "237d7035ebcbadf9d8ba299ad72568b1820baed19ea5dd9515eb52b3bc6d1031"
         },
         {
             "path": "legacy-brush.prefab",
-            "sha256": "2c2fc6ed89c3bbbd022f12c2cbe9a584310ff5dc4142e802d7c8a2545c012371"
+            "sha256": "d9b8828cefd7a1c184efb8afe3e356f650eef4b74fdddb9f22f28912896aa1c0"
         },
         {
             "path": "legacy-brush.prefab.meta",
-            "sha256": "a790345f71e91a4c25a16f252e49fda4a0db5b8ef6b010fbde9978d16e3e3680"
+            "sha256": "1a8b39b487e600a37f7e98dd74621bf9f85a2e9a11b4587aa4afc271fcde6f50"
         },
         {
             "path": "source.asset",
@@ -62,7 +89,7 @@
         },
         {
             "path": "source.asset.meta",
-            "sha256": "004c0ea98b63ab9a2520c721bea0d5686c424e5c5171f28d44a2ba60ccad1b2d"
+            "sha256": "81e241c0c8d1cedb4f8a6cfa3ed5716389373952b73034ae610cb7729068f31e"
         }
     ]
 }

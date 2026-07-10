@@ -4,7 +4,11 @@
     "packageVersion": "0.0.6",
     "unityVersion": "2022.3.22f1",
     "generator": "Tools~/HistoricalFixtures/HistoricalFixtureGenerator.cs",
-    "generatorSha256": "572b37ae88f13a3e874dd2a923af83bdfba33a5c2e1790eca79f5f37d57df581",
+    "generatorSha256": "48a4fa7bd9ce776e1a53052c7916f33284d940eeeb134ecc15757cddb9fc1d22",
+    "runner": "Tools~/HistoricalFixtures/Generate-HistoricalFixtures.ps1",
+    "runnerSha256": "d81ea92e5c8d28e28e42aae08cf07d059fc070da8b07a708f60616897ca94539",
+    "metaGuidScheme": "sha256-v1:tag/relative-asset-path",
+    "prefabFileIdScheme": "sha256-v1:tag/relative-prefab/class/ordinal",
     "generationMode": "unity-batchmode-tag-checkout",
     "goldenOutputSource": "historical-runtime-deform",
     "fixtures": [
@@ -19,19 +23,19 @@
     "files": [
         {
             "path": "expected.json",
-            "sha256": "16b2d6e5efdd08900908f7ea592f3d3e1db9b5cc61b26710555f75afdb4c573d"
+            "sha256": "7ef98d604a2ec41963af80fcc670187a9ebdac50f4f9f5b9cd7128faf4a910dc"
         },
         {
             "path": "expected.json.meta",
-            "sha256": "9f4bd3f021ce9e1f2ee3731df4654c2d0a503af1c5c8b8c43b6dc2d1207ad602"
+            "sha256": "c18552805b4bf71f8616a93c2f6a1971d180be82544e13445c71e00bf8adf026"
         },
         {
             "path": "fixture.prefab",
-            "sha256": "1ad633e0cd4b29ad60f927d8fca1fa494bb2df60adc932291ab7b413426b2cfe"
+            "sha256": "775152a298885d3c84397a5aec21b1fa415f2099919c9bb772fa0dad1f1de7f9"
         },
         {
             "path": "fixture.prefab.meta",
-            "sha256": "f17ba396cc038c33bdccde48c6c5b4ad19fe86c10ff6432ff205da60be06d08d"
+            "sha256": "99f9cf4276f778ac8623c9e6f899707cb25a0c0bc6e0876947ac0bab112d7982"
         },
         {
             "path": "source.asset",
@@ -39,7 +43,7 @@
         },
         {
             "path": "source.asset.meta",
-            "sha256": "c3a3618b516af0d3a0f6f2e6885436fec122bc80230bd5df2d8026e21b6f09d6"
+            "sha256": "94dadcb0cae33bd638c0f295ab0a14c0c15f21c181e47d8762d2cf8024f03907"
         }
     ]
 }

@@ -4,7 +4,11 @@
     "packageVersion": "0.0.3",
     "unityVersion": "2022.3.22f1",
     "generator": "Tools~/HistoricalFixtures/HistoricalFixtureGenerator.cs",
-    "generatorSha256": "572b37ae88f13a3e874dd2a923af83bdfba33a5c2e1790eca79f5f37d57df581",
+    "generatorSha256": "48a4fa7bd9ce776e1a53052c7916f33284d940eeeb134ecc15757cddb9fc1d22",
+    "runner": "Tools~/HistoricalFixtures/Generate-HistoricalFixtures.ps1",
+    "runnerSha256": "d81ea92e5c8d28e28e42aae08cf07d059fc070da8b07a708f60616897ca94539",
+    "metaGuidScheme": "sha256-v1:tag/relative-asset-path",
+    "prefabFileIdScheme": "sha256-v1:tag/relative-prefab/class/ordinal",
     "generationMode": "unity-batchmode-tag-checkout",
     "goldenOutputSource": "historical-runtime-deform",
     "fixtures": [
@@ -19,19 +23,19 @@
     "files": [
         {
             "path": "expected.json",
-            "sha256": "8ef2eb063cf4c3b0cad35a8dda557374e2da4b651c162852df3d53cd3e516610"
+            "sha256": "55e3f649bba2719448c18428f7e76886f845ccb6f9564c4a98e6b44b149dc71a"
         },
         {
             "path": "expected.json.meta",
-            "sha256": "09493b3b4b64659234e921222c14af4158115e0b2939de73b459d4bce9baafe0"
+            "sha256": "52d43b1578676892a35c61ef058d808818188776a3e5a47f0ef69722e1786575"
         },
         {
             "path": "fixture.prefab",
-            "sha256": "6cb45879285815ffc54b189e78c2a0cf2c6f1bb241bff0a9f4203c2bb9d0b764"
+            "sha256": "e8241ba0c7c76c75b61c1d3a1f011169c86586a33f83375d7267bef38d929d23"
         },
         {
             "path": "fixture.prefab.meta",
-            "sha256": "e6080d43f7b4727dc84952b78ee7b4250e5fc156cf645b4bdd9d0b729ea5872e"
+            "sha256": "1aad2cde913a7adfea7affd1c598f1ed85b4b12c7fd2a9a9f2b794e2fad90531"
         },
         {
             "path": "source.asset",
@@ -39,7 +43,7 @@
         },
         {
             "path": "source.asset.meta",
-            "sha256": "3f05c047e7ae2cabe32006c96b0577d438110942fefd462817ff692adedbb764"
+            "sha256": "ebd27c6e4ed4e2d21bab8cd3a0263f6c55dc2029930ba9192b18f1ce5b74c4ef"
         }
     ]
 }

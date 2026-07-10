@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &4697052788696537827
+--- !u!1 &5969540817016557654
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,10 +8,10 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 5481242884579400833}
-  - component: {fileID: 7867547439794011954}
-  - component: {fileID: 2659729113800334209}
-  - component: {fileID: 1642641755897685309}
+  - component: {fileID: 7945656475402695588}
+  - component: {fileID: 7539650251980508300}
+  - component: {fileID: 6191618573578138176}
+  - component: {fileID: 4802564172374919092}
   m_Layer: 0
   m_Name: fixture
   m_TagString: Untagged
@@ -19,13 +19,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 0
---- !u!4 &5481242884579400833
+--- !u!4 &7945656475402695588
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4697052788696537827}
+  m_GameObject: {fileID: 5969540817016557654}
   serializedVersion: 2
   m_LocalRotation: {x: 0.056536715, y: -0.09822657, z: 0.04918326, w: 0.9923387}
   m_LocalPosition: {x: 0.35, y: -0.2, z: 0.15}
@@ -34,21 +34,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &7867547439794011954
+--- !u!33 &7539650251980508300
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4697052788696537827}
-  m_Mesh: {fileID: 4300000, guid: 8e34e2f4a2cc4944abf80fb9a1851600, type: 2}
---- !u!23 &2659729113800334209
+  m_GameObject: {fileID: 5969540817016557654}
+  m_Mesh: {fileID: 4300000, guid: e2a3e48bf2fc75619d9aceb2796264e9, type: 2}
+--- !u!23 &6191618573578138176
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4697052788696537827}
+  m_GameObject: {fileID: 5969540817016557654}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
@@ -84,13 +84,13 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!114 &1642641755897685309
+--- !u!114 &4802564172374919092
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4697052788696537827}
+  m_GameObject: {fileID: 5969540817016557654}
   m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 29946ddaafa0c41468ecfc2a1a3a4297, type: 3}
@@ -223,7 +223,7 @@ MonoBehaviour:
         - {x: 1.208, y: -0.934, z: 0.92}
         - {x: -1.1744001, y: 0.84919995, z: 0.9232}
         - {x: 1.2208, y: 0.8444, z: 0.9264}
-        _interpolation: 0
+        _interpolation: 1
       _brushDisplacements: []
       _vertexMask: []
       _blendShapeOutput: 1
@@ -246,7 +246,7 @@ MonoBehaviour:
         - {x: 1.12, y: -0.99, z: 0.88}
         - {x: -1.08, y: 0.90999997, z: 0.88}
         - {x: 1.12, y: 0.90999997, z: 0.88}
-        _interpolation: 0
+        _interpolation: 1
       _brushDisplacements:
       - {x: 0.11, y: -0.03, z: 0.02}
       - {x: -0.05, y: 0.09, z: -0.04}
@@ -357,9 +357,9 @@ MonoBehaviour:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-  _activeGroupIndex: 0
+  _activeGroupIndex: 1
   _skinnedMeshRenderer: {fileID: 0}
-  _meshFilter: {fileID: 7867547439794011954}
+  _meshFilter: {fileID: 7539650251980508300}
   _recalculateNormals: 0
   _recalculateTangents: 1
   _recalculateBounds: 0
@@ -371,7 +371,7 @@ MonoBehaviour:
     maxIterations: 432
     tolerance: 0.00031
   _hasInitializedFromSource: 1
-  _serializedSourceMesh: {fileID: 4300000, guid: 8e34e2f4a2cc4944abf80fb9a1851600, type: 2}
+  _serializedSourceMesh: {fileID: 4300000, guid: e2a3e48bf2fc75619d9aceb2796264e9, type: 2}
   _alignMode: 0
   _centerClampMulXY: 0
   _centerClampMinXY: 0

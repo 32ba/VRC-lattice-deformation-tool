@@ -4,7 +4,11 @@
     "packageVersion": "1.1.0",
     "unityVersion": "2022.3.22f1",
     "generator": "Tools~/HistoricalFixtures/HistoricalFixtureGenerator.cs",
-    "generatorSha256": "572b37ae88f13a3e874dd2a923af83bdfba33a5c2e1790eca79f5f37d57df581",
+    "generatorSha256": "48a4fa7bd9ce776e1a53052c7916f33284d940eeeb134ecc15757cddb9fc1d22",
+    "runner": "Tools~/HistoricalFixtures/Generate-HistoricalFixtures.ps1",
+    "runnerSha256": "d81ea92e5c8d28e28e42aae08cf07d059fc070da8b07a708f60616897ca94539",
+    "metaGuidScheme": "sha256-v1:tag/relative-asset-path",
+    "prefabFileIdScheme": "sha256-v1:tag/relative-prefab/class/ordinal",
     "generationMode": "unity-batchmode-tag-checkout",
     "goldenOutputSource": "historical-runtime-deform",
     "fixtures": [
@@ -19,19 +23,19 @@
     "files": [
         {
             "path": "expected.json",
-            "sha256": "86c5da2cbeb0af854439aa90909e3d1f3799f5f3124140e0b96187af205a2e18"
+            "sha256": "4cbd8c91ea2ac1a7a30747b2a5065dd09d04575a054a47740cd63f6a063d3298"
         },
         {
             "path": "expected.json.meta",
-            "sha256": "902b7ca94f2d9ef96f495412295136c64bb8aae38e79ac20dc22b3761f7117f0"
+            "sha256": "970363c1cf0975a8932f2b8748b9f474ee20fde85d760a492074e22d459d3dea"
         },
         {
             "path": "fixture.prefab",
-            "sha256": "5fd0c849deb4ce535f6d66a458b329fe6aba6a9020f6f361077b530f65338b75"
+            "sha256": "d01f592e8f7f0ed36eda9a6e132bcf7d37b18f47af5012e755fd1a9825e42059"
         },
         {
             "path": "fixture.prefab.meta",
-            "sha256": "3c2d4dee98e6619dcac3a0939f04020f60a056cb687d0f2ea5c992483503ac7d"
+            "sha256": "30b69c8cc0137e2d712c389e0f26129f6066f2c0898e0a20abdb8e35fb634942"
         },
         {
             "path": "source.asset",
@@ -39,7 +43,7 @@
         },
         {
             "path": "source.asset.meta",
-            "sha256": "92e293e7a4e3aa020f2e4a627cfafa988655d1b90b82f29bf2e12906440aa80c"
+            "sha256": "c1130ddd15f57880fa11d0c07442da5342d2a844f8262d179608e70e11f40b64"
         }
     ]
 }
