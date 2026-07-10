@@ -48,6 +48,27 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void PenetrationDetector_HandlesReferenceMeshWithoutNormals()
+        {
+            var reference = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            try
+            {
+                Assert.That(
+                    PenetrationDetector.DetectPenetration(
+                        new[] { new Vector3(0.1f, 0.1f, -1f) }, reference, Matrix4x4.identity),
+                    Is.Empty);
+            }
+            finally
+            {
+                Object.DestroyImmediate(reference);
+            }
+        }
+
+        [Test]
         public void PenetrationDetector_DetectsVerticesBehindClosestNormal()
         {
             var reference = new Mesh
