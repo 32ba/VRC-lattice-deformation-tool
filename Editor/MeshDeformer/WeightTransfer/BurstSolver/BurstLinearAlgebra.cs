@@ -37,19 +37,27 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
             var result = new NativeArray<double>(1, Allocator.TempJob);
             try
             {
-                var job = new DotProductJob
-                {
-                    a = a,
-                    b = b,
-                    result = result
-                };
-                job.Schedule().Complete();
-                return result[0];
+                return Dot(a, b, result);
             }
             finally
             {
                 if (result.IsCreated) result.Dispose();
             }
+        }
+
+        internal static double Dot(
+            NativeArray<double> a,
+            NativeArray<double> b,
+            NativeArray<double> scalarResult)
+        {
+            var job = new DotProductJob
+            {
+                a = a,
+                b = b,
+                result = scalarResult
+            };
+            job.Schedule().Complete();
+            return scalarResult[0];
         }
 
         /// <summary>
@@ -60,18 +68,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
             var result = new NativeArray<double>(1, Allocator.TempJob);
             try
             {
-                var job = new NormJob
-                {
-                    a = a,
-                    result = result
-                };
-                job.Schedule().Complete();
-                return result[0];
+                return Norm(a, result);
             }
             finally
             {
                 if (result.IsCreated) result.Dispose();
             }
+        }
+
+        internal static double Norm(
+            NativeArray<double> a,
+            NativeArray<double> scalarResult)
+        {
+            var job = new NormJob
+            {
+                a = a,
+                result = scalarResult
+            };
+            job.Schedule().Complete();
+            return scalarResult[0];
         }
 
         /// <summary>

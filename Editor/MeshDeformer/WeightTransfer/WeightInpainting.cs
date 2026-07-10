@@ -36,6 +36,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 throw new ArgumentNullException(nameof(vertices));
             if (triangles == null)
                 throw new ArgumentNullException(nameof(triangles));
+            if (maxIterations < 0)
+                throw new ArgumentOutOfRangeException(nameof(maxIterations), maxIterations, "Iteration count cannot be negative.");
+            if (float.IsNaN(tolerance) || float.IsInfinity(tolerance) || tolerance < 0f)
+                throw new ArgumentOutOfRangeException(nameof(tolerance), tolerance, "Tolerance must be finite and non-negative.");
+
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                Vector3 vertex = vertices[i];
+                if (!IsFinite(vertex.x) || !IsFinite(vertex.y) || !IsFinite(vertex.z))
+                    throw new ArgumentException($"Vertex {i} contains a non-finite coordinate.", nameof(vertices));
+            }
 
             _vertices = vertices;
             _triangles = triangles;
@@ -85,6 +96,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
         private void AddEdge(int a, int b)
         {
+            if (a == b)
+                return;
+
             if (!_adjacency[a].Contains(b))
                 _adjacency[a].Add(b);
             if (!_adjacency[b].Contains(a))
@@ -127,10 +141,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 var oppositeVertices = kvp.Value;
 
                 double weight = 0;
+                bool hasNonDegenerateContribution = false;
                 foreach (int k in oppositeVertices)
                 {
-                    weight += ComputeCotangent(i, j, k);
+                    if (!HasFiniteTriangleArea(i, j, k))
+                        continue;
+
+                    double cotangent = ComputeCotangent(i, j, k);
+                    if (double.IsNaN(cotangent) || double.IsInfinity(cotangent))
+                        continue;
+
+                    weight += cotangent;
+                    hasNonDegenerateContribution = true;
                 }
+
+                if (!hasNonDegenerateContribution)
+                    continue;
+
                 weight *= 0.5;
 
                 // Clamp to avoid numerical issues
@@ -156,6 +183,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             Dictionary<(int, int), List<int>> dict,
             int edgeV1, int edgeV2, int oppositeV)
         {
+            if (edgeV1 == edgeV2)
+                return;
+
             // Ensure consistent edge ordering
             var key = edgeV1 < edgeV2 ? (edgeV1, edgeV2) : (edgeV2, edgeV1);
 
@@ -189,6 +219,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             return dot / crossMag;
         }
 
+        private bool HasFiniteTriangleArea(int edgeV1, int edgeV2, int oppositeV)
+        {
+            Vector3 edge1 = _vertices[edgeV1] - _vertices[oppositeV];
+            Vector3 edge2 = _vertices[edgeV2] - _vertices[oppositeV];
+            float crossMagnitude = Vector3.Cross(edge1, edge2).magnitude;
+            return IsFinite(crossMagnitude) && crossMagnitude >= 1e-10f;
+        }
+
         /// <summary>
         /// Performs weight inpainting using Laplacian interpolation with Burst-compiled sparse solver.
         /// </summary>
@@ -202,6 +240,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 throw new ArgumentException("Weights must cover every vertex.", nameof(weights));
             if (confidence.Length < _vertexCount)
                 throw new ArgumentException("Confidence values must cover every vertex.", nameof(confidence));
+            if (boneCount <= 0)
+                throw new ArgumentOutOfRangeException(nameof(boneCount), boneCount, "Bone count must be positive.");
 
             // Find known (transferred) and unknown (to inpaint) vertices
             var knownIndices = new List<int>();
@@ -229,10 +269,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             foreach (int idx in knownIndices)
             {
                 var w = weights[idx];
-                if (w.weight0 > 0) usedBones.Add(w.boneIndex0);
-                if (w.weight1 > 0) usedBones.Add(w.boneIndex1);
-                if (w.weight2 > 0) usedBones.Add(w.boneIndex2);
-                if (w.weight3 > 0) usedBones.Add(w.boneIndex3);
+                AddUsedBone(usedBones, w.weight0, w.boneIndex0, boneCount);
+                AddUsedBone(usedBones, w.weight1, w.boneIndex1, boneCount);
+                AddUsedBone(usedBones, w.weight2, w.boneIndex2, boneCount);
+                AddUsedBone(usedBones, w.weight3, w.boneIndex3, boneCount);
             }
 
             if (usedBones.Count == 0)
@@ -397,14 +437,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 for (int bi = 0; bi < boneList.Count; bi++)
                 {
                     double w = boneWeightResults[ui, bi];
-                    if (w > 1e-6)
+                    if (!double.IsNaN(w) && !double.IsInfinity(w) && w > 1e-6)
                     {
                         boneWeightPairs.Add((boneList[bi], w));
                     }
                 }
 
                 // Sort by weight descending
-                boneWeightPairs.Sort((a, b) => b.weight.CompareTo(a.weight));
+                boneWeightPairs.Sort((a, b) =>
+                {
+                    int weightComparison = b.weight.CompareTo(a.weight);
+                    return weightComparison != 0 ? weightComparison : a.bone.CompareTo(b.bone);
+                });
 
                 // Take top 4 and normalize
                 var bw = new BoneWeight();
@@ -449,11 +493,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
         private double GetBoneWeight(BoneWeight bw, int boneIndex)
         {
-            if (bw.boneIndex0 == boneIndex) return bw.weight0;
-            if (bw.boneIndex1 == boneIndex) return bw.weight1;
-            if (bw.boneIndex2 == boneIndex) return bw.weight2;
-            if (bw.boneIndex3 == boneIndex) return bw.weight3;
-            return 0;
+            double total = 0;
+            if (bw.boneIndex0 == boneIndex && IsFinite(bw.weight0) && bw.weight0 > 0f) total += bw.weight0;
+            if (bw.boneIndex1 == boneIndex && IsFinite(bw.weight1) && bw.weight1 > 0f) total += bw.weight1;
+            if (bw.boneIndex2 == boneIndex && IsFinite(bw.weight2) && bw.weight2 > 0f) total += bw.weight2;
+            if (bw.boneIndex3 == boneIndex && IsFinite(bw.weight3) && bw.weight3 > 0f) total += bw.weight3;
+            return total;
+        }
+
+        private static void AddUsedBone(HashSet<int> usedBones, float weight, int boneIndex, int boneCount)
+        {
+            if (IsFinite(weight) && weight > 0f && boneIndex >= 0 && boneIndex < boneCount)
+                usedBones.Add(boneIndex);
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
         }
 
         private void FallbackNeighborAveraging(
@@ -475,6 +531,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 // Average weights from known neighbors
                 foreach (int neighbor in _adjacency[vertIdx])
                 {
+                    // The raw topology also contains edges from degenerate triangles.
+                    // Only edges that received a finite cotangent contribution belong
+                    // to the interpolation graph; otherwise the solver fallback could
+                    // leak weights through geometry deliberately excluded above.
+                    if (!_laplacianEntries.ContainsKey((vertIdx, neighbor)))
+                    {
+                        continue;
+                    }
+
                     if (knownSet.Contains(neighbor))
                     {
                         sum += GetBoneWeight(weights[neighbor], bone);

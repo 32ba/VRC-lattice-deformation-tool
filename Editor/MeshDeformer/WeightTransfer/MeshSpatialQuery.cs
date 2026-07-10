@@ -135,6 +135,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             if (normals != null && normals.Length != 0 && normals.Length != vertices.Length)
                 throw new ArgumentException("Normals must be empty or match the vertex count.", nameof(normals));
 
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                if (!IsFinite(vertices[i]))
+                    throw new ArgumentException($"Vertex {i} contains a non-finite coordinate.", nameof(vertices));
+            }
+
+            if (normals != null)
+            {
+                for (int i = 0; i < normals.Length; i++)
+                {
+                    if (!IsFinite(normals[i]))
+                        throw new ArgumentException($"Normal {i} contains a non-finite component.", nameof(normals));
+                }
+            }
+
             // Preserve the historical behavior of ignoring a trailing partial triangle.
             int usableTriangleIndexCount = triangles.Length - triangles.Length % 3;
             for (int i = 0; i < usableTriangleIndexCount; i++)
@@ -193,35 +208,43 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         {
             if (_nativeDataInitialized) return;
 
-            // Create native arrays for vertices
-            _nativeVertices = new NativeArray<float3>(_vertices.Length, Allocator.Persistent);
-            for (int i = 0; i < _vertices.Length; i++)
+            try
             {
-                _nativeVertices[i] = new float3(_vertices[i].x, _vertices[i].y, _vertices[i].z);
-            }
-
-            // Create native array for triangles
-            _nativeTriangles = new NativeArray<int>(_triangles.Length, Allocator.Persistent);
-            _nativeTriangles.CopyFrom(_triangles);
-
-            // Create native array for normals
-            if (_normals != null && _normals.Length > 0)
-            {
-                _nativeNormals = new NativeArray<float3>(_normals.Length, Allocator.Persistent);
-                for (int i = 0; i < _normals.Length; i++)
+                // Create native arrays for vertices
+                _nativeVertices = new NativeArray<float3>(_vertices.Length, Allocator.Persistent);
+                for (int i = 0; i < _vertices.Length; i++)
                 {
-                    _nativeNormals[i] = new float3(_normals[i].x, _normals[i].y, _normals[i].z);
+                    _nativeVertices[i] = new float3(_vertices[i].x, _vertices[i].y, _vertices[i].z);
                 }
+
+                // Create native array for triangles
+                _nativeTriangles = new NativeArray<int>(_triangles.Length, Allocator.Persistent);
+                _nativeTriangles.CopyFrom(_triangles);
+
+                // Create native array for normals
+                if (_normals != null && _normals.Length > 0)
+                {
+                    _nativeNormals = new NativeArray<float3>(_normals.Length, Allocator.Persistent);
+                    for (int i = 0; i < _normals.Length; i++)
+                    {
+                        _nativeNormals[i] = new float3(_normals[i].x, _normals[i].y, _normals[i].z);
+                    }
+                }
+                else
+                {
+                    _nativeNormals = new NativeArray<float3>(0, Allocator.Persistent);
+                }
+
+                // Build flattened grid structure for Burst
+                BuildNativeGrid();
+
+                _nativeDataInitialized = true;
             }
-            else
+            catch
             {
-                _nativeNormals = new NativeArray<float3>(0, Allocator.Persistent);
+                ReleaseNativeData();
+                throw;
             }
-
-            // Build flattened grid structure for Burst
-            BuildNativeGrid();
-
-            _nativeDataInitialized = true;
         }
 
         private void BuildNativeGrid()
@@ -299,6 +322,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         {
             ThrowIfDisposed();
             ValidateSearchDistance(maxSearchDistance);
+            ValidateQueryPoint(queryPoint, nameof(queryPoint));
             var result = new QueryResult
             {
                 found = false,
@@ -395,7 +419,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 var n0 = _normals[i0];
                 var n1 = _normals[i1];
                 var n2 = _normals[i2];
-                normal = (n0 * bary.x + n1 * bary.y + n2 * bary.z).normalized;
+                normal = n0 * bary.x + n1 * bary.y + n2 * bary.z;
+                if (normal.sqrMagnitude <= 1e-12f)
+                    normal = Vector3.Cross(v1 - v0, v2 - v0).normalized;
+                else
+                    normal.Normalize();
             }
             else
             {
@@ -562,6 +590,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 throw new ArgumentNullException(nameof(queryPoints));
 
             ValidateSearchDistance(maxSearchDistance);
+            for (int i = 0; i < queryPoints.Length; i++)
+            {
+                ValidateQueryPoint(queryPoints[i], $"{nameof(queryPoints)}[{i}]");
+            }
             int maxRadius = maxSearchDistance <= 0f ? -1 : GetMaxSearchRadius(maxSearchDistance);
             // For small batches, use sequential processing
             if (queryPoints.Length < 100)
@@ -759,12 +791,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                     float3 n0 = normals[i0];
                     float3 n1 = normals[i1];
                     float3 n2 = normals[i2];
-                    normal = math.normalize(n0 * bary.x + n1 * bary.y + n2 * bary.z);
+                    float3 faceNormal = math.normalizesafe(math.cross(v1 - v0, v2 - v0));
+                    normal = math.normalizesafe(n0 * bary.x + n1 * bary.y + n2 * bary.z, faceNormal);
                 }
                 else
                 {
                     // Compute face normal
-                    normal = math.normalize(math.cross(v1 - v0, v2 - v0));
+                    normal = math.normalizesafe(math.cross(v1 - v0, v2 - v0));
                 }
 
                 return new QueryResultNative
@@ -885,16 +918,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
             _grid.Clear();
 
-            if (_nativeDataInitialized)
-            {
-                if (_nativeVertices.IsCreated) _nativeVertices.Dispose();
-                if (_nativeTriangles.IsCreated) _nativeTriangles.Dispose();
-                if (_nativeNormals.IsCreated) _nativeNormals.Dispose();
-                if (_gridCellStarts.IsCreated) _gridCellStarts.Dispose();
-                if (_gridCellCounts.IsCreated) _gridCellCounts.Dispose();
-                if (_gridTriangleIndices.IsCreated) _gridTriangleIndices.Dispose();
-                _nativeDataInitialized = false;
-            }
+            ReleaseNativeData();
 
             _disposed = true;
         }
@@ -918,6 +942,30 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                     maxSearchDistance,
                     "Search distance must be finite.");
             }
+        }
+
+        private static void ValidateQueryPoint(Vector3 queryPoint, string parameterName)
+        {
+            if (!IsFinite(queryPoint))
+                throw new ArgumentOutOfRangeException(parameterName, queryPoint, "Query point must be finite.");
+        }
+
+        private static bool IsFinite(Vector3 value)
+        {
+            return !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
+                   !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
+                   !float.IsNaN(value.z) && !float.IsInfinity(value.z);
+        }
+
+        private void ReleaseNativeData()
+        {
+            if (_nativeVertices.IsCreated) _nativeVertices.Dispose();
+            if (_nativeTriangles.IsCreated) _nativeTriangles.Dispose();
+            if (_nativeNormals.IsCreated) _nativeNormals.Dispose();
+            if (_gridCellStarts.IsCreated) _gridCellStarts.Dispose();
+            if (_gridCellCounts.IsCreated) _gridCellCounts.Dispose();
+            if (_gridTriangleIndices.IsCreated) _gridTriangleIndices.Dispose();
+            _nativeDataInitialized = false;
         }
 
         private static bool IsWithinSearchDistance(QueryResult result, float maxSearchDistance)

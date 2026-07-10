@@ -386,7 +386,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             using var vector = new NativeArray<double>(1, Allocator.TempJob);
             using var nonZeroRightHandSide = new NativeArray<double>(new[] { 1.0 }, Allocator.TempJob);
             using var zeroSolution = new NativeArray<double>(new[] { 0.0 }, Allocator.TempJob);
-            using var negativeIterationSolution = new NativeArray<double>(new[] { 0.0 }, Allocator.TempJob);
+            using var nonFiniteRightHandSide = new NativeArray<double>(new[] { double.NaN }, Allocator.TempJob);
+            using var nonFiniteSolution = new NativeArray<double>(new[] { double.PositiveInfinity }, Allocator.TempJob);
             try
             {
                 Assert.Throws<ArgumentException>(() =>
@@ -400,15 +401,16 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     0.0);
                 Assert.That(zeroTolerance.Converged, Is.False);
 
-                var negativeIterations = BurstBiCGStab.Solve(
-                    ref matrix,
-                    nonZeroRightHandSide,
-                    negativeIterationSolution,
-                    -1,
-                    1e-6);
-                Assert.That(negativeIterations.Converged, Is.False);
-                Assert.That(negativeIterations.Iterations, Is.EqualTo(-1));
-                Assert.That(negativeIterations.FailureReason, Is.EqualTo("max iterations reached"));
+                Assert.Throws<ArgumentOutOfRangeException>(() => BurstBiCGStab.Solve(
+                    ref matrix, nonZeroRightHandSide, vector, -1, 1e-6));
+                Assert.Throws<ArgumentOutOfRangeException>(() => BurstBiCGStab.Solve(
+                    ref matrix, nonZeroRightHandSide, vector, 1, double.NaN));
+                Assert.Throws<ArgumentOutOfRangeException>(() => BurstBiCGStab.Solve(
+                    ref matrix, nonZeroRightHandSide, vector, 1, -1e-6));
+                Assert.Throws<ArgumentException>(() => BurstBiCGStab.Solve(
+                    ref matrix, nonFiniteRightHandSide, vector, 1, 1e-6));
+                Assert.Throws<ArgumentException>(() => BurstBiCGStab.Solve(
+                    ref matrix, nonZeroRightHandSide, nonFiniteSolution, 1, 1e-6));
             }
             finally
             {
@@ -495,6 +497,16 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 new MeshSpatialQuery(vertices, new[] { 0, 1, 3 }, null));
             Assert.Throws<ArgumentException>(() =>
                 new MeshSpatialQuery(vertices, new[] { 0, 1, 2 }, new[] { Vector3.forward }));
+            Assert.Throws<ArgumentException>(() =>
+                new MeshSpatialQuery(
+                    new[] { Vector3.zero, new Vector3(float.NaN, 0f, 0f), Vector3.up },
+                    new[] { 0, 1, 2 },
+                    null));
+            Assert.Throws<ArgumentException>(() =>
+                new MeshSpatialQuery(
+                    vertices,
+                    new[] { 0, 1, 2 },
+                    new[] { Vector3.forward, new Vector3(0f, float.PositiveInfinity, 0f), Vector3.forward }));
         }
 
         [Test]
@@ -526,7 +538,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(result.found, Is.False);
             Assert.That(result.distance, Is.EqualTo(float.MaxValue));
             Assert.Throws<ArgumentNullException>(() => query.FindClosestPointsBatch(null));
-                Assert.Throws<ArgumentOutOfRangeException>(() => query.FindClosestPoint(Vector3.zero, float.NaN));
+            Assert.Throws<ArgumentOutOfRangeException>(() => query.FindClosestPoint(Vector3.zero, float.NaN));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                query.FindClosestPoint(new Vector3(float.NaN, 0f, 0f)));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                query.FindClosestPointsBatch(new[] { Vector3.zero, new Vector3(0f, float.PositiveInfinity, 0f) }));
         }
 
         [Test]
@@ -779,6 +795,16 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 new WeightInpainting(null, Array.Empty<int>(), 8, 1e-8f));
             Assert.Throws<ArgumentNullException>(() =>
                 new WeightInpainting(Array.Empty<Vector3>(), null, 8, 1e-8f));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new WeightInpainting(Array.Empty<Vector3>(), Array.Empty<int>(), -1, 1e-8f));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                new WeightInpainting(Array.Empty<Vector3>(), Array.Empty<int>(), 8, float.NaN));
+            Assert.Throws<ArgumentException>(() =>
+                new WeightInpainting(
+                    new[] { new Vector3(float.NegativeInfinity, 0f, 0f) },
+                    Array.Empty<int>(),
+                    8,
+                    1e-8f));
 
             var inpainting = new WeightInpainting(
                 new[] { Vector3.zero },
@@ -791,6 +817,39 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 inpainting.Inpaint(new BoneWeight[0], new[] { 1f }, 1));
             Assert.Throws<ArgumentException>(() =>
                 inpainting.Inpaint(new[] { new BoneWeight() }, Array.Empty<float>(), 1));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                inpainting.Inpaint(new[] { new BoneWeight() }, new[] { 1f }, 0));
+        }
+
+        [Test]
+        public void WeightInpainting_DegenerateTrianglesDoNotCreateArtificialWeightPaths()
+        {
+            var vertices = new[]
+            {
+                Vector3.zero,
+                Vector3.right,
+                Vector3.right * 2f,
+                Vector3.up,
+            };
+            var weights = new[]
+            {
+                Bone(0, 1f),
+                new BoneWeight(),
+                new BoneWeight(),
+                Bone(1, 1f),
+            };
+            var confidence = new[] { 1f, 0f, 0f, 1f };
+            var inpainting = new WeightInpainting(
+                vertices,
+                new[] { 0, 1, 2, 0, 1, 3 },
+                maxIterations: 0,
+                tolerance: 1e-8f);
+
+            inpainting.Inpaint(weights, confidence, 2);
+
+            Assert.That(weights[1].weight0, Is.GreaterThan(0f),
+                "The valid triangle must still participate in the forced fallback.");
+            Assert.That(weights[2].weight0, Is.EqualTo(0f));
         }
 
         [Test]
@@ -949,7 +1008,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 0);
 
             Assert.That(results[0, 0], Is.GreaterThan(0.0));
-            Assert.That(results[1, 0], Is.GreaterThan(0.0));
+            Assert.That(results[1, 0], Is.EqualTo(0.0),
+                "Fallback must not traverse the edge contributed only by a degenerate triangle.");
         }
 
         [Test]
@@ -983,6 +1043,27 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(
                 weights[1].weight0 + weights[1].weight1 + weights[1].weight2 + weights[1].weight3,
                 Is.EqualTo(1f).Within(1e-6f));
+
+            var tiedBones = new List<int> { 4, 3, 2, 1, 0 };
+            var tiedResults = new double[1, 5];
+            for (int i = 0; i < tiedBones.Count; i++)
+                tiedResults[0, i] = 1.0;
+            InvokeInpaintingPrivate<object>(
+                inpainting,
+                "ConvertToBoneWeights",
+                unknown,
+                tiedBones,
+                tiedResults,
+                weights);
+            Assert.That(
+                new[]
+                {
+                    weights[1].boneIndex0,
+                    weights[1].boneIndex1,
+                    weights[1].boneIndex2,
+                    weights[1].boneIndex3
+                },
+                Is.EqualTo(new[] { 0, 1, 2, 3 }));
         }
 
         [Test]
@@ -1061,6 +1142,137 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 Assert.That(result.success, Is.False);
                 Assert.That(result.errorMessage, Does.Contain("do not cover"));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(sourceMesh);
+                UnityEngine.Object.DestroyImmediate(targetMesh);
+            }
+        }
+
+        [Test]
+        public void RobustWeightTransfer_Transfer_RejectsUnsafeSettingsAndMeshPayloadsWithoutThrowing()
+        {
+            var sourceMesh = CreateTriangleMesh();
+            var targetMesh = CreateTriangleMesh();
+            var sourceWeights = new[] { Bone(0, 1f), Bone(1, 1f), Bone(2, 1f) };
+            try
+            {
+                var invalidDistance = RobustWeightTransfer.Transfer(
+                    sourceMesh,
+                    sourceWeights,
+                    targetMesh,
+                    new WeightTransferSettings { maxTransferDistance = float.NaN });
+                Assert.That(invalidDistance.success, Is.False);
+                Assert.That(invalidDistance.errorMessage, Does.Contain("finite"));
+
+                var invalidTolerance = RobustWeightTransfer.Transfer(
+                    sourceMesh,
+                    sourceWeights,
+                    targetMesh,
+                    new WeightTransferSettings { tolerance = float.PositiveInfinity });
+                Assert.That(invalidTolerance.success, Is.False);
+
+                var vertices = targetMesh.vertices;
+                vertices[1] = new Vector3(float.NaN, 0f, 0f);
+                targetMesh.vertices = vertices;
+                var invalidVertices = RobustWeightTransfer.Transfer(sourceMesh, sourceWeights, targetMesh);
+                Assert.That(invalidVertices.success, Is.False);
+                Assert.That(invalidVertices.errorMessage, Does.Contain("Target vertices"));
+
+                targetMesh.vertices = sourceMesh.vertices;
+                sourceMesh.bindposes = Array.Empty<Matrix4x4>();
+                var missingBindPoses = RobustWeightTransfer.Transfer(sourceMesh, sourceWeights, targetMesh);
+                Assert.That(missingBindPoses.success, Is.False);
+                Assert.That(missingBindPoses.errorMessage, Does.Contain("bind poses"));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(sourceMesh);
+                UnityEngine.Object.DestroyImmediate(targetMesh);
+            }
+        }
+
+        [Test]
+        public void RobustWeightTransfer_Transfer_SanitizesInvalidSourceInfluences()
+        {
+            var sourceMesh = CreateTriangleMesh();
+            var targetMesh = CreateTriangleMesh();
+            var sourceWeights = new[]
+            {
+                new BoneWeight { boneIndex0 = 0, weight0 = float.NaN },
+                Bone(99, 1f),
+                Bone(2, 1f)
+            };
+            try
+            {
+                var result = RobustWeightTransfer.Transfer(
+                    sourceMesh,
+                    sourceWeights,
+                    targetMesh,
+                    new WeightTransferSettings
+                    {
+                        maxTransferDistance = 0.5f,
+                        normalAngleThreshold = 180f,
+                        enableInpainting = false
+                    });
+
+                Assert.That(result.success, Is.True, result.errorMessage);
+                Assert.That(result.transferredCount, Is.EqualTo(1));
+                Assert.That(result.weights[0].boneIndex0, Is.EqualTo(0));
+                Assert.That(result.weights[0].weight0, Is.EqualTo(1f));
+                Assert.That(result.weights[1].boneIndex0, Is.EqualTo(0));
+                Assert.That(result.weights[1].weight0, Is.EqualTo(1f));
+                Assert.That(result.weights[2].boneIndex0, Is.EqualTo(2));
+                for (int i = 0; i < result.weights.Length; i++)
+                {
+                    Assert.That(float.IsNaN(result.weights[i].weight0), Is.False);
+                    Assert.That(result.weights[i].boneIndex0, Is.InRange(0, 2));
+                }
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(sourceMesh);
+                UnityEngine.Object.DestroyImmediate(targetMesh);
+            }
+        }
+
+        [Test]
+        public void RobustWeightTransfer_Transfer_UsesSurfaceNormalWhenTargetNormalsAreMissing()
+        {
+            var sourceMesh = CreateTriangleMesh();
+            var targetMesh = CreateTriangleMesh();
+            targetMesh.normals = Array.Empty<Vector3>();
+            try
+            {
+                var result = RobustWeightTransfer.Transfer(
+                    sourceMesh,
+                    new[] { Bone(0, 1f), Bone(1, 1f), Bone(2, 1f) },
+                    targetMesh,
+                    new WeightTransferSettings
+                    {
+                        maxTransferDistance = 0.5f,
+                        normalAngleThreshold = 0f,
+                        enableInpainting = false
+                    });
+
+                Assert.That(result.success, Is.True, result.errorMessage);
+                Assert.That(result.transferredCount, Is.EqualTo(3));
+
+                sourceMesh.normals = new[] { Vector3.zero, Vector3.zero, Vector3.zero };
+                targetMesh.normals = new[] { Vector3.zero, Vector3.zero, Vector3.zero };
+                var zeroNormals = RobustWeightTransfer.Transfer(
+                    sourceMesh,
+                    new[] { Bone(0, 1f), Bone(1, 1f), Bone(2, 1f) },
+                    targetMesh,
+                    new WeightTransferSettings
+                    {
+                        maxTransferDistance = 0.5f,
+                        normalAngleThreshold = 0f,
+                        enableInpainting = false
+                    });
+                Assert.That(zeroNormals.success, Is.True, zeroNormals.errorMessage);
+                Assert.That(zeroNormals.transferredCount, Is.EqualTo(3));
             }
             finally
             {
@@ -1447,6 +1659,28 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 new Vector3(0.25f, 0.25f, 0.5f));
 
             Assert.That(fourSlots.weight3, Is.GreaterThan(0f));
+
+            var deterministicTies = InvokePrivate<BoneWeight>(
+                "InterpolateBoneWeight",
+                new BoneWeight
+                {
+                    boneIndex0 = 3, weight0 = 0.25f,
+                    boneIndex1 = 2, weight1 = 0.25f,
+                    boneIndex2 = 1, weight2 = 0.25f,
+                    boneIndex3 = 0, weight3 = 0.25f
+                },
+                new BoneWeight(),
+                new BoneWeight(),
+                new Vector3(1f, 0f, 0f));
+            Assert.That(
+                new[]
+                {
+                    deterministicTies.boneIndex0,
+                    deterministicTies.boneIndex1,
+                    deterministicTies.boneIndex2,
+                    deterministicTies.boneIndex3
+                },
+                Is.EqualTo(new[] { 0, 1, 2, 3 }));
 
             Assert.That(InvokePrivate<float>("CalculateBoundsDiagonal", new object[] { null }), Is.EqualTo(0f));
             Assert.That(
