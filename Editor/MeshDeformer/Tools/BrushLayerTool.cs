@@ -60,6 +60,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Vector3[] _worldPositions; // Skinned world-space positions (null for MeshRenderer)
         private List<HashSet<int>> _adjacency;
         private Vector2 _lastMousePosition;
+        private Vector3 _lastMoveBrushLocalDelta;
+        private bool _hasLastMoveBrushLocalDelta;
         private HashSet<int> _connectedVerticesCache;
         private int _connectedCacheStartVertex = -1;
         private Dictionary<int, float> _geodesicDistanceCache;
@@ -543,6 +545,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
 
             bool modified = false;
+            _hasLastMoveBrushLocalDelta = false;
 
             switch (s_brushMode)
             {
@@ -667,6 +670,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             // Convert world delta to local space
             var localDelta = meshTransform.InverseTransformVector(worldDelta);
+            _lastMoveBrushLocalDelta = localDelta;
+            _hasLastMoveBrushLocalDelta = true;
 
             // Pre-compute camera forward in local space for backface culling
             Vector3 localCameraForward = Vector3.forward;
@@ -966,6 +971,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         // Mirror the normal direction for the mirrored side
                         var mirroredNormal = MirrorDirection(normal);
                         var delta = mirroredNormal * (strength * falloff * direction);
+                        float maskValue = GetActiveLayerMaskValue(deformer, i);
+                        if (maskValue < 1e-6f) continue;
+                        delta *= maskValue;
                         deformer.AddDisplacement(i, delta);
                     }
                     break;
@@ -1004,7 +1012,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         averageDisp /= neighbors.Count;
 
                         var currentDisp = currentDisplacements[i];
-                        var targetDisp = Vector3.Lerp(currentDisp, averageDisp, smoothFactor * falloff);
+                        float maskValue = GetActiveLayerMaskValue(deformer, i);
+                        if (maskValue < 1e-6f) continue;
+                        var targetDisp = Vector3.Lerp(currentDisp, averageDisp, smoothFactor * falloff * maskValue);
                         deformer.SetDisplacement(i, targetDisp);
                     }
                     break;
@@ -1012,12 +1022,33 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 case BrushMode.Move:
                 {
-                    // Move mirror is handled implicitly during the primary pass since it affects
-                    // vertices near the mirrored brush center with mirrored direction.
-                    // We do a second pass here for the mirrored region.
-                    // The mouse delta has already been consumed, so we retrieve the last applied local delta.
-                    // For simplicity in mirrored move mode, we skip the mirror pass as the direction would
-                    // need to be re-derived from the event which is already consumed.
+                    if (!_hasLastMoveBrushLocalDelta)
+                    {
+                        break;
+                    }
+
+                    var mirroredDelta = MirrorDirection(_lastMoveBrushLocalDelta);
+                    for (int i = 0; i < vertexCount; i++)
+                    {
+                        if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
+                        {
+                            continue;
+                        }
+
+                        var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
+                        float distSq = (vertex - mirroredCenter).sqrMagnitude;
+                        if (distSq > radiusSq) continue;
+
+                        float dist = Mathf.Sqrt(distSq);
+                        float t = dist / localRadius;
+                        float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+
+                        var delta = mirroredDelta * (strength * falloff * 10f);
+                        float maskValue = GetActiveLayerMaskValue(deformer, i);
+                        if (maskValue < 1e-6f) continue;
+                        delta *= maskValue;
+                        deformer.AddDisplacement(i, delta);
+                    }
                     break;
                 }
 
@@ -1658,14 +1689,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static void DrawOverlayGUI(LatticeDeformer deformer)
         {
-            // Brush Mode toolbar (icon + text) — Mask mode hidden from UI
+            // Brush Mode toolbar (icon + text)
             var modeContent = new GUIContent[]
             {
                 ToolIcons.Content(ToolIcons.Normal, LocKey.Normal),
                 ToolIcons.Content(ToolIcons.Move, LocKey.Move),
                 ToolIcons.Content(ToolIcons.Smooth, LocKey.Smooth),
+                ToolIcons.Content(ToolIcons.Mask, LocKey.Mask),
             };
-            // Map toolbar index (0-2) to BrushMode enum (Normal=0, Move=1, Smooth=2)
             int currentModeIndex = Mathf.Min((int)BrushToolHandler.CurrentBrushMode, modeContent.Length - 1);
             int modeIndex = GUILayout.Toolbar(currentModeIndex, modeContent);
             modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
@@ -1799,7 +1830,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
                 }
 
-                // Mask mode UI hidden — mask brush mode is disabled in UI
+                if (GUILayout.Button(ToolIcons.Content(ToolIcons.Clear, LocKey.ClearMask)))
+                {
+                    if (deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush)
+                    {
+                        BrushToolHandler.ClearActiveMask(deformer);
+                    }
+                }
             }
 
             GUILayout.Space(2f);

@@ -44,7 +44,7 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
   - **ブラシモード**: Normal（法線方向）、Move（スクリーン方向）、Smooth（ラプラシアン平滑化）、Mask（頂点マスク）
   - **設定**: 半径、強度、減衰タイプ（Smooth/Linear/Constant/Sphere/Gaussian）
   - **表面距離（Surface Distance）**: ユークリッド距離の代わりに測地線（表面）距離を使用するフォールオフモード。Dijkstra アルゴリズムでメッシュ隣接グラフ上の最短経路を計算し、重なった面への影響の漏れを防止
-  - **ミラー編集**: X/Y/Z 軸対称
+  - **ミラー編集**: X/Y/Z 軸対称。Normal/Smooth/Mask に加えて Move ブラシもミラー側へ反転移動量を適用
   - **操作**: Alt+スクロールで半径、Shift+スクロールで強度調整
 - `GeodesicDistanceCalculator.cs`: 測地線距離計算（Dijkstra ベースの表面距離フォールオフ用）
 - `BrushDeformerPreviewFilter.cs`: NDMF プレビュー（IRenderFilter 実装）
@@ -53,6 +53,7 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
 **頂点マスク（Vertex Mask）:**
 - `LatticeLayer` に `_vertexMask` (`float[]`) を保持。各頂点の編集可能度を 0.0（保護）〜 1.0（編集可能）で管理
 - Mask ブラシモードで塗布（デフォルトは保護を塗る、Invert で保護を消す）
+- Brush Overlay のモード選択から Mask モードを直接選択可能。Clear Mask でアクティブレイヤーのマスクを初期化
 - Normal/Move/Smooth ブラシモードでは、マスク値に応じて変形量が自動的にスケーリングされる
 - `TryApplyBrushLayerContribution` でもマスクが適用され、ビルド時の出力にも反映
 - ミラー編集にも対応

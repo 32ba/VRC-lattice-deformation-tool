@@ -24,7 +24,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal static BrushSubMode CurrentBrushSubMode
         {
             get => s_brushSubMode;
-            set { s_brushSubMode = value; SceneView.RepaintAll(); }
+            set
+            {
+                if (s_brushSubMode == value)
+                {
+                    return;
+                }
+
+                s_brushSubMode = value;
+                SceneView.RepaintAll();
+            }
         }
 
         private readonly BrushToolHandler _brushHandler = new BrushToolHandler();
