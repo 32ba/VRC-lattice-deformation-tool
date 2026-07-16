@@ -22,6 +22,9 @@ msgstr "Mesh Deformer"
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer.tooltip"
 msgstr "The main component for non-destructive mesh deformation."
 
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer-overview"
+msgstr "Adjust Mesh and SkinnedMesh geometry with layered Lattice, Brush, and Vertex Selection tools. The source Mesh stays unchanged; NDMF Preview and builds apply the result non-destructively."
+
 msgid "net.32ba.lattice-deformation-tool.localization.yes"
 msgstr "Yes"
 

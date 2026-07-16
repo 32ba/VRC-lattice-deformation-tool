@@ -7,6 +7,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string ShowTooltips = "net.32ba.lattice-deformation-tool.localization.show-tooltips";
         internal const string ToolLanguage = "net.32ba.lattice-deformation-tool.localization.tool-language";
         internal const string MeshDeformer = "net.32ba.lattice-deformation-tool.localization.mesh-deformer";
+        internal const string MeshDeformerOverview = "net.32ba.lattice-deformation-tool.localization.mesh-deformer-overview";
         internal const string Yes = "net.32ba.lattice-deformation-tool.localization.yes";
         internal const string No = "net.32ba.lattice-deformation-tool.localization.no";
         internal const string Apply = "net.32ba.lattice-deformation-tool.localization.apply";
