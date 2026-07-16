@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Linq;
+using System.Reflection;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
 using UnityEditor;
@@ -519,6 +520,48 @@ namespace Net._32Ba.LatticeDeformationTool.Tests
             {
                 valid.Dispose();
                 invalid.Dispose();
+            }
+        }
+
+        [Test]
+        public void TryMigrate_FailedProbeDoesNotInitializeExistingTarget()
+        {
+            var fixture = CreateFixture("LegacyBrushProbeMustBePure");
+            try
+            {
+                var existing = fixture.GameObject.AddComponent<LatticeDeformer>();
+                var targetSerialized = new SerializedObject(existing);
+                targetSerialized.FindProperty("_groups").arraySize = 0;
+                targetSerialized.FindProperty("_layers").arraySize = 0;
+                targetSerialized.FindProperty("_activeGroupIndex").intValue = 0;
+                targetSerialized.FindProperty("_activeLayerIndex").intValue = 0;
+                targetSerialized.FindProperty("_deformationDataVersion").intValue =
+                    (int)DeformationDataVersion.CurrentDevelopment;
+                targetSerialized.FindProperty("_layerModelVersion").intValue = 3;
+                targetSerialized.ApplyModifiedPropertiesWithoutUndo();
+
+                fixture.Legacy.enabled = false;
+                fixture.Filter.sharedMesh = null;
+                var legacySerialized = new SerializedObject(fixture.Legacy);
+                legacySerialized.FindProperty("_serializedSourceMesh").objectReferenceValue = null;
+                legacySerialized.ApplyModifiedPropertiesWithoutUndo();
+                typeof(BrushDeformer)
+                    .GetField("_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(fixture.Legacy, null);
+
+                string before = EditorJsonUtility.ToJson(existing);
+
+                Assert.That(
+                    LegacyBrushDeformerMigration.TryMigrate(fixture.Legacy, out var target, out var error),
+                    Is.False);
+                Assert.That(target, Is.Null);
+                Assert.That(error, Does.Contain("No source mesh"));
+                Assert.That(EditorJsonUtility.ToJson(existing), Is.EqualTo(before),
+                    "A validation-only layer probe must not run public lazy initialization.");
+            }
+            finally
+            {
+                fixture.Dispose();
             }
         }
 

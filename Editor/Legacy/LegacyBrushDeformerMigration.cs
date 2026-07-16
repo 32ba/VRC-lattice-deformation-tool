@@ -71,7 +71,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // subsequently removed. This makes the operation safely idempotent.
             if (!legacy.enabled &&
                 existingTarget != null &&
-                TryFindMigratedLayer(existingTarget, displacements, requireMigrationMarker: true, out _) &&
+                HasSerializedMigratedLayer(existingTarget, displacements) &&
                 (sourceMesh == null ||
                  knownExistingTargetSource == null ||
                  ReferenceEquals(knownExistingTargetSource, sourceMesh)))
@@ -107,7 +107,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             bool alreadyHasLayer = existingTarget != null &&
-                TryFindMigratedLayer(existingTarget, displacements, requireMigrationMarker: true, out _);
+                HasSerializedMigratedLayer(existingTarget, displacements);
 
             Undo.IncrementCurrentGroup();
             int undoGroup = Undo.GetCurrentGroup();
@@ -366,6 +366,73 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var rightValue = right.FindPropertyRelative(name);
             return leftValue != null && rightValue != null &&
                    leftValue.intValue == rightValue.intValue;
+        }
+
+        private static bool HasSerializedMigratedLayer(LatticeDeformer target, Vector3[] expected)
+        {
+            if (target == null || expected == null)
+            {
+                return false;
+            }
+
+            var serialized = new SerializedObject(target);
+            serialized.UpdateIfRequiredOrScript();
+            var groups = serialized.FindProperty("_groups");
+            if (groups == null || !groups.isArray)
+            {
+                return false;
+            }
+
+            for (int groupIndex = 0; groupIndex < groups.arraySize; groupIndex++)
+            {
+                var group = groups.GetArrayElementAtIndex(groupIndex);
+                var groupName = group.FindPropertyRelative("_name");
+                var layers = group.FindPropertyRelative("_layers");
+                if (groupName == null ||
+                    !string.Equals(groupName.stringValue, MigratedGroupName, StringComparison.Ordinal) ||
+                    layers == null ||
+                    !layers.isArray)
+                {
+                    continue;
+                }
+
+                for (int layerIndex = 0; layerIndex < layers.arraySize; layerIndex++)
+                {
+                    var layer = layers.GetArrayElementAtIndex(layerIndex);
+                    var layerName = layer.FindPropertyRelative("_name");
+                    var layerType = layer.FindPropertyRelative("_type");
+                    var displacements = layer.FindPropertyRelative("_brushDisplacements");
+                    if (layerName == null ||
+                        !string.Equals(layerName.stringValue, MigratedLayerName, StringComparison.Ordinal) ||
+                        layerType == null ||
+                        layerType.intValue != (int)MeshDeformerLayerType.Brush ||
+                        displacements == null ||
+                        !displacements.isArray ||
+                        displacements.arraySize != expected.Length)
+                    {
+                        continue;
+                    }
+
+                    bool matches = true;
+                    for (int displacementIndex = 0; displacementIndex < expected.Length; displacementIndex++)
+                    {
+                        if (!AreBitExact(
+                                displacements.GetArrayElementAtIndex(displacementIndex).vector3Value,
+                                expected[displacementIndex]))
+                        {
+                            matches = false;
+                            break;
+                        }
+                    }
+
+                    if (matches)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         private static bool TryFindMigratedLayer(
