@@ -298,6 +298,11 @@ namespace Net._32Ba.LatticeDeformationTool
             _applySpace = source._applySpace;
         }
 
+        internal void ClearLegacyWorldSpaceState()
+        {
+            _applySpace = 0;
+        }
+
         private static bool IsFinite(Vector3 value)
         {
             return !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&

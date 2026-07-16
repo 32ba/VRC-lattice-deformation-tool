@@ -201,6 +201,13 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             vertexCount = Mathf.Max(0, vertexCount);
 
+            // Validate every existing payload before allocating either one. Failure is
+            // intentionally mutation-free so historical data can still be recovered.
+            if (_vertexMask != null && _vertexMask.Length != 0 && _vertexMask.Length != vertexCount)
+            {
+                return false;
+            }
+
             if (_brushDisplacements == null || _brushDisplacements.Length == 0)
             {
                 _brushDisplacements = new Vector3[vertexCount];
@@ -210,10 +217,8 @@ namespace Net._32Ba.LatticeDeformationTool
                 return false;
             }
 
-            // An empty mask means fully editable and does not require allocation. A
-            // non-empty mismatched mask is historical data whose vertex identity is
-            // unknown, so never resize or truncate it automatically.
-            return _vertexMask == null || _vertexMask.Length == 0 || _vertexMask.Length == vertexCount;
+            // An empty mask means fully editable and does not require allocation.
+            return true;
         }
 
         public bool HasBrushDisplacements()
@@ -3835,6 +3840,7 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             var cloned = CloneSettings(source);
             cloned.ResetControlPoints();
+            cloned.ClearLegacyWorldSpaceState();
             return cloned;
         }
 

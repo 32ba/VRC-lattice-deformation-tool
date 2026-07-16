@@ -14,6 +14,43 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     public sealed class RuntimeCoreTests
     {
         [Test]
+        public void BrushCapacity_InvalidMaskDoesNotAllocateDisplacements()
+        {
+            var layer = new LatticeLayer();
+            layer.SetType(MeshDeformerLayerType.Brush);
+            layer.BrushDisplacements = Array.Empty<Vector3>();
+            layer.VertexMask = new[] { 0.25f };
+
+            Assert.That(layer.TryEnsureBrushDataCapacityPreservingExisting(3), Is.False);
+            Assert.That(layer.BrushDisplacements, Is.Empty,
+                "Fail-closed validation must not replace the serialized empty payload.");
+            Assert.That(layer.VertexMask, Is.EqualTo(new[] { 0.25f }));
+        }
+
+        [Test]
+        public void NeutralLayerClone_ClearsLegacyWorldSpaceMarker()
+        {
+            var source = new LatticeAsset();
+            source.EnsureInitialized();
+            typeof(LatticeAsset)
+                .GetField("_applySpace", BindingFlags.Instance | BindingFlags.NonPublic)
+                .SetValue(source, 1);
+
+            var neutral = InvokeStaticPrivate<LatticeAsset>("CreateNeutralLayerSettings", source);
+
+            Assert.That(neutral.LegacyApplySpaceValue, Is.Zero,
+                "New neutral settings are local data and must not inherit a historical World marker.");
+            var evaluated = new Vector3[neutral.ControlPointCount];
+            Assert.That(
+                neutral.TryCopyLegacyEvaluationControlPoints(
+                    Matrix4x4.TRS(new Vector3(3f, -2f, 5f), Quaternion.Euler(10f, 20f, 30f), Vector3.one).inverse,
+                    evaluated),
+                Is.True);
+            Assert.That(evaluated, Is.EqualTo(neutral.ControlPointsLocal.ToArray()),
+                "A non-identity owner transform must not move a newly created neutral lattice.");
+        }
+
+        [Test]
         public void LatticeNativeArrayUtility_CreateCopy_Vector3ArrayCopiesValues()
         {
             using var copy = LatticeNativeArrayUtility.CreateCopy(
