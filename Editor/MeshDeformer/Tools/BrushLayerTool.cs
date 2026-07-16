@@ -139,6 +139,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Dictionary<int, float> _geodesicDistanceCache;
         private int _geodesicCacheStartVertex = -1;
         private HashSet<int> _penetratingVertices;
+        private Vector3[] _penetrationDeformedVertices;
         private PenetrationDetectionCacheKey _penetrationCacheKey;
         private bool _hasPenetrationCacheKey;
         private bool _isStrokeActive;
@@ -1626,17 +1627,33 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            Matrix4x4 deformedToRef = refTransform.worldToLocalMatrix * deformerTransform.localToWorldMatrix;
-
-            // Apply current displacements to get deformed positions
-            var deformedVertices = new Vector3[_meshVertices.Length];
-            for (int i = 0; i < _meshVertices.Length; i++)
+            // Penetration is a property of the final stack, not only the active brush
+            // layer. Force evaluation so both detection and highlighting use it.
+            runtimeMesh = deformer.Deform(false);
+            if (runtimeMesh == null || runtimeMesh.vertexCount != _meshVertices.Length)
             {
-                deformedVertices[i] = _meshVertices[i] + deformer.GetDisplacement(i);
+                InvalidatePenetrationCache();
+                return;
             }
 
+            var deformedVertices = runtimeMesh.vertices;
+            _worldPositions = SkinnedVertexHelper.ComputeWorldPositions(deformer, deformedVertices);
+            nextKey = new PenetrationDetectionCacheKey(
+                deformer.ComputeLayeredStateHash(),
+                s_penetrationSettingsRevision,
+                s_penetrationReference.GetInstanceID(),
+                refMesh.GetInstanceID(),
+                sourceMesh != null ? sourceMesh.GetInstanceID() : 0,
+                runtimeMesh.GetInstanceID(),
+                deformedVertices.Length,
+                refMesh.vertexCount,
+                deformerTransform.localToWorldMatrix,
+                refTransform.worldToLocalMatrix);
+
+            Matrix4x4 deformedToRef = refTransform.worldToLocalMatrix * deformerTransform.localToWorldMatrix;
             var detected = PenetrationDetector.DetectPenetration(deformedVertices, refMesh, deformedToRef);
             _penetratingVertices = detected;
+            _penetrationDeformedVertices = deformedVertices;
             _penetrationCacheKey = nextKey;
             _hasPenetrationCacheKey = true;
         }
@@ -1644,13 +1661,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void InvalidatePenetrationCache()
         {
             _penetratingVertices = null;
+            _penetrationDeformedVertices = null;
             _penetrationCacheKey = default;
             _hasPenetrationCacheKey = false;
         }
 
         private void DrawPenetrationHighlight(Transform meshTransform)
         {
-            if (_penetratingVertices == null || _penetratingVertices.Count == 0 || _meshVertices == null)
+            if (_penetratingVertices == null ||
+                _penetratingVertices.Count == 0 ||
+                _penetrationDeformedVertices == null)
             {
                 return;
             }
@@ -1661,9 +1681,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             foreach (int i in _penetratingVertices)
             {
-                if (i < _meshVertices.Length)
+                if (i >= 0 && i < _penetrationDeformedVertices.Length)
                 {
-                    Vector3 worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, _meshVertices[i], matrix);
+                    Vector3 worldPos = SkinnedVertexHelper.LocalToWorld(
+                        i,
+                        _worldPositions,
+                        _penetrationDeformedVertices[i],
+                        matrix);
                     float dotSize = HandleUtility.GetHandleSize(worldPos) * 0.01f;
                     Handles.DotHandleCap(0, worldPos, Quaternion.identity, dotSize, EventType.Repaint);
                 }

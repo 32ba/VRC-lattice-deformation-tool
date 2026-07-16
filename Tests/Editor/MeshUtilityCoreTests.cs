@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
 using System.Reflection;
 using Net._32Ba.LatticeDeformationTool;
 using Net._32Ba.LatticeDeformationTool.Editor;
@@ -145,6 +146,98 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(changedLayer, Is.Not.EqualTo(key));
             Assert.That(changedRuntimeMesh, Is.Not.EqualTo(key));
             Assert.That(changedTransform, Is.Not.EqualTo(key));
+        }
+
+        [Test]
+        public void BrushPenetrationDetection_UsesFullyComposedDeformation()
+        {
+            var targetObject = new GameObject("penetration-composed-target");
+            var referenceObject = new GameObject("penetration-composed-reference");
+            Mesh source = null;
+            Mesh reference = null;
+            var showField = typeof(BrushToolHandler).GetField(
+                "s_showPenetration",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            var referenceField = typeof(BrushToolHandler).GetField(
+                "s_penetrationReference",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            bool previousShow = (bool)showField.GetValue(null);
+            var previousReference = referenceField.GetValue(null);
+            try
+            {
+                source = new Mesh
+                {
+                    vertices = new[]
+                    {
+                        new Vector3(0f, 0f, 0.1f),
+                        new Vector3(1f, 0f, 0.1f),
+                        new Vector3(0f, 1f, 0.1f)
+                    },
+                    triangles = new[] { 0, 1, 2 }
+                };
+                source.RecalculateNormals();
+                source.RecalculateBounds();
+                var targetFilter = targetObject.AddComponent<MeshFilter>();
+                targetObject.AddComponent<MeshRenderer>();
+                targetFilter.sharedMesh = source;
+
+                var deformer = targetObject.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                int penetratingLayerIndex = deformer.AddLayer("Non-active penetration", MeshDeformerLayerType.Brush);
+                var penetratingLayer = deformer.Layers[penetratingLayerIndex];
+                penetratingLayer.EnsureBrushDisplacementCapacity(source.vertexCount);
+                for (int i = 0; i < source.vertexCount; i++)
+                {
+                    penetratingLayer.SetBrushDisplacement(i, new Vector3(0f, 0f, -0.2f));
+                }
+
+                int activeLayerIndex = deformer.AddLayer("Active neutral brush", MeshDeformerLayerType.Brush);
+                deformer.Layers[activeLayerIndex].EnsureBrushDisplacementCapacity(source.vertexCount);
+                Assert.That(deformer.GetDisplacement(0), Is.EqualTo(Vector3.zero));
+                Assert.That(deformer.Deform(false), Is.Not.Null);
+
+                reference = new Mesh
+                {
+                    vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                    normals = new[] { Vector3.forward, Vector3.forward, Vector3.forward },
+                    triangles = new[] { 0, 1, 2 }
+                };
+                var referenceFilter = referenceObject.AddComponent<MeshFilter>();
+                var referenceRenderer = referenceObject.AddComponent<MeshRenderer>();
+                referenceFilter.sharedMesh = reference;
+
+                var handler = new BrushToolHandler();
+                typeof(BrushToolHandler)
+                    .GetField("_meshVertices", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(handler, source.vertices);
+                showField.SetValue(null, true);
+                referenceField.SetValue(null, referenceRenderer);
+
+                typeof(BrushToolHandler)
+                    .GetMethod("UpdatePenetrationDetection", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .Invoke(handler, new object[] { deformer });
+
+                var penetrating = (HashSet<int>)typeof(BrushToolHandler)
+                    .GetField("_penetratingVertices", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .GetValue(handler);
+                Assert.That(penetrating, Is.Not.Null);
+                Assert.That(penetrating.Contains(0), Is.True,
+                    "Penetration from a non-active layer must be detected in the final composed output.");
+                var highlightedVertices = (Vector3[])typeof(BrushToolHandler)
+                    .GetField("_penetrationDeformedVertices", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .GetValue(handler);
+                Assert.That(highlightedVertices[0].z, Is.EqualTo(-0.1f).Within(1e-6f),
+                    "Highlight positions must use the same fully composed vertices as detection.");
+            }
+            finally
+            {
+                showField.SetValue(null, previousShow);
+                referenceField.SetValue(null, previousReference);
+                Object.DestroyImmediate(targetObject);
+                Object.DestroyImmediate(referenceObject);
+                if (source != null) Object.DestroyImmediate(source);
+                if (reference != null) Object.DestroyImmediate(reference);
+            }
         }
 
         [Test]
