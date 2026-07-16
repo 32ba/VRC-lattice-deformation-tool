@@ -3,7 +3,7 @@
   "displayName": "Lattice Deformation Tool",
   "version": "1.4.0",
   "unity": "2022.3",
-  "description": "Editor tooling for layered mesh deformation (lattice and brush) on meshes and skinned meshes. formerly known as Mesh Deformation Tool.",
+  "description": "Non-destructive layered mesh deformation for MeshRenderer and SkinnedMeshRenderer, with lattice, brush, vertex editing, BlendShape I/O, and NDMF Preview/Bake. Formerly known as Mesh Deformation Tool.",
   "author": {
     "name": "32ba"
   },

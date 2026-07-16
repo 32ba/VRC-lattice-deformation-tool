@@ -22,6 +22,9 @@ msgstr "Mesh Deformer"
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer-overview"
+msgstr "使用 Lattice、Brush 和 Vertex Selection 图层调整 Mesh / SkinnedMesh 形状。源 Mesh 保持不变，结果通过 NDMF Preview 和构建流程以非破坏方式应用。"
+
 msgid "net.32ba.lattice-deformation-tool.localization.yes"
 msgstr "是"
 

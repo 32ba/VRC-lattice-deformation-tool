@@ -556,6 +556,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             DrawLanguageSelector();
             EditorGUILayout.Space();
+            EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.MeshDeformerOverview), MessageType.Info);
+            EditorGUILayout.Space();
             ReleaseNotificationGUI.Draw();
 
             using (new EditorGUI.DisabledScope(disableSkinnedField))
