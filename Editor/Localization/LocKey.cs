@@ -167,6 +167,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string FitCorrectionTopologyMismatch = "net.32ba.lattice-deformation-tool.localization.fit-correction-topology-mismatch";
         internal const string FitCorrectionNoCandidates = "net.32ba.lattice-deformation-tool.localization.fit-correction-no-candidates";
         internal const string FitCorrectionResultFormat = "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format";
+        internal const string FitCorrectionConstraints = "net.32ba.lattice-deformation-tool.localization.fit-correction-constraints";
+        internal const string FitCorrectionUseVertexMask = "net.32ba.lattice-deformation-tool.localization.fit-correction-use-vertex-mask";
+        internal const string FitCorrectionPinOpenBoundaries = "net.32ba.lattice-deformation-tool.localization.fit-correction-pin-open-boundaries";
+        internal const string FitCorrectionIsolateComponents = "net.32ba.lattice-deformation-tool.localization.fit-correction-isolate-components";
+        internal const string FitCorrectionSmoothSurface = "net.32ba.lattice-deformation-tool.localization.fit-correction-smooth-surface";
+        internal const string FitCorrectionSmoothingIterations = "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-iterations";
+        internal const string FitCorrectionSmoothingStrength = "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-strength";
+        internal const string FitCorrectionPreserveClearance = "net.32ba.lattice-deformation-tool.localization.fit-correction-preserve-clearance";
+        internal const string FitCorrectionUseSymmetry = "net.32ba.lattice-deformation-tool.localization.fit-correction-use-symmetry";
+        internal const string FitCorrectionSymmetryAxis = "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-axis";
+        internal const string FitCorrectionSymmetryToleranceMm = "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-tolerance-mm";
+        internal const string FitCorrectionPreview = "net.32ba.lattice-deformation-tool.localization.fit-correction-preview";
 
         // Vertex Selection Tool
         internal const string VertexTool = "net.32ba.lattice-deformation-tool.localization.vertex-tool";

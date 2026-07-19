@@ -1,8 +1,10 @@
 #if UNITY_EDITOR
+using System;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
@@ -160,7 +162,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 fixture.Target.transform.SetParent(root.transform);
                 fixture.Reference.transform.SetParent(root.transform);
-                var plan = Analyze(fixture, Evaluate(fixture), FitCorrectionScope.TargetClearance, 0.006f);
+                fixture.Deformer.Layers[fixture.Deformer.ActiveLayerIndex].VertexMask =
+                    new[] { 1f, 0.5f, 0f };
+                var plan = FitCorrectionGenerator.Analyze(
+                    fixture.Deformer, Evaluate(fixture), fixture.Reference,
+                    ClearanceQueryMode.ReferenceNormal, FitCorrectionScope.TargetClearance,
+                    0.005f, 0.01f, 0.006f,
+                    Constraints(useMask: true, isolate: true, preserve: true));
                 var report = FitCorrectionGenerator.Generate(
                     fixture.Deformer, plan, fixture.Reference,
                     ClearanceQueryMode.ReferenceNormal, FitCorrectionScope.TargetClearance,
@@ -185,6 +193,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     Assert.That(loadedLayer.FitCorrectionScope, Is.EqualTo(FitCorrectionScope.TargetClearance));
                     Assert.That(loadedLayer.FitCorrectionTargetDistance, Is.EqualTo(0.01f).Within(Epsilon));
                     Assert.That(loadedLayer.FitCorrectionMaximumMove, Is.EqualTo(0.006f).Within(Epsilon));
+                    Assert.That(loadedLayer.FitCorrectionUsedVertexMask, Is.True);
+                    Assert.That(loadedLayer.FitCorrectionConstraintMask,
+                        Is.EqualTo(new[] { 1f, 0.5f, 0f }));
+                    Assert.That(loadedLayer.FitCorrectionIsolatedComponents, Is.True);
+                    Assert.That(loadedLayer.FitCorrectionPreservedClearance, Is.True);
                     Assert.That(loadedLayer.GetBrushDisplacement(0), Is.EqualTo(expectedDisplacement));
                 }
                 finally
@@ -346,6 +359,236 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
+        [Test]
+        public void DisabledConstraints_MatchIssue31BasicResult()
+        {
+            var fixture = CreateFixture(-0.002f, 0.003f, 0.008f);
+            try
+            {
+                var raw = Evaluate(fixture);
+                var basic = Analyze(fixture, raw, FitCorrectionScope.TargetClearance, 0.1f);
+                var disabled = FitCorrectionGenerator.Analyze(
+                    fixture.Deformer, raw, fixture.Reference,
+                    ClearanceQueryMode.ReferenceNormal, FitCorrectionScope.TargetClearance,
+                    0.005f, 0.01f, 0.1f, DisabledConstraints());
+
+                Assert.That(disabled.LocalDisplacements, Is.EqualTo(basic.LocalDisplacements));
+                Assert.That(disabled.CorrectedWorldPositions, Is.EqualTo(basic.CorrectedWorldPositions));
+                Assert.That(disabled.UnresolvedVertexCount, Is.EqualTo(basic.UnresolvedVertexCount));
+            }
+            finally
+            {
+                fixture.Destroy();
+            }
+        }
+
+        [Test]
+        public void VertexMask_ProducesContinuousGradientAndPinsZeroWeight()
+        {
+            var fixture = CreateFixture(0f, 0f, 0f);
+            fixture.Deformer.Layers[fixture.Deformer.ActiveLayerIndex].VertexMask = new[] { 0f, 0.5f, 1f };
+            try
+            {
+                var plan = FitCorrectionGenerator.Analyze(
+                    fixture.Deformer, Evaluate(fixture), fixture.Reference,
+                    ClearanceQueryMode.ReferenceNormal, FitCorrectionScope.TargetClearance,
+                    0.005f, 0.01f, 0.1f,
+                    Constraints(useMask: true, preserve: true));
+
+                Assert.That(plan.LocalDisplacements[0], Is.EqualTo(Vector3.zero));
+                Assert.That(plan.LocalDisplacements[1].z, Is.EqualTo(0.005f).Within(Epsilon));
+                Assert.That(plan.LocalDisplacements[2].z, Is.EqualTo(0.01f).Within(Epsilon));
+                Assert.That(plan.PinnedVertices[0], Is.True);
+            }
+            finally
+            {
+                fixture.Destroy();
+            }
+        }
+
+        [Test]
+        public void PinOpenBoundaries_MovesOnlyInteriorGridVertex()
+        {
+            var vertices = new Vector3[9];
+            for (int y = 0; y < 3; y++)
+            for (int x = 0; x < 3; x++)
+                vertices[y * 3 + x] = new Vector3(x - 1f, y - 1f, 0f) * 0.4f;
+            int[] triangles =
+            {
+                0, 1, 3, 1, 4, 3,
+                1, 2, 4, 2, 5, 4,
+                3, 4, 6, 4, 7, 6,
+                4, 5, 7, 5, 8, 7
+            };
+            var fixture = CreateCustomFixture(vertices, triangles);
+            try
+            {
+                var plan = FitCorrectionGenerator.Analyze(
+                    fixture.Deformer, Evaluate(fixture), fixture.Reference,
+                    ClearanceQueryMode.ReferenceNormal, FitCorrectionScope.TargetClearance,
+                    0.005f, 0.01f, 0.1f,
+                    Constraints(pinBoundaries: true));
+
+                for (int vertex = 0; vertex < vertices.Length; vertex++)
+                {
+                    if (vertex == 4)
+                        Assert.That(plan.LocalDisplacements[vertex].z, Is.EqualTo(0.01f).Within(Epsilon));
+                    else
+                        Assert.That(plan.LocalDisplacements[vertex], Is.EqualTo(Vector3.zero));
+                }
+                Assert.That(plan.UnresolvedVertexCount, Is.EqualTo(8));
+            }
+            finally
+            {
+                fixture.Destroy();
+            }
+        }
+
+        [Test]
+        public void SurfaceSmoothing_DoesNotCrossDisconnectedIslands()
+        {
+            var fixture = CreateCustomFixture(
+                new[]
+                {
+                    new Vector3(-0.8f, -0.2f, 0f), new Vector3(-0.4f, -0.2f, 0.02f),
+                    new Vector3(-0.6f, 0.2f, 0.02f),
+                    new Vector3(0.4f, -0.2f, 0.02f), new Vector3(0.8f, -0.2f, 0.02f),
+                    new Vector3(0.6f, 0.2f, 0.02f)
+                },
+                new[] { 0, 1, 2, 3, 4, 5 });
+            try
+            {
+                var plan = FitCorrectionGenerator.Analyze(
+                    fixture.Deformer, Evaluate(fixture), fixture.Reference,
+                    ClearanceQueryMode.ReferenceNormal, FitCorrectionScope.TargetClearance,
+                    0.005f, 0.01f, 0.1f,
+                    Constraints(isolate: true, smooth: true, iterations: 1, strength: 1f));
+
+                Assert.That(plan.LocalDisplacements[1].sqrMagnitude, Is.GreaterThan(0f));
+                Assert.That(plan.LocalDisplacements[2].sqrMagnitude, Is.GreaterThan(0f));
+                Assert.That(plan.LocalDisplacements[3], Is.EqualTo(Vector3.zero));
+                Assert.That(plan.LocalDisplacements[4], Is.EqualTo(Vector3.zero));
+                Assert.That(plan.LocalDisplacements[5], Is.EqualTo(Vector3.zero));
+            }
+            finally
+            {
+                fixture.Destroy();
+            }
+        }
+
+        [Test]
+        public void PreserveSolvedClearance_ReprojectsAfterSmoothing()
+        {
+            var fixture = CreateCustomFixture(
+                new[]
+                {
+                    new Vector3(-0.4f, -0.4f, 0f),
+                    new Vector3(0.4f, -0.4f, 0.02f),
+                    new Vector3(0f, 0.4f, 0.02f)
+                },
+                new[] { 0, 1, 2 });
+            try
+            {
+                var raw = Evaluate(fixture);
+                var smoothed = FitCorrectionGenerator.Analyze(
+                    fixture.Deformer, raw, fixture.Reference,
+                    ClearanceQueryMode.ReferenceNormal, FitCorrectionScope.TargetClearance,
+                    0.005f, 0.01f, 0.02f,
+                    Constraints(smooth: true, iterations: 1, strength: 1f));
+                var preserved = FitCorrectionGenerator.Analyze(
+                    fixture.Deformer, raw, fixture.Reference,
+                    ClearanceQueryMode.ReferenceNormal, FitCorrectionScope.TargetClearance,
+                    0.005f, 0.01f, 0.02f,
+                    Constraints(smooth: true, iterations: 1, strength: 1f, preserve: true));
+
+                Assert.That(smoothed.UnresolvedVertexCount, Is.EqualTo(1));
+                Assert.That(preserved.UnresolvedVertexCount, Is.EqualTo(0));
+                Assert.That(preserved.LocalDisplacements[0].magnitude, Is.LessThanOrEqualTo(0.02f + Epsilon));
+            }
+            finally
+            {
+                fixture.Destroy();
+            }
+        }
+
+        [Test]
+        public void OptionalSymmetry_MirrorsCorrectionAndSkipsUnmatchedVertex()
+        {
+            var targetVertices = new[]
+            {
+                new Vector3(-0.5f, 0f, 0f),
+                new Vector3(0.5f, 0f, 0f),
+                new Vector3(0.2f, 0.4f, 0.02f)
+            };
+            var referenceMesh = new Mesh { name = "Sloped Reference" };
+            referenceMesh.vertices = new[]
+            {
+                new Vector3(-1f, -1f, -0.02f), new Vector3(1f, -1f, 0.02f),
+                new Vector3(1f, 1f, 0.02f), new Vector3(-1f, 1f, -0.02f)
+            };
+            referenceMesh.triangles = new[] { 0, 1, 2, 0, 2, 3 };
+            referenceMesh.RecalculateNormals();
+            var fixture = CreateCustomFixture(targetVertices, Array.Empty<int>(), referenceMesh);
+            try
+            {
+                var plan = FitCorrectionGenerator.Analyze(
+                    fixture.Deformer, Evaluate(fixture), fixture.Reference,
+                    ClearanceQueryMode.ReferenceNormal, FitCorrectionScope.PenetrationOnly,
+                    0.005f, 0.01f, 0.05f,
+                    Constraints(symmetry: true));
+                Vector3 left = plan.LocalDisplacements[0];
+                Vector3 right = plan.LocalDisplacements[1];
+
+                Vector3 mirroredRight = SymmetryVertexMapCache.MirrorDirection(right, 0);
+                Assert.That(left.x, Is.EqualTo(mirroredRight.x).Within(Epsilon));
+                Assert.That(left.y, Is.EqualTo(mirroredRight.y).Within(Epsilon));
+                Assert.That(left.z, Is.EqualTo(mirroredRight.z).Within(Epsilon));
+                Assert.That(left.sqrMagnitude, Is.GreaterThan(0f));
+                Assert.That(plan.LocalDisplacements[2], Is.EqualTo(Vector3.zero));
+            }
+            finally
+            {
+                fixture.Destroy();
+            }
+        }
+
+        [Test]
+        public void GeneratedLayer_PersistsConstraintMetadata()
+        {
+            var fixture = CreateFixture(0f, 0f, 0f);
+            fixture.Deformer.Layers[fixture.Deformer.ActiveLayerIndex].VertexMask = new[] { 0f, 0.5f, 1f };
+            try
+            {
+                var options = Constraints(
+                    useMask: true, pinBoundaries: true, isolate: true,
+                    smooth: true, iterations: 3, strength: 0.25f,
+                    preserve: true, symmetry: true);
+                var plan = FitCorrectionGenerator.Analyze(
+                    fixture.Deformer, Evaluate(fixture), fixture.Reference,
+                    ClearanceQueryMode.ReferenceNormal, FitCorrectionScope.TargetClearance,
+                    0.005f, 0.01f, 0.1f, options);
+                var report = FitCorrectionGenerator.Generate(
+                    fixture.Deformer, plan, fixture.Reference,
+                    ClearanceQueryMode.ReferenceNormal, FitCorrectionScope.TargetClearance,
+                    0.005f, 0.01f, 0.1f);
+                var layer = fixture.Deformer.Layers[report.LayerIndex];
+
+                Assert.That(layer.FitCorrectionUsedVertexMask, Is.True);
+                Assert.That(layer.FitCorrectionConstraintMask, Is.EqualTo(new[] { 0f, 0.5f, 1f }));
+                Assert.That(layer.FitCorrectionPinnedOpenBoundaries, Is.True);
+                Assert.That(layer.FitCorrectionIsolatedComponents, Is.True);
+                Assert.That(layer.FitCorrectionSmoothedSurface, Is.True);
+                Assert.That(layer.FitCorrectionSmoothingIterations, Is.EqualTo(3));
+                Assert.That(layer.FitCorrectionSmoothingStrength, Is.EqualTo(0.25f).Within(Epsilon));
+                Assert.That(layer.FitCorrectionPreservedClearance, Is.True);
+                Assert.That(layer.FitCorrectionUsedSymmetry, Is.True);
+            }
+            finally
+            {
+                fixture.Destroy();
+            }
+        }
+
         private static ClearanceHeatmapRawEvaluation Evaluate(Fixture fixture)
         {
             return ClearanceHeatmapEvaluator.Evaluate(
@@ -380,6 +623,41 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var deformer = target.gameObject.AddComponent<LatticeDeformer>();
             deformer.Reset();
             return new Fixture(target, reference, targetMesh, referenceMesh, deformer);
+        }
+
+        private static Fixture CreateCustomFixture(
+            Vector3[] vertices,
+            int[] triangles,
+            Mesh referenceMesh = null)
+        {
+            var targetMesh = new Mesh { name = "Constraint Target", vertices = vertices };
+            targetMesh.triangles = triangles;
+            if (triangles.Length > 0) targetMesh.RecalculateNormals();
+            targetMesh.RecalculateBounds();
+            referenceMesh ??= CreateReferencePlane();
+            var target = CreateRenderer("Target", targetMesh);
+            var reference = CreateRenderer("Reference", referenceMesh);
+            var deformer = target.gameObject.AddComponent<LatticeDeformer>();
+            deformer.Reset();
+            return new Fixture(target, reference, targetMesh, referenceMesh, deformer);
+        }
+
+        private static FitCorrectionConstraintOptions DisabledConstraints() =>
+            new FitCorrectionConstraintOptions(false, false, false, false, 0, 0f, false, false, 0, 0.001f);
+
+        private static FitCorrectionConstraintOptions Constraints(
+            bool useMask = false,
+            bool pinBoundaries = false,
+            bool isolate = false,
+            bool smooth = false,
+            int iterations = 0,
+            float strength = 0f,
+            bool preserve = false,
+            bool symmetry = false)
+        {
+            return new FitCorrectionConstraintOptions(
+                useMask, pinBoundaries, isolate, smooth, iterations, strength,
+                preserve, symmetry, 0, 0.001f);
         }
 
         private static Mesh CreateTargetMesh(params float[] clearances)
