@@ -136,7 +136,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     property: "_serializedSourceTopologyHash");
             }
 
-            if (evaluationTargetMesh != null && !ReferenceEquals(evaluationTargetMesh, currentMesh))
+            if (evaluationTargetMesh != null &&
+                !ReferenceEquals(evaluationTargetMesh, currentMesh) &&
+                !HasCompatibleTopology(currentMesh, evaluationTargetMesh))
             {
                 Add(results, PreviewBakeTargetMismatch, MeshDeformerDiagnosticSeverity.Warning, deformer,
                     "The mesh selected for evaluation differs from the renderer mesh; Preview and Bake may target different topology.",
@@ -502,6 +504,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 return 0;
             }
+        }
+
+        private static bool HasCompatibleTopology(Mesh source, Mesh evaluationTarget)
+        {
+            if (source == null || evaluationTarget == null) return false;
+            if (source.vertexCount != evaluationTarget.vertexCount ||
+                source.subMeshCount != evaluationTarget.subMeshCount)
+            {
+                return false;
+            }
+
+            int sourceHash = CalculateTopologyHash(source);
+            int targetHash = CalculateTopologyHash(evaluationTarget);
+            return sourceHash != 0 && targetHash != 0 && sourceHash == targetHash;
         }
 
         private static void ResizeLayerArray(

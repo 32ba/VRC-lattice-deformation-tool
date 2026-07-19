@@ -216,7 +216,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return Task.FromResult<IRenderFilterNode>(null);
             }
 
-            Mesh evaluationTarget = GetRendererMesh(pairList[0].original);
+            var evaluationPair = pairList.FirstOrDefault(pair =>
+                pair.original != null && pair.original.GetComponent<LatticeDeformer>() == deformer);
+            Mesh evaluationTarget = GetRendererMesh(evaluationPair.proxy);
             var diagnostics = MeshDeformerValidator.Validate(deformer, evaluationTarget);
             MeshDeformerValidator.Log(diagnostics);
             if (MeshDeformerValidator.HasErrors(diagnostics))

@@ -111,6 +111,42 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void NdmfPreviewInstantiate_ProxyTopologyMismatchWarnsAndRestoresProxy()
+        {
+            using var fixture = CreateFixture("NDMF Preview Topology");
+            var proxyObject = new GameObject("NDMF Preview Mismatched Proxy");
+            Mesh proxyMesh = CreateMesh("Mismatched Proxy Mesh");
+            proxyMesh.triangles = new[] { 0, 2, 1, 1, 2, 3 };
+            IRenderFilterNode node = null;
+            try
+            {
+                proxyObject.AddComponent<MeshFilter>().sharedMesh = proxyMesh;
+                var proxyRenderer = proxyObject.AddComponent<MeshRenderer>();
+                var filter = new LatticeDeformerPreviewFilter();
+                LogAssert.Expect(LogType.Warning,
+                    new System.Text.RegularExpressions.Regex(MeshDeformerValidator.PreviewBakeTargetMismatch));
+
+                node = filter.Instantiate(
+                        default,
+                        new[] { ((Renderer)fixture.Renderer, (Renderer)proxyRenderer) },
+                        ComputeContext.NullContext)
+                    .GetAwaiter().GetResult();
+
+                Assert.That(node, Is.Not.Null);
+                Assert.That(proxyRenderer.GetComponent<MeshFilter>().sharedMesh, Is.Not.SameAs(proxyMesh));
+                node.Dispose();
+                node = null;
+                Assert.That(proxyRenderer.GetComponent<MeshFilter>().sharedMesh, Is.SameAs(proxyMesh));
+            }
+            finally
+            {
+                node?.Dispose();
+                Object.DestroyImmediate(proxyObject);
+                Object.DestroyImmediate(proxyMesh);
+            }
+        }
+
+        [Test]
         public void NdmfAvatarProcessor_ErrorStopsBakeBeforeMeshReplacement()
         {
             using var fixture = CreateFixture("NDMF Bake E2E");
@@ -327,6 +363,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         {
             using var fixture = CreateFixture("Preview Target");
             var other = CreateMesh("Proxy Topology");
+            other.triangles = new[] { 0, 2, 1, 1, 2, 3 };
             try
             {
                 var diagnostic = LatticeDeformerPreviewFilter.ValidateBeforePreview(fixture.Deformer, other)
@@ -337,6 +374,22 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally
             {
                 Object.DestroyImmediate(other);
+            }
+        }
+
+        [Test]
+        public void PreviewTargetCloneWithSameTopology_DoesNotWarn()
+        {
+            using var fixture = CreateFixture("Preview Target Clone");
+            var clone = Object.Instantiate(fixture.Mesh);
+            try
+            {
+                Assert.That(LatticeDeformerPreviewFilter.ValidateBeforePreview(fixture.Deformer, clone)
+                    .Any(d => d.Code == MeshDeformerValidator.PreviewBakeTargetMismatch), Is.False);
+            }
+            finally
+            {
+                Object.DestroyImmediate(clone);
             }
         }
 
