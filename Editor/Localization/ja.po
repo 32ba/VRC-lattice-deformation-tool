@@ -1157,3 +1157,8 @@ msgstr "Topology不一致: ソースMeshと互換性がないため、このProf
 
 msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
 msgstr "旧形式Profile: 互換性メタデータがありません。注意付きで適用できます。再保存するとメタデータが追加されます。"
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
+msgstr "MoveをRest Spaceで保存"
+
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
+msgstr "ポーズ中のSkinned Mesh上で行ったMove編集を、再利用可能なrest-space変位へ戻します。Skinningデータが不正な場合は従来のlocal-space動作へ安全にフォールバックします。"

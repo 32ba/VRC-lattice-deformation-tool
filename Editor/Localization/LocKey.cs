@@ -125,6 +125,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string EnableMirror = "net.32ba.lattice-deformation-tool.localization.enable-mirror";
         internal const string MirrorAxis = "net.32ba.lattice-deformation-tool.localization.mirror-axis";
         internal const string SurfaceDistance = "net.32ba.lattice-deformation-tool.localization.surface-distance";
+        internal const string StoreMoveInRestSpace = "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space";
         internal const string ClearAllDisplacements = "net.32ba.lattice-deformation-tool.localization.clear-all-displacements";
         internal const string ClearActiveLayerDisplacements = "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements";
         internal const string BackfaceCulling = "net.32ba.lattice-deformation-tool.localization.backface-culling";

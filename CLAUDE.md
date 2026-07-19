@@ -46,6 +46,7 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
   - **表面距離（Surface Distance）**: ユークリッド距離の代わりに測地線（表面）距離を使用するフォールオフモード。Dijkstra アルゴリズムでメッシュ隣接グラフ上の最短経路を計算し、重なった面への影響の漏れを防止
   - **ミラー編集**: X/Y/Z 軸対称
   - **操作**: Alt+スクロールで半径、Shift+スクロールで強度調整
+  - SkinnedMeshRendererのMoveブラシは任意で、ポーズ上のrenderer-local移動量を頂点ごとのblended skinning matrixで逆変換し、rest-space変位として保存できる。不正weight・bindpose不足・特異行列は従来のlocal-space変位へ安全にfallbackする
 - `GeodesicDistanceCalculator.cs`: 測地線距離計算（Dijkstra ベースの表面距離フォールオフ用）
 - `BrushDeformerPreviewFilter.cs`: NDMF プレビュー（IRenderFilter 実装）
 - `LatticeDeformerNDMFPlugin.cs` に `BrushDeformerBakePass` を追加済み
@@ -83,6 +84,7 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
   - **変換モード**: Move（移動）、Rotate（回転）、Scale（スケール）
   - **プロポーショナル編集**: 選択頂点周囲の頂点にも減衰付きで影響。Smooth/Linear/Constant 減衰
   - **操作**: W/E/R で変換モード切替、Alt+スクロールでプロポーショナル半径調整
+  - Vertex Selection MoveもMoveブラシと同じrest-space逆変換optionを共有し、MeshRendererには影響しない
 
 ### DeformerGroup アーキテクチャ
 
