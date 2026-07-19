@@ -871,6 +871,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 NotifyPropertyChanges();
             }
 
+            DrawValidationDiagnostics();
+
             EditorGUILayout.Space();
 
             bool hasLayers = _layersProp != null && _layersProp.arraySize > 0;
@@ -883,6 +885,34 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     ToolManager.SetActiveTool<MeshDeformerTool>();
                     LatticePreviewUtility.RequestSceneRepaint();
+                }
+            }
+        }
+
+        private void DrawValidationDiagnostics()
+        {
+            if (targets.Length != 1 || target is not LatticeDeformer deformer) return;
+            var diagnostics = MeshDeformerValidator.Validate(deformer);
+            if (diagnostics.Count == 0) return;
+
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.Validation), EditorStyles.boldLabel);
+            foreach (var diagnostic in diagnostics)
+            {
+                var messageType = diagnostic.Severity switch
+                {
+                    MeshDeformerDiagnosticSeverity.Error => MessageType.Error,
+                    MeshDeformerDiagnosticSeverity.Warning => MessageType.Warning,
+                    _ => MessageType.Info
+                };
+                EditorGUILayout.HelpBox(diagnostic.FormatForLog(), messageType);
+                if (diagnostic.Fix != null &&
+                    GUILayout.Button($"{LatticeLocalization.Tr(LocKey.ValidationFix)}: {diagnostic.FixLabel}"))
+                {
+                    diagnostic.Fix();
+                    serializedObject.Update();
+                    NotifyPropertyChanges();
+                    GUIUtility.ExitGUI();
                 }
             }
         }

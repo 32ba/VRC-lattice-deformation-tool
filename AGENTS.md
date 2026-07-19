@@ -95,6 +95,12 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
 - 対象Mesh互換性はvertex/triangle/submesh countと、vertex座標を含めずsubmesh topology/index bufferからSHA-256で計算したTopology hashで識別する。共有用JSON/Markdownへ頂点座標、index配列、per-vertex clearance、変形deltaを出力しない
 - JSONとMarkdownは同一directory内のtemporary fileへ先に完全出力し、既存ファイルのbackupを取ってから置換する。片方の置換に失敗した場合は両方をrollbackし、不完全な既存レポートを残さない。同じschemaとTopology hashのレポートだけを比較対象とする
 
+**共通Validation:**
+- `MeshDeformerValidator.cs` (`Editor/MeshDeformer/Validation/`): Inspector、NDMF Preview、Bake前で共有する診断API。`MDVxxx` のstable code、severity、対象Object/group/layer/property、任意の明示Fixを返す
+- Renderer/source mesh、保存後のtopology drift、Brush/Mask配列長、Lattice設定、Group/Layer構造、BlendShape名、Profile互換性、Clearance参照、rest-space変換、Preview/Bake対象差を検査する。無効component/group/layerは致命Errorにしない
+- BakeはErrorが1件でもあればMesh生成・置換前に停止する。Warningはstable codeと継続時の意味をEditor logへ出し、Bake自体は継続する
+- Fixはsilentに実行せずInspectorのボタンから対象`LatticeDeformer` 1件だけをUndo可能に変更する。診断側から通常のgroup/layer getterを呼んで配列を暗黙補正しない
+
 ### 頂点選択ツール（Vertex Selection Tool）
 
 頂点を直接選択して Move/Rotate/Scale 変換を適用するツール。ブラシレイヤーの変位データを操作する。

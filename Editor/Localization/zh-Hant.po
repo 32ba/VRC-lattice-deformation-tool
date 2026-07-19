@@ -1334,3 +1334,9 @@ msgstr "拓撲不相符：此設定檔與來源網格不相容，因此未套用
 
 msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
 msgstr "舊版設定檔：沒有相容性中繼資料。可謹慎套用；重新儲存即可加入中繼資料。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.validation"
+msgstr "驗證"
+
+msgid "net.32ba.lattice-deformation-tool.localization.validation-fix"
+msgstr "修正"

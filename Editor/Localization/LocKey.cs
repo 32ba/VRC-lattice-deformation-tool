@@ -290,6 +290,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string SelectMeshDeformer = "net.32ba.lattice-deformation-tool.localization.select-mesh-deformer";
         internal const string Brush = "net.32ba.lattice-deformation-tool.localization.brush";
         internal const string Advanced = "net.32ba.lattice-deformation-tool.localization.advanced";
+        internal const string Validation = "net.32ba.lattice-deformation-tool.localization.validation";
+        internal const string ValidationFix = "net.32ba.lattice-deformation-tool.localization.validation-fix";
 
         // Legacy Brush Deformer
         internal const string BrushDeformer = "net.32ba.lattice-deformation-tool.localization.brush-deformer";

@@ -1334,3 +1334,9 @@ msgstr "Topology mismatch: this profile was not applied because it is incompatib
 
 msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
 msgstr "Legacy profile: compatibility metadata is unavailable. Application is allowed with caution; save the profile again to add metadata."
+
+msgid "net.32ba.lattice-deformation-tool.localization.validation"
+msgstr "Validation"
+
+msgid "net.32ba.lattice-deformation-tool.localization.validation-fix"
+msgstr "Fix"

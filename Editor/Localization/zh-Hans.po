@@ -1334,3 +1334,9 @@ msgstr "拓扑不匹配：此配置文件与源网格不兼容，因此未应用
 
 msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
 msgstr "旧版配置文件：没有兼容性元数据。可谨慎应用；重新保存即可添加元数据。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.validation"
+msgstr "验证"
+
+msgid "net.32ba.lattice-deformation-tool.localization.validation-fix"
+msgstr "修复"
