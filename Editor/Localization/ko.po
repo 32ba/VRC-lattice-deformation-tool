@@ -1066,6 +1066,17 @@ msgstr "현재: {0}  최신: {1}"
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
 msgstr "BOOTH 상품 페이지 열기"
 
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition"
+msgstr "프레임 합성"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-single"
+msgstr "단일"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-progressive"
+msgstr "단계 누적"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade"
+msgstr "크로스페이드"
 msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
 msgstr "Move를 Rest Space로 저장"
 

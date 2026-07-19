@@ -2049,6 +2049,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var outputProp = groupProp.FindPropertyRelative("_blendShapeOutput");
             var nameProp = groupProp.FindPropertyRelative("_blendShapeName");
             var curveProp = groupProp.FindPropertyRelative("_blendShapeCurve");
+            var compositionProp = groupProp.FindPropertyRelative("_blendShapeComposition");
             if (outputProp == null) return;
 
             EditorGUI.BeginChangeCheck();
@@ -2069,6 +2070,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 if (curveProp != null)
                     EditorGUILayout.PropertyField(curveProp, new GUIContent(LatticeLocalization.Tr(LocKey.Curve)));
+
+                if (compositionProp != null)
+                {
+                    var compositionOptions = new[]
+                    {
+                        LatticeLocalization.Content(LocKey.BlendShapeCompositionSingle),
+                        LatticeLocalization.Content(LocKey.BlendShapeCompositionProgressive),
+                        LatticeLocalization.Content(LocKey.BlendShapeCompositionCrossfade)
+                    };
+                    compositionProp.enumValueIndex = EditorGUILayout.Popup(
+                        LatticeLocalization.Content(LocKey.BlendShapeComposition),
+                        compositionProp.enumValueIndex,
+                        compositionOptions);
+                }
 
                 // Test mode only for active group
                 int activeGroupIdx = _activeGroupIndexProp != null ? _activeGroupIndexProp.intValue : 0;

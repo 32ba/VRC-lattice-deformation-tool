@@ -1066,6 +1066,17 @@ msgstr "現在: {0}  最新: {1}"
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
 msgstr "BOOTH 商品ページを開く"
 
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition"
+msgstr "フレーム合成"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-single"
+msgstr "単一"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-progressive"
+msgstr "段階累積"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade"
+msgstr "クロスフェード"
 msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
 msgstr "MoveをRest Spaceで保存"
 
