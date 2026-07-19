@@ -854,7 +854,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
                 for (int i = 0; i < vertices.Length; i++)
                 {
-                    float coord = axis == 0 ? vertices[i].x : axis == 1 ? vertices[i].y : vertices[i].z;
+                    float coord = SymmetryVertexMapCache.GetSignedDistance(vertices[i], axis);
                     bool isPositive = coord >= 0f;
                     if (isPositive != keepPositiveSide)
                     {
@@ -921,73 +921,22 @@ namespace Net._32Ba.LatticeDeformationTool
                     return;
                 }
 
-                var vertices = _sourceMesh.vertices;
-                layer.EnsureBrushDisplacementCapacity(vertices.Length);
+                int vertexCount = _sourceMesh.vertexCount;
+                layer.EnsureBrushDisplacementCapacity(vertexCount);
                 var displacements = layer.BrushDisplacements;
-
-                int vertexCount = vertices.Length;
                 var newDisplacements = new Vector3[vertexCount];
-                var matched = new bool[vertexCount];
+                var mirrorMap = SymmetryVertexMapCache.GetOrCreate(
+                    _sourceMesh,
+                    axis,
+                    unmatchedBehavior: UnmatchedSymmetryVertexBehavior.Self);
 
-                // Build mirror map: for each vertex, find its mirror counterpart
                 for (int i = 0; i < vertexCount; i++)
                 {
-                    if (matched[i])
-                    {
-                        continue;
-                    }
-
-                    var pos = vertices[i];
-                    var mirrorPos = pos;
-                    if (axis == 0) mirrorPos.x = -mirrorPos.x;
-                    else if (axis == 1) mirrorPos.y = -mirrorPos.y;
-                    else mirrorPos.z = -mirrorPos.z;
-
-                    // Find nearest mirror vertex
-                    int mirrorIndex = -1;
-                    float bestDistSq = float.MaxValue;
-                    for (int j = 0; j < vertexCount; j++)
-                    {
-                        float distSq = (vertices[j] - mirrorPos).sqrMagnitude;
-                        if (distSq < bestDistSq)
-                        {
-                            bestDistSq = distSq;
-                            mirrorIndex = j;
-                        }
-                    }
-
-                    // Tolerance check (1mm)
-                    if (mirrorIndex < 0 || bestDistSq > 0.001f * 0.001f)
-                    {
-                        // No mirror found, negate axis component in place
-                        var d = displacements[i];
-                        if (axis == 0) d.x = -d.x;
-                        else if (axis == 1) d.y = -d.y;
-                        else d.z = -d.z;
-                        newDisplacements[i] = d;
-                        matched[i] = true;
-                        continue;
-                    }
-
-                    // Swap and negate axis component
-                    var di = displacements[i];
-                    var dj = displacements[mirrorIndex];
-
-                    if (axis == 0) { di.x = -di.x; dj.x = -dj.x; }
-                    else if (axis == 1) { di.y = -di.y; dj.y = -dj.y; }
-                    else { di.z = -di.z; dj.z = -dj.z; }
-
-                    newDisplacements[i] = dj;
-                    newDisplacements[mirrorIndex] = di;
-                    matched[i] = true;
-                    matched[mirrorIndex] = true;
+                    newDisplacements[i] = SymmetryVertexMapCache.MirrorDirection(
+                        displacements[mirrorMap[i]], axis);
                 }
 
-                // Apply
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    layer.SetBrushDisplacement(i, newDisplacements[i]);
-                }
+                layer.BrushDisplacements = newDisplacements;
             }
             else // Lattice
             {
