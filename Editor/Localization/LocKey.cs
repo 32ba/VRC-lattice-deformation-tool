@@ -27,6 +27,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         // Groups & Layers
         internal const string DeformationGroups = "net.32ba.lattice-deformation-tool.localization.deformation-groups";
+        internal const string DeformerProfile = "net.32ba.lattice-deformation-tool.localization.deformer-profile";
+        internal const string DataSource = "net.32ba.lattice-deformation-tool.localization.data-source";
+        internal const string EmbeddedData = "net.32ba.lattice-deformation-tool.localization.embedded-data";
+        internal const string ProfileData = "net.32ba.lattice-deformation-tool.localization.profile-data";
+        internal const string CreateProfile = "net.32ba.lattice-deformation-tool.localization.create-profile";
+        internal const string SaveToProfile = "net.32ba.lattice-deformation-tool.localization.save-to-profile";
+        internal const string CopyProfileToInstance = "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance";
+        internal const string ProfileRequired = "net.32ba.lattice-deformation-tool.localization.profile-required";
+        internal const string ProfileReadOnlyInfo = "net.32ba.lattice-deformation-tool.localization.profile-read-only-info";
         internal const string Layers = "net.32ba.lattice-deformation-tool.localization.layers";
         internal const string AddLatticeLayer = "net.32ba.lattice-deformation-tool.localization.add-lattice-layer";
         internal const string AddBrushLayer = "net.32ba.lattice-deformation-tool.localization.add-brush-layer";

@@ -103,6 +103,12 @@ DeformerGroup [Serializable]
 - 既存API（`Layers`, `ActiveLayerIndex`, `BlendShapeOutput` 等）は `ActiveGroup` への委譲で後方互換を維持
 - 新API: `Groups`, `ActiveGroupIndex`, `ActiveGroup`, `AddGroup()`, `RemoveGroup()`
 
+### MeshDeformerProfile
+
+- `MeshDeformerProfile` (`ScriptableObject`) は Group / Layer / Mask / Brush displacement / BlendShape出力設定を複数コンポーネント間で共有する
+- `LatticeDeformer.DataSource` が `Profile` の場合、Preview/BakeはProfileから作成した非シリアライズの独立コピーを使用し、Prefabへ変形payloadを重複保存せずProfileを意図せず変更しない
+- `SaveToProfile()` でインスタンスの現在データをProfileへ明示保存し、`CopyProfileToEmbedded()` でProfileから編集可能な内蔵データへ複製する
+
 ### BlendShape 出力・読み込み
 
 グループごとの変形デルタを BlendShape フレームとして出力、または既存 BlendShape をブラシレイヤーとして読み込む機能。
