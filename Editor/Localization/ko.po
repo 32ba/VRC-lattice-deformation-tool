@@ -22,6 +22,9 @@ msgstr "Mesh Deformer"
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer-overview"
+msgstr "Mesh / SkinnedMesh 형상을 Lattice, Brush, Vertex Selection 레이어로 조정합니다. 원본 Mesh는 변경하지 않으며 NDMF Preview와 빌드 시 결과를 비파괴 방식으로 적용합니다."
+
 msgid "net.32ba.lattice-deformation-tool.localization.yes"
 msgstr "예"
 
@@ -1080,3 +1083,47 @@ msgstr "단계 누적"
 
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade"
 msgstr "크로스페이드"
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
+msgstr "Move를 Rest Space로 저장"
+
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
+msgstr "포즈된 Skinned Mesh에서 수행한 Move 편집을 재사용 가능한 rest-space 변위로 변환합니다. Skinning 데이터가 잘못된 경우 기존 local-space 동작으로 안전하게 대체합니다."
+# Deformer Profile
+msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
+msgstr "변형 프로필"
+
+msgid "net.32ba.lattice-deformation-tool.localization.data-source"
+msgstr "데이터 소스"
+
+msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
+msgstr "내장 데이터"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
+msgstr "프로필 참조"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
+msgstr "프로필 만들기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
+msgstr "프로필에 저장"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
+msgstr "인스턴스로 복제"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
+msgstr "데이터 소스로 프로필을 사용할 때는 프로필을 선택하세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
+msgstr "프로필 데이터는 독립된 인스턴스 복사본으로 미리 봅니다. 그룹과 레이어를 편집하려면 컴포넌트로 복제하세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-exact-match"
+msgstr "정확히 일치: 이 프로필은 선택한 소스 메시용으로 저장되었습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs"
+msgstr "호환됨: 토폴로지는 일치하지만 소스 에셋이 다르거나 식별할 수 없습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked"
+msgstr "토폴로지 불일치: 소스 메시와 호환되지 않아 이 프로필을 적용하지 않았습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
+msgstr "레거시 프로필: 호환성 메타데이터가 없습니다. 주의하여 적용할 수 있으며 다시 저장하면 메타데이터가 추가됩니다."

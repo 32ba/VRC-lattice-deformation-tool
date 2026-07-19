@@ -22,6 +22,9 @@ msgstr "Mesh Deformer"
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer-overview"
+msgstr "使用 Lattice、Brush 和 Vertex Selection 圖層調整 Mesh / SkinnedMesh 形狀。來源 Mesh 保持不變，結果透過 NDMF Preview 和建置流程以非破壞方式套用。"
+
 msgid "net.32ba.lattice-deformation-tool.localization.yes"
 msgstr "是"
 
@@ -1080,3 +1083,47 @@ msgstr "逐步累積"
 
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade"
 msgstr "交叉淡化"
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
+msgstr "以 Rest Space 儲存移動"
+
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
+msgstr "將在已擺姿勢的 Skinned Mesh 上進行的移動編輯轉換為可重用的 rest-space 位移。Skinning 資料無效時會安全回復至原有 local-space 行為。"
+# Deformer Profile
+msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
+msgstr "變形設定檔"
+
+msgid "net.32ba.lattice-deformation-tool.localization.data-source"
+msgstr "資料來源"
+
+msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
+msgstr "內嵌資料"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
+msgstr "設定檔參照"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
+msgstr "建立設定檔"
+
+msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
+msgstr "儲存至設定檔"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
+msgstr "複製至執行個體"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
+msgstr "使用設定檔作為資料來源時，請選擇一個設定檔。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
+msgstr "設定檔資料會以獨立執行個體副本預覽。若要編輯群組與圖層，請先複製到元件。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-exact-match"
+msgstr "完全相符：此設定檔是為目前選取的來源網格儲存的。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs"
+msgstr "相容：拓撲相符，但來源資源不同或無法識別。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked"
+msgstr "拓撲不相符：此設定檔與來源網格不相容，因此未套用。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
+msgstr "舊版設定檔：沒有相容性中繼資料。可謹慎套用；重新儲存即可加入中繼資料。"

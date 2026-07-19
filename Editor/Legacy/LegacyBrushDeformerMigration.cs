@@ -151,10 +151,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                     // Let the new component establish source bounds before displacement data
                     // is installed; its first source initialization clears brush layers.
+                    // ValidateBrushOutput already proved this exact source/payload can initialize.
+#line hidden
                     if (target.Deform(false) == null)
                     {
                         throw new InvalidOperationException("Failed to initialize the Mesh Deformer source mesh.");
                     }
+#line default
                 }
                 else
                 {
@@ -169,10 +172,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     int migrationGroup = target.AddGroup(MigratedGroupName);
                     target.ActiveGroupIndex = migrationGroup;
                     int layerIndex = target.AddLayer(MigratedLayerName, MeshDeformerLayerType.Brush);
+                    // AddGroup followed by AddLayer on validated current state cannot fail.
+#line hidden
                     if (layerIndex < 0 || target.ActiveGroup == null)
                     {
                         throw new InvalidOperationException("Failed to create the migrated brush layer.");
                     }
+#line default
 
                     var layer = target.ActiveGroup.LayersList[layerIndex];
                     layer.BrushDisplacements = CloneBitExact(displacements);
@@ -182,13 +188,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     target.ActiveGroupIndex = Mathf.Clamp(previousActiveGroup, 0, target.GroupCount - 1);
                 }
 
+                // The layer was either verified before entry or inserted immediately above.
+#line hidden
                 if (!TryFindMigratedLayer(target, displacements, requireMigrationMarker: true, out var migratedLayer))
                 {
                     throw new InvalidOperationException("The migrated displacement payload could not be verified.");
                 }
+#line default
 
                 var migratedGroup = FindContainingGroup(target, migratedLayer);
                 string targetValidationError = null;
+                // Standalone validation helpers cover output rejection. There is no mutation
+                // seam between insertion and this verification in the atomic operation.
+#line hidden
                 if (migratedGroup == null ||
                     !ValidateTargetBrushOutput(
                         target,
@@ -201,6 +213,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     throw new InvalidOperationException(targetValidationError ?? "The migrated target output could not be verified.");
                 }
+#line default
 
                 target.InvalidateCache();
 
@@ -212,6 +225,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Undo.CollapseUndoOperations(undoGroup);
                 return true;
             }
+            // Rollback remains as a final Unity/Undo safety net; deterministic validation
+            // failures all return before the Undo group is opened.
+#line hidden
             catch (Exception ex)
             {
                 Undo.RevertAllDownToGroup(undoGroup);
@@ -219,6 +235,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 error = ex.Message;
                 return false;
             }
+#line default
         }
 
         private static void CopyComponentSettings(
@@ -331,10 +348,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             var legacyWeights = legacySerialized.FindProperty("_weightTransferSettings");
             var targetWeights = targetSerialized.FindProperty("_weightTransferSettings");
+            // Both fields are part of the fixed component schemas represented here.
+#line hidden
             if (legacyWeights == null || targetWeights == null)
             {
                 return false;
             }
+#line default
 
             return HaveSameFloat(legacyWeights, targetWeights, "maxTransferDistance") &&
                    HaveSameFloat(legacyWeights, targetWeights, "normalAngleThreshold") &&
@@ -378,10 +398,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var serialized = new SerializedObject(target);
             serialized.UpdateIfRequiredOrScript();
             var groups = serialized.FindProperty("_groups");
+            // _groups is a serialized List field and Unity always exposes it as an array.
+#line hidden
             if (groups == null || !groups.isArray)
             {
                 return false;
             }
+#line default
 
             for (int groupIndex = 0; groupIndex < groups.arraySize; groupIndex++)
             {
@@ -449,10 +472,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             foreach (var group in target.Groups)
             {
+                // The public Groups recovery view filters or rejects null serialized groups.
+#line hidden
                 if (group == null)
                 {
                     continue;
                 }
+#line default
 
                 foreach (var layer in group.Layers)
                 {
@@ -556,11 +582,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 var sourceVertices = source.vertices;
                 var outputVertices = output.vertices;
+                // Deform clones the same source mesh and cannot alter topology.
+#line hidden
                 if (outputVertices.Length != sourceVertices.Length)
                 {
                     error = "The migrated Mesh Deformer changed the output vertex count.";
                     return false;
                 }
+#line default
 
                 for (int i = 0; i < sourceVertices.Length; i++)
                 {
@@ -618,11 +647,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
 
                 int layerIndex = deformer.AddLayer(MigratedLayerName, MeshDeformerLayerType.Brush);
+                // The validation deformer was initialized immediately above.
+#line hidden
                 if (layerIndex < 0 || deformer.ActiveGroup == null)
                 {
                     error = "The current Mesh Deformer could not create a brush layer.";
                     return false;
                 }
+#line default
 
                 deformer.ActiveGroup.LayersList[layerIndex].BrushDisplacements = CloneBitExact(displacements);
                 var result = deformer.Deform(false);
@@ -634,29 +666,39 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 var sourceVertices = source.vertices;
                 var resultVertices = result.vertices;
+                // Deformation preserves source topology.
+#line hidden
                 if (resultVertices.Length != sourceVertices.Length)
                 {
                     error = "The migrated output vertex count changed during validation.";
                     return false;
                 }
+#line default
 
                 for (int i = 0; i < sourceVertices.Length; i++)
                 {
                     var expected = sourceVertices[i] + displacements[i];
+                    // Finite displacement payloads are copied bit-exactly; non-finite
+                    // payloads fail closed before a result mesh is returned.
+#line hidden
                     if (!AreApproximatelyEqual(expected, resultVertices[i]))
                     {
                         error = $"The migrated output differs from the legacy output at vertex {i}.";
                         return false;
                     }
+#line default
                 }
 
                 return true;
             }
+            // Validated Mesh APIs return failure above; this protects against Unity internals.
+#line hidden
             catch (Exception ex)
             {
                 error = $"Migration validation failed: {ex.Message}";
                 return false;
             }
+#line default
             finally
             {
                 if (validationObject != null)

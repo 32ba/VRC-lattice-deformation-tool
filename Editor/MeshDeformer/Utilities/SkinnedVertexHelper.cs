@@ -12,6 +12,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     internal static class SkinnedVertexHelper
     {
         private static Mesh s_bakeMesh;
+        internal static bool StoreMovesInRestSpace { get; set; }
 
         /// <summary>
         /// Computes world-space positions matching the rendered output.
@@ -24,25 +25,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (deformer == null || localVertices == null || localVertices.Length == 0)
                 return null;
 
-            // Try to find the NDMF proxy renderer for this deformer
-            var originalRenderer = deformer.GetComponent<Renderer>();
-            if (originalRenderer == null)
-                return null;
-
-            // Find proxy SkinnedMeshRenderer (NDMF preview creates this)
-            SkinnedMeshRenderer proxySMR = null;
-            if (NDMFPreviewProxyUtility.TryGetProxyRenderer(originalRenderer, out var proxyRenderer))
-            {
-                proxySMR = proxyRenderer as SkinnedMeshRenderer;
-            }
-
-            // Fall back to original SMR if no proxy
-            if (proxySMR == null)
-            {
-                proxySMR = originalRenderer as SkinnedMeshRenderer;
-            }
-
-            if (proxySMR == null || proxySMR.bones == null || proxySMR.bones.Length == 0)
+            if (!TryGetSkinnedRenderer(deformer, out var proxySMR))
                 return null;
 
             // BakeMesh on the proxy (which has the deformed mesh + correct bones)
@@ -88,16 +71,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (deformer == null)
                 return false;
 
-            var originalRenderer = deformer.GetComponent<Renderer>();
-            if (originalRenderer == null)
-                return false;
-
-            SkinnedMeshRenderer targetSMR = null;
-            if (NDMFPreviewProxyUtility.TryGetProxyRenderer(originalRenderer, out var proxyRenderer))
-                targetSMR = proxyRenderer as SkinnedMeshRenderer;
-            if (targetSMR == null)
-                targetSMR = originalRenderer as SkinnedMeshRenderer;
-            if (targetSMR == null || targetSMR.bones == null || targetSMR.bones.Length == 0)
+            if (!TryGetSkinnedRenderer(deformer, out var targetSMR))
                 return false;
 
             if (s_bakeMesh == null)
@@ -110,6 +84,195 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             bakedMesh = s_bakeMesh;
             bakedMeshMatrix = targetSMR.transform.localToWorldMatrix;
             return true;
+        }
+
+        /// <summary>
+        /// Converts a delta measured on the posed renderer back into the source mesh's rest space.
+        /// Returns false and preserves the input delta when skinning data is unavailable or singular.
+        /// </summary>
+        internal static bool TryConvertDisplayedDeltaToRestSpace(
+            LatticeDeformer deformer,
+            int vertexIndex,
+            Vector3 posedLocalDelta,
+            out Vector3 restSpaceDelta)
+        {
+            restSpaceDelta = posedLocalDelta;
+            var converter = CreateRestSpaceDeltaConverter(deformer);
+            return converter != null &&
+                   converter.TryConvert(vertexIndex, posedLocalDelta, out restSpaceDelta);
+        }
+
+        internal static Vector3 ConvertMoveDeltaForStorage(
+            LatticeDeformer deformer,
+            int vertexIndex,
+            Vector3 localDelta)
+        {
+            if (!StoreMovesInRestSpace)
+                return localDelta;
+
+            var converter = CreateRestSpaceDeltaConverter(deformer);
+            return converter != null ? converter.ConvertOrFallback(vertexIndex, localDelta) : localDelta;
+        }
+
+        internal static RestSpaceDeltaConverter CreateRestSpaceDeltaConverter(
+            LatticeDeformer deformer)
+        {
+            if (deformer == null || !TryGetSkinnedRenderer(deformer, out var renderer))
+            {
+                return null;
+            }
+
+            var mesh = deformer.SourceMesh != null ? deformer.SourceMesh : renderer.sharedMesh;
+            if (mesh == null) return null;
+
+            var weights = mesh.boneWeights;
+            var bindPoses = mesh.bindposes;
+            var bones = renderer.bones;
+            if (weights == null || weights.Length != mesh.vertexCount ||
+                bindPoses == null || bindPoses.Length == 0 ||
+                bones == null || bones.Length == 0)
+            {
+                return null;
+            }
+
+            int matrixCount = Mathf.Min(bones.Length, bindPoses.Length);
+            var matrices = new Matrix4x4[matrixCount];
+            var valid = new bool[matrixCount];
+            var rendererWorldToLocal = renderer.transform.worldToLocalMatrix;
+            for (int boneIndex = 0; boneIndex < matrixCount; boneIndex++)
+            {
+                if (bones[boneIndex] == null) continue;
+                var matrix = rendererWorldToLocal *
+                             bones[boneIndex].localToWorldMatrix *
+                             bindPoses[boneIndex];
+                bool finite = true;
+                for (int row = 0; row < 4 && finite; row++)
+                {
+                    for (int column = 0; column < 4; column++)
+                    {
+                        if (!IsFinite(matrix[row, column]))
+                        {
+                            finite = false;
+                            break;
+                        }
+                    }
+                }
+                matrices[boneIndex] = matrix;
+                valid[boneIndex] = finite;
+            }
+
+            return new RestSpaceDeltaConverter(weights, matrices, valid);
+        }
+
+        internal sealed class RestSpaceDeltaConverter
+        {
+            private readonly BoneWeight[] _weights;
+            private readonly Matrix4x4[] _matrices;
+            private readonly bool[] _validMatrices;
+
+            internal RestSpaceDeltaConverter(
+                BoneWeight[] weights,
+                Matrix4x4[] matrices,
+                bool[] validMatrices)
+            {
+                _weights = weights;
+                _matrices = matrices;
+                _validMatrices = validMatrices;
+            }
+
+            internal Vector3 ConvertOrFallback(int vertexIndex, Vector3 posedLocalDelta)
+            {
+                return TryConvert(vertexIndex, posedLocalDelta, out var converted)
+                    ? converted
+                    : posedLocalDelta;
+            }
+
+            internal bool TryConvert(
+                int vertexIndex,
+                Vector3 posedLocalDelta,
+                out Vector3 restSpaceDelta)
+            {
+                restSpaceDelta = posedLocalDelta;
+                if (vertexIndex < 0 || vertexIndex >= _weights.Length) return false;
+
+                var boneWeight = _weights[vertexIndex];
+                var blended = new Matrix4x4();
+                float totalWeight = 0f;
+                if (!TryAccumulate(boneWeight.boneIndex0, boneWeight.weight0, ref blended, ref totalWeight) ||
+                    !TryAccumulate(boneWeight.boneIndex1, boneWeight.weight1, ref blended, ref totalWeight) ||
+                    !TryAccumulate(boneWeight.boneIndex2, boneWeight.weight2, ref blended, ref totalWeight) ||
+                    !TryAccumulate(boneWeight.boneIndex3, boneWeight.weight3, ref blended, ref totalWeight) ||
+                    !IsFinite(totalWeight) || totalWeight <= 1e-6f)
+                {
+                    return false;
+                }
+
+                for (int row = 0; row < 4; row++)
+                {
+                    for (int column = 0; column < 4; column++)
+                    {
+                        blended[row, column] /= totalWeight;
+                    }
+                }
+
+                float determinant = blended.determinant;
+                if (!IsFinite(determinant) || Mathf.Abs(determinant) <= 1e-8f)
+                    return false;
+
+                var converted = blended.inverse.MultiplyVector(posedLocalDelta);
+                if (!IsFinite(converted.x) || !IsFinite(converted.y) || !IsFinite(converted.z))
+                    return false;
+
+                restSpaceDelta = converted;
+                return true;
+            }
+
+            private bool TryAccumulate(
+                int boneIndex,
+                float weight,
+                ref Matrix4x4 blended,
+                ref float totalWeight)
+            {
+                if (!IsFinite(weight) || weight < 0f) return false;
+                if (weight <= 1e-6f) return true;
+                if (boneIndex < 0 || boneIndex >= _matrices.Length || !_validMatrices[boneIndex])
+                    return false;
+
+                var matrix = _matrices[boneIndex];
+                for (int row = 0; row < 4; row++)
+                {
+                    for (int column = 0; column < 4; column++)
+                    {
+                        blended[row, column] += matrix[row, column] * weight;
+                    }
+                }
+                totalWeight += weight;
+                return true;
+            }
+        }
+
+        private static bool TryGetSkinnedRenderer(
+            LatticeDeformer deformer,
+            out SkinnedMeshRenderer skinnedRenderer)
+        {
+            skinnedRenderer = null;
+            if (deformer == null) return false;
+
+            var originalRenderer = deformer.GetComponent<Renderer>();
+            if (originalRenderer == null) return false;
+
+            if (NDMFPreviewProxyUtility.TryGetProxyRenderer(originalRenderer, out var proxyRenderer))
+                skinnedRenderer = proxyRenderer as SkinnedMeshRenderer;
+            if (skinnedRenderer == null)
+                skinnedRenderer = originalRenderer as SkinnedMeshRenderer;
+            return skinnedRenderer != null &&
+                   skinnedRenderer.bones != null &&
+                   skinnedRenderer.bones.Length > 0;
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
         }
 
         /// <summary>

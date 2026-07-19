@@ -22,6 +22,9 @@ msgstr "Mesh Deformer"
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer.tooltip"
 msgstr "The main component for non-destructive mesh deformation."
 
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer-overview"
+msgstr "Adjust Mesh and SkinnedMesh geometry with layered Lattice, Brush, and Vertex Selection tools. The source Mesh stays unchanged; NDMF Preview and builds apply the result non-destructively."
+
 msgid "net.32ba.lattice-deformation-tool.localization.yes"
 msgstr "Yes"
 
@@ -1080,3 +1083,47 @@ msgstr "Progressive"
 
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade"
 msgstr "Crossfade"
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
+msgstr "Store Move in Rest Space"
+
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
+msgstr "Converts Move edits made on a posed Skinned Mesh back into reusable rest-space displacements. Invalid skinning data safely falls back to the existing local-space behavior."
+# Deformer Profile
+msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
+msgstr "Deformer Profile"
+
+msgid "net.32ba.lattice-deformation-tool.localization.data-source"
+msgstr "Data Source"
+
+msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
+msgstr "Embedded"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
+msgstr "Profile"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
+msgstr "Create Profile"
+
+msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
+msgstr "Save to Profile"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
+msgstr "Copy to Instance"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
+msgstr "Select a profile when Profile is the data source."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
+msgstr "Profile data is previewed as an independent instance copy. Copy it to the component to edit groups and layers."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-exact-match"
+msgstr "Exact match: this profile was saved for the selected source mesh."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs"
+msgstr "Compatible: the topology matches, but the source asset differs or cannot be identified."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked"
+msgstr "Topology mismatch: this profile was not applied because it is incompatible with the source mesh."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
+msgstr "Legacy profile: compatibility metadata is unavailable. Application is allowed with caution; save the profile again to add metadata."

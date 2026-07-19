@@ -788,7 +788,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private bool ApplyMoveBrush(LatticeDeformer deformer, Transform meshTransform, Vector3 localHitPoint, float localRadius, float strength, Event evt)
         {
-            float radiusSq = localRadius * localRadius;
             // Compute mouse delta in world space, then convert to local
             var mouseDelta = evt.delta;
             if (mouseDelta.sqrMagnitude < 0.001f) return false;
@@ -815,8 +814,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 localCameraForward = meshTransform.InverseTransformDirection(camera.transform.forward);
             }
 
+            return ApplyMoveBrushLocalDelta(
+                deformer, localHitPoint, localRadius, strength, localDelta, localCameraForward);
+        }
+
+        private bool ApplyMoveBrushLocalDelta(
+            LatticeDeformer deformer,
+            Vector3 localHitPoint,
+            float localRadius,
+            float strength,
+            Vector3 localDelta,
+            Vector3 localCameraForward)
+        {
+            float radiusSq = localRadius * localRadius;
+
             bool modified = false;
             int vertexCount = _meshVertices.Length;
+            var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
+                ? SkinnedVertexHelper.CreateRestSpaceDeltaConverter(deformer)
+                : null;
 
             for (int i = 0; i < vertexCount; i++)
             {
@@ -854,7 +870,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
                 }
 
-                var delta = localDelta * (strength * falloff * 10f);
+                var storedDelta = restSpaceConverter != null
+                    ? restSpaceConverter.ConvertOrFallback(i, localDelta)
+                    : localDelta;
+                var delta = storedDelta * (strength * falloff * 10f);
                 float maskValue = GetActiveLayerMaskValue(deformer, i);
                 if (maskValue < 1e-6f) continue;
                 delta *= maskValue;
@@ -1063,7 +1082,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void ApplyMirror(LatticeDeformer deformer, Vector3 localHitPoint, float localRadius, float strength, float direction)
         {
             float radiusSq = localRadius * localRadius;
-            if (_meshVertices == null || _meshVertices.Length == 0) return;
+            if (_cachedMesh == null || _meshVertices == null || _meshVertices.Length == 0) return;
+
+            var mirrorMap = SymmetryVertexMapCache.GetOrCreate(
+                _cachedMesh,
+                (int)s_mirrorAxis,
+                unmatchedBehavior: UnmatchedSymmetryVertexBehavior.Skip);
 
             // Mirror the brush center
             var mirroredCenter = MirrorPosition(localHitPoint);
@@ -1087,6 +1111,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     for (int i = 0; i < vertexCount; i++)
                     {
+                        if (!mirrorMap.TryGetPartner(i, out _)) continue;
                         if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
                         {
                             continue;
@@ -1123,6 +1148,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                     for (int i = 0; i < vertexCount; i++)
                     {
+                        if (!mirrorMap.TryGetPartner(i, out _)) continue;
                         if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
                         {
                             continue;
@@ -1163,6 +1189,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
 
                     var mirroredDelta = MirrorDirection(_lastMoveBrushLocalDelta);
+                    var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
+                        ? SkinnedVertexHelper.CreateRestSpaceDeltaConverter(deformer)
+                        : null;
                     for (int i = 0; i < vertexCount; i++)
                     {
                         if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
@@ -1178,7 +1207,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         float t = dist / localRadius;
                         float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
 
-                        var delta = mirroredDelta * (strength * falloff * 10f);
+                        var storedDelta = restSpaceConverter != null
+                            ? restSpaceConverter.ConvertOrFallback(i, mirroredDelta)
+                            : mirroredDelta;
+                        var delta = storedDelta * (strength * falloff * 10f);
                         float maskValue = GetActiveLayerMaskValue(deformer, i);
                         if (maskValue < 1e-6f) continue;
                         delta *= maskValue;
@@ -1195,6 +1227,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                     for (int i = 0; i < vertexCount; i++)
                     {
+                        if (!mirrorMap.TryGetPartner(i, out _)) continue;
                         if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
                         {
                             continue;
@@ -1219,24 +1252,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private Vector3 MirrorPosition(Vector3 position)
         {
-            switch (s_mirrorAxis)
-            {
-                case MirrorAxis.X: return new Vector3(-position.x, position.y, position.z);
-                case MirrorAxis.Y: return new Vector3(position.x, -position.y, position.z);
-                case MirrorAxis.Z: return new Vector3(position.x, position.y, -position.z);
-                default: return position;
-            }
+            return SymmetryVertexMapCache.Mirror(position, (int)s_mirrorAxis);
         }
 
         private Vector3 MirrorDirection(Vector3 dir)
         {
-            switch (s_mirrorAxis)
-            {
-                case MirrorAxis.X: return new Vector3(-dir.x, dir.y, dir.z);
-                case MirrorAxis.Y: return new Vector3(dir.x, -dir.y, dir.z);
-                case MirrorAxis.Z: return new Vector3(dir.x, dir.y, -dir.z);
-                default: return dir;
-            }
+            return SymmetryVertexMapCache.MirrorDirection(dir, (int)s_mirrorAxis);
         }
 
         private Color GetBrushColor()
@@ -1582,27 +1603,26 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            Mesh refMesh = null;
-            if (s_penetrationReference is SkinnedMeshRenderer smr)
-            {
-                refMesh = smr.sharedMesh;
-            }
-            else if (s_penetrationReference is MeshRenderer mr)
-            {
-                var mf = mr.GetComponent<MeshFilter>();
-                if (mf != null) refMesh = mf.sharedMesh;
-            }
-
-            if (refMesh == null)
+            var deformerTransform = deformer.MeshTransform;
+            if (deformerTransform == null)
             {
                 InvalidatePenetrationCache();
                 return;
             }
 
-            // Compute transform from deformer space to reference space
-            var deformerTransform = deformer.MeshTransform;
             var refTransform = s_penetrationReference.transform;
-            if (deformerTransform == null || refTransform == null)
+            Mesh refMesh = null;
+            if (s_penetrationReference is SkinnedMeshRenderer skinnedReference)
+            {
+                refMesh = skinnedReference.sharedMesh;
+            }
+            else if (s_penetrationReference is MeshRenderer meshReference)
+            {
+                var filter = meshReference.GetComponent<MeshFilter>();
+                refMesh = filter != null ? filter.sharedMesh : null;
+            }
+
+            if (refTransform == null || refMesh == null)
             {
                 InvalidatePenetrationCache();
                 return;
@@ -1622,7 +1642,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 deformerTransform.localToWorldMatrix,
                 refTransform.worldToLocalMatrix);
 
-            if (_hasPenetrationCacheKey && _penetrationCacheKey.Equals(nextKey))
+            // A skinned reference can change pose without changing its shared mesh or transform.
+            // Let ClearanceQueryCache inspect its baked geometry on every update in that case.
+            if (!(s_penetrationReference is SkinnedMeshRenderer) &&
+                _hasPenetrationCacheKey && _penetrationCacheKey.Equals(nextKey))
             {
                 return;
             }
@@ -1650,8 +1673,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 deformerTransform.localToWorldMatrix,
                 refTransform.worldToLocalMatrix);
 
-            Matrix4x4 deformedToRef = refTransform.worldToLocalMatrix * deformerTransform.localToWorldMatrix;
-            var detected = PenetrationDetector.DetectPenetration(deformedVertices, refMesh, deformedToRef);
+            var detected = PenetrationDetector.DetectPenetration(
+                deformedVertices,
+                deformerTransform.localToWorldMatrix,
+                s_penetrationReference);
             _penetratingVertices = detected;
             _penetrationDeformedVertices = deformedVertices;
             _penetrationCacheKey = nextKey;
@@ -1958,6 +1983,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 new GUIContent(LatticeLocalization.Tr(LocKey.BrushStrength) + " (%)", LatticeLocalization.Tooltip(LocKey.BrushStrength)),
                 strengthPercent, 0f, 100f);
             BrushToolHandler.BrushStrength = strengthPercent / 100f;
+
+            if (BrushToolHandler.CurrentBrushMode == BrushToolHandler.BrushMode.Move &&
+                deformer != null && deformer.GetComponent<SkinnedMeshRenderer>() != null)
+            {
+                SkinnedVertexHelper.StoreMovesInRestSpace = EditorGUILayout.Toggle(
+                    LatticeLocalization.Content(LocKey.StoreMoveInRestSpace),
+                    SkinnedVertexHelper.StoreMovesInRestSpace);
+            }
 
             // Falloff type (text only — falloff curves are self-explanatory with names)
             var falloffContent = new GUIContent[]

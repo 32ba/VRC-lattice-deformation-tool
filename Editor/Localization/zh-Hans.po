@@ -22,6 +22,9 @@ msgstr "Mesh Deformer"
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer-overview"
+msgstr "使用 Lattice、Brush 和 Vertex Selection 图层调整 Mesh / SkinnedMesh 形状。源 Mesh 保持不变，结果通过 NDMF Preview 和构建流程以非破坏方式应用。"
+
 msgid "net.32ba.lattice-deformation-tool.localization.yes"
 msgstr "是"
 
@@ -1080,3 +1083,47 @@ msgstr "逐步累积"
 
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade"
 msgstr "交叉淡化"
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
+msgstr "以 Rest Space 保存移动"
+
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
+msgstr "将在已摆姿势的 Skinned Mesh 上进行的移动编辑转换为可复用的 rest-space 位移。Skinning 数据无效时会安全回退到原有 local-space 行为。"
+# Deformer Profile
+msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
+msgstr "变形配置文件"
+
+msgid "net.32ba.lattice-deformation-tool.localization.data-source"
+msgstr "数据源"
+
+msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
+msgstr "内置数据"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
+msgstr "配置文件引用"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
+msgstr "创建配置文件"
+
+msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
+msgstr "保存到配置文件"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
+msgstr "复制到实例"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
+msgstr "使用配置文件作为数据源时，请选择一个配置文件。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
+msgstr "配置文件数据会以独立实例副本进行预览。要编辑组和图层，请先复制到组件。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-exact-match"
+msgstr "完全匹配：此配置文件是为当前所选源网格保存的。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs"
+msgstr "兼容：拓扑一致，但源资源不同或无法识别。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked"
+msgstr "拓扑不匹配：此配置文件与源网格不兼容，因此未应用。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
+msgstr "旧版配置文件：没有兼容性元数据。可谨慎应用；重新保存即可添加元数据。"
