@@ -201,6 +201,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string BlendShapeTestMode = "net.32ba.lattice-deformation-tool.localization.blendshape-test-mode";
         internal const string TestWeight = "net.32ba.lattice-deformation-tool.localization.test-weight";
         internal const string ImportBlendShape = "net.32ba.lattice-deformation-tool.localization.import-blendshape";
+        internal const string ImportBlendShapeSingleFrame = "net.32ba.lattice-deformation-tool.localization.import-blendshape-single-frame";
+        internal const string ImportBlendShapeAllFrames = "net.32ba.lattice-deformation-tool.localization.import-blendshape-all-frames";
 
         // NDMF Preview
         internal const string NDMFDisableMeshPreview = "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview";

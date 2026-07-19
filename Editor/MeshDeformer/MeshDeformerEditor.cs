@@ -2287,30 +2287,43 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 for (int i = 0; i < blendShapeNames.Length; i++)
                 {
                     int index = i;
-                    menu.AddItem(new GUIContent(blendShapeNames[i]), false, () =>
-                    {
-                        Undo.RecordObject(deformer, "Import BlendShape");
-                        int newLayerIndex = deformer.ImportBlendShapeAsLayer(index);
-                        if (newLayerIndex >= 0)
-                        {
-                            EditorUtility.SetDirty(deformer);
-                            LatticePrefabUtility.MarkModified(deformer);
-
-                            serializedObject.Update();
-                            InitializePendingGridSizes();
-
-                            bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-                            deformer.InvalidateCache();
-                            deformer.Deform(assignRuntimeMesh);
-                            LatticePreviewUtility.RequestSceneRepaint();
-                            SceneView.RepaintAll();
-                        }
-                    });
+                    string shapeName = blendShapeNames[i];
+                    menu.AddItem(
+                        new GUIContent(
+                            LatticeLocalization.Tr(LocKey.ImportBlendShapeSingleFrame) + "/" + shapeName),
+                        false,
+                        () => ImportBlendShape(deformer, index, false));
+                    menu.AddItem(
+                        new GUIContent(
+                            LatticeLocalization.Tr(LocKey.ImportBlendShapeAllFrames) + "/" + shapeName),
+                        false,
+                        () => ImportBlendShape(deformer, index, true));
                 }
                 menu.ShowAsContext();
             }
 
             EditorGUILayout.EndHorizontal();
+        }
+
+        private void ImportBlendShape(LatticeDeformer deformer, int blendShapeIndex, bool allFrames)
+        {
+            Undo.RecordObject(deformer, "Import BlendShape");
+            int importedIndex = allFrames
+                ? deformer.ImportBlendShapeAllFramesAsGroup(blendShapeIndex)
+                : deformer.ImportBlendShapeAsLayer(blendShapeIndex);
+            if (importedIndex < 0) return;
+
+            EditorUtility.SetDirty(deformer);
+            LatticePrefabUtility.MarkModified(deformer);
+
+            serializedObject.Update();
+            InitializePendingGridSizes();
+
+            bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
+            deformer.InvalidateCache();
+            deformer.Deform(assignRuntimeMesh);
+            LatticePreviewUtility.RequestSceneRepaint();
+            SceneView.RepaintAll();
         }
 
         private static void EnsureLinkIcons()
