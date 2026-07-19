@@ -398,7 +398,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 operation.Step();
                 Assert.That(operation.IsCompleted, Is.False);
                 Assert.That(operation.Progress, Is.EqualTo(0.5f));
-                Assert.That(fixture.Target.transform.localPosition.z, Is.EqualTo(-0.01f).Within(Epsilon));
+                Assert.That(fixture.Target.transform.localPosition, Is.EqualTo(initial));
 
                 operation.Cancel();
 
@@ -417,6 +417,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         public void UserEditBetweenSteps_CancelsWithoutOverwritingTheEdit()
         {
             var fixture = Fixture.CreateMeshRenderers();
+            var unrelated = new GameObject("Unrelated User Object");
             var scanSet = NewScanSet(
                 PoseCondition("First", -0.01f),
                 PoseCondition("Second", 0.02f));
@@ -425,9 +426,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 operation.Step();
                 Undo.IncrementCurrentGroup();
-                Undo.RecordObject(fixture.Target.transform, "User edit during clearance scan");
+                Undo.RecordObject(unrelated.transform, "User edit during clearance scan");
                 Vector3 userPosition = new Vector3(0.2f, 0.3f, 0.4f);
-                fixture.Target.transform.localPosition = userPosition;
+                unrelated.transform.localPosition = userPosition;
                 Undo.IncrementCurrentGroup();
 
                 operation.Step();
@@ -435,14 +436,17 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(operation.IsCompleted, Is.True);
                 Assert.That(operation.Result.WasCancelled, Is.True);
                 Assert.That(operation.Result.Conditions.Count, Is.EqualTo(1));
-                Assert.That(fixture.Target.transform.localPosition, Is.EqualTo(userPosition));
+                Assert.That(fixture.Target.transform.localPosition, Is.EqualTo(Vector3.zero));
+                Assert.That(unrelated.transform.localPosition, Is.EqualTo(userPosition));
                 operation.Dispose();
-                Assert.That(fixture.Target.transform.localPosition, Is.EqualTo(userPosition));
+                Assert.That(fixture.Target.transform.localPosition, Is.EqualTo(Vector3.zero));
+                Assert.That(unrelated.transform.localPosition, Is.EqualTo(userPosition));
             }
             finally
             {
                 operation.Dispose();
                 Object.DestroyImmediate(scanSet);
+                Object.DestroyImmediate(unrelated);
                 fixture.Dispose();
             }
         }

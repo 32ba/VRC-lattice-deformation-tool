@@ -117,7 +117,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly bool _restoreOnComplete;
         private readonly Func<Renderer, Renderer> _previewProxyResolver;
         private readonly Action<int> _afterConditionApplied;
-        private readonly string _expectedVertexIdentityHash;
+        private readonly Mesh _expectedEvaluationMesh;
+        private readonly string _expectedTopologyHash;
         private bool _disposed;
         private bool _undoRedoObserved;
         private bool _preserveExternalEdits;
@@ -172,8 +173,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Renderer initialEvaluationTarget = initialPreviewProxy != null
                 ? initialPreviewProxy
                 : originalTarget;
-            _expectedVertexIdentityHash = ClearanceQaReportBuilder.ComputeVertexIdentityHash(
-                GetRendererMesh(initialEvaluationTarget));
+            _expectedEvaluationMesh = GetRendererMesh(initialEvaluationTarget);
+            _expectedTopologyHash = ClearanceQaReportBuilder.ComputeTopology(
+                _expectedEvaluationMesh).topologyHash;
             _snapshot = SceneStateSnapshot.Capture(
                 _avatarRoot,
                 originalTarget,
@@ -249,6 +251,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
             Result.Conditions.Add(conditionResult);
             if (conditionResult.IsSuccess) AccumulateWorst(conditionResult);
+            if (_restoreOnComplete && NextConditionIndex < _scanSet.Conditions.Count)
+                _snapshot.Restore();
             _baselineUndoGroup = Undo.GetCurrentGroup();
             if (NextConditionIndex >= _scanSet.Conditions.Count) Complete();
         }
@@ -393,13 +397,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             _afterConditionApplied?.Invoke(conditionIndex);
 
-            string currentVertexIdentityHash = ClearanceQaReportBuilder.ComputeVertexIdentityHash(
-                GetRendererMesh(evaluationTarget));
-            if (string.IsNullOrEmpty(_expectedVertexIdentityHash) ||
-                !string.Equals(
-                    currentVertexIdentityHash,
-                    _expectedVertexIdentityHash,
-                    StringComparison.Ordinal))
+            Mesh currentEvaluationMesh = GetRendererMesh(evaluationTarget);
+            string currentTopologyHash = ClearanceQaReportBuilder.ComputeTopology(
+                currentEvaluationMesh).topologyHash;
+            if (string.IsNullOrEmpty(_expectedTopologyHash) ||
+                (!usedPreviewProxy && !ReferenceEquals(currentEvaluationMesh, _expectedEvaluationMesh)) ||
+                !string.Equals(currentTopologyHash, _expectedTopologyHash, StringComparison.Ordinal))
             {
                 return Error(
                     conditionIndex,

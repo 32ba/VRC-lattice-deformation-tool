@@ -434,29 +434,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return topology;
         }
 
-        internal static string ComputeVertexIdentityHash(Mesh mesh)
-        {
-            if (mesh == null) return "";
-            using var stream = new MemoryStream();
-            using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
-            using (Mesh.MeshDataArray meshDataArray = Mesh.AcquireReadOnlyMeshData(mesh))
-            {
-                Mesh.MeshData data = meshDataArray[0];
-                writer.Write(data.vertexCount);
-                writer.Write(mesh.vertexBufferCount);
-                for (int streamIndex = 0; streamIndex < mesh.vertexBufferCount; streamIndex++)
-                {
-                    var bytes = data.GetVertexData<byte>(streamIndex);
-                    writer.Write(bytes.Length);
-                    for (int index = 0; index < bytes.Length; index++) writer.Write(bytes[index]);
-                }
-                writer.Write(ComputeTopology(mesh).topologyHash);
-            }
-            stream.Position = 0;
-            using SHA256 sha256 = SHA256.Create();
-            return Convert.ToBase64String(sha256.ComputeHash(stream));
-        }
-
         internal static ClearanceQaReport CreateHeaderSnapshot(
             Renderer targetRenderer,
             Renderer referenceRenderer,
