@@ -728,6 +728,51 @@ msgstr "参考对象是开放网格，已回退到参考法线间隙。"
 msgid "net.32ba.lattice-deformation-tool.localization.clearance-result-age"
 msgstr "结果经过时间"
 
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction"
+msgstr "贴合校正"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-scope"
+msgstr "校正范围"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-penetration-only"
+msgstr "仅穿透顶点"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-warning-threshold"
+msgstr "警告阈值以下"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-target-clearance"
+msgstr "目标间隙以下"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-move-mm"
+msgstr "最大移动距离 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-candidate-vertices"
+msgstr "候选顶点数"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-planned-move"
+msgstr "最大计划移动量"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-unresolved-estimate"
+msgstr "预计未解决顶点数"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-fit-correction-layer"
+msgstr "创建Fit Correction图层"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-posed-skinned-blocked"
+msgstr "SkinnedMesh处于姿势状态或应用了BlendShape，无法生成校正。请先恢复rest pose。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-stale"
+msgstr "间隙评估已过期，请重新评估后生成校正。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-topology-mismatch"
+msgstr "评估网格的Topology与Source Mesh不一致。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-no-candidates"
+msgstr "没有顶点符合所选校正范围。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format"
+msgstr "已创建校正。改善：{0}，未解决：{1}。"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "顶点工具"

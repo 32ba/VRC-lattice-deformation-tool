@@ -79,6 +79,11 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
 - `LatticeDeformer` ごとに参照Renderer、Query mode、表示mode、警告/目標距離、表示stride、更新間隔をserializeする。ヒートマップは検出専用でMesh・Layer・BlendShapeを変更しない
 - Scene View描画は「貫通のみ」「警告範囲を含む」「全体分布」を切り替え、NDMF preview proxyが存在する場合はproxy meshを評価してInspectorへ評価対象を明示する。参照/対象の無効化、Undo/Redo、設定変更時は古い表示を破棄する
 
+**Fit Correction:**
+- `FitCorrectionGenerator.cs` (`Editor/MeshDeformer/Utilities/`): クリアランス評価から不足量を参照面のworld-space法線方向へ補正し、元Meshや既存Layerを変更せず専用Brushレイヤーとして追加する
+- 対象範囲は貫通のみ・警告距離以下・目標距離未満から選択し、最大移動量もworld-spaceで制限する。生成後は改善数と未解決数を再評価して表示する
+- 生成レイヤーには参照Renderer、Query mode、対象範囲、警告/目標距離、最大移動量を保存する。古い評価、頂点数不一致、無効な参照、rest poseでないSkinnedMeshRendererでは生成をfail-closedにする
+
 ### 頂点選択ツール（Vertex Selection Tool）
 
 頂点を直接選択して Move/Rotate/Scale 変換を適用するツール。ブラシレイヤーの変位データを操作する。

@@ -728,6 +728,51 @@ msgstr "참조가 열린 메시이므로 참조 노멀 기준 클리어런스로
 msgid "net.32ba.lattice-deformation-tool.localization.clearance-result-age"
 msgstr "결과 경과 시간"
 
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction"
+msgstr "맞춤 보정"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-scope"
+msgstr "보정 범위"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-penetration-only"
+msgstr "관통 버텍스만"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-warning-threshold"
+msgstr "경고 임계값 이하"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-target-clearance"
+msgstr "목표 클리어런스 미만"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-move-mm"
+msgstr "최대 이동 거리 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-candidate-vertices"
+msgstr "보정 대상 버텍스"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-planned-move"
+msgstr "최대 예정 이동량"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-unresolved-estimate"
+msgstr "예상 미해결 버텍스"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-fit-correction-layer"
+msgstr "Fit Correction 레이어 만들기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-posed-skinned-blocked"
+msgstr "SkinnedMesh가 포즈 중이거나 BlendShape가 적용되어 보정을 만들 수 없습니다. rest pose로 되돌리세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-stale"
+msgstr "클리어런스 평가가 오래되었습니다. 다시 평가한 후 보정을 만드세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-topology-mismatch"
+msgstr "평가 메시의 토폴로지가 Source Mesh와 일치하지 않습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-no-candidates"
+msgstr "선택한 보정 범위에 해당하는 버텍스가 없습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format"
+msgstr "보정을 만들었습니다. 개선: {0}, 미해결: {1}."
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "버텍스 도구"

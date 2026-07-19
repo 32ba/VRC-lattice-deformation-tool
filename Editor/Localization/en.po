@@ -728,6 +728,51 @@ msgstr "The reference is open, so the query fell back to reference-normal cleara
 msgid "net.32ba.lattice-deformation-tool.localization.clearance-result-age"
 msgstr "Result Age"
 
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction"
+msgstr "Fit Correction"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-scope"
+msgstr "Correction Scope"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-penetration-only"
+msgstr "Penetration Only"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-warning-threshold"
+msgstr "Warning Threshold"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-target-clearance"
+msgstr "Below Target Clearance"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-move-mm"
+msgstr "Maximum Move (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-candidate-vertices"
+msgstr "Candidate Vertices"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-planned-move"
+msgstr "Maximum Planned Move"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-unresolved-estimate"
+msgstr "Estimated Unresolved Vertices"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-fit-correction-layer"
+msgstr "Create Fit Correction Layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-posed-skinned-blocked"
+msgstr "Correction is blocked because the SkinnedMesh is posed or has active BlendShapes. Return it to rest pose first."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-stale"
+msgstr "The clearance evaluation is stale. Re-evaluate before generating a correction."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-topology-mismatch"
+msgstr "The evaluated mesh topology does not match the source mesh."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-no-candidates"
+msgstr "No vertices match the selected correction scope."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format"
+msgstr "Correction created. Improved: {0}, unresolved: {1}."
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "Vertex Tool"

@@ -47,15 +47,27 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal readonly Vector3[] WorldPositions;
         internal readonly ClearanceQueryResult[] QueryResults;
         internal readonly ClearanceEvaluationStatus Status;
+        internal readonly Renderer TargetRenderer;
+        internal readonly Renderer ReferenceRenderer;
+        internal readonly int TargetStateHash;
+        internal readonly int ReferenceStateHash;
 
         internal ClearanceHeatmapRawEvaluation(
             Vector3[] worldPositions,
             ClearanceQueryResult[] queryResults,
-            ClearanceEvaluationStatus status)
+            ClearanceEvaluationStatus status,
+            Renderer targetRenderer = null,
+            Renderer referenceRenderer = null,
+            int targetStateHash = 0,
+            int referenceStateHash = 0)
         {
             WorldPositions = worldPositions ?? Array.Empty<Vector3>();
             QueryResults = queryResults ?? Array.Empty<ClearanceQueryResult>();
             Status = status;
+            TargetRenderer = targetRenderer;
+            ReferenceRenderer = referenceRenderer;
+            TargetStateHash = targetStateHash;
+            ReferenceStateHash = referenceStateHash;
         }
     }
 
@@ -102,6 +114,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             if (!IsUsableRenderer(targetRenderer) ||
+                !ClearanceQueryCache.TryGetRendererStateHash(targetRenderer, out int targetStateHash) ||
                 !ClearanceQueryCache.TryGetWorldVertices(targetRenderer, out Vector3[] worldPositions))
             {
                 return new ClearanceHeatmapRawEvaluation(
@@ -113,12 +126,42 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 worldPositions,
                 Matrix4x4.identity,
                 signMode);
+            ClearanceQueryCache.TryGetRendererStateHash(referenceRenderer, out int referenceStateHash);
             return new ClearanceHeatmapRawEvaluation(
                 worldPositions,
                 results,
                 results.Length == worldPositions.Length
                     ? ClearanceEvaluationStatus.Valid
-                    : ClearanceEvaluationStatus.InvalidReference);
+                    : ClearanceEvaluationStatus.InvalidReference,
+                targetRenderer,
+                referenceRenderer,
+                targetStateHash,
+                referenceStateHash);
+        }
+
+        internal static ClearanceHeatmapRawEvaluation EvaluateWorldPositions(
+            Vector3[] worldPositions,
+            Renderer referenceRenderer,
+            ClearanceSignMode signMode)
+        {
+            if (worldPositions == null || !IsUsableRenderer(referenceRenderer))
+            {
+                return new ClearanceHeatmapRawEvaluation(
+                    null, null, ClearanceEvaluationStatus.InvalidReference);
+            }
+            ClearanceQueryResult[] results = ClearanceQueryCache.QueryPoints(
+                referenceRenderer,
+                worldPositions,
+                Matrix4x4.identity,
+                signMode);
+            return new ClearanceHeatmapRawEvaluation(
+                (Vector3[])worldPositions.Clone(),
+                results,
+                results.Length == worldPositions.Length
+                    ? ClearanceEvaluationStatus.Valid
+                    : ClearanceEvaluationStatus.InvalidReference,
+                null,
+                referenceRenderer);
         }
 
         internal static ClearanceHeatmapEvaluation Classify(
