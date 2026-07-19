@@ -22,6 +22,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         public const string Scale = "scale";
         public const string Brush = "brush";
         public const string Smooth = "smooth";
+        public const string Mask = "mask";
         public const string VertexSelect = "vertex-select";
         public const string Normal = "normal";
         public const string Mirror = "mirror";
@@ -47,6 +48,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             { Scale, "ScaleTool" },
             { Brush, "TerrainInspector.TerrainToolSplat" },
             { Smooth, "TerrainInspector.TerrainToolSmoothHeight" },
+            { Mask, "EditCollider" },
             { VertexSelect, "EditCollider" },
             { Normal, "TerrainInspector.TerrainToolSetHeight" },
             { Mirror, "d_PreMatQuad" },

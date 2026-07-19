@@ -95,6 +95,31 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void ComponentCompatibility_ReevaluatesWhenSameMeshInstanceMutates()
+        {
+            var mesh = CreateMesh("MutableSource");
+            var profile = CreateProfile(mesh);
+            var deformer = CreateDeformer("MutableTarget", mesh);
+            try
+            {
+                Assert.That(deformer.EvaluateProfileCompatibility(profile),
+                    Is.EqualTo(ProfileCompatibilityStatus.CompatibleSourceDiffers));
+
+                var vertices = mesh.vertices;
+                vertices[1] += Vector3.forward;
+                mesh.vertices = vertices;
+
+                Assert.That(deformer.EvaluateProfileCompatibility(profile),
+                    Is.EqualTo(ProfileCompatibilityStatus.TopologyMismatch));
+            }
+            finally
+            {
+                DestroyDeformer(deformer);
+                Destroy(profile, mesh);
+            }
+        }
+
+        [Test]
         public void BlendShapeSignature_SubMeshCount_AndBindPoseCount_AreValidated()
         {
             var source = CreateMesh("Source");
@@ -185,6 +210,83 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 DestroyDeformer(deformer);
                 Destroy(incompatibleProfile, currentProfile, incompatible, source);
+            }
+        }
+
+        [Test]
+        public void CopyProfileToEmbedded_MismatchIsRejectedWithoutMutatingEmbeddedData()
+        {
+            var source = CreateMesh("CopyTarget");
+            var incompatible = CreateMesh("CopyIncompatible", new[] { 0, 2, 1, 0, 3, 2 });
+            var profile = CreateProfile(incompatible);
+            var deformer = CreateDeformer("CopyTarget", source);
+            try
+            {
+                deformer.AddLayer("Existing Brush", MeshDeformerLayerType.Brush);
+                deformer.Profile = profile;
+                var groupsBefore = deformer.Groups;
+                int groupCountBefore = deformer.GroupCount;
+                int layerCountBefore = deformer.Layers.Count;
+
+                Assert.That(deformer.CopyProfileToEmbedded(), Is.False);
+                Assert.That(deformer.DataSource, Is.EqualTo(DeformerDataSource.Embedded));
+                Assert.That(deformer.Groups, Is.SameAs(groupsBefore));
+                Assert.That(deformer.GroupCount, Is.EqualTo(groupCountBefore));
+                Assert.That(deformer.Layers.Count, Is.EqualTo(layerCountBefore));
+            }
+            finally
+            {
+                DestroyDeformer(deformer);
+                Destroy(profile, incompatible, source);
+            }
+        }
+
+        [Test]
+        public void CopyProfileToEmbedded_RendererMeshSwapRejectsWithoutMutatingCachedState()
+        {
+            var source = CreateMesh("CachedCopySource");
+            var incompatible = CreateMesh("CachedCopyIncompatible", new[] { 0, 2, 1, 0, 3, 2 });
+            var profile = CreateProfile(source);
+            var deformer = CreateDeformer("CachedCopyTarget", source);
+            try
+            {
+                deformer.AddLayer("Existing Brush", MeshDeformerLayerType.Brush);
+                deformer.Profile = profile;
+                Mesh runtimeBefore = deformer.Deform(false);
+                Assert.That(runtimeBefore, Is.Not.Null);
+
+                var serializedSourceField = typeof(LatticeDeformer).GetField(
+                    "_serializedSourceMesh", BindingFlags.Instance | BindingFlags.NonPublic);
+                var initializedField = typeof(LatticeDeformer).GetField(
+                    "_hasInitializedFromSource", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(serializedSourceField, Is.Not.Null);
+                Assert.That(initializedField, Is.Not.Null);
+
+                Mesh serializedSourceBefore = (Mesh)serializedSourceField.GetValue(deformer);
+                bool initializedBefore = (bool)initializedField.GetValue(deformer);
+                Mesh sourceBefore = deformer.SourceMesh;
+                var groupsBefore = deformer.Groups;
+                int groupCountBefore = deformer.GroupCount;
+                int layerCountBefore = deformer.Layers.Count;
+
+                deformer.GetComponent<MeshFilter>().sharedMesh = incompatible;
+
+                Assert.That(deformer.CopyProfileToEmbedded(), Is.False);
+                Assert.That(deformer.SourceMesh, Is.SameAs(sourceBefore));
+                Assert.That(deformer.RuntimeMesh, Is.SameAs(runtimeBefore));
+                Assert.That(serializedSourceField.GetValue(deformer), Is.SameAs(serializedSourceBefore));
+                Assert.That(initializedField.GetValue(deformer), Is.EqualTo(initializedBefore));
+                Assert.That(deformer.Profile, Is.SameAs(profile));
+                Assert.That(deformer.DataSource, Is.EqualTo(DeformerDataSource.Embedded));
+                Assert.That(deformer.Groups, Is.SameAs(groupsBefore));
+                Assert.That(deformer.GroupCount, Is.EqualTo(groupCountBefore));
+                Assert.That(deformer.Layers.Count, Is.EqualTo(layerCountBefore));
+                Assert.That(deformer.GetComponent<MeshFilter>().sharedMesh, Is.SameAs(incompatible));
+            }
+            finally
+            {
+                DestroyDeformer(deformer);
+                Destroy(profile, incompatible, source);
             }
         }
 
