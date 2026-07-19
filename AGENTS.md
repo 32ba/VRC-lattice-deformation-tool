@@ -74,6 +74,11 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
   - 表示結果は変形状態・参照メッシュ・関連 Transform をキーとしてキャッシュする
   - 初回検出は全頂点の総当たりで、参照 SkinnedMeshRenderer の現在ポーズをベイクして扱わない制約は残る
 
+**クリアランスヒートマップ:**
+- `ClearanceHeatmap.cs` (`Editor/MeshDeformer/Utilities/`): `ClearanceQuery` 結果を貫通・警告・目標未満・安全へ分類し、最小clearance、最大貫通深度、違反頂点数、評価頂点数を集計する。しきい値はworld-space meterで保持し、Inspectorではmm表示する
+- `LatticeDeformer` ごとに参照Renderer、Query mode、表示mode、警告/目標距離、表示stride、更新間隔をserializeする。ヒートマップは検出専用でMesh・Layer・BlendShapeを変更しない
+- Scene View描画は「貫通のみ」「警告範囲を含む」「全体分布」を切り替え、NDMF preview proxyが存在する場合はproxy meshを評価してInspectorへ評価対象を明示する。参照/対象の無効化、Undo/Redo、設定変更時は古い表示を破棄する
+
 ### 頂点選択ツール（Vertex Selection Tool）
 
 頂点を直接選択して Move/Rotate/Scale 変換を適用するツール。ブラシレイヤーの変位データを操作する。

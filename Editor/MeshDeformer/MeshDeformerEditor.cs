@@ -34,6 +34,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SerializedProperty _recalcTangentsProp;
         private SerializedProperty _recalcBoundsProp;
         private SerializedProperty _recalcBoneWeightsProp;
+        private SerializedProperty _showClearanceHeatmapProp;
+        private SerializedProperty _clearanceReferenceRendererProp;
+        private SerializedProperty _clearanceQueryModeProp;
+        private SerializedProperty _clearanceHeatmapDisplayModeProp;
+        private SerializedProperty _clearanceWarningDistanceProp;
+        private SerializedProperty _clearanceTargetDistanceProp;
+        private SerializedProperty _clearanceDisplayStrideProp;
+        private SerializedProperty _clearanceUpdateIntervalProp;
         private bool _blendShapeTestMode = false;
         private float _blendShapeTestWeight = 0f;
         private Mesh _preTestMesh = null;
@@ -63,6 +71,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_showWeightTransferSettings = false;
         private static bool s_showBlendShapeOutput = false;
         private static bool s_showLayerSettings = false;
+        private static bool s_showClearanceHeatmapSettings = false;
         private static readonly Dictionary<long, Vector3Int> s_pendingGridSizes = new();
         private static string s_copiedLayerJson = null;
         private static MeshDeformerLayerType s_copiedLayerType;
@@ -73,6 +82,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly List<int> _layerIndices = new();
         private int _cachedLayerCount = -1;
         private int _cachedActiveIndex = -1;
+        private ClearanceHeatmapRawEvaluation _clearanceRawEvaluation;
+        private double _lastClearanceEvaluationTime = double.NegativeInfinity;
+        private int _lastClearanceTargetId;
+        private int _lastClearanceReferenceId;
+        private bool _lastClearanceUsedPreviewProxy;
 
         private void OnEnable()
         {
@@ -88,6 +102,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _recalcTangentsProp = serializedObject.FindProperty("_recalculateTangents");
             _recalcBoundsProp = serializedObject.FindProperty("_recalculateBounds");
             _recalcBoneWeightsProp = serializedObject.FindProperty("_recalculateBoneWeights");
+            _showClearanceHeatmapProp = serializedObject.FindProperty("_showClearanceHeatmap");
+            _clearanceReferenceRendererProp = serializedObject.FindProperty("_clearanceReferenceRenderer");
+            _clearanceQueryModeProp = serializedObject.FindProperty("_clearanceQueryMode");
+            _clearanceHeatmapDisplayModeProp = serializedObject.FindProperty("_clearanceHeatmapDisplayMode");
+            _clearanceWarningDistanceProp = serializedObject.FindProperty("_clearanceWarningDistance");
+            _clearanceTargetDistanceProp = serializedObject.FindProperty("_clearanceTargetDistance");
+            _clearanceDisplayStrideProp = serializedObject.FindProperty("_clearanceDisplayStride");
+            _clearanceUpdateIntervalProp = serializedObject.FindProperty("_clearanceUpdateInterval");
             _weightTransferSettingsProp = serializedObject.FindProperty("_weightTransferSettings");
             ResolveActiveGroupProperties();
             _alignModeProp = serializedObject.FindProperty("_alignMode");
@@ -104,6 +126,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             InitializePendingGridSizes();
             LatticeLocalization.LanguageChanged += OnLanguageChanged;
             ReleaseChecker.OnUpdateCheckCompleted += Repaint;
+            SceneView.duringSceneGui += DrawClearanceHeatmapInScene;
+            Undo.undoRedoPerformed += OnClearanceStateChanged;
         }
 
         private void ResolveActiveGroupProperties()
@@ -132,6 +156,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             LatticeLocalization.LanguageChanged -= OnLanguageChanged;
             ReleaseChecker.OnUpdateCheckCompleted -= Repaint;
+            SceneView.duringSceneGui -= DrawClearanceHeatmapInScene;
+            Undo.undoRedoPerformed -= OnClearanceStateChanged;
             ExitBlendShapeTestMode();
 
             foreach (var deformer in EnumerateTargets())
@@ -791,6 +817,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ResolveActiveGroupProperties();
 
             DrawBuildOptions();
+            DrawClearanceHeatmapSettings();
 
             bool modified = serializedObject.ApplyModifiedProperties();
             if (modified)
@@ -816,6 +843,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void NotifyPropertyChanges()
         {
+            InvalidateClearanceEvaluation();
             bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
             foreach (var instance in EnumerateTargets())
             {
@@ -831,6 +859,260 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             LatticePreviewUtility.RequestSceneRepaint();
+        }
+
+        private void DrawClearanceHeatmapSettings()
+        {
+            if (_showClearanceHeatmapProp == null) return;
+
+            EditorGUILayout.Space();
+            s_showClearanceHeatmapSettings = EditorGUILayout.BeginFoldoutHeaderGroup(
+                s_showClearanceHeatmapSettings,
+                LatticeLocalization.Tr(LocKey.ClearanceHeatmap));
+            if (s_showClearanceHeatmapSettings)
+            {
+                EditorGUILayout.PropertyField(
+                    _showClearanceHeatmapProp,
+                    LatticeLocalization.Content(LocKey.ShowClearanceHeatmap));
+                EditorGUILayout.PropertyField(
+                    _clearanceReferenceRendererProp,
+                    LatticeLocalization.Content(LocKey.ClearanceReferenceRenderer));
+                _clearanceQueryModeProp.enumValueIndex = EditorGUILayout.Popup(
+                    LatticeLocalization.Content(LocKey.ClearanceQueryMode),
+                    _clearanceQueryModeProp.enumValueIndex,
+                    new[]
+                    {
+                        LatticeLocalization.Content(LocKey.ClearanceReferenceNormal),
+                        LatticeLocalization.Content(LocKey.ClearanceClosedMesh)
+                    });
+                _clearanceHeatmapDisplayModeProp.enumValueIndex = EditorGUILayout.Popup(
+                    LatticeLocalization.Content(LocKey.ClearanceDisplayMode),
+                    _clearanceHeatmapDisplayModeProp.enumValueIndex,
+                    new[]
+                    {
+                        LatticeLocalization.Content(LocKey.ClearancePenetrationOnly),
+                        LatticeLocalization.Content(LocKey.ClearanceIncludeWarning),
+                        LatticeLocalization.Content(LocKey.ClearanceFullDistribution)
+                    });
+
+                DrawMillimeterField(
+                    _clearanceWarningDistanceProp,
+                    LocKey.ClearanceWarningThresholdMm,
+                    0f);
+                DrawMillimeterField(
+                    _clearanceTargetDistanceProp,
+                    LocKey.ClearanceTargetDistanceMm,
+                    _clearanceWarningDistanceProp.floatValue);
+                _clearanceDisplayStrideProp.intValue = EditorGUILayout.IntSlider(
+                    LatticeLocalization.Content(LocKey.ClearanceDisplayStride),
+                    Mathf.Clamp(_clearanceDisplayStrideProp.intValue, 1, 64),
+                    1,
+                    64);
+                float currentUpdateInterval = IsFinite(_clearanceUpdateIntervalProp.floatValue)
+                    ? _clearanceUpdateIntervalProp.floatValue
+                    : 0.1f;
+                _clearanceUpdateIntervalProp.floatValue = EditorGUILayout.Slider(
+                    LatticeLocalization.Content(LocKey.ClearanceUpdateInterval),
+                    Mathf.Clamp(currentUpdateInterval, 0.02f, 2f),
+                    0.02f,
+                    2f);
+
+                if (targets.Length == 1 && target is LatticeDeformer deformer &&
+                    _showClearanceHeatmapProp.boolValue)
+                {
+                    Renderer reference = _clearanceReferenceRendererProp.objectReferenceValue as Renderer;
+                    var evaluation = GetClearanceEvaluation(
+                        deformer,
+                        reference,
+                        (ClearanceQueryMode)_clearanceQueryModeProp.enumValueIndex,
+                        _clearanceWarningDistanceProp.floatValue,
+                        _clearanceTargetDistanceProp.floatValue,
+                        _clearanceUpdateIntervalProp.floatValue);
+                    DrawClearanceStatistics(evaluation);
+                }
+            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
+        }
+
+        private static void DrawMillimeterField(
+            SerializedProperty property,
+            string labelKey,
+            float minimumMeters)
+        {
+            float currentMeters = IsFinite(property.floatValue)
+                ? property.floatValue
+                : minimumMeters;
+            float millimeters = currentMeters * 1000f;
+            float next = EditorGUILayout.FloatField(
+                LatticeLocalization.Content(labelKey),
+                millimeters);
+            property.floatValue = IsFinite(next)
+                ? Mathf.Max(minimumMeters, next / 1000f)
+                : minimumMeters;
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
+        private void DrawClearanceStatistics(ClearanceHeatmapEvaluation evaluation)
+        {
+            if (evaluation == null || evaluation.Status != ClearanceEvaluationStatus.Valid)
+            {
+                string message = evaluation?.Status == ClearanceEvaluationStatus.InvalidReference
+                    ? LatticeLocalization.Tr(LocKey.ClearanceInvalidReference)
+                    : LatticeLocalization.Tr(LocKey.ClearanceInvalidTarget);
+                EditorGUILayout.HelpBox(message, MessageType.Warning);
+                return;
+            }
+
+            EditorGUILayout.LabelField(
+                LatticeLocalization.Tr(LocKey.ClearanceEvaluationTarget),
+                LatticeLocalization.Tr(_lastClearanceUsedPreviewProxy
+                    ? LocKey.ClearanceTargetPreview
+                    : LocKey.ClearanceTargetRendered));
+            EditorGUILayout.LabelField(
+                LatticeLocalization.Tr(LocKey.ClearanceMinimum),
+                (evaluation.Statistics.MinimumClearance * 1000f).ToString("0.###") + " mm");
+            EditorGUILayout.LabelField(
+                LatticeLocalization.Tr(LocKey.ClearanceMaximumPenetration),
+                (evaluation.Statistics.MaximumPenetrationDepth * 1000f).ToString("0.###") + " mm");
+            EditorGUILayout.LabelField(
+                LatticeLocalization.Tr(LocKey.ClearanceViolationVertices),
+                evaluation.Statistics.ViolationVertexCount.ToString());
+            EditorGUILayout.LabelField(
+                LatticeLocalization.Tr(LocKey.ClearanceEvaluatedVertices),
+                evaluation.Statistics.EvaluatedVertexCount.ToString());
+            EditorGUILayout.LabelField(
+                LatticeLocalization.Tr(LocKey.ClearanceActualQueryMode),
+                evaluation.SignMode == ClearanceSignMode.ClosedMesh
+                    ? LatticeLocalization.Tr(LocKey.ClearanceClosedMesh)
+                    : LatticeLocalization.Tr(LocKey.ClearanceReferenceNormal));
+
+            if (_clearanceQueryModeProp.enumValueIndex == (int)ClearanceQueryMode.ClosedMesh &&
+                evaluation.SignMode != ClearanceSignMode.ClosedMesh)
+            {
+                EditorGUILayout.HelpBox(
+                    LatticeLocalization.Tr(LocKey.ClearanceSignFallback),
+                    MessageType.Warning);
+            }
+
+            double age = EditorApplication.timeSinceStartup - _lastClearanceEvaluationTime;
+            EditorGUILayout.LabelField(
+                LatticeLocalization.Tr(LocKey.ClearanceResultAge),
+                age.ToString("0.00") + " s");
+        }
+
+        private void DrawClearanceHeatmapInScene(SceneView sceneView)
+        {
+            if (Event.current == null || Event.current.type != EventType.Repaint) return;
+            if (targets == null || targets.Length != 1 || target is not LatticeDeformer deformer) return;
+            if (!deformer.ShowClearanceHeatmap) return;
+
+            var evaluation = GetClearanceEvaluation(
+                deformer,
+                deformer.ClearanceReferenceRenderer,
+                deformer.ClearanceQueryMode,
+                deformer.ClearanceWarningDistance,
+                deformer.ClearanceTargetDistance,
+                deformer.ClearanceUpdateInterval);
+            if (evaluation == null || evaluation.Status != ClearanceEvaluationStatus.Valid) return;
+
+            int stride = deformer.ClearanceDisplayStride;
+            for (int i = 0; i < evaluation.WorldPositions.Length; i += stride)
+            {
+                ClearanceClassification classification = evaluation.Classifications[i];
+                if (!ClearanceHeatmapEvaluator.ShouldDisplay(
+                        classification,
+                        deformer.ClearanceHeatmapDisplayMode))
+                {
+                    continue;
+                }
+
+                Vector3 position = evaluation.WorldPositions[i];
+                Handles.color = ClearanceHeatmapEvaluator.ColorFor(classification);
+                float size = HandleUtility.GetHandleSize(position) * 0.012f;
+                Handles.DotHandleCap(0, position, Quaternion.identity, size, EventType.Repaint);
+            }
+        }
+
+        private ClearanceHeatmapEvaluation GetClearanceEvaluation(
+            LatticeDeformer deformer,
+            Renderer reference,
+            ClearanceQueryMode queryMode,
+            float warningDistance,
+            float targetDistance,
+            float updateInterval)
+        {
+            Renderer targetRenderer = ResolveClearanceTargetRenderer(deformer, out bool usedPreviewProxy);
+            int targetId = targetRenderer != null ? targetRenderer.GetInstanceID() : 0;
+            int referenceId = reference != null ? reference.GetInstanceID() : 0;
+            double now = EditorApplication.timeSinceStartup;
+            bool identityChanged = targetId != _lastClearanceTargetId ||
+                                   referenceId != _lastClearanceReferenceId ||
+                                   usedPreviewProxy != _lastClearanceUsedPreviewProxy;
+            if (_clearanceRawEvaluation == null || identityChanged ||
+                now - _lastClearanceEvaluationTime >= Mathf.Clamp(updateInterval, 0.02f, 2f))
+            {
+                _clearanceRawEvaluation = ClearanceHeatmapEvaluator.Evaluate(
+                    targetRenderer,
+                    reference,
+                    queryMode == ClearanceQueryMode.ClosedMesh
+                        ? ClearanceSignMode.ClosedMesh
+                        : ClearanceSignMode.ReferenceNormal);
+                _lastClearanceEvaluationTime = now;
+                _lastClearanceTargetId = targetId;
+                _lastClearanceReferenceId = referenceId;
+                _lastClearanceUsedPreviewProxy = usedPreviewProxy;
+            }
+
+            return ClearanceHeatmapEvaluator.Classify(
+                _clearanceRawEvaluation,
+                warningDistance,
+                targetDistance);
+        }
+
+        private static Renderer ResolveClearanceTargetRenderer(
+            LatticeDeformer deformer,
+            out bool usedPreviewProxy)
+        {
+            Renderer original = deformer != null ? deformer.TargetRenderer : null;
+            Renderer previewProxy = null;
+            if (original != null &&
+                NDMFPreviewProxyUtility.TryGetProxyRenderer(original, out Renderer proxy) &&
+                proxy != null)
+            {
+                previewProxy = proxy;
+            }
+
+            return ResolveClearanceTargetRenderer(deformer, previewProxy, out usedPreviewProxy);
+        }
+
+        internal static Renderer ResolveClearanceTargetRenderer(
+            LatticeDeformer deformer,
+            Renderer previewProxy,
+            out bool usedPreviewProxy)
+        {
+            Renderer original = deformer != null ? deformer.TargetRenderer : null;
+            usedPreviewProxy = original != null && previewProxy != null;
+            return usedPreviewProxy ? previewProxy : original;
+        }
+
+        private void OnClearanceStateChanged()
+        {
+            InvalidateClearanceEvaluation();
+            Repaint();
+            SceneView.RepaintAll();
+        }
+
+        private void InvalidateClearanceEvaluation()
+        {
+            _clearanceRawEvaluation = null;
+            _lastClearanceEvaluationTime = double.NegativeInfinity;
+            _lastClearanceTargetId = 0;
+            _lastClearanceReferenceId = 0;
+            _lastClearanceUsedPreviewProxy = false;
         }
 
         private void ReapplyBlendShapeTestWeight(LatticeDeformer deformer)

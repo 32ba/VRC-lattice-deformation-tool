@@ -23,6 +23,19 @@ namespace Net._32Ba.LatticeDeformationTool
         OutputAsBlendShape = 1
     }
 
+    public enum ClearanceHeatmapDisplayMode
+    {
+        PenetrationOnly = 0,
+        WarningAndPenetration = 1,
+        FullDistribution = 2
+    }
+
+    public enum ClearanceQueryMode
+    {
+        ReferenceNormal = 0,
+        ClosedMesh = 1
+    }
+
     public enum BlendShapeCompositionMode
     {
         Single = 0,
@@ -527,6 +540,14 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private bool _recalculateBounds = true;
         [SerializeField] private bool _recalculateBoneWeights = false;
         [SerializeField] private WeightTransferSettingsData _weightTransferSettings = new WeightTransferSettingsData();
+        [SerializeField] private bool _showClearanceHeatmap;
+        [SerializeField] private Renderer _clearanceReferenceRenderer;
+        [SerializeField] private ClearanceQueryMode _clearanceQueryMode = ClearanceQueryMode.ReferenceNormal;
+        [SerializeField] private ClearanceHeatmapDisplayMode _clearanceHeatmapDisplayMode = ClearanceHeatmapDisplayMode.WarningAndPenetration;
+        [SerializeField] private float _clearanceWarningDistance = 0.005f;
+        [SerializeField] private float _clearanceTargetDistance = 0.01f;
+        [SerializeField] private int _clearanceDisplayStride = 1;
+        [SerializeField] private float _clearanceUpdateInterval = 0.1f;
         [SerializeField, HideInInspector] private bool _hasInitializedFromSource = false;
         [SerializeField, HideInInspector] private Mesh _serializedSourceMesh;
 
@@ -936,6 +957,76 @@ namespace Net._32Ba.LatticeDeformationTool
         public Mesh RuntimeMesh => _runtimeMesh;
 
         public Mesh SourceMesh => _sourceMesh;
+
+        public Renderer TargetRenderer
+        {
+            get
+            {
+                if (_skinnedMeshRenderer != null) return _skinnedMeshRenderer;
+                return _meshFilter != null ? _meshFilter.GetComponent<MeshRenderer>() : null;
+            }
+        }
+
+        public bool ShowClearanceHeatmap
+        {
+            get => _showClearanceHeatmap;
+            set => _showClearanceHeatmap = value;
+        }
+
+        public Renderer ClearanceReferenceRenderer
+        {
+            get => _clearanceReferenceRenderer;
+            set => _clearanceReferenceRenderer = value;
+        }
+
+        public ClearanceQueryMode ClearanceQueryMode
+        {
+            get => _clearanceQueryMode;
+            set => _clearanceQueryMode = value;
+        }
+
+        public ClearanceHeatmapDisplayMode ClearanceHeatmapDisplayMode
+        {
+            get => _clearanceHeatmapDisplayMode;
+            set => _clearanceHeatmapDisplayMode = value;
+        }
+
+        public float ClearanceWarningDistance
+        {
+            get => IsFinite(_clearanceWarningDistance) ? Mathf.Max(0f, _clearanceWarningDistance) : 0f;
+            set => _clearanceWarningDistance = IsFinite(value) ? Mathf.Max(0f, value) : 0f;
+        }
+
+        public float ClearanceTargetDistance
+        {
+            get => IsFinite(_clearanceTargetDistance)
+                ? Mathf.Max(ClearanceWarningDistance, _clearanceTargetDistance)
+                : ClearanceWarningDistance;
+            set => _clearanceTargetDistance = IsFinite(value)
+                ? Mathf.Max(ClearanceWarningDistance, value)
+                : ClearanceWarningDistance;
+        }
+
+        public int ClearanceDisplayStride
+        {
+            get => Mathf.Clamp(_clearanceDisplayStride, 1, 64);
+            set => _clearanceDisplayStride = Mathf.Clamp(value, 1, 64);
+        }
+
+        public float ClearanceUpdateInterval
+        {
+            get => IsFinite(_clearanceUpdateInterval)
+                ? Mathf.Clamp(_clearanceUpdateInterval, 0.02f, 2f)
+                : 0.1f;
+            set => _clearanceUpdateInterval = IsFinite(value)
+                ? Mathf.Clamp(value, 0.02f, 2f)
+                : 0.1f;
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
 
         public bool RecalculateBoneWeights
         {

@@ -649,6 +649,85 @@ msgstr "Dot Size"
 msgid "net.32ba.lattice-deformation-tool.localization.dot-size.tooltip"
 msgstr "Controls the display size of vertex indicator dots."
 
+# Clearance Heatmap
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-heatmap"
+msgstr "Clearance Heatmap"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-clearance-heatmap"
+msgstr "Show Clearance Heatmap"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-reference-renderer"
+msgstr "Reference Renderer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-query-mode"
+msgstr "Query Mode"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-display-mode"
+msgstr "Display Mode"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-warning-threshold-mm"
+msgstr "Warning Threshold (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-distance-mm"
+msgstr "Target Clearance (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-display-stride"
+msgstr "Display Stride"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-update-interval"
+msgstr "Update Interval (s)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-minimum"
+msgstr "Minimum Clearance"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-maximum-penetration"
+msgstr "Maximum Penetration"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-violation-vertices"
+msgstr "Violation Vertices"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-evaluated-vertices"
+msgstr "Evaluated Vertices"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-actual-query-mode"
+msgstr "Actual Query Mode"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-reference-normal"
+msgstr "Reference Normal"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-closed-mesh"
+msgstr "Closed Mesh"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-penetration-only"
+msgstr "Penetration Only"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-include-warning"
+msgstr "Include Warning Range"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-full-distribution"
+msgstr "Full Distribution"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-evaluation-target"
+msgstr "Evaluation Target"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-preview"
+msgstr "NDMF Preview Mesh"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-rendered"
+msgstr "Rendered Mesh"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-invalid-reference"
+msgstr "The reference Renderer is missing, disabled, or has no valid triangles."
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-invalid-target"
+msgstr "The evaluation target is missing, disabled, or has no readable vertices."
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-sign-fallback"
+msgstr "The reference is open, so the query fell back to reference-normal clearance."
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-result-age"
+msgstr "Result Age"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "Vertex Tool"

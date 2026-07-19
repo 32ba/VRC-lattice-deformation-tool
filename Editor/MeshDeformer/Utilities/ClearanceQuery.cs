@@ -673,24 +673,36 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Renderer referenceRenderer,
             ClearanceSignMode signMode)
         {
-            if (!TryCaptureMesh(targetRenderer, out Mesh targetMesh, out Matrix4x4 targetLocalToWorld, out bool ownsMesh))
+            if (!TryGetWorldVertices(targetRenderer, out Vector3[] worldVertices))
                 return Array.Empty<ClearanceQueryResult>();
+            return QueryPoints(referenceRenderer, worldVertices, Matrix4x4.identity, signMode);
+        }
+
+        internal static bool TryGetWorldVertices(Renderer renderer, out Vector3[] worldVertices)
+        {
+            worldVertices = Array.Empty<Vector3>();
+            if (!TryCaptureMesh(renderer, out Mesh mesh, out Matrix4x4 localToWorld, out bool ownsMesh))
+                return false;
             try
             {
                 Vector3[] vertices;
                 try
                 {
-                    vertices = targetMesh.vertices;
+                    vertices = mesh.vertices;
                 }
                 catch (Exception)
                 {
-                    return Array.Empty<ClearanceQueryResult>();
+                    return false;
                 }
-                return QueryPoints(referenceRenderer, vertices, targetLocalToWorld, signMode);
+
+                worldVertices = new Vector3[vertices.Length];
+                for (int i = 0; i < vertices.Length; i++)
+                    worldVertices[i] = localToWorld.MultiplyPoint3x4(vertices[i]);
+                return true;
             }
             finally
             {
-                if (ownsMesh && targetMesh != null) UnityEngine.Object.DestroyImmediate(targetMesh);
+                if (ownsMesh && mesh != null) UnityEngine.Object.DestroyImmediate(mesh);
             }
         }
 

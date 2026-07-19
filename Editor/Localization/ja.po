@@ -649,6 +649,85 @@ msgstr "ドットサイズ"
 msgid "net.32ba.lattice-deformation-tool.localization.dot-size.tooltip"
 msgstr "頂点インジケーターのドット表示サイズを調整します。"
 
+# Clearance Heatmap
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-heatmap"
+msgstr "クリアランスヒートマップ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-clearance-heatmap"
+msgstr "クリアランスヒートマップを表示"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-reference-renderer"
+msgstr "参照Renderer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-query-mode"
+msgstr "Queryモード"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-display-mode"
+msgstr "表示モード"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-warning-threshold-mm"
+msgstr "警告しきい値 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-distance-mm"
+msgstr "目標クリアランス (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-display-stride"
+msgstr "表示間引き"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-update-interval"
+msgstr "更新間隔 (秒)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-minimum"
+msgstr "最小クリアランス"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-maximum-penetration"
+msgstr "最大貫通深度"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-violation-vertices"
+msgstr "違反頂点数"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-evaluated-vertices"
+msgstr "評価済み頂点数"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-actual-query-mode"
+msgstr "実際のQueryモード"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-reference-normal"
+msgstr "参照法線基準"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-closed-mesh"
+msgstr "閉メッシュ内外判定"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-penetration-only"
+msgstr "貫通のみ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-include-warning"
+msgstr "警告範囲を含む"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-full-distribution"
+msgstr "全体分布"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-evaluation-target"
+msgstr "評価対象"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-preview"
+msgstr "NDMF Previewメッシュ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-rendered"
+msgstr "通常表示メッシュ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-invalid-reference"
+msgstr "参照Rendererが未設定、無効、または有効な三角形を持っていません。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-invalid-target"
+msgstr "評価対象が未設定、無効、または読み取り可能な頂点を持っていません。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-sign-fallback"
+msgstr "参照が開いたメッシュのため、参照法線基準のクリアランスへフォールバックしました。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-result-age"
+msgstr "結果の経過時間"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "頂点ツール"
