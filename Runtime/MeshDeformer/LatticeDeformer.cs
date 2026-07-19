@@ -21,6 +21,13 @@ namespace Net._32Ba.LatticeDeformationTool
         OutputAsBlendShape = 1
     }
 
+    public enum BlendShapeCompositionMode
+    {
+        Single = 0,
+        Progressive = 1,
+        Crossfade = 2
+    }
+
     /// <summary>
     /// Published deformation-data schemas in release order. Every value is retained in
     /// the migration dispatcher even when that release did not change serialized data,
@@ -368,6 +375,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private BlendShapeOutputMode _blendShapeOutput = BlendShapeOutputMode.Disabled;
         [SerializeField] private string _blendShapeName = "";
         [SerializeField] private AnimationCurve _blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+        [SerializeField] private BlendShapeCompositionMode _blendShapeComposition = BlendShapeCompositionMode.Single;
 
         public string Name
         {
@@ -399,8 +407,11 @@ namespace Net._32Ba.LatticeDeformationTool
         internal void SetSerializedActiveLayerIndex(int value) => _activeLayerIndex = value;
 
         internal bool HasMalformedSerializedMetadata =>
-            _blendShapeOutput != BlendShapeOutputMode.Disabled &&
-            _blendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape;
+            (_blendShapeOutput != BlendShapeOutputMode.Disabled &&
+             _blendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape) ||
+            (_blendShapeComposition != BlendShapeCompositionMode.Single &&
+             _blendShapeComposition != BlendShapeCompositionMode.Progressive &&
+             _blendShapeComposition != BlendShapeCompositionMode.Crossfade);
 
         public int ActiveLayerIndex
         {
@@ -432,6 +443,12 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             get => _blendShapeCurve ?? (_blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f));
             set => _blendShapeCurve = value ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
+        }
+
+        public BlendShapeCompositionMode BlendShapeComposition
+        {
+            get => _blendShapeComposition;
+            set => _blendShapeComposition = value;
         }
 
         public string EffectiveBlendShapeName(string fallback)
@@ -540,13 +557,24 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             public readonly string Name;
             public readonly AnimationCurve Curve;
-            public readonly Vector3[] Deltas;
+            public readonly BlendShapeCompositionMode Composition;
+            public readonly Vector3[][] Candidates;
 
             public GeneratedBlendShape(string name, AnimationCurve curve, Vector3[] deltas)
+                : this(name, curve, BlendShapeCompositionMode.Single, new[] { deltas })
+            {
+            }
+
+            public GeneratedBlendShape(
+                string name,
+                AnimationCurve curve,
+                BlendShapeCompositionMode composition,
+                Vector3[][] candidates)
             {
                 Name = name;
                 Curve = curve ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
-                Deltas = deltas;
+                Composition = composition;
+                Candidates = candidates;
             }
         }
 
@@ -809,6 +837,20 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 var group = ActiveGroup;
                 if (group != null) group.BlendShapeCurve = value ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
+            }
+        }
+
+        public BlendShapeCompositionMode BlendShapeComposition
+        {
+            get
+            {
+                var group = ActiveGroup;
+                return group?.BlendShapeComposition ?? BlendShapeCompositionMode.Single;
+            }
+            set
+            {
+                var group = ActiveGroup;
+                if (group != null) group.BlendShapeComposition = value;
             }
         }
 
@@ -1370,6 +1412,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 hash = HashCode.Combine(hash, (group.Name ?? "").GetHashCode());
                 hash = HashCode.Combine(hash, group.Enabled);
                 hash = HashCode.Combine(hash, (int)group.BlendShapeOutput);
+                hash = HashCode.Combine(hash, (int)group.BlendShapeComposition);
                 hash = HashCode.Combine(hash, (group.BlendShapeName ?? "").GetHashCode());
                 hash = HashCode.Combine(hash, HashCurveState(group.BlendShapeCurve));
 
@@ -1628,6 +1671,10 @@ namespace Net._32Ba.LatticeDeformationTool
 
                 var groupVertices = (Vector3[])sourceVertices.Clone();
                 var layers = group.LayersList;
+                bool stagedGroupOutput =
+                    group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape &&
+                    group.BlendShapeComposition != BlendShapeCompositionMode.Single;
+                var stageCandidates = stagedGroupOutput ? new List<Vector3[]>() : null;
 
                 for (int i = 0; i < layers.Count; i++)
                 {
@@ -1650,12 +1697,33 @@ namespace Net._32Ba.LatticeDeformationTool
                         continue;
                     }
 
-                    TryApplyLayerContribution(layer, sourceVertices, groupVertices);
+                    if (stagedGroupOutput)
+                    {
+                        var layerVertices = (Vector3[])sourceVertices.Clone();
+                        TryApplyLayerContribution(layer, sourceVertices, layerVertices);
+                        if (TryBuildDeltas(sourceVertices, layerVertices, out var stageDeltas))
+                        {
+                            stageCandidates.Add(stageDeltas);
+                        }
+                    }
+                    else
+                    {
+                        TryApplyLayerContribution(layer, sourceVertices, groupVertices);
+                    }
                 }
 
                 if (group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
                 {
-                    if (TryBuildDeltas(sourceVertices, groupVertices, out var groupDeltas))
+                    if (stagedGroupOutput && stageCandidates.Count > 0)
+                    {
+                        generatedBlendShapes.Add(new GeneratedBlendShape(
+                            group.EffectiveBlendShapeName(gameObject.name),
+                            group.BlendShapeCurve,
+                            group.BlendShapeComposition,
+                            stageCandidates.ToArray()));
+                    }
+                    else if (!stagedGroupOutput &&
+                             TryBuildDeltas(sourceVertices, groupVertices, out var groupDeltas))
                     {
                         generatedBlendShapes.Add(new GeneratedBlendShape(
                             group.EffectiveBlendShapeName(gameObject.name),
@@ -1697,7 +1765,7 @@ namespace Net._32Ba.LatticeDeformationTool
                     foreach (var generated in generatedBlendShapes)
                     {
                         string shapeName = MakeUniqueBlendShapeName(generated.Name, usedNames);
-                        AddGeneratedBlendShapeFrames(mesh, shapeName, finalVertices, generated.Deltas, generated.Curve);
+                        AddGeneratedBlendShapeFrames(mesh, shapeName, finalVertices, generated);
                     }
                     _blendShapeOutputDirty = false;
                     UnityEngine.Profiling.Profiler.EndSample();
@@ -2950,16 +3018,26 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 hash = hash * 31 + (generated.Name ?? "").GetHashCode();
                 hash = hash * 31 + HashCurveState(generated.Curve);
+                hash = hash * 31 + (int)generated.Composition;
 
-                var deltas = generated.Deltas;
-                if (deltas == null)
+                var candidates = generated.Candidates;
+                if (candidates == null)
                 {
                     hash = hash * 31;
                     continue;
                 }
 
-                for (int v = 0; v < deltas.Length; v++)
-                    hash = hash * 31 + deltas[v].GetHashCode();
+                hash = hash * 31 + candidates.Length;
+                foreach (var deltas in candidates)
+                {
+                    if (deltas == null)
+                    {
+                        hash = hash * 31;
+                        continue;
+                    }
+                    for (int v = 0; v < deltas.Length; v++)
+                        hash = hash * 31 + deltas[v].GetHashCode();
+                }
             }
             return hash;
         }
@@ -2968,35 +3046,48 @@ namespace Net._32Ba.LatticeDeformationTool
             Mesh mesh,
             string shapeName,
             Vector3[] baseVertices,
-            Vector3[] deltas,
-            AnimationCurve curve)
+            GeneratedBlendShape generated)
         {
-            if (mesh == null || string.IsNullOrEmpty(shapeName) || baseVertices == null || deltas == null)
+            var candidates = generated.Candidates;
+            if (mesh == null || string.IsNullOrEmpty(shapeName) || baseVertices == null ||
+                candidates == null || candidates.Length == 0)
             {
                 return;
             }
 
             int vertexCount = mesh.vertexCount;
-            if (baseVertices.Length != vertexCount || deltas.Length != vertexCount)
+            if (baseVertices.Length != vertexCount)
             {
                 return;
             }
+            for (int candidate = 0; candidate < candidates.Length; candidate++)
+            {
+                if (candidates[candidate] == null || candidates[candidate].Length != vertexCount)
+                    return;
+            }
 
-            curve ??= AnimationCurve.Linear(0f, 0f, 1f, 1f);
+            var curve = generated.Curve ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
 
-            Vector3[] fullDeltaNormals = null;
-            Vector3[] fullDeltaTangents = null;
+            Vector3[][] candidateDeltaNormals = null;
+            Vector3[][] candidateDeltaTangents = null;
             if (!_legacyPublishedBlendShapeSemantics &&
                 (_recalculateNormals || _recalculateTangents))
             {
-                CalculateGeneratedSurfaceDeltas(
-                    mesh,
-                    baseVertices,
-                    deltas,
-                    _recalculateNormals,
-                    _recalculateTangents,
-                    out fullDeltaNormals,
-                    out fullDeltaTangents);
+                candidateDeltaNormals = _recalculateNormals ? new Vector3[candidates.Length][] : null;
+                candidateDeltaTangents = _recalculateTangents ? new Vector3[candidates.Length][] : null;
+                for (int candidate = 0; candidate < candidates.Length; candidate++)
+                {
+                    CalculateGeneratedSurfaceDeltas(
+                        mesh,
+                        baseVertices,
+                        candidates[candidate],
+                        _recalculateNormals,
+                        _recalculateTangents,
+                        out var normals,
+                        out var tangents);
+                    if (candidateDeltaNormals != null) candidateDeltaNormals[candidate] = normals;
+                    if (candidateDeltaTangents != null) candidateDeltaTangents[candidate] = tangents;
+                }
             }
 
             const int sampleCount = 100;
@@ -3005,27 +3096,89 @@ namespace Net._32Ba.LatticeDeformationTool
                 float t = (f + 1f) / sampleCount;
                 float frameWeight = t * 100f;
                 float curveValue = curve.Evaluate(t);
-
-                var frameDeltas = new Vector3[vertexCount];
-                Vector3[] frameNormals = fullDeltaNormals != null ? new Vector3[vertexCount] : null;
-                Vector3[] frameTangents = fullDeltaTangents != null ? new Vector3[vertexCount] : null;
-
-                for (int v = 0; v < vertexCount; v++)
+                if (generated.Composition != BlendShapeCompositionMode.Single)
                 {
-                    frameDeltas[v] = deltas[v] * curveValue;
-                    if (frameNormals != null)
-                    {
-                        frameNormals[v] = fullDeltaNormals[v] * curveValue;
-                    }
-
-                    if (frameTangents != null)
-                    {
-                        frameTangents[v] = fullDeltaTangents[v] * curveValue;
-                    }
+                    curveValue = Mathf.Clamp01(curveValue);
                 }
+
+                var frameDeltas = ComposeBlendShapeCandidates(
+                    candidates, generated.Composition, curveValue, vertexCount);
+                var frameNormals = candidateDeltaNormals != null
+                    ? ComposeBlendShapeCandidates(
+                        candidateDeltaNormals, generated.Composition, curveValue, vertexCount)
+                    : null;
+                var frameTangents = candidateDeltaTangents != null
+                    ? ComposeBlendShapeCandidates(
+                        candidateDeltaTangents, generated.Composition, curveValue, vertexCount)
+                    : null;
 
                 mesh.AddBlendShapeFrame(shapeName, frameWeight, frameDeltas, frameNormals, frameTangents);
             }
+        }
+
+        private static Vector3[] ComposeBlendShapeCandidates(
+            Vector3[][] candidates,
+            BlendShapeCompositionMode composition,
+            float normalizedProgress,
+            int vertexCount)
+        {
+            var result = new Vector3[vertexCount];
+            if (candidates == null || candidates.Length == 0) return result;
+
+            if (composition == BlendShapeCompositionMode.Single || candidates.Length == 1)
+            {
+                float scale = normalizedProgress;
+                var candidate = candidates[0];
+                if (candidate == null || candidate.Length != vertexCount) return result;
+                for (int vertex = 0; vertex < vertexCount; vertex++)
+                    result[vertex] = candidate[vertex] * scale;
+                return result;
+            }
+
+            normalizedProgress = Mathf.Clamp01(normalizedProgress);
+            float stageProgress = normalizedProgress * candidates.Length;
+            if (composition == BlendShapeCompositionMode.Progressive)
+            {
+                int completedStages = Mathf.Min(Mathf.FloorToInt(stageProgress), candidates.Length);
+                for (int stage = 0; stage < completedStages; stage++)
+                {
+                    var candidate = candidates[stage];
+                    if (candidate == null || candidate.Length != vertexCount) continue;
+                    for (int vertex = 0; vertex < vertexCount; vertex++)
+                        result[vertex] += candidate[vertex];
+                }
+
+                if (completedStages < candidates.Length)
+                {
+                    float fraction = stageProgress - completedStages;
+                    var candidate = candidates[completedStages];
+                    if (candidate == null || candidate.Length != vertexCount) return result;
+                    for (int vertex = 0; vertex < vertexCount; vertex++)
+                        result[vertex] += candidate[vertex] * fraction;
+                }
+                return result;
+            }
+
+            if (stageProgress <= 1f)
+            {
+                var first = candidates[0];
+                if (first == null || first.Length != vertexCount) return result;
+                for (int vertex = 0; vertex < vertexCount; vertex++)
+                    result[vertex] = first[vertex] * stageProgress;
+                return result;
+            }
+
+            int lower = Mathf.Min(Mathf.FloorToInt(stageProgress) - 1, candidates.Length - 1);
+            int upper = Mathf.Min(lower + 1, candidates.Length - 1);
+            float blend = upper == lower ? 0f : stageProgress - Mathf.Floor(stageProgress);
+            if (candidates[lower] == null || candidates[upper] == null ||
+                candidates[lower].Length != vertexCount || candidates[upper].Length != vertexCount)
+            {
+                return result;
+            }
+            for (int vertex = 0; vertex < vertexCount; vertex++)
+                result[vertex] = Vector3.LerpUnclamped(candidates[lower][vertex], candidates[upper][vertex], blend);
+            return result;
         }
 
         private static void CalculateGeneratedSurfaceDeltas(

@@ -121,9 +121,11 @@ DeformerGroup [Serializable]
 - `OutputAsBlendShape`: グループ内レイヤーの合成変形を1つの BlendShape として出力。頂点はソース位置のまま保持
 - `BlendShapeName`: 出力名（有効化時に空なら `gameObject.name` で自動補完）
 - `BlendShapeCurve` (`AnimationCurve`): BlendShape の補間カーブ。常に100フレームをカーブからサンプリング
+- `BlendShapeComposition` は既存互換の `Single` に加えて `Progressive` / `Crossfade` を選択できる。ProgressiveはGroup内の有効Layer差分を順に累積し、Crossfadeは隣接Layer状態だけを補間する。いずれも100フレーム上で `BlendShapeCurve` をstage進行として評価する
 - Inspector UI の「BlendShape Output」独立 Foldout セクション内に配置。テストモードで SkinnedMeshRenderer 上の重みをプレビュー可能
 - NDMF ビルドパイプラインは `Object.Instantiate()` で BlendShape データを保持
 - レイヤー単位でも `BlendShapeOutput` / `BlendShapeName` / `BlendShapeCurve` を設定可能。レイヤー出力を有効にしたレイヤーはグループ合成から除外され、個別 BlendShape として出力される
+- Progressive / Crossfadeの候補にはGroup合成へ参加するLayerだけを使い、個別BlendShape出力Layerは候補からも除外する。出力無効Groupではcomposition設定にかかわらず従来どおり直接加算する
 - 生成 BlendShape には、メッシュ再計算オプションに応じて法線/タンジェントデルタも付与される
 - 公開 `1.2.1`〜`1.4.0` はレイヤーの出力mode/nameを保存していたが、実際の `Deform` はレイヤーを分離せずグループ出力だけを生成し、生成shapeの法線/タンジェントdeltaも書かなかった。出力設定が有効な旧assetは `_legacyPublishedBlendShapeSemantics` を保持してこの実挙動を再現し、この互換flagを持たないassetだけが上記の現行レイヤー出力を使う
 

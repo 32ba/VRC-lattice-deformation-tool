@@ -1062,3 +1062,15 @@ msgstr "当前: {0}  最新: {1}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
 msgstr "打开 BOOTH 商品页面"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition"
+msgstr "帧合成"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-single"
+msgstr "单一"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-progressive"
+msgstr "逐步累积"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade"
+msgstr "交叉淡化"

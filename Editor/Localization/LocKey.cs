@@ -175,6 +175,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         // BlendShape
         internal const string BlendShapeOutput = "net.32ba.lattice-deformation-tool.localization.blendshape-output";
+        internal const string BlendShapeComposition = "net.32ba.lattice-deformation-tool.localization.blendshape-composition";
+        internal const string BlendShapeCompositionSingle = "net.32ba.lattice-deformation-tool.localization.blendshape-composition-single";
+        internal const string BlendShapeCompositionProgressive = "net.32ba.lattice-deformation-tool.localization.blendshape-composition-progressive";
+        internal const string BlendShapeCompositionCrossfade = "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade";
         internal const string BlendShapeName = "net.32ba.lattice-deformation-tool.localization.blendshape-name";
         internal const string Curve = "net.32ba.lattice-deformation-tool.localization.curve";
         internal const string EnterTestMode = "net.32ba.lattice-deformation-tool.localization.enter-test-mode";
