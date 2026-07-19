@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -23,20 +24,29 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_scanLoadedScenes;
         private static bool s_scanProjectPrefabs;
         private static bool s_scheduled;
+        private static bool s_allowBatchExecution;
+        private static bool s_hooksSubscribed;
 
         static LegacyBrushDeformerAutoMigration()
         {
+            SubscribeHooks();
             if (Application.isBatchMode) return;
 
-            EditorApplication.hierarchyChanged += QueueLoadedSceneScan;
-            EditorSceneManager.sceneOpened += OnSceneOpened;
-            PrefabStage.prefabStageOpened += OnPrefabStageOpened;
             QueueLoadedSceneScan();
             QueueProjectPrefabScan();
         }
 
+        internal static IDisposable EnableEventExecutionForTests()
+        {
+            SubscribeHooks();
+            ClearPendingState();
+            s_allowBatchExecution = true;
+            return new TestExecutionScope();
+        }
+
         internal static void QueueImportedPrefabs(IEnumerable<string> paths)
         {
+            if (Application.isBatchMode && !s_allowBatchExecution) return;
             if (paths == null) return;
             foreach (string path in paths)
             {
@@ -50,12 +60,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             out int migratedCount,
             out string error)
         {
-            return TryMigrateScene(scene, allowPreviewScene: false, out migratedCount, out error);
+            return TryMigrateScene(
+                scene,
+                allowPreviewScene: false,
+                editAssetPath: null,
+                out migratedCount,
+                out error);
         }
 
         private static bool TryMigrateScene(
             Scene scene,
             bool allowPreviewScene,
+            string editAssetPath,
             out int migratedCount,
             out string error)
         {
@@ -67,11 +83,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 error = "The Scene is not loaded or cannot be edited safely.";
                 return false;
             }
-            if (!IsAssetEditable(scene.path))
-            {
-                error = $"The Scene is read-only: {scene.path}";
-                return false;
-            }
 
             var candidates = scene.GetRootGameObjects()
                 .SelectMany(root => root.GetComponentsInChildren<BrushDeformer>(true))
@@ -79,6 +90,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 .Distinct()
                 .ToArray();
             if (candidates.Length == 0) return true;
+
+            string path = string.IsNullOrEmpty(editAssetPath) ? scene.path : editAssetPath;
+            if (!IsAssetEditable(path))
+            {
+                error = $"The Scene or Prefab is read-only: {path}";
+                return false;
+            }
 
             if (!BrushDeformerEditor.TryMigrateAll(candidates, out error)) return false;
             migratedCount = candidates.Length;
@@ -154,12 +172,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static void QueueLoadedSceneScan()
         {
+            if (Application.isBatchMode && !s_allowBatchExecution) return;
             s_scanLoadedScenes = true;
             Schedule();
         }
 
         private static void QueueProjectPrefabScan()
         {
+            if (Application.isBatchMode && !s_allowBatchExecution) return;
             s_scanProjectPrefabs = true;
             Schedule();
         }
@@ -193,19 +213,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static void QueuePrefab(string path)
         {
-            if (!IsEditablePrefabPath(path) || !s_queuedPrefabs.Add(path)) return;
+            if (!IsCandidatePrefabPath(path) || !s_queuedPrefabs.Add(path)) return;
             s_prefabQueue.Enqueue(path);
         }
 
         private static void Schedule()
         {
-            if (Application.isBatchMode || s_scheduled) return;
+            if ((Application.isBatchMode && !s_allowBatchExecution) || s_scheduled) return;
             s_scheduled = true;
             EditorApplication.delayCall += RunPending;
+            EditorApplication.update += RunPending;
         }
 
         private static void RunPending()
         {
+            EditorApplication.delayCall -= RunPending;
+            EditorApplication.update -= RunPending;
             s_scheduled = false;
             if (EditorApplication.isPlayingOrWillChangePlaymode ||
                 EditorApplication.isCompiling ||
@@ -235,18 +258,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 PrefabStage prefabStage = PrefabStageUtility.GetCurrentPrefabStage();
                 if (prefabStage != null)
                 {
-                    if (!IsAssetEditable(prefabStage.assetPath))
-                    {
-                        ReportFailure(
-                            $"prefab-stage:{prefabStage.assetPath}:read-only",
-                            $"The Prefab is read-only: {prefabStage.assetPath}",
-                            prefabStage.prefabContentsRoot);
-                    }
-                    else if (!TryMigrateScene(
-                                 prefabStage.scene,
-                                 allowPreviewScene: true,
-                                 out int stageMigrated,
-                                 out string stageError))
+                    if (!TryMigrateScene(
+                            prefabStage.scene,
+                            allowPreviewScene: true,
+                            editAssetPath: prefabStage.assetPath,
+                            out int stageMigrated,
+                            out string stageError))
                     {
                         ReportFailure(
                             $"prefab-stage:{prefabStage.assetPath}:{stageError}",
@@ -290,17 +307,55 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static bool IsEditablePrefabPath(string path)
         {
+            return IsCandidatePrefabPath(path) && IsAssetEditable(path);
+        }
+
+        private static bool IsCandidatePrefabPath(string path)
+        {
             return !string.IsNullOrEmpty(path) &&
                    path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase) &&
-                   (path.Equals("Assets", StringComparison.OrdinalIgnoreCase) ||
-                    path.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase)) &&
-                   IsAssetEditable(path);
+                   path.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsAssetEditable(string path)
         {
-            return string.IsNullOrEmpty(path) ||
-                   AssetDatabase.IsOpenForEdit(path, StatusQueryOptions.UseCachedIfPossible);
+            if (string.IsNullOrEmpty(path)) return true;
+            if (!path.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase)) return false;
+            if (!AssetDatabase.IsOpenForEdit(path, StatusQueryOptions.UseCachedIfPossible)) return false;
+
+            string fullPath = Path.GetFullPath(path);
+            return !File.Exists(fullPath) ||
+                   (File.GetAttributes(fullPath) & FileAttributes.ReadOnly) == 0;
+        }
+
+        private static void SubscribeHooks()
+        {
+            if (s_hooksSubscribed) return;
+            s_hooksSubscribed = true;
+            EditorApplication.hierarchyChanged += QueueLoadedSceneScan;
+            EditorSceneManager.sceneOpened += OnSceneOpened;
+            PrefabStage.prefabStageOpened += OnPrefabStageOpened;
+        }
+
+        private static void ClearPendingState()
+        {
+            EditorApplication.delayCall -= RunPending;
+            EditorApplication.update -= RunPending;
+            s_prefabQueue.Clear();
+            s_queuedPrefabs.Clear();
+            s_reportedFailures.Clear();
+            s_scanLoadedScenes = false;
+            s_scanProjectPrefabs = false;
+            s_scheduled = false;
+        }
+
+        private sealed class TestExecutionScope : IDisposable
+        {
+            public void Dispose()
+            {
+                ClearPendingState();
+                s_allowBatchExecution = false;
+            }
         }
     }
 
