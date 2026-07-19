@@ -668,6 +668,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return results;
         }
 
+        internal static bool TryGetRendererStateHash(Renderer renderer, out int stateHash)
+        {
+            stateHash = 0;
+            if (!TryCaptureMesh(renderer, out Mesh mesh, out Matrix4x4 localToWorld, out bool ownsMesh))
+                return false;
+            try
+            {
+                return TryComputeStateHash(mesh, localToWorld, out stateHash);
+            }
+            finally
+            {
+                if (ownsMesh && mesh != null) UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
         internal static ClearanceQueryResult[] QueryRenderer(
             Renderer targetRenderer,
             Renderer referenceRenderer,

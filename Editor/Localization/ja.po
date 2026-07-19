@@ -728,6 +728,134 @@ msgstr "参照が開いたメッシュのため、参照法線基準のクリア
 msgid "net.32ba.lattice-deformation-tool.localization.clearance-result-age"
 msgstr "結果の経過時間"
 
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan"
+msgstr "クリアランスScan"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-set"
+msgstr "Scan Set"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-avatar-root"
+msgstr "Avatar Root"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-run"
+msgstr "クリアランスScanを実行"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-cancel"
+msgstr "Scanをキャンセル"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-progress-format"
+msgstr "{0}/{1}  {2}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-summary-format"
+msgstr "成功: {0}/{1}、最悪Condition index: {2}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-apply-condition"
+msgstr "ConditionをSceneへ適用"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-restore-scene"
+msgstr "Scene状態を復元"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-success-format"
+msgstr "{0}: 最小 {1:0.###} mm、違反 {2}、対象 {3}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-error-format"
+msgstr "{0}: エラー - {1}"
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction"
+msgstr "フィット補正"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-scope"
+msgstr "補正対象"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-penetration-only"
+msgstr "貫通頂点のみ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-warning-threshold"
+msgstr "警告しきい値以下"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-target-clearance"
+msgstr "目標クリアランス未満"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-move-mm"
+msgstr "最大移動距離 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-candidate-vertices"
+msgstr "補正対象頂点数"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-planned-move"
+msgstr "最大予定移動量"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-unresolved-estimate"
+msgstr "未解決見込み頂点数"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-fit-correction-layer"
+msgstr "Fit Correctionレイヤーを作成"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-posed-skinned-blocked"
+msgstr "SkinnedMeshがポーズ中、またはBlendShape適用中のため補正を生成できません。rest poseへ戻してください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-stale"
+msgstr "クリアランス評価が古いため、再評価後に補正を生成してください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-topology-mismatch"
+msgstr "評価メッシュのTopologyがSource Meshと一致しません。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-no-candidates"
+msgstr "選択した補正対象に該当する頂点はありません。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format"
+msgstr "補正を作成しました。改善: {0}、未解決: {1}。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-constraints"
+msgstr "形状保護制約"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-vertex-mask"
+msgstr "アクティブレイヤーのMaskを使用"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-pin-open-boundaries"
+msgstr "開いた境界を固定"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-isolate-components"
+msgstr "接続成分を分離"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smooth-surface"
+msgstr "表面に沿って平滑化"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-iterations"
+msgstr "平滑化回数"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-strength"
+msgstr "平滑化強度"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preserve-clearance"
+msgstr "解消済みクリアランスを維持"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-symmetry"
+msgstr "対称補正を使用"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-axis"
+msgstr "対称軸"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-tolerance-mm"
+msgstr "対称許容距離 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preview"
+msgstr "補正予定をプレビュー"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report"
+msgstr "クリアランスQAレポート"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-current"
+msgstr "現在の結果を出力 (JSON + Markdown)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-scan"
+msgstr "Scan結果を出力 (JSON + Markdown)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-success"
+msgstr "JSONとMarkdownレポートを保存しました。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-failure"
+msgstr "レポートを保存できませんでした: {0}"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "頂点ツール"
@@ -1026,6 +1154,12 @@ msgstr "BlendShape のインポート"
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape.tooltip"
 msgstr "既存のShapeKeyをペイントレイヤーとして読み込み編集します。"
 
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-single-frame"
+msgstr "単一フレーム"
+
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-all-frames"
+msgstr "全フレーム"
+
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
 msgstr "(NDMF) Disable Lattice Preview"
@@ -1057,6 +1191,9 @@ msgstr "オフセット"
 
 msgid "net.32ba.lattice-deformation-tool.localization.offset.tooltip"
 msgstr "ケージの表示位置を微調整（表示のみ、変形には影響なし）。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.offset-tooltip"
+msgstr "自動センタリングとクランプの前にプロキシのローカル空間へ直接適用するオフセット"
 
 msgid "net.32ba.lattice-deformation-tool.localization.debug-log-alignment"
 msgstr "(Debug) プレビューアラインをコンソールにログ出力"
@@ -1108,6 +1245,30 @@ msgstr "ブラシ変形"
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr "ブラシベースの頂点変形設定セクションです。"
 
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning"
+msgstr "この旧コンポーネントは現在の NDMF パイプラインでは処理されません。編集を続ける前に、変形データを Mesh Deformer へ移行してください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning.tooltip"
+msgstr "移行後も元のコンポーネントは無効化されたバックアップとして保持されます。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush"
+msgstr "Mesh Deformer へ移行"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush.tooltip"
+msgstr "すべての変位とメッシュ再構築設定を Mesh Deformer のブラシレイヤーへコピーし、この旧コンポーネントを無効化します。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded"
+msgstr "移行が完了しました。旧コンポーネントは無効化され、バックアップとして保持されています。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded.tooltip"
+msgstr "移行先の Mesh Deformer に旧ブラシ変形データが保存されています。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed"
+msgstr "移行に失敗しました: {0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed.tooltip"
+msgstr "検証に失敗した場合、永続的な移行変更は保持されません。"
+
 # Update notification
 msgid "net.32ba.lattice-deformation-tool.localization.update-available"
 msgstr "新しいバージョンがあります"
@@ -1118,6 +1279,22 @@ msgstr "現在: {0}  最新: {1}"
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
 msgstr "BOOTH 商品ページを開く"
 
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition"
+msgstr "フレーム合成"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-single"
+msgstr "単一"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-progressive"
+msgstr "段階累積"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade"
+msgstr "クロスフェード"
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
+msgstr "MoveをRest Spaceで保存"
+
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
+msgstr "ポーズ中のSkinned Mesh上で行ったMove編集を、再利用可能なrest-space変位へ戻します。Skinningデータが不正な場合は従来のlocal-space動作へ安全にフォールバックします。"
 # Deformer Profile
 msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
 msgstr "変形Profile"
@@ -1157,11 +1334,7 @@ msgstr "Topology不一致: ソースMeshと互換性がないため、このProf
 
 msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
 msgstr "旧形式Profile: 互換性メタデータがありません。注意付きで適用できます。再保存するとメタデータが追加されます。"
-msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
-msgstr "MoveをRest Spaceで保存"
 
-msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
-msgstr "ポーズ中のSkinned Mesh上で行ったMove編集を、再利用可能なrest-space変位へ戻します。Skinningデータが不正な場合は従来のlocal-space動作へ安全にフォールバックします。"
 msgid "net.32ba.lattice-deformation-tool.localization.validation"
 msgstr "検証"
 

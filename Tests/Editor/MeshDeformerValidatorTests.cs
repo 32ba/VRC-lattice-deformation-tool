@@ -2,10 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using nadena.dev.ndmf;
+using nadena.dev.ndmf.preview;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
@@ -30,6 +33,31 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void NonReadableSourceMesh_TopologyValidationDoesNotUseReadableOnlyApis()
+        {
+            var gameObject = new GameObject("Non-readable Source");
+            var mesh = CreateMesh("Non-readable Mesh");
+            mesh.UploadMeshData(true);
+            try
+            {
+                gameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+                gameObject.AddComponent<MeshRenderer>();
+                var deformer = gameObject.AddComponent<LatticeDeformer>();
+
+                Assert.DoesNotThrow(deformer.Reset);
+                IReadOnlyList<MeshDeformerDiagnostic> diagnostics = null;
+                Assert.DoesNotThrow(() => diagnostics = MeshDeformerValidator.Validate(deformer));
+                Assert.That(diagnostics.Any(d => d.Code == MeshDeformerValidator.SourceMeshChanged),
+                    Is.False);
+            }
+            finally
+            {
+                Object.DestroyImmediate(gameObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
         public void InspectorPreviewAndBake_ReturnSameCodesForSameTarget()
         {
             using var fixture = CreateFixture("Shared Context");
@@ -42,6 +70,68 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(preview, Is.EqualTo(inspector));
             Assert.That(bake, Is.EqualTo(inspector));
             Assert.That(inspector, Does.Contain(MeshDeformerValidator.BrushLengthMismatch));
+        }
+
+        [Test]
+        public void NdmfPreviewInstantiate_ErrorReturnsNoNodeAndDoesNotMutateProxy()
+        {
+            using var fixture = CreateFixture("NDMF Preview E2E");
+            CorruptBrushLength(fixture.Deformer, 1);
+            var proxyObject = new GameObject("NDMF Preview Proxy");
+            Mesh proxyMesh = Object.Instantiate(fixture.Mesh);
+            try
+            {
+                proxyObject.AddComponent<MeshFilter>().sharedMesh = proxyMesh;
+                var proxyRenderer = proxyObject.AddComponent<MeshRenderer>();
+                var filter = new LatticeDeformerPreviewFilter();
+                bool previousIgnore = LogAssert.ignoreFailingMessages;
+                IRenderFilterNode node;
+                try
+                {
+                    LogAssert.ignoreFailingMessages = true;
+                    node = filter.Instantiate(
+                            default,
+                            new[] { ((Renderer)fixture.Renderer, (Renderer)proxyRenderer) },
+                            null)
+                        .GetAwaiter().GetResult();
+                }
+                finally
+                {
+                    LogAssert.ignoreFailingMessages = previousIgnore;
+                }
+
+                Assert.That(node, Is.Null);
+                Assert.That(proxyRenderer.GetComponent<MeshFilter>().sharedMesh, Is.SameAs(proxyMesh));
+            }
+            finally
+            {
+                Object.DestroyImmediate(proxyObject);
+                Object.DestroyImmediate(proxyMesh);
+            }
+        }
+
+        [Test]
+        public void NdmfAvatarProcessor_ErrorStopsBakeBeforeMeshReplacement()
+        {
+            using var fixture = CreateFixture("NDMF Bake E2E");
+            CorruptBrushLength(fixture.Deformer, 1);
+            Mesh source = fixture.Filter.sharedMesh;
+            bool previousIgnore = LogAssert.ignoreFailingMessages;
+            try
+            {
+                LogAssert.ignoreFailingMessages = true;
+
+                BuildContext context = AvatarProcessor.ProcessAvatar(
+                    fixture.GameObject,
+                    nadena.dev.ndmf.platform.AmbientPlatform.CurrentPlatform);
+                Assert.That(context.Successful, Is.False);
+                Assert.That(fixture.Filter.sharedMesh, Is.SameAs(source));
+                Assert.That(fixture.GameObject.GetComponent<LatticeDeformer>(), Is.SameAs(fixture.Deformer));
+            }
+            finally
+            {
+                LogAssert.ignoreFailingMessages = previousIgnore;
+            }
         }
 
         [Test]
@@ -130,6 +220,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         public void InvalidLatticeGridControlPointsAndBounds_AreReported()
         {
             using var fixture = CreateFixture("Invalid Lattice");
+            var lattice = fixture.Deformer.Groups[0].Layers[0].Settings;
             var serialized = new SerializedObject(fixture.Deformer);
             var settings = serialized.FindProperty("_groups").GetArrayElementAtIndex(0)
                 .FindPropertyRelative("_layers").GetArrayElementAtIndex(0)
@@ -138,7 +229,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             settings.FindPropertyRelative("_controlPointsLocal").arraySize = 2;
             settings.FindPropertyRelative("_localBounds").boundsValue = new Bounds(Vector3.zero, Vector3.zero);
             serialized.ApplyModifiedPropertiesWithoutUndo();
-            var lattice = fixture.Deformer.Groups[0].Layers[0].Settings;
             typeof(LatticeAsset).GetField("_controlPointsLocal", BindingFlags.Instance | BindingFlags.NonPublic)
                 ?.SetValue(lattice, new Vector3[2]);
 
@@ -190,12 +280,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         public void DisabledComponentGroupAndLayer_DoNotProduceFatalDataErrors()
         {
             using var fixture = CreateFixture("Disabled");
+            DeformerGroup group = fixture.Deformer.Groups[0];
             int layer = CorruptBrushLength(fixture.Deformer, 1);
-            fixture.Deformer.Groups[0].Layers[layer].Enabled = false;
+            LatticeLayer corruptedLayer = group.Layers[layer];
+            corruptedLayer.Enabled = false;
             Assert.That(MeshDeformerValidator.Validate(fixture.Deformer)
                 .Any(d => d.Code == MeshDeformerValidator.BrushLengthMismatch), Is.False);
 
-            fixture.Deformer.Groups[0].Enabled = false;
+            group.Enabled = false;
             Assert.That(MeshDeformerValidator.HasErrors(MeshDeformerValidator.Validate(fixture.Deformer)), Is.False);
 
             fixture.Deformer.enabled = false;
@@ -409,7 +501,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             public void Dispose()
             {
                 Object.DestroyImmediate(GameObject);
-                Object.DestroyImmediate(Mesh);
+                Object.DestroyImmediate(Mesh, AssetDatabase.Contains(Mesh));
             }
         }
     }

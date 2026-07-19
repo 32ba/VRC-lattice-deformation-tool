@@ -166,6 +166,49 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string ClearanceInvalidTarget = "net.32ba.lattice-deformation-tool.localization.clearance-invalid-target";
         internal const string ClearanceSignFallback = "net.32ba.lattice-deformation-tool.localization.clearance-sign-fallback";
         internal const string ClearanceResultAge = "net.32ba.lattice-deformation-tool.localization.clearance-result-age";
+        internal const string ClearanceScan = "net.32ba.lattice-deformation-tool.localization.clearance-scan";
+        internal const string ClearanceScanSet = "net.32ba.lattice-deformation-tool.localization.clearance-scan-set";
+        internal const string ClearanceScanAvatarRoot = "net.32ba.lattice-deformation-tool.localization.clearance-scan-avatar-root";
+        internal const string ClearanceScanRun = "net.32ba.lattice-deformation-tool.localization.clearance-scan-run";
+        internal const string ClearanceScanCancel = "net.32ba.lattice-deformation-tool.localization.clearance-scan-cancel";
+        internal const string ClearanceScanProgressFormat = "net.32ba.lattice-deformation-tool.localization.clearance-scan-progress-format";
+        internal const string ClearanceScanSummaryFormat = "net.32ba.lattice-deformation-tool.localization.clearance-scan-summary-format";
+        internal const string ClearanceScanApplyCondition = "net.32ba.lattice-deformation-tool.localization.clearance-scan-apply-condition";
+        internal const string ClearanceScanRestoreScene = "net.32ba.lattice-deformation-tool.localization.clearance-scan-restore-scene";
+        internal const string ClearanceScanConditionSuccessFormat = "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-success-format";
+        internal const string ClearanceScanConditionErrorFormat = "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-error-format";
+        internal const string ClearanceReport = "net.32ba.lattice-deformation-tool.localization.clearance-report";
+        internal const string ClearanceReportExportCurrent = "net.32ba.lattice-deformation-tool.localization.clearance-report-export-current";
+        internal const string ClearanceReportExportScan = "net.32ba.lattice-deformation-tool.localization.clearance-report-export-scan";
+        internal const string ClearanceReportExportSuccess = "net.32ba.lattice-deformation-tool.localization.clearance-report-export-success";
+        internal const string ClearanceReportExportFailure = "net.32ba.lattice-deformation-tool.localization.clearance-report-export-failure";
+        internal const string FitCorrection = "net.32ba.lattice-deformation-tool.localization.fit-correction";
+        internal const string FitCorrectionScope = "net.32ba.lattice-deformation-tool.localization.fit-correction-scope";
+        internal const string FitCorrectionPenetrationOnly = "net.32ba.lattice-deformation-tool.localization.fit-correction-penetration-only";
+        internal const string FitCorrectionWarningThreshold = "net.32ba.lattice-deformation-tool.localization.fit-correction-warning-threshold";
+        internal const string FitCorrectionTargetClearance = "net.32ba.lattice-deformation-tool.localization.fit-correction-target-clearance";
+        internal const string FitCorrectionMaximumMoveMm = "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-move-mm";
+        internal const string FitCorrectionCandidateVertices = "net.32ba.lattice-deformation-tool.localization.fit-correction-candidate-vertices";
+        internal const string FitCorrectionMaximumPlannedMove = "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-planned-move";
+        internal const string FitCorrectionUnresolvedEstimate = "net.32ba.lattice-deformation-tool.localization.fit-correction-unresolved-estimate";
+        internal const string CreateFitCorrectionLayer = "net.32ba.lattice-deformation-tool.localization.create-fit-correction-layer";
+        internal const string FitCorrectionPosedSkinnedBlocked = "net.32ba.lattice-deformation-tool.localization.fit-correction-posed-skinned-blocked";
+        internal const string FitCorrectionStale = "net.32ba.lattice-deformation-tool.localization.fit-correction-stale";
+        internal const string FitCorrectionTopologyMismatch = "net.32ba.lattice-deformation-tool.localization.fit-correction-topology-mismatch";
+        internal const string FitCorrectionNoCandidates = "net.32ba.lattice-deformation-tool.localization.fit-correction-no-candidates";
+        internal const string FitCorrectionResultFormat = "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format";
+        internal const string FitCorrectionConstraints = "net.32ba.lattice-deformation-tool.localization.fit-correction-constraints";
+        internal const string FitCorrectionUseVertexMask = "net.32ba.lattice-deformation-tool.localization.fit-correction-use-vertex-mask";
+        internal const string FitCorrectionPinOpenBoundaries = "net.32ba.lattice-deformation-tool.localization.fit-correction-pin-open-boundaries";
+        internal const string FitCorrectionIsolateComponents = "net.32ba.lattice-deformation-tool.localization.fit-correction-isolate-components";
+        internal const string FitCorrectionSmoothSurface = "net.32ba.lattice-deformation-tool.localization.fit-correction-smooth-surface";
+        internal const string FitCorrectionSmoothingIterations = "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-iterations";
+        internal const string FitCorrectionSmoothingStrength = "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-strength";
+        internal const string FitCorrectionPreserveClearance = "net.32ba.lattice-deformation-tool.localization.fit-correction-preserve-clearance";
+        internal const string FitCorrectionUseSymmetry = "net.32ba.lattice-deformation-tool.localization.fit-correction-use-symmetry";
+        internal const string FitCorrectionSymmetryAxis = "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-axis";
+        internal const string FitCorrectionSymmetryToleranceMm = "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-tolerance-mm";
+        internal const string FitCorrectionPreview = "net.32ba.lattice-deformation-tool.localization.fit-correction-preview";
 
         // Vertex Selection Tool
         internal const string VertexTool = "net.32ba.lattice-deformation-tool.localization.vertex-tool";
@@ -216,6 +259,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         // BlendShape
         internal const string BlendShapeOutput = "net.32ba.lattice-deformation-tool.localization.blendshape-output";
+        internal const string BlendShapeComposition = "net.32ba.lattice-deformation-tool.localization.blendshape-composition";
+        internal const string BlendShapeCompositionSingle = "net.32ba.lattice-deformation-tool.localization.blendshape-composition-single";
+        internal const string BlendShapeCompositionProgressive = "net.32ba.lattice-deformation-tool.localization.blendshape-composition-progressive";
+        internal const string BlendShapeCompositionCrossfade = "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade";
         internal const string BlendShapeName = "net.32ba.lattice-deformation-tool.localization.blendshape-name";
         internal const string Curve = "net.32ba.lattice-deformation-tool.localization.curve";
         internal const string EnterTestMode = "net.32ba.lattice-deformation-tool.localization.enter-test-mode";
@@ -223,6 +270,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string BlendShapeTestMode = "net.32ba.lattice-deformation-tool.localization.blendshape-test-mode";
         internal const string TestWeight = "net.32ba.lattice-deformation-tool.localization.test-weight";
         internal const string ImportBlendShape = "net.32ba.lattice-deformation-tool.localization.import-blendshape";
+        internal const string ImportBlendShapeSingleFrame = "net.32ba.lattice-deformation-tool.localization.import-blendshape-single-frame";
+        internal const string ImportBlendShapeAllFrames = "net.32ba.lattice-deformation-tool.localization.import-blendshape-all-frames";
 
         // NDMF Preview
         internal const string NDMFDisableMeshPreview = "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview";
@@ -247,6 +296,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         // Legacy Brush Deformer
         internal const string BrushDeformer = "net.32ba.lattice-deformation-tool.localization.brush-deformer";
         internal const string BrushDeformation = "net.32ba.lattice-deformation-tool.localization.brush-deformation";
+        internal const string LegacyBrushMigrationWarning = "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning";
+        internal const string MigrateLegacyBrush = "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush";
+        internal const string LegacyBrushMigrationSucceeded = "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded";
+        internal const string LegacyBrushMigrationFailed = "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed";
     }
 }
 #endif

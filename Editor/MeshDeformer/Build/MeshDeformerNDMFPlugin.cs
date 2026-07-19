@@ -38,6 +38,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
+            bool previousSuppressRestore = LatticeDeformer.SuppressRestoreOnDisable;
             try
             {
                 LatticeDeformer.SuppressRestoreOnDisable = true;
@@ -49,7 +50,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
             finally
             {
-                LatticeDeformer.SuppressRestoreOnDisable = false;
+                LatticeDeformer.SuppressRestoreOnDisable = previousSuppressRestore;
             }
         }
 

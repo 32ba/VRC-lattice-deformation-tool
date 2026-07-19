@@ -1,4 +1,7 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
+using System.Reflection;
+using nadena.dev.ndmf.preview;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -159,6 +162,192 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.Tests
                 Object.DestroyImmediate(gameObject);
                 Object.DestroyImmediate(mesh);
             }
+        }
+
+        [Test]
+        public void BrushMoveHandler_StoresConvertedRestSpaceDisplacement()
+        {
+            var fixture = CreateSkinnedFixture(new BoneWeight { boneIndex0 = 0, weight0 = 1f }, 1);
+            var handler = new BrushToolHandler();
+            try
+            {
+                PrepareBrushLayer(fixture.Deformer);
+                fixture.Bones[0].localRotation = Quaternion.Euler(0f, 0f, 90f);
+                SkinnedVertexHelper.StoreMovesInRestSpace = true;
+                handler.Activate(fixture.Deformer);
+
+                typeof(BrushToolHandler).GetField("_meshVertices", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.SetValue(handler, fixture.Mesh.vertices);
+                typeof(BrushToolHandler).GetField("_cachedMesh", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.SetValue(handler, fixture.Mesh);
+                SetStaticField(typeof(BrushToolHandler), "s_connectedOnly", false);
+                SetStaticField(typeof(BrushToolHandler), "s_backfaceCulling", false);
+                SetStaticField(typeof(BrushToolHandler), "s_useSurfaceDistance", false);
+
+                var method = typeof(BrushToolHandler).GetMethod(
+                    "ApplyMoveBrushLocalDelta", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(method, Is.Not.Null);
+                bool modified = (bool)method.Invoke(handler, new object[]
+                {
+                    fixture.Deformer, Vector3.zero, 0.1f, 0.1f,
+                    Vector3.up, Vector3.forward
+                });
+
+                Assert.That(modified, Is.True);
+                AssertVector(fixture.Deformer.GetDisplacement(0), Vector3.right);
+                Assert.That(fixture.Deformer.GetDisplacement(1), Is.EqualTo(Vector3.zero));
+            }
+            finally
+            {
+                handler.Deactivate();
+                fixture.Destroy();
+            }
+        }
+
+        [Test]
+        public void BrushMirrorMoveHandler_StoresConvertedRestSpaceDisplacement()
+        {
+            var fixture = CreateSkinnedFixture(new BoneWeight { boneIndex0 = 0, weight0 = 1f }, 1);
+            var handler = new BrushToolHandler();
+            try
+            {
+                PrepareBrushLayer(fixture.Deformer);
+                fixture.Bones[0].localRotation = Quaternion.Euler(0f, 0f, 90f);
+                SkinnedVertexHelper.StoreMovesInRestSpace = true;
+                handler.Activate(fixture.Deformer);
+
+                typeof(BrushToolHandler).GetField("_meshVertices", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.SetValue(handler, fixture.Mesh.vertices);
+                typeof(BrushToolHandler).GetField("_cachedMesh", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.SetValue(handler, fixture.Mesh);
+                typeof(BrushToolHandler).GetField("_hasLastMoveBrushLocalDelta", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.SetValue(handler, true);
+                typeof(BrushToolHandler).GetField("_lastMoveBrushLocalDelta", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.SetValue(handler, Vector3.up);
+                SetStaticField(typeof(BrushToolHandler), "s_brushMode", BrushToolHandler.BrushMode.Move);
+                SetStaticField(typeof(BrushToolHandler), "s_mirrorAxis", BrushToolHandler.MirrorAxis.X);
+                SetStaticField(typeof(BrushToolHandler), "s_connectedOnly", false);
+
+                var method = typeof(BrushToolHandler).GetMethod(
+                    "ApplyMirror", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(method, Is.Not.Null);
+                method.Invoke(handler, new object[]
+                {
+                    fixture.Deformer, Vector3.zero, 0.1f, 0.1f, 1f
+                });
+
+                AssertVector(fixture.Deformer.GetDisplacement(0), Vector3.right);
+                Assert.That(fixture.Deformer.GetDisplacement(1), Is.EqualTo(Vector3.zero));
+            }
+            finally
+            {
+                handler.Deactivate();
+                fixture.Destroy();
+            }
+        }
+
+        [Test]
+        public void VertexSelectionMoveHandler_StoresConvertedRestSpaceDisplacement()
+        {
+            var fixture = CreateSkinnedFixture(new BoneWeight { boneIndex0 = 0, weight0 = 1f }, 1);
+            var handler = new VertexSelectionHandler();
+            try
+            {
+                PrepareBrushLayer(fixture.Deformer);
+                fixture.Bones[0].localRotation = Quaternion.Euler(0f, 0f, 90f);
+                SkinnedVertexHelper.StoreMovesInRestSpace = true;
+                handler.Activate(fixture.Deformer);
+
+                var selectedField = typeof(VertexSelectionHandler).GetField(
+                    "s_selectedVertices", BindingFlags.Static | BindingFlags.NonPublic);
+                Assert.That(selectedField, Is.Not.Null);
+                var selected = (HashSet<int>)selectedField.GetValue(null);
+                selected.Clear();
+                selected.Add(0);
+
+                var method = typeof(VertexSelectionHandler).GetMethod(
+                    "ApplyMoveDelta", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(method, Is.Not.Null);
+                method.Invoke(handler, new object[] { fixture.Deformer, Vector3.up });
+
+                AssertVector(fixture.Deformer.GetDisplacement(0), Vector3.right);
+                Assert.That(fixture.Deformer.GetDisplacement(1), Is.EqualTo(Vector3.zero));
+            }
+            finally
+            {
+                handler.Deactivate();
+                fixture.Destroy();
+            }
+        }
+
+        [Test]
+        public void RestSpaceMove_IsPropagatedThroughNdmfPreviewProxyNode()
+        {
+            var fixture = CreateSkinnedFixture(new BoneWeight { boneIndex0 = 0, weight0 = 1f }, 1);
+            var proxyObject = new GameObject("Rest Space NDMF Proxy");
+            IRenderFilterNode node = null;
+            Mesh upstreamProxyMesh = null;
+            try
+            {
+                PrepareBrushLayer(fixture.Deformer);
+                fixture.Bones[0].localRotation = Quaternion.Euler(0f, 0f, 90f);
+                SkinnedVertexHelper.StoreMovesInRestSpace = true;
+                fixture.Deformer.AddDisplacement(0,
+                    SkinnedVertexHelper.ConvertMoveDeltaForStorage(fixture.Deformer, 0, Vector3.up));
+
+                var generate = typeof(LatticeDeformerPreviewFilter).GetMethod(
+                    "GeneratePreviewMesh", BindingFlags.Static | BindingFlags.NonPublic);
+                Assert.That(generate, Is.Not.Null);
+                var previewMesh = (Mesh)generate.Invoke(null, new object[] { fixture.Deformer });
+                Assert.That(previewMesh, Is.Not.Null);
+
+                upstreamProxyMesh = Object.Instantiate(fixture.Mesh);
+                var proxyRenderer = proxyObject.AddComponent<SkinnedMeshRenderer>();
+                proxyRenderer.sharedMesh = upstreamProxyMesh;
+                proxyRenderer.bones = fixture.Bones;
+                proxyRenderer.rootBone = fixture.Bones[0];
+                var originalRenderer = fixture.GameObject.GetComponent<SkinnedMeshRenderer>();
+                var pairs = new List<(Renderer original, Renderer proxy)>
+                {
+                    (originalRenderer, proxyRenderer)
+                };
+
+                var nodeType = typeof(LatticeDeformerPreviewFilter).GetNestedType(
+                    "PreviewNode", BindingFlags.NonPublic);
+                Assert.That(nodeType, Is.Not.Null);
+                var constructor = nodeType.GetConstructors(
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)[0];
+                node = (IRenderFilterNode)constructor.Invoke(
+                    new object[] { fixture.Deformer, pairs, previewMesh });
+
+                Assert.That(proxyRenderer.sharedMesh, Is.SameAs(previewMesh));
+                AssertVector(proxyRenderer.sharedMesh.vertices[0], Vector3.right);
+
+                node.Dispose();
+                node = null;
+                Assert.That(proxyRenderer.sharedMesh, Is.SameAs(upstreamProxyMesh));
+            }
+            finally
+            {
+                node?.Dispose();
+                Object.DestroyImmediate(proxyObject);
+                if (upstreamProxyMesh != null) Object.DestroyImmediate(upstreamProxyMesh);
+                fixture.Destroy();
+            }
+        }
+
+        private static void PrepareBrushLayer(LatticeDeformer deformer)
+        {
+            int layerIndex = deformer.AddLayer("Rest Space Brush", MeshDeformerLayerType.Brush);
+            deformer.ActiveLayerIndex = layerIndex;
+            deformer.EnsureDisplacementCapacity();
+        }
+
+        private static void SetStaticField(System.Type type, string name, object value)
+        {
+            var field = type.GetField(name, BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null, name);
+            field.SetValue(null, value);
         }
 
         private static Fixture CreateSkinnedFixture(BoneWeight firstVertexWeight, int boneCount)

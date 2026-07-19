@@ -428,6 +428,308 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeDeformerPreviewFilter_BlendShapeWeightStateHash_IsStableAndTracksChanges()
+        {
+            var go = new GameObject("blendshape-state-hash");
+            var source = CreateBlendShapeMesh(2);
+            var replacement = CreateBlendShapeMesh(2);
+            try
+            {
+                var renderer = go.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = source;
+
+                int initial = LatticeDeformerPreviewFilter.ComputeBlendShapeWeightStateHash(renderer, source);
+                int unchanged = LatticeDeformerPreviewFilter.ComputeBlendShapeWeightStateHash(renderer, source);
+                Assert.That(unchanged, Is.EqualTo(initial));
+
+                renderer.SetBlendShapeWeight(0, 37.5f);
+                int weightChanged = LatticeDeformerPreviewFilter.ComputeBlendShapeWeightStateHash(renderer, source);
+                Assert.That(weightChanged, Is.Not.EqualTo(initial));
+                Assert.That(
+                    LatticeDeformerPreviewFilter.ComputeBlendShapeWeightStateHash(renderer, source),
+                    Is.EqualTo(weightChanged));
+
+                int sourceChanged = LatticeDeformerPreviewFilter.ComputeBlendShapeWeightStateHash(renderer, replacement);
+                Assert.That(sourceChanged, Is.Not.EqualTo(weightChanged));
+
+                source.AddBlendShapeFrame(
+                    "Shape2",
+                    100f,
+                    new Vector3[source.vertexCount],
+                    new Vector3[source.vertexCount],
+                    new Vector3[source.vertexCount]);
+                int countChanged = LatticeDeformerPreviewFilter.ComputeBlendShapeWeightStateHash(renderer, source);
+                Assert.That(countChanged, Is.Not.EqualTo(weightChanged));
+            }
+            finally
+            {
+                Object.DestroyImmediate(source);
+                Object.DestroyImmediate(replacement);
+                Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
+        public void LatticeDeformerPreviewFilter_CubicBernsteinPreviewMatchesBakeInput()
+        {
+            var root = new GameObject("cubic-preview-bake-parity");
+            var primitive = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var source = Object.Instantiate(primitive.GetComponent<MeshFilter>().sharedMesh);
+            Mesh preview = null;
+            try
+            {
+                Object.DestroyImmediate(primitive);
+                primitive = null;
+                root.AddComponent<MeshFilter>().sharedMesh = source;
+                root.AddComponent<MeshRenderer>();
+                var deformer = root.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                deformer.Deform(false);
+
+                var settings = deformer.Layers[0].Settings;
+                settings.Interpolation = LatticeInterpolationMode.CubicBernstein;
+                settings.SetControlPointLocal(
+                    0,
+                    settings.GetControlPointLocal(0) + Vector3.up * 0.2f);
+                deformer.InvalidateCache();
+
+                // LatticeDeformerBakePass uses Deform(false) as its bake input.
+                var bakeInput = deformer.Deform(false).vertices;
+                var generate = typeof(LatticeDeformerPreviewFilter).GetMethod(
+                    "GeneratePreviewMesh",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                Assert.That(generate, Is.Not.Null);
+                preview = (Mesh)generate.Invoke(null, new object[] { deformer });
+
+                Assert.That(preview, Is.Not.Null);
+                Assert.That(preview.vertexCount, Is.EqualTo(bakeInput.Length));
+                var previewVertices = preview.vertices;
+                for (int vertex = 0; vertex < bakeInput.Length; vertex++)
+                {
+                    Assert.That(
+                        (previewVertices[vertex] - bakeInput[vertex]).sqrMagnitude,
+                        Is.LessThanOrEqualTo(1e-8f),
+                        $"Preview and bake input diverged at vertex {vertex}.");
+                }
+            }
+            finally
+            {
+                if (preview != null) Object.DestroyImmediate(preview);
+                if (primitive != null) Object.DestroyImmediate(primitive);
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
+        public void LatticeDeformerPreviewFilter_RestoreProxyMesh_RestoresUpstreamMeshAndClearsRegistration()
+        {
+            var original = new GameObject("restore-proxy-original");
+            var proxy = new GameObject("restore-proxy-target");
+            var upstreamMesh = new Mesh();
+            var previewMesh = new Mesh();
+            try
+            {
+                var originalRenderer = original.AddComponent<MeshRenderer>();
+                proxy.AddComponent<MeshFilter>().sharedMesh = upstreamMesh;
+                var proxyRenderer = proxy.AddComponent<MeshRenderer>();
+                long generation = LatticePreviewUtility.RegisterProxy(
+                    originalRenderer,
+                    proxyRenderer,
+                    upstreamMesh,
+                    out var restorationMesh);
+                Assert.That(restorationMesh, Is.SameAs(upstreamMesh));
+
+                LatticeDeformerPreviewFilter.AssignRendererMesh(proxyRenderer, previewMesh);
+                Assert.That(LatticeDeformerPreviewFilter.GetRendererMesh(proxyRenderer), Is.SameAs(previewMesh));
+
+                LatticeDeformerPreviewFilter.RestoreProxyMesh(
+                    originalRenderer,
+                    proxyRenderer,
+                    restorationMesh,
+                    generation);
+
+                Assert.That(LatticeDeformerPreviewFilter.GetRendererMesh(proxyRenderer), Is.SameAs(upstreamMesh));
+                Assert.That(LatticePreviewUtility.TryGetPreviewProxy(originalRenderer, out _), Is.False);
+            }
+            finally
+            {
+                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
+                Object.DestroyImmediate(upstreamMesh);
+                Object.DestroyImmediate(previewMesh);
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(proxy);
+            }
+        }
+
+        [Test]
+        public void LatticeDeformerPreviewFilter_StaleNodeCannotClearOrOverwriteReplacementProxy()
+        {
+            var original = new GameObject("proxy-generation-original");
+            var proxy = new GameObject("proxy-generation-reused");
+            var upstreamMesh = new Mesh();
+            var oldPreviewMesh = new Mesh();
+            var replacementPreviewMesh = new Mesh();
+            try
+            {
+                var originalRenderer = original.AddComponent<MeshRenderer>();
+                proxy.AddComponent<MeshFilter>().sharedMesh = upstreamMesh;
+                var proxyRenderer = proxy.AddComponent<MeshRenderer>();
+
+                long oldGeneration = LatticePreviewUtility.RegisterProxy(
+                    originalRenderer,
+                    proxyRenderer,
+                    upstreamMesh,
+                    out var oldRestorationMesh);
+                LatticeDeformerPreviewFilter.AssignRendererMesh(proxyRenderer, oldPreviewMesh);
+
+                long replacementGeneration = LatticePreviewUtility.RegisterProxy(
+                    originalRenderer,
+                    proxyRenderer,
+                    oldPreviewMesh,
+                    out var replacementRestorationMesh);
+                LatticeDeformerPreviewFilter.AssignRendererMesh(proxyRenderer, replacementPreviewMesh);
+
+                Assert.That(oldRestorationMesh, Is.SameAs(upstreamMesh));
+                Assert.That(
+                    replacementRestorationMesh,
+                    Is.SameAs(upstreamMesh),
+                    "A replacement node must inherit the original upstream mesh.");
+
+                LatticeDeformerPreviewFilter.RestoreProxyMesh(
+                    originalRenderer,
+                    proxyRenderer,
+                    oldRestorationMesh,
+                    oldGeneration);
+
+                Assert.That(
+                    LatticeDeformerPreviewFilter.GetRendererMesh(proxyRenderer),
+                    Is.SameAs(replacementPreviewMesh),
+                    "A stale node must not perform teardown after losing registration ownership.");
+                Assert.That(
+                    LatticePreviewUtility.TryGetPreviewProxy(originalRenderer, out var currentProxy),
+                    Is.True);
+                Assert.That(currentProxy, Is.SameAs(proxyRenderer));
+
+                LatticeDeformerPreviewFilter.RestoreProxyMesh(
+                    originalRenderer,
+                    proxyRenderer,
+                    replacementRestorationMesh,
+                    replacementGeneration);
+
+                Assert.That(
+                    LatticeDeformerPreviewFilter.GetRendererMesh(proxyRenderer),
+                    Is.SameAs(upstreamMesh));
+                Assert.That(LatticePreviewUtility.HasRegisteredProxy(originalRenderer), Is.False);
+            }
+            finally
+            {
+                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
+                Object.DestroyImmediate(upstreamMesh);
+                Object.DestroyImmediate(oldPreviewMesh);
+                Object.DestroyImmediate(replacementPreviewMesh);
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(proxy);
+            }
+        }
+
+        [Test]
+        public void LatticeDeformerPreviewFilter_StaleNodeFrameCannotOverwriteReplacementProxy()
+        {
+            var original = new GameObject("proxy-frame-generation-original");
+            var proxy = new GameObject("proxy-frame-generation-reused");
+            var upstreamMesh = new Mesh();
+            var oldPreviewMesh = new Mesh();
+            var replacementPreviewMesh = new Mesh();
+            IRenderFilterNode oldNode = null;
+            IRenderFilterNode replacementNode = null;
+            try
+            {
+                var originalRenderer = original.AddComponent<MeshRenderer>();
+                proxy.AddComponent<MeshFilter>().sharedMesh = upstreamMesh;
+                var proxyRenderer = proxy.AddComponent<MeshRenderer>();
+                var pairs = new List<(Renderer original, Renderer proxy)>
+                {
+                    (originalRenderer, proxyRenderer)
+                };
+
+                oldNode = CreateLatticePreviewNode(pairs, oldPreviewMesh);
+                Assert.That(
+                    LatticeDeformerPreviewFilter.GetRendererMesh(proxyRenderer),
+                    Is.SameAs(oldPreviewMesh));
+
+                replacementNode = CreateLatticePreviewNode(pairs, replacementPreviewMesh);
+                Assert.That(
+                    LatticeDeformerPreviewFilter.GetRendererMesh(proxyRenderer),
+                    Is.SameAs(replacementPreviewMesh));
+
+                oldNode.OnFrame(originalRenderer, proxyRenderer);
+
+                Assert.That(
+                    LatticeDeformerPreviewFilter.GetRendererMesh(proxyRenderer),
+                    Is.SameAs(replacementPreviewMesh),
+                    "An invalidated node may still receive a frame while its replacement is being installed.");
+
+                oldNode.Dispose();
+                oldNode = null;
+                Assert.That(
+                    LatticeDeformerPreviewFilter.GetRendererMesh(proxyRenderer),
+                    Is.SameAs(replacementPreviewMesh));
+
+                replacementNode.Dispose();
+                replacementNode = null;
+                Assert.That(
+                    LatticeDeformerPreviewFilter.GetRendererMesh(proxyRenderer),
+                    Is.SameAs(upstreamMesh));
+            }
+            finally
+            {
+                oldNode?.Dispose();
+                replacementNode?.Dispose();
+                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
+                if (oldPreviewMesh != null) Object.DestroyImmediate(oldPreviewMesh);
+                if (replacementPreviewMesh != null) Object.DestroyImmediate(replacementPreviewMesh);
+                Object.DestroyImmediate(upstreamMesh);
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(proxy);
+            }
+        }
+
+        [Test]
+        public void LatticeDeformerPreviewFilter_RestoreProxyMesh_ClearsDestroyedOriginalAndProxy()
+        {
+            var original = new GameObject("destroyed-proxy-original");
+            var proxy = new GameObject("destroyed-proxy-target");
+            var originalRenderer = original.AddComponent<MeshRenderer>();
+            var proxyRenderer = proxy.AddComponent<MeshRenderer>();
+            try
+            {
+                long generation = LatticePreviewUtility.RegisterProxy(
+                    originalRenderer,
+                    proxyRenderer,
+                    null,
+                    out var restorationMesh);
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(proxy);
+
+                Assert.DoesNotThrow(() =>
+                    LatticeDeformerPreviewFilter.RestoreProxyMesh(
+                        originalRenderer,
+                        proxyRenderer,
+                        restorationMesh,
+                        generation));
+                Assert.That(LatticePreviewUtility.HasRegisteredProxy(originalRenderer), Is.False);
+                Assert.That(LatticePreviewUtility.TryGetPreviewProxy(originalRenderer, out _), Is.False);
+            }
+            finally
+            {
+                LatticePreviewUtility.ClearProxy(originalRenderer);
+                if (original != null) Object.DestroyImmediate(original);
+                if (proxy != null) Object.DestroyImmediate(proxy);
+            }
+        }
+
+        [Test]
         public void LatticePreviewUtility_RegisterClearAndLog_HandleNullAndDebugState()
         {
             bool previousDebug = LatticePreviewUtility.DebugAlignLogs;
@@ -502,7 +804,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void LatticePreviewUtility_GetRendererLocalBounds_TransformsWorldBounds()
+        public void LatticePreviewUtility_GetRendererLocalBounds_DoesNotDoubleApplyNonUniformScale()
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             try
@@ -511,8 +813,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 go.transform.localScale = new Vector3(2f, 3f, 4f);
                 var renderer = go.GetComponent<Renderer>();
 
+                var meshBounds = LatticePreviewUtility.GetMeshLocalBounds(renderer);
                 var bounds = LatticePreviewUtility.GetRendererLocalBounds(renderer);
 
+                Assert.That(meshBounds.size.x, Is.EqualTo(1f).Within(1e-5f));
+                Assert.That(meshBounds.size.y, Is.EqualTo(1f).Within(1e-5f));
+                Assert.That(meshBounds.size.z, Is.EqualTo(1f).Within(1e-5f));
                 Assert.That(bounds.center.x, Is.EqualTo(0f).Within(1e-5f));
                 Assert.That(bounds.center.y, Is.EqualTo(0f).Within(1e-5f));
                 Assert.That(bounds.center.z, Is.EqualTo(0f).Within(1e-5f));
@@ -717,6 +1023,29 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
+        private static Mesh CreateBlendShapeMesh(int blendShapeCount)
+        {
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+
+            for (int shape = 0; shape < blendShapeCount; shape++)
+            {
+                var deltas = new Vector3[mesh.vertexCount];
+                deltas[shape % deltas.Length] = Vector3.forward * (shape + 1) * 0.1f;
+                mesh.AddBlendShapeFrame(
+                    $"Shape{shape}",
+                    100f,
+                    deltas,
+                    new Vector3[mesh.vertexCount],
+                    new Vector3[mesh.vertexCount]);
+            }
+
+            return mesh;
+        }
+
         private sealed class FakePreviewSession
         {
             public readonly Dictionary<Renderer, Renderer> OriginalToProxyField;
@@ -851,6 +1180,21 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 BindingFlags.Static | BindingFlags.NonPublic);
             Assert.That(method, Is.Not.Null);
             return (T)method.Invoke(null, args);
+        }
+
+        private static IRenderFilterNode CreateLatticePreviewNode(
+            IEnumerable<(Renderer original, Renderer proxy)> proxyPairs,
+            Mesh previewMesh)
+        {
+            var nodeType = typeof(LatticeDeformerPreviewFilter).GetNestedType(
+                "PreviewNode",
+                BindingFlags.NonPublic);
+            Assert.That(nodeType, Is.Not.Null);
+            var constructor = nodeType
+                .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                .Single();
+            return (IRenderFilterNode)constructor.Invoke(
+                new object[] { null, proxyPairs, previewMesh });
         }
     }
 }
