@@ -979,6 +979,9 @@ msgstr "オフセット"
 msgid "net.32ba.lattice-deformation-tool.localization.offset.tooltip"
 msgstr "ケージの表示位置を微調整（表示のみ、変形には影響なし）。"
 
+msgid "net.32ba.lattice-deformation-tool.localization.offset-tooltip"
+msgstr "自動センタリングとクランプの前にプロキシのローカル空間へ直接適用するオフセット"
+
 msgid "net.32ba.lattice-deformation-tool.localization.debug-log-alignment"
 msgstr "(Debug) プレビューアラインをコンソールにログ出力"
 
@@ -1029,6 +1032,30 @@ msgstr "ブラシ変形"
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr "ブラシベースの頂点変形設定セクションです。"
 
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning"
+msgstr "この旧コンポーネントは現在の NDMF パイプラインでは処理されません。編集を続ける前に、変形データを Mesh Deformer へ移行してください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning.tooltip"
+msgstr "移行後も元のコンポーネントは無効化されたバックアップとして保持されます。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush"
+msgstr "Mesh Deformer へ移行"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush.tooltip"
+msgstr "すべての変位とメッシュ再構築設定を Mesh Deformer のブラシレイヤーへコピーし、この旧コンポーネントを無効化します。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded"
+msgstr "移行が完了しました。旧コンポーネントは無効化され、バックアップとして保持されています。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded.tooltip"
+msgstr "移行先の Mesh Deformer に旧ブラシ変形データが保存されています。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed"
+msgstr "移行に失敗しました: {0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed.tooltip"
+msgstr "検証に失敗した場合、永続的な移行変更は保持されません。"
+
 # Update notification
 msgid "net.32ba.lattice-deformation-tool.localization.update-available"
 msgstr "新しいバージョンがあります"
@@ -1038,3 +1065,31 @@ msgstr "現在: {0}  最新: {1}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
 msgstr "BOOTH 商品ページを開く"
+
+# Deformer Profile
+msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
+msgstr "変形Profile"
+
+msgid "net.32ba.lattice-deformation-tool.localization.data-source"
+msgstr "データソース"
+
+msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
+msgstr "内蔵データ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
+msgstr "Profile参照"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
+msgstr "Profileを作成"
+
+msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
+msgstr "Profileへ保存"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
+msgstr "インスタンスへ複製"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
+msgstr "データソースにProfileを使用する場合はProfileを選択してください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
+msgstr "Profileデータは独立したインスタンスコピーとしてプレビューされます。GroupやLayerを編集するにはコンポーネントへ複製してください。"

@@ -98,7 +98,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void GetOrCreate_ReusesMapUntilMeshIsInvalidatedOrVertexCountChanges()
+        public void GetOrCreate_ReusesMapUntilMeshIsInvalidatedOrVertexDataChanges()
         {
             var mesh = CreateMesh(new Vector3(-1f, 0f, 0f), new Vector3(1f, 0f, 0f));
             try
@@ -110,9 +110,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(reused, Is.SameAs(first));
                 Assert.That(differentAxis, Is.Not.SameAs(first));
 
+                mesh.vertices = new[] { new Vector3(-2f, 0f, 0f), new Vector3(2f, 0f, 0f) };
+                var repositioned = SymmetryVertexMapCache.GetOrCreate(mesh, 0);
+                Assert.That(repositioned, Is.Not.SameAs(first),
+                    "Changing positions without changing vertex count must invalidate the map.");
+
                 mesh.vertices = new[] { Vector3.left, Vector3.right, Vector3.zero };
                 var resized = SymmetryVertexMapCache.GetOrCreate(mesh, 0);
-                Assert.That(resized, Is.Not.SameAs(first));
+                Assert.That(resized, Is.Not.SameAs(repositioned));
                 Assert.That(resized.Count, Is.EqualTo(3));
 
                 SymmetryVertexMapCache.Invalidate(mesh);
