@@ -114,6 +114,42 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void BrushDeformer_DeformAfterSourceMeshSwap_RecreatesRuntimeMesh()
+        {
+            var go = new GameObject("brush");
+            var sourceMesh = CreateTriangleMesh("source-a");
+            var replacementMesh = CreateQuadMesh("source-b");
+            try
+            {
+                var filter = go.AddComponent<MeshFilter>();
+                filter.sharedMesh = sourceMesh;
+                var deformer = go.AddComponent<BrushDeformer>();
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, Vector3.right);
+
+                var firstRuntimeMesh = deformer.Deform();
+                Assert.That(firstRuntimeMesh, Is.Not.Null);
+                Assert.That(firstRuntimeMesh.vertexCount, Is.EqualTo(sourceMesh.vertexCount));
+
+                filter.sharedMesh = replacementMesh;
+
+                Mesh secondRuntimeMesh = null;
+                Assert.DoesNotThrow(() => secondRuntimeMesh = deformer.Deform());
+                Assert.That(secondRuntimeMesh, Is.Not.Null);
+                Assert.That(secondRuntimeMesh, Is.Not.SameAs(firstRuntimeMesh));
+                Assert.That(secondRuntimeMesh.vertexCount, Is.EqualTo(replacementMesh.vertexCount));
+                Assert.That(deformer.SourceMesh, Is.SameAs(replacementMesh));
+                Assert.That(filter.sharedMesh, Is.SameAs(secondRuntimeMesh));
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+                Object.DestroyImmediate(sourceMesh);
+                Object.DestroyImmediate(replacementMesh);
+            }
+        }
+
+        [Test]
         public void BrushDeformer_OnDisableSuppress_ReleasesRuntimeMeshWithoutRestoringRenderer()
         {
             var go = new GameObject("brush");
@@ -256,6 +292,22 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Vector3.up
             };
             mesh.triangles = new[] { 0, 1, 2 };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private static Mesh CreateQuadMesh(string name)
+        {
+            var mesh = new Mesh { name = name };
+            mesh.vertices = new[]
+            {
+                new Vector3(-1f, -1f, 0f),
+                new Vector3(1f, -1f, 0f),
+                new Vector3(1f, 1f, 0f),
+                new Vector3(-1f, 1f, 0f)
+            };
+            mesh.triangles = new[] { 0, 1, 2, 0, 2, 3 };
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
             return mesh;

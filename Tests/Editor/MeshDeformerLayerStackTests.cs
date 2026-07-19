@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
@@ -56,6 +57,45 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     Vector3 neutral = GetNeutralControlPoint(primary.LocalBounds, primary.GridSize, i);
                     AssertApproximately(neutral, layerSettings.GetControlPointLocal(i), Epsilon);
                     AssertApproximately(primarySnapshot[i], primary.GetControlPointLocal(i), Epsilon);
+                }
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void NeutralLattice_WithVerticesOutsideBounds_RemainsIdentity()
+        {
+            var fixture = CreateFixture("NeutralLattice_OutsideBoundsIdentity");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var sourceVertices = deformer.SourceMesh.vertices;
+                var settings = deformer.Layers[0].Settings;
+                settings.LocalBounds = new Bounds(Vector3.zero, Vector3.one * 0.1f);
+                settings.ResetControlPoints();
+                deformer.InvalidateCache();
+
+                bool hasOutsideVertex = false;
+                for (int i = 0; i < sourceVertices.Length; i++)
+                {
+                    if (!settings.LocalBounds.Contains(sourceVertices[i]))
+                    {
+                        hasOutsideVertex = true;
+                        break;
+                    }
+                }
+                Assert.That(hasOutsideVertex, Is.True);
+
+                var runtimeMesh = deformer.Deform(false);
+
+                Assert.That(runtimeMesh, Is.Not.Null);
+                var actualVertices = runtimeMesh.vertices;
+                for (int i = 0; i < sourceVertices.Length; i++)
+                {
+                    AssertApproximately(sourceVertices[i], actualVertices[i], 2e-5f);
                 }
             }
             finally
@@ -327,6 +367,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 int newLayerIndex = deformer.ImportBlendShapeAsLayer(0);
 
                 Assert.That(newLayerIndex, Is.GreaterThanOrEqualTo(0));
+                Assert.That(deformer.ActiveLayerIndex, Is.EqualTo(newLayerIndex));
                 Assert.That(deformer.Layers.Count, Is.EqualTo(layerCountBefore + 1));
 
                 var newLayer = deformer.Layers[newLayerIndex];
@@ -483,6 +524,113 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 // Vertex 0 originally had displacement, but its mirror (vertex 1) had zero,
                 // so vertex 0 should now have the negated-X version of zero = zero
                 AssertApproximately(Vector3.zero, layer.GetBrushDisplacement(0), Epsilon);
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void FlipLayerByAxis_MirrorsVertexMaskAndDoubleFlipRestoresLayerData()
+        {
+            var fixture = CreateFixtureWithSymmetricMesh("FlipLayerByAxis_MirrorsMask");
+            try
+            {
+                var deformer = fixture.Deformer;
+                int layerIndex = deformer.AddLayer("Masked Brush", MeshDeformerLayerType.Brush);
+                var layer = deformer.Layers[layerIndex];
+                layer.EnsureBrushDisplacementCapacity(deformer.SourceMesh.vertexCount);
+                layer.EnsureVertexMaskCapacity(deformer.SourceMesh.vertexCount);
+
+                var originalDisplacements = new[]
+                {
+                    new Vector3(0.3f, 0.1f, -0.05f),
+                    new Vector3(-0.2f, 0.4f, 0.07f),
+                    new Vector3(0.1f, 0.2f, 0.3f),
+                    new Vector3(-0.4f, 0.5f, -0.6f)
+                };
+                var originalMasks = new[] { 0.1f, 0.9f, 0.25f, 0.75f };
+                for (int i = 0; i < originalDisplacements.Length; i++)
+                {
+                    layer.SetBrushDisplacement(i, originalDisplacements[i]);
+                    layer.SetVertexMask(i, originalMasks[i]);
+                }
+
+                deformer.FlipLayerByAxis(layerIndex, 0);
+
+                Assert.That(layer.GetVertexMask(0), Is.EqualTo(originalMasks[1]).Within(Epsilon));
+                Assert.That(layer.GetVertexMask(1), Is.EqualTo(originalMasks[0]).Within(Epsilon));
+
+                deformer.FlipLayerByAxis(layerIndex, 0);
+
+                for (int i = 0; i < originalDisplacements.Length; i++)
+                {
+                    AssertApproximately(originalDisplacements[i], layer.GetBrushDisplacement(i), Epsilon);
+                    Assert.That(layer.GetVertexMask(i), Is.EqualTo(originalMasks[i]).Within(Epsilon));
+                }
+
+                int unmaskedIndex = deformer.AddLayer("Unmasked Brush", MeshDeformerLayerType.Brush);
+                var unmaskedLayer = deformer.Layers[unmaskedIndex];
+                Assert.That(unmaskedLayer.VertexMask, Is.Empty);
+
+                deformer.FlipLayerByAxis(unmaskedIndex, 0);
+
+                Assert.That(unmaskedLayer.VertexMask, Is.Empty, "Flip must not allocate an implicit mask.");
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void FlipLayerByAxis_DuplicateSeamVerticesUseStableInvolutivePairs()
+        {
+            var fixture = CreateFixtureWithDuplicateSymmetricMesh("FlipLayerByAxis_DuplicateSeams");
+            try
+            {
+                var deformer = fixture.Deformer;
+                int layerIndex = deformer.AddLayer("Duplicate Seam Brush", MeshDeformerLayerType.Brush);
+                var layer = deformer.Layers[layerIndex];
+                layer.EnsureBrushDisplacementCapacity(deformer.SourceMesh.vertexCount);
+                layer.EnsureVertexMaskCapacity(deformer.SourceMesh.vertexCount);
+
+                var originalDisplacements = new[]
+                {
+                    new Vector3(0.11f, 1f, 10f),
+                    new Vector3(0.22f, 2f, 20f),
+                    new Vector3(-0.33f, 3f, 30f),
+                    new Vector3(-0.44f, 4f, 40f),
+                    new Vector3(0.55f, 5f, 50f),
+                    new Vector3(-0.66f, 6f, 60f)
+                };
+                var originalMasks = new[] { 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f };
+                for (int i = 0; i < originalDisplacements.Length; i++)
+                {
+                    layer.SetBrushDisplacement(i, originalDisplacements[i]);
+                    layer.SetVertexMask(i, originalMasks[i]);
+                }
+
+                deformer.FlipLayerByAxis(layerIndex, 0);
+
+                var expectedSources = new[] { 2, 3, 0, 1, 4, 5 };
+                for (int i = 0; i < expectedSources.Length; i++)
+                {
+                    int sourceIndex = expectedSources[i];
+                    var expectedDisplacement = originalDisplacements[sourceIndex];
+                    expectedDisplacement.x = -expectedDisplacement.x;
+                    Assert.That(layer.GetBrushDisplacement(i), Is.EqualTo(expectedDisplacement));
+                    Assert.That(layer.GetVertexMask(i), Is.EqualTo(originalMasks[sourceIndex]));
+                }
+
+                deformer.FlipLayerByAxis(layerIndex, 0);
+
+                for (int i = 0; i < originalDisplacements.Length; i++)
+                {
+                    Assert.That(layer.GetBrushDisplacement(i), Is.EqualTo(originalDisplacements[i]));
+                    Assert.That(layer.GetVertexMask(i), Is.EqualTo(originalMasks[i]));
+                }
             }
             finally
             {
@@ -2904,6 +3052,235 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
+        [Test]
+        public void BlendShapeTestMode_PrivateEnterExit_RestoresWeightsByOriginalName()
+        {
+            var root = new GameObject("BlendShapeTestMode_PrivateEnterExit_RestoresWeightsByOriginalName");
+            Mesh sourceMesh = null;
+            UnityEditor.Editor editor = null;
+            try
+            {
+                var smr = root.AddComponent<SkinnedMeshRenderer>();
+                sourceMesh = CreateRuntimeCubeMesh();
+                sourceMesh.bindposes = new[] { Matrix4x4.identity };
+                var boneWeight = new BoneWeight { boneIndex0 = 0, weight0 = 1f };
+                var boneWeights = new BoneWeight[sourceMesh.vertexCount];
+                for (int i = 0; i < boneWeights.Length; i++)
+                {
+                    boneWeights[i] = boneWeight;
+                }
+                sourceMesh.boneWeights = boneWeights;
+
+                string[] names = { "Smile", "Blink", "Angry" };
+                float[] weights = { 75f, 25f, 50f };
+                for (int shape = 0; shape < names.Length; shape++)
+                {
+                    var delta = new Vector3[sourceMesh.vertexCount];
+                    delta[shape] = new Vector3(0.05f * (shape + 1), 0f, 0f);
+                    sourceMesh.AddBlendShapeFrame(names[shape], 100f, delta, null, null);
+                }
+
+                smr.sharedMesh = sourceMesh;
+                smr.bones = new[] { root.transform };
+                for (int shape = 0; shape < names.Length; shape++)
+                {
+                    smr.SetBlendShapeWeight(shape, weights[shape]);
+                }
+
+                var deformer = root.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                deformer.Deform(false);
+                int brushLayer = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushLayer;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.2f, 0f, 0f));
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "TestBS";
+
+                editor = UnityEditor.Editor.CreateEditor(deformer);
+                var enter = editor.GetType().GetMethod("EnterBlendShapeTestMode", s_privateInstance);
+                var exit = editor.GetType().GetMethod("ExitBlendShapeTestMode", s_privateInstance);
+                Assert.That(enter, Is.Not.Null);
+                Assert.That(exit, Is.Not.Null);
+
+                enter.Invoke(editor, new object[] { deformer, smr });
+                var runtimeMesh = smr.sharedMesh;
+                int testShape = runtimeMesh.GetBlendShapeIndex("TestBS");
+                Assert.That(testShape, Is.GreaterThanOrEqualTo(0));
+                smr.SetBlendShapeWeight(testShape, 60f);
+
+                exit.Invoke(editor, null);
+
+                Assert.That(smr.sharedMesh, Is.SameAs(sourceMesh));
+                for (int shape = 0; shape < names.Length; shape++)
+                {
+                    int originalIndex = sourceMesh.GetBlendShapeIndex(names[shape]);
+                    Assert.That(smr.GetBlendShapeWeight(originalIndex), Is.EqualTo(weights[shape]).Within(0.01f), names[shape]);
+                }
+            }
+            finally
+            {
+                if (editor != null)
+                {
+                    Object.DestroyImmediate(editor);
+                }
+
+                Object.DestroyImmediate(root);
+                if (sourceMesh != null)
+                {
+                    Object.DestroyImmediate(sourceMesh);
+                }
+            }
+        }
+
+        [Test]
+        public void LayerBlendShapeOutput_ProducesIndependentShapeAndExcludesFromGroupOutput()
+        {
+            var fixture = CreateFixture("LayerBlendShapeOutput_Independent");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var sourceVertices = fixture.SourceMesh.vertices;
+
+                int layerA = deformer.AddLayer("LayerShape", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = layerA;
+                deformer.EnsureDisplacementCapacity();
+                var deltaA = new Vector3(0.11f, 0f, 0f);
+                deformer.SetDisplacement(0, deltaA);
+                deformer.Layers[layerA].BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.Layers[layerA].BlendShapeName = "LayerOnly";
+
+                int layerB = deformer.AddLayer("GroupShapeLayer", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = layerB;
+                deformer.EnsureDisplacementCapacity();
+                var deltaB = new Vector3(0f, 0.17f, 0f);
+                deformer.SetDisplacement(0, deltaB);
+
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "GroupOnly";
+
+                ReleaseRuntimeMesh(deformer);
+                var mesh = deformer.Deform(false);
+                Assert.That(mesh, Is.Not.Null);
+
+                int layerShape = mesh.GetBlendShapeIndex("LayerOnly");
+                int groupShape = mesh.GetBlendShapeIndex("GroupOnly");
+                Assert.That(layerShape, Is.GreaterThanOrEqualTo(0));
+                Assert.That(groupShape, Is.GreaterThanOrEqualTo(0));
+
+                var layerDeltas = new Vector3[mesh.vertexCount];
+                mesh.GetBlendShapeFrameVertices(layerShape, mesh.GetBlendShapeFrameCount(layerShape) - 1, layerDeltas, null, null);
+                AssertApproximately(deltaA, layerDeltas[0], 2e-3f);
+
+                var groupDeltas = new Vector3[mesh.vertexCount];
+                mesh.GetBlendShapeFrameVertices(groupShape, mesh.GetBlendShapeFrameCount(groupShape) - 1, groupDeltas, null, null);
+                AssertApproximately(deltaB, groupDeltas[0], 2e-3f);
+
+                AssertApproximately(sourceVertices[0], mesh.vertices[0], 2e-3f);
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void GeneratedBlendShape_RecalculateNormals_WritesNormalDeltas()
+        {
+            var fixture = CreateFixture("GeneratedBlendShape_NormalDeltas");
+            try
+            {
+                var deformer = fixture.Deformer;
+                int layer = deformer.AddLayer("NormalDeltaLayer", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = layer;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0f, 0.35f, 0.2f));
+
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "NormalDeltaShape";
+
+                ReleaseRuntimeMesh(deformer);
+                var mesh = deformer.Deform(false);
+                Assert.That(mesh, Is.Not.Null);
+
+                int shape = mesh.GetBlendShapeIndex("NormalDeltaShape");
+                Assert.That(shape, Is.GreaterThanOrEqualTo(0));
+
+                var deltas = new Vector3[mesh.vertexCount];
+                var normals = new Vector3[mesh.vertexCount];
+                mesh.GetBlendShapeFrameVertices(shape, mesh.GetBlendShapeFrameCount(shape) - 1, deltas, normals, null);
+
+                bool hasNormalDelta = false;
+                for (int i = 0; i < normals.Length; i++)
+                {
+                    if (normals[i].sqrMagnitude > 1e-8f)
+                    {
+                        hasNormalDelta = true;
+                        break;
+                    }
+                }
+
+                Assert.That(hasNormalDelta, Is.True, "Generated BlendShape should include normal deltas when normal recalculation is enabled.");
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void RecalculateOptions_TrueThenFalse_MatchesFreshFalseRuntimeMesh()
+        {
+            var fixture = CreateFixture("RecalculateOptions_TrueThenFalse");
+            try
+            {
+                var deformer = fixture.Deformer;
+                deformer.AddLayer("Attribute Deformation", MeshDeformerLayerType.Brush);
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.4f, 0.2f, -0.3f));
+
+                SetPrivateField(deformer, "_recalculateNormals", true);
+                SetPrivateField(deformer, "_recalculateTangents", true);
+                SetPrivateField(deformer, "_recalculateBounds", true);
+                deformer.Deform(false);
+
+                SetPrivateField(deformer, "_recalculateNormals", false);
+                SetPrivateField(deformer, "_recalculateTangents", false);
+                SetPrivateField(deformer, "_recalculateBounds", false);
+                var reusedRuntime = deformer.Deform(false);
+                var reusedNormals = reusedRuntime.normals;
+                var reusedTangents = reusedRuntime.tangents;
+                var reusedBounds = reusedRuntime.bounds;
+
+                ReleaseRuntimeMesh(deformer);
+                var freshRuntime = deformer.Deform(false);
+                var freshNormals = freshRuntime.normals;
+                var freshTangents = freshRuntime.tangents;
+                var freshBounds = freshRuntime.bounds;
+
+                Assert.That(reusedNormals.Length, Is.EqualTo(freshNormals.Length));
+                for (int i = 0; i < reusedNormals.Length; i++)
+                {
+                    AssertApproximately(freshNormals[i], reusedNormals[i], Epsilon);
+                }
+
+                Assert.That(reusedTangents.Length, Is.EqualTo(freshTangents.Length));
+                for (int i = 0; i < reusedTangents.Length; i++)
+                {
+                    Assert.That((freshTangents[i] - reusedTangents[i]).sqrMagnitude, Is.LessThanOrEqualTo(Epsilon * Epsilon));
+                }
+
+                AssertApproximately(freshBounds.center, reusedBounds.center, Epsilon);
+                AssertApproximately(freshBounds.size, reusedBounds.size, Epsilon);
+                AssertApproximately(fixture.SourceMesh.bounds.center, reusedBounds.center, Epsilon);
+                AssertApproximately(fixture.SourceMesh.bounds.size, reusedBounds.size, Epsilon);
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
         private static TestFixture CreateFixture(string name)
         {
             var root = new GameObject(name);
@@ -2991,6 +3368,45 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 new Vector3( 0f,-1f, 0f)  // 3: on axis (self-mirror)
             };
             sourceMesh.triangles = new[] { 0, 2, 1, 1, 3, 0 };
+            sourceMesh.RecalculateNormals();
+            sourceMesh.RecalculateBounds();
+
+            filter.sharedMesh = sourceMesh;
+
+            var deformer = root.AddComponent<LatticeDeformer>();
+            deformer.Reset();
+            var warmupMesh = deformer.Deform(false);
+            Assert.That(warmupMesh, Is.Not.Null);
+
+            return new TestFixture(root, sourceMesh, deformer);
+        }
+
+        private static TestFixture CreateFixtureWithDuplicateSymmetricMesh(string name)
+        {
+            var root = new GameObject(name);
+            var filter = root.AddComponent<MeshFilter>();
+            root.AddComponent<MeshRenderer>();
+
+            var sourceMesh = new Mesh { name = "DuplicateSymmetricTestMesh" };
+            sourceMesh.vertices = new[]
+            {
+                new Vector3( 1f, 0f, 0f),
+                new Vector3( 1f, 0f, 0f),
+                new Vector3(-1f, 0f, 0f),
+                new Vector3(-1f, 0f, 0f),
+                new Vector3( 0f, 1f, 0f),
+                new Vector3( 0f,-1f, 0f)
+            };
+            sourceMesh.uv = new[]
+            {
+                new Vector2(0f, 0f),
+                new Vector2(1f, 0f),
+                new Vector2(0f, 1f),
+                new Vector2(1f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 0f)
+            };
+            sourceMesh.triangles = new[] { 0, 4, 2, 1, 3, 5 };
             sourceMesh.RecalculateNormals();
             sourceMesh.RecalculateBounds();
 
@@ -3454,6 +3870,48 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(hash3, Is.Not.EqualTo(hash2), "Hash should change when group BS mode changed");
             }
             finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void LayeredStateHash_IncludesNamesFallbackAndRecalculateOptions()
+        {
+            var fixture = CreateFixture("LayeredStateHash_OutputInputs");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var layer = deformer.Layers[0];
+                layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                layer.BlendShapeName = "";
+
+                int beforeLayerName = deformer.ComputeLayeredStateHash();
+                layer.Name = "Renamed Layer Shape";
+                int afterLayerName = deformer.ComputeLayeredStateHash();
+                Assert.That(afterLayerName, Is.Not.EqualTo(beforeLayerName));
+
+                deformer.ActiveGroup.Name = "Renamed Group";
+                int afterGroupName = deformer.ComputeLayeredStateHash();
+                Assert.That(afterGroupName, Is.Not.EqualTo(afterLayerName));
+
+                deformer.gameObject.name = "Renamed Fallback";
+                int afterObjectName = deformer.ComputeLayeredStateHash();
+                Assert.That(afterObjectName, Is.Not.EqualTo(afterGroupName));
+
+                SetPrivateField(deformer, "_recalculateNormals", false);
+                int afterNormals = deformer.ComputeLayeredStateHash();
+                Assert.That(afterNormals, Is.Not.EqualTo(afterObjectName));
+
+                SetPrivateField(deformer, "_recalculateTangents", true);
+                int afterTangents = deformer.ComputeLayeredStateHash();
+                Assert.That(afterTangents, Is.Not.EqualTo(afterNormals));
+
+                SetPrivateField(deformer, "_recalculateBounds", false);
+                int afterBounds = deformer.ComputeLayeredStateHash();
+                Assert.That(afterBounds, Is.Not.EqualTo(afterTangents));
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
         }
 
         // ── Group Copy / Paste / Duplicate Tests ──────────────
