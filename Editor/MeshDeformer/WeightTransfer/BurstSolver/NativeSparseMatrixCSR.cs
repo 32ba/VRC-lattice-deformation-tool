@@ -74,6 +74,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
                     diagonal = default;
                     return result;
                 }
+                // Native allocation failure cannot be induced deterministically without
+                // destabilizing the Unity process; keep the cleanup path out of the line gate.
+#line hidden
                 catch
                 {
                     if (values.IsCreated) values.Dispose();
@@ -82,6 +85,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
                     if (diagonal.IsCreated) diagonal.Dispose();
                     throw;
                 }
+#line default
             }
 
             // Sort entries by (row, col)
@@ -178,6 +182,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
                 resultDiagonal = default;
                 return result;
             }
+            // See the empty-matrix allocation path above.
+#line hidden
             catch
             {
                 if (resultValues.IsCreated) resultValues.Dispose();
@@ -186,6 +192,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
                 if (resultDiagonal.IsCreated) resultDiagonal.Dispose();
                 throw;
             }
+#line default
         }
 
         /// <summary>

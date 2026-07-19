@@ -22,6 +22,9 @@ msgstr "Mesh Deformer"
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer.tooltip"
 msgstr "非破壊メッシュ変形のメインコンポーネントです。"
 
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer-overview"
+msgstr "Mesh / SkinnedMesh の形状を Lattice・Brush・Vertex Selection のレイヤーで調整します。元の Mesh は変更せず、NDMF Preview とビルド時に非破壊で結果を適用します。"
+
 msgid "net.32ba.lattice-deformation-tool.localization.yes"
 msgstr "はい"
 
@@ -1074,3 +1077,47 @@ msgstr "段階累積"
 
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade"
 msgstr "クロスフェード"
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
+msgstr "MoveをRest Spaceで保存"
+
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
+msgstr "ポーズ中のSkinned Mesh上で行ったMove編集を、再利用可能なrest-space変位へ戻します。Skinningデータが不正な場合は従来のlocal-space動作へ安全にフォールバックします。"
+# Deformer Profile
+msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
+msgstr "変形Profile"
+
+msgid "net.32ba.lattice-deformation-tool.localization.data-source"
+msgstr "データソース"
+
+msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
+msgstr "内蔵データ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
+msgstr "Profile参照"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
+msgstr "Profileを作成"
+
+msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
+msgstr "Profileへ保存"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
+msgstr "インスタンスへ複製"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
+msgstr "データソースにProfileを使用する場合はProfileを選択してください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
+msgstr "Profileデータは独立したインスタンスコピーとしてプレビューされます。GroupやLayerを編集するにはコンポーネントへ複製してください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-exact-match"
+msgstr "完全一致: このProfileは選択中のソースMesh用に保存されています。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs"
+msgstr "互換: Topologyは一致していますが、ソースAssetが異なるか識別できません。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked"
+msgstr "Topology不一致: ソースMeshと互換性がないため、このProfileは適用されませんでした。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
+msgstr "旧形式Profile: 互換性メタデータがありません。注意付きで適用できます。再保存するとメタデータが追加されます。"

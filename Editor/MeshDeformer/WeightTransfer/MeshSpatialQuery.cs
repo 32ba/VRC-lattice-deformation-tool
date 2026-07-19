@@ -240,11 +240,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
                 _nativeDataInitialized = true;
             }
+            // Persistent NativeArray exhaustion cannot be induced safely in an EditMode test.
+#line hidden
             catch
             {
                 ReleaseNativeData();
                 throw;
             }
+#line default
         }
 
         private void BuildNativeGrid()

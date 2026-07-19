@@ -565,6 +565,261 @@ namespace Net._32Ba.LatticeDeformationTool.Tests
             }
         }
 
+        [Test]
+        public void TryMigrate_HandlesNullFallbackRendererAndNonFiniteOutput()
+        {
+            Assert.That(
+                LegacyBrushDeformerMigration.TryMigrate(null, out var missingTarget, out var missingError),
+                Is.False);
+            Assert.That(missingTarget, Is.Null);
+            Assert.That(missingError, Does.Contain("missing"));
+
+            var fallback = CreateFixture("LegacyBrushFallbackRenderer");
+            try
+            {
+                SetLegacyDisplacements(fallback.Legacy, CreateDisplacements(fallback.Mesh.vertexCount, 0.1f));
+                var serialized = new SerializedObject(fallback.Legacy);
+                serialized.FindProperty("_meshFilter").objectReferenceValue = null;
+                serialized.FindProperty("_skinnedMeshRenderer").objectReferenceValue = null;
+                serialized.FindProperty("_serializedSourceMesh").objectReferenceValue = null;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                typeof(BrushDeformer)
+                    .GetField("_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(fallback.Legacy, null);
+
+                Assert.That(
+                    LegacyBrushDeformerMigration.TryMigrate(fallback.Legacy, out var target, out var error),
+                    Is.True,
+                    error);
+                Assert.That(target, Is.Not.Null);
+            }
+            finally
+            {
+                fallback.Dispose();
+            }
+
+            var nonFinite = CreateFixture("LegacyBrushNonFinite");
+            try
+            {
+                var displacements = CreateDisplacements(nonFinite.Mesh.vertexCount, 0.1f);
+                displacements[0] = new Vector3(float.NaN, 0f, 0f);
+                SetLegacyDisplacements(nonFinite.Legacy, displacements);
+
+                Assert.That(
+                    LegacyBrushDeformerMigration.TryMigrate(nonFinite.Legacy, out _, out var error),
+                    Is.False);
+                Assert.That(error, Is.Not.Empty);
+            }
+            finally
+            {
+                nonFinite.Dispose();
+            }
+        }
+
+        [Test]
+        public void TryMigrate_SkinnedRendererPath_AssignsAndRestoresSource()
+        {
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            mesh.AddBlendShapeFrame(
+                "Legacy Shape",
+                100f,
+                new[] { Vector3.forward, Vector3.forward, Vector3.forward },
+                new Vector3[3],
+                new Vector3[3]);
+            var go = new GameObject("LegacyBrushSkinnedRenderer");
+            try
+            {
+                var renderer = go.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = mesh;
+                renderer.SetBlendShapeWeight(0, 42f);
+                var legacy = go.AddComponent<BrushDeformer>();
+                var serialized = new SerializedObject(legacy);
+                serialized.FindProperty("_skinnedMeshRenderer").objectReferenceValue = renderer;
+                serialized.FindProperty("_meshFilter").objectReferenceValue = null;
+                serialized.FindProperty("_serializedSourceMesh").objectReferenceValue = mesh;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                legacy.CacheSourceMesh();
+                SetLegacyDisplacements(legacy, CreateDisplacements(mesh.vertexCount, 0.05f));
+
+                Assert.That(
+                    LegacyBrushDeformerMigration.TryMigrate(legacy, out var target, out var error),
+                    Is.True,
+                    error);
+                Assert.That(target, Is.Not.Null);
+                Assert.That(renderer.sharedMesh, Is.SameAs(mesh));
+                Assert.That(renderer.GetBlendShapeWeight(0), Is.EqualTo(42f));
+                Assert.That(legacy.enabled, Is.False);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void MigrationPrivateHelpers_HandleMissingAndAlternativeSources()
+        {
+            var fixture = CreateFixture("LegacyBrushPrivateHelpers");
+            var detached = new GameObject("LegacyBrushDetachedTarget");
+            var alternateMesh = UnityEngine.Object.Instantiate(fixture.Mesh);
+            try
+            {
+                Assert.That(InvokeMigrationPrivate("ResolveKnownTargetSource", (object)null), Is.Null);
+                Assert.That(
+                    InvokeMigrationPrivate("HasEquivalentComponentSettings", null, null),
+                    Is.EqualTo(false));
+                Assert.That(
+                    InvokeMigrationPrivate("HasSerializedMigratedLayer", null, null),
+                    Is.EqualTo(false));
+
+                var settingsWithoutPayload = (WeightTransferSettingsData)InvokeMigrationPrivate(
+                    "ReadWeightTransferSettings",
+                    new SerializedObject(fixture.Mesh));
+                Assert.That(settingsWithoutPayload, Is.Not.Null);
+
+                var target = detached.AddComponent<LatticeDeformer>();
+                var skinned = detached.AddComponent<SkinnedMeshRenderer>();
+                skinned.sharedMesh = alternateMesh;
+                var targetSerialized = new SerializedObject(target);
+                targetSerialized.FindProperty("_skinnedMeshRenderer").objectReferenceValue = skinned;
+                targetSerialized.FindProperty("_meshFilter").objectReferenceValue = null;
+                targetSerialized.FindProperty("_serializedSourceMesh").objectReferenceValue = null;
+                targetSerialized.ApplyModifiedPropertiesWithoutUndo();
+                Assert.That(
+                    InvokeMigrationPrivate("ResolveKnownTargetSource", target),
+                    Is.SameAs(alternateMesh));
+
+                targetSerialized.FindProperty("_skinnedMeshRenderer").objectReferenceValue = null;
+                targetSerialized.FindProperty("_meshFilter").objectReferenceValue = null;
+                targetSerialized.FindProperty("_serializedSourceMesh").objectReferenceValue = null;
+                targetSerialized.ApplyModifiedPropertiesWithoutUndo();
+                Assert.That(
+                    InvokeMigrationPrivate("ResolveKnownTargetSource", target),
+                    Is.SameAs(alternateMesh));
+                UnityEngine.Object.DestroyImmediate(skinned);
+                var filter = detached.AddComponent<MeshFilter>();
+                filter.sharedMesh = alternateMesh;
+                Assert.That(
+                    InvokeMigrationPrivate("ResolveKnownTargetSource", target),
+                    Is.SameAs(alternateMesh));
+                targetSerialized = new SerializedObject(target);
+                targetSerialized.FindProperty("_meshFilter").objectReferenceValue = filter;
+                targetSerialized.ApplyModifiedPropertiesWithoutUndo();
+                Assert.That(
+                    InvokeMigrationPrivate("ResolveKnownTargetSource", target),
+                    Is.SameAs(alternateMesh));
+
+                Assert.That(
+                    InvokeMigrationPrivate("FindContainingGroup", target, new LatticeLayer()),
+                    Is.Null);
+                Assert.That(
+                    InvokeMigrationPrivate("FindContainingGroup", null, null),
+                    Is.Null);
+
+                var tryFindArgs = new object[] { null, Array.Empty<Vector3>(), true, null };
+                Assert.That((bool)InvokeMigrationPrivateWithArguments("TryFindMigratedLayer", tryFindArgs), Is.False);
+                Assert.That(tryFindArgs[3], Is.Null);
+
+                typeof(LatticeDeformer).GetField("_groups", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(target, new System.Collections.Generic.List<DeformerGroup> { null });
+                typeof(LatticeDeformer).GetField("_layers", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(target, new System.Collections.Generic.List<LatticeLayer>());
+                typeof(LatticeDeformer).GetField("_deformationDataVersion", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(target, DeformationDataVersion.CurrentDevelopment);
+                tryFindArgs = new object[] { target, Array.Empty<Vector3>(), true, null };
+                Assert.That((bool)InvokeMigrationPrivateWithArguments("TryFindMigratedLayer", tryFindArgs), Is.False);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(alternateMesh);
+                UnityEngine.Object.DestroyImmediate(detached);
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void MigrationPrivateValidation_RejectsMismatchedSerializedAndEvaluatedOutput()
+        {
+            var fixture = CreateFixture("LegacyBrushPrivateValidation");
+            try
+            {
+                var displacements = CreateDisplacements(fixture.Mesh.vertexCount, 0.17f);
+                SetLegacyDisplacements(fixture.Legacy, displacements);
+                Assert.That(
+                    LegacyBrushDeformerMigration.TryMigrate(fixture.Legacy, out var target, out var error),
+                    Is.True,
+                    error);
+
+                var changed = (Vector3[])displacements.Clone();
+                changed[0] += Vector3.one;
+                Assert.That(
+                    InvokeMigrationPrivate("HasSerializedMigratedLayer", target, changed),
+                    Is.EqualTo(false));
+
+                var layer = FindMigratedLayer(target);
+                var group = target.Groups.First(candidate => candidate.Layers.Contains(layer));
+                var tryFindArgs = new object[] { target, changed, true, null };
+                Assert.That(
+                    (bool)InvokeMigrationPrivateWithArguments("TryFindMigratedLayer", tryFindArgs),
+                    Is.False);
+                var targetArgs = new object[]
+                {
+                    target,
+                    group,
+                    layer,
+                    null,
+                    fixture.Mesh,
+                    changed,
+                    null
+                };
+                Assert.That(
+                    (bool)InvokeMigrationPrivateWithArguments("ValidateTargetBrushOutput", targetArgs),
+                    Is.False);
+                Assert.That((string)targetArgs[6], Does.Contain("differs"));
+
+                layer.BrushDisplacements = new[] { Vector3.zero };
+                targetArgs[5] = displacements;
+                targetArgs[6] = null;
+                Assert.That(
+                    (bool)InvokeMigrationPrivateWithArguments("ValidateTargetBrushOutput", targetArgs),
+                    Is.False);
+                Assert.That((string)targetArgs[6], Is.Not.Empty);
+
+                var brushArgs = new object[] { null, Array.Empty<Vector3>(), null };
+                Assert.That(
+                    (bool)InvokeMigrationPrivateWithArguments("ValidateBrushOutput", brushArgs),
+                    Is.False);
+                Assert.That((string)brushArgs[2], Is.Not.Empty);
+
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        private static object InvokeMigrationPrivate(string name, params object[] args)
+        {
+            return InvokeMigrationPrivateWithArguments(name, args);
+        }
+
+        private static object InvokeMigrationPrivateWithArguments(string name, object[] args)
+        {
+            var methods = typeof(LegacyBrushDeformerMigration)
+                .GetMethods(BindingFlags.Static | BindingFlags.NonPublic)
+                .Where(method => method.Name == name && method.GetParameters().Length == args.Length)
+                .ToArray();
+            Assert.That(methods, Has.Length.EqualTo(1), name);
+            return methods[0].Invoke(null, args);
+        }
+
         private static Fixture CreateFixture(string name)
         {
             var mesh = new Mesh

@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -53,6 +54,66 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
             finally
             {
+                fixture.Destroy();
+            }
+        }
+
+        [TestCase(BlendShapeCompositionMode.Progressive)]
+        [TestCase(BlendShapeCompositionMode.Crossfade)]
+        public void StagedComposition_SurfaceDeltasMatchComposedStageGeometry(
+            BlendShapeCompositionMode composition)
+        {
+            string shapeName = composition + "Surface";
+            var fixture = CreateFixture(shapeName);
+            Mesh expectedMesh = null;
+            try
+            {
+                int firstIndex = fixture.Deformer.AddLayer("Lift A", MeshDeformerLayerType.Brush);
+                fixture.Deformer.ActiveLayerIndex = firstIndex;
+                fixture.Deformer.EnsureDisplacementCapacity();
+                fixture.Deformer.SetDisplacement(0, new Vector3(0f, 0f, 0.4f));
+
+                int secondIndex = fixture.Deformer.AddLayer("Lift B", MeshDeformerLayerType.Brush);
+                fixture.Deformer.ActiveLayerIndex = secondIndex;
+                fixture.Deformer.EnsureDisplacementCapacity();
+                fixture.Deformer.SetDisplacement(1, new Vector3(0f, 0f, -0.3f));
+
+                var group = fixture.Deformer.ActiveGroup;
+                group.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                group.BlendShapeName = shapeName;
+                group.BlendShapeComposition = composition;
+                typeof(LatticeDeformer).GetField(
+                    "_recalculateTangents", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.SetValue(fixture.Deformer, true);
+
+                var mesh = fixture.Deformer.Deform(false);
+                int shape = mesh.GetBlendShapeIndex(shapeName);
+                var deltaVertices = new Vector3[mesh.vertexCount];
+                var deltaNormals = new Vector3[mesh.vertexCount];
+                var deltaTangents = new Vector3[mesh.vertexCount];
+                mesh.GetBlendShapeFrameVertices(shape, 74, deltaVertices, deltaNormals, deltaTangents);
+
+                expectedMesh = Object.Instantiate(fixture.Mesh);
+                var expectedVertices = fixture.Mesh.vertices;
+                for (int i = 0; i < expectedVertices.Length; i++) expectedVertices[i] += deltaVertices[i];
+                expectedMesh.vertices = expectedVertices;
+                expectedMesh.RecalculateNormals();
+                expectedMesh.RecalculateTangents();
+
+                var sourceNormals = fixture.Mesh.normals;
+                var expectedNormals = expectedMesh.normals;
+                var sourceTangents = fixture.Mesh.tangents;
+                var expectedTangents = expectedMesh.tangents;
+                for (int i = 0; i < mesh.vertexCount; i++)
+                {
+                    AssertVector(deltaNormals[i], expectedNormals[i] - sourceNormals[i]);
+                    AssertVector(deltaTangents[i],
+                        (Vector3)expectedTangents[i] - (Vector3)sourceTangents[i]);
+                }
+            }
+            finally
+            {
+                if (expectedMesh != null) Object.DestroyImmediate(expectedMesh);
                 fixture.Destroy();
             }
         }
@@ -256,6 +317,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var mesh = new Mesh { name = name + " Mesh" };
             mesh.vertices = new[] { Vector3.zero, Vector3.right, Vector3.up };
             mesh.triangles = new[] { 0, 1, 2 };
+            mesh.uv = new[] { Vector2.zero, Vector2.right, Vector2.up };
             mesh.RecalculateNormals();
             mesh.RecalculateTangents();
             mesh.RecalculateBounds();
