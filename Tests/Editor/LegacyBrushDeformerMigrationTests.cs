@@ -1,11 +1,15 @@
 #if UNITY_EDITOR
 using System;
+using System.Collections;
 using System.Linq;
 using System.Reflection;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.TestTools;
 
 namespace Net._32Ba.LatticeDeformationTool.Tests
 {
@@ -16,6 +20,349 @@ namespace Net._32Ba.LatticeDeformationTool.Tests
         public void TearDown()
         {
             Undo.ClearAll();
+        }
+
+        [Test]
+        public void LegacyComponent_IsHiddenFromAddComponentMenu()
+        {
+            var attribute = typeof(BrushDeformer)
+                .GetCustomAttribute<AddComponentMenu>();
+
+            Assert.That(attribute, Is.Not.Null);
+            Assert.That(attribute.componentMenu, Is.Empty);
+        }
+
+        [Test]
+        public void AutoMigration_InactiveDisabledSceneObject_IsUndoableRedoableAndIdempotent()
+        {
+            var fixture = CreateFixture("LegacyBrushAutoScene");
+            Scene scene = fixture.GameObject.scene;
+            try
+            {
+                fixture.GameObject.SetActive(false);
+                fixture.Legacy.enabled = false;
+                SetLegacyDisplacements(
+                    fixture.Legacy,
+                    CreateDisplacements(fixture.Mesh.vertexCount, 0.23f));
+
+                Assert.That(
+                    LegacyBrushDeformerAutoMigration.TryMigrateScene(
+                        scene,
+                        out int migrated,
+                        out string error),
+                    Is.True,
+                    error);
+                Assert.That(migrated, Is.EqualTo(1));
+                Assert.That(fixture.GameObject.GetComponent<LatticeDeformer>(), Is.Not.Null);
+                Assert.That(fixture.Legacy.enabled, Is.False);
+
+                Assert.That(
+                    LegacyBrushDeformerAutoMigration.TryMigrateScene(
+                        scene,
+                        out int repeated,
+                        out error),
+                    Is.True,
+                    error);
+                Assert.That(repeated, Is.Zero);
+
+                Undo.PerformUndo();
+                Assert.That(fixture.GameObject.GetComponent<LatticeDeformer>(), Is.Null);
+                Assert.That(fixture.Legacy.enabled, Is.False,
+                    "The pre-migration disabled state must be restored exactly.");
+
+                Undo.PerformRedo();
+                Assert.That(fixture.GameObject.GetComponent<LatticeDeformer>(), Is.Not.Null);
+                Assert.That(fixture.Legacy.enabled, Is.False);
+            }
+            finally
+            {
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void AutoMigration_PublishedLegacyBrushPrefab_MigratesSavesAndReloadsIdempotently()
+        {
+            const string source =
+                "Packages/net.32ba.lattice-deformation-tool/Tests/Editor/Fixtures/" +
+                "HistoricalReleases/1.4.0/legacy-brush.prefab";
+            string folder = "Assets/__LegacyBrushAutoMigration_" + Guid.NewGuid().ToString("N");
+            string copy = folder + "/legacy-brush.prefab";
+            try
+            {
+                Assert.That(AssetDatabase.IsValidFolder("Assets"), Is.True);
+                AssetDatabase.CreateFolder("Assets", folder.Substring("Assets/".Length));
+                Assert.That(AssetDatabase.CopyAsset(source, copy), Is.True);
+                AssetDatabase.ImportAsset(copy, ImportAssetOptions.ForceSynchronousImport);
+
+                Assert.That(
+                    LegacyBrushDeformerAutoMigration.TryMigratePrefabAsset(
+                        copy,
+                        out int migrated,
+                        out string error),
+                    Is.True,
+                    error);
+                Assert.That(migrated, Is.EqualTo(1));
+
+                GameObject contents = PrefabUtility.LoadPrefabContents(copy);
+                try
+                {
+                    var legacy = contents.GetComponentInChildren<BrushDeformer>(true);
+                    var target = contents.GetComponentInChildren<LatticeDeformer>(true);
+                    Assert.That(contents.activeSelf, Is.False);
+                    Assert.That(legacy, Is.Not.Null);
+                    Assert.That(legacy.enabled, Is.False);
+                    Assert.That(target, Is.Not.Null);
+                    Assert.That(FindMigratedLayer(target), Is.Not.Null);
+                }
+                finally
+                {
+                    PrefabUtility.UnloadPrefabContents(contents);
+                }
+
+                Assert.That(
+                    LegacyBrushDeformerAutoMigration.TryMigratePrefabAsset(
+                        copy,
+                        out int repeated,
+                        out error),
+                    Is.True,
+                    error);
+                Assert.That(repeated, Is.Zero);
+            }
+            finally
+            {
+                AssetDatabase.DeleteAsset(folder);
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            }
+        }
+
+        [Test]
+        public void AutoMigration_PrefabFailureLeavesSerializedAssetUnchanged()
+        {
+            string folder = "Assets/__LegacyBrushAutoMigrationFailure_" + Guid.NewGuid().ToString("N");
+            string meshPath = folder + "/source.asset";
+            string prefabPath = folder + "/invalid.prefab";
+            var fixture = CreateFixture("LegacyBrushAutoInvalidPrefab");
+            try
+            {
+                AssetDatabase.CreateFolder("Assets", folder.Substring("Assets/".Length));
+                AssetDatabase.CreateAsset(UnityEngine.Object.Instantiate(fixture.Mesh), meshPath);
+                var persistentMesh = AssetDatabase.LoadAssetAtPath<Mesh>(meshPath);
+                fixture.Filter.sharedMesh = persistentMesh;
+                var serialized = new SerializedObject(fixture.Legacy);
+                serialized.FindProperty("_serializedSourceMesh").objectReferenceValue = persistentMesh;
+                var displacements = serialized.FindProperty("_displacements");
+                displacements.arraySize = persistentMesh.vertexCount;
+                displacements.GetArrayElementAtIndex(0).vector3Value =
+                    new Vector3(float.NaN, 0f, 0f);
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                PrefabUtility.SaveAsPrefabAsset(fixture.GameObject, prefabPath);
+                string before = System.IO.File.ReadAllText(prefabPath);
+
+                Assert.That(
+                    LegacyBrushDeformerAutoMigration.TryMigratePrefabAsset(
+                        prefabPath,
+                        out int migrated,
+                        out string error),
+                    Is.False);
+                Assert.That(migrated, Is.Zero);
+                Assert.That(error, Is.Not.Empty);
+                Assert.That(System.IO.File.ReadAllText(prefabPath), Is.EqualTo(before));
+            }
+            finally
+            {
+                fixture.Dispose();
+                AssetDatabase.DeleteAsset(folder);
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator AutoEvents_SceneOpenDelayCall_MigratesSavesReloadsAndRemainsIdempotent()
+        {
+            const string legacyPrefab =
+                "Packages/net.32ba.lattice-deformation-tool/Tests/Editor/Fixtures/" +
+                "HistoricalReleases/1.4.0/legacy-brush.prefab";
+            string folder = "Assets/__LegacyBrushAutoSceneEvent_" + Guid.NewGuid().ToString("N");
+            string scenePath = folder + "/legacy.unity";
+            IDisposable scope = null;
+            try
+            {
+                AssetDatabase.CreateFolder("Assets", folder.Substring("Assets/".Length));
+                Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                var source = AssetDatabase.LoadAssetAtPath<GameObject>(legacyPrefab);
+                var instance = (GameObject)PrefabUtility.InstantiatePrefab(source, scene);
+                PrefabUtility.UnpackPrefabInstance(
+                    instance,
+                    PrefabUnpackMode.OutermostRoot,
+                    InteractionMode.AutomatedAction);
+                Assert.That(EditorSceneManager.SaveScene(scene, scenePath), Is.True);
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+                scope = LegacyBrushDeformerAutoMigration.EnableEventExecutionForTests();
+                Scene loaded = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                yield return WaitUntil(
+                    () => FindSingleLegacy(loaded)?.GetComponent<LatticeDeformer>() != null,
+                    "sceneOpened -> delayCall did not migrate the inactive legacy component");
+
+                var legacy = FindSingleLegacy(loaded);
+                Assert.That(legacy.gameObject.activeSelf, Is.False);
+                Assert.That(legacy.enabled, Is.False);
+                Assert.That(CountMigratedLayers(legacy.GetComponent<LatticeDeformer>()), Is.EqualTo(1));
+                Assert.That(EditorSceneManager.SaveScene(loaded), Is.True);
+
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                loaded = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                yield return null;
+                yield return null;
+                legacy = FindSingleLegacy(loaded);
+                Assert.That(legacy.GetComponent<LatticeDeformer>(), Is.Not.Null);
+                Assert.That(CountMigratedLayers(legacy.GetComponent<LatticeDeformer>()), Is.EqualTo(1));
+            }
+            finally
+            {
+                scope?.Dispose();
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                AssetDatabase.DeleteAsset(folder);
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator AutoEvents_PrefabImportPostprocessor_MigratesSavesReloadsAndRemainsIdempotent()
+        {
+            const string source =
+                "Packages/net.32ba.lattice-deformation-tool/Tests/Editor/Fixtures/" +
+                "HistoricalReleases/1.4.0/legacy-brush.prefab";
+            string folder = "Assets/__LegacyBrushAutoImportEvent_" + Guid.NewGuid().ToString("N");
+            string copy = folder + "/legacy-brush.prefab";
+            IDisposable scope = null;
+            try
+            {
+                AssetDatabase.CreateFolder("Assets", folder.Substring("Assets/".Length));
+                scope = LegacyBrushDeformerAutoMigration.EnableEventExecutionForTests();
+                Assert.That(AssetDatabase.CopyAsset(source, copy), Is.True);
+                AssetDatabase.ImportAsset(
+                    copy,
+                    ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+
+                yield return WaitUntil(
+                    () => PrefabHasMigratedTarget(copy),
+                    "AssetPostprocessor -> delayCall did not migrate and save the imported Prefab");
+                Assert.That(CountMigratedLayersInPrefab(copy), Is.EqualTo(1));
+
+                AssetDatabase.ImportAsset(
+                    copy,
+                    ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+                yield return null;
+                yield return null;
+                Assert.That(CountMigratedLayersInPrefab(copy), Is.EqualTo(1));
+            }
+            finally
+            {
+                scope?.Dispose();
+                AssetDatabase.DeleteAsset(folder);
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator AutoEvents_PrefabStageOpen_MigratesDirtySavesAndReopensIdempotently()
+        {
+            const string source =
+                "Packages/net.32ba.lattice-deformation-tool/Tests/Editor/Fixtures/" +
+                "HistoricalReleases/1.4.0/legacy-brush.prefab";
+            string folder = "Assets/__LegacyBrushAutoStageEvent_" + Guid.NewGuid().ToString("N");
+            string copy = folder + "/legacy-brush.prefab";
+            IDisposable scope = null;
+            try
+            {
+                AssetDatabase.CreateFolder("Assets", folder.Substring("Assets/".Length));
+                Assert.That(AssetDatabase.CopyAsset(source, copy), Is.True);
+                AssetDatabase.ImportAsset(copy, ImportAssetOptions.ForceSynchronousImport);
+
+                scope = LegacyBrushDeformerAutoMigration.EnableEventExecutionForTests();
+                PrefabStage stage = PrefabStageUtility.OpenPrefab(copy);
+                yield return WaitUntil(
+                    () => stage != null &&
+                          stage.prefabContentsRoot.GetComponentInChildren<LatticeDeformer>(true) != null,
+                    "prefabStageOpened -> delayCall did not migrate the Prefab contents");
+                Assert.That(stage.scene.isDirty || PrefabHasMigratedTarget(copy), Is.True,
+                    "The Prefab Stage must be dirty or already persisted by Unity auto-save.");
+                Assert.That(
+                    CountMigratedLayers(
+                        stage.prefabContentsRoot.GetComponentInChildren<LatticeDeformer>(true)),
+                    Is.EqualTo(1));
+                StageUtility.GoBackToPreviousStage();
+                yield return WaitUntil(
+                    () => PrefabHasMigratedTarget(copy),
+                    "Closing the Prefab Stage did not persist the automatic migration");
+
+                stage = PrefabStageUtility.OpenPrefab(copy);
+                yield return null;
+                yield return null;
+                Assert.That(
+                    CountMigratedLayers(
+                        stage.prefabContentsRoot.GetComponentInChildren<LatticeDeformer>(true)),
+                    Is.EqualTo(1));
+            }
+            finally
+            {
+                scope?.Dispose();
+                if (PrefabStageUtility.GetCurrentPrefabStage() != null)
+                {
+                    StageUtility.GoBackToPreviousStage();
+                }
+                AssetDatabase.DeleteAsset(folder);
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator AutoEvents_ReadOnlyPrefabImport_WarnsAndLeavesAssetUnchanged()
+        {
+            const string source =
+                "Packages/net.32ba.lattice-deformation-tool/Tests/Editor/Fixtures/" +
+                "HistoricalReleases/1.4.0/legacy-brush.prefab";
+            string folder = "Assets/__LegacyBrushAutoReadOnlyEvent_" + Guid.NewGuid().ToString("N");
+            string copy = folder + "/legacy-brush.prefab";
+            string fullPath = System.IO.Path.GetFullPath(copy);
+            IDisposable scope = null;
+            try
+            {
+                AssetDatabase.CreateFolder("Assets", folder.Substring("Assets/".Length));
+                Assert.That(AssetDatabase.CopyAsset(source, copy), Is.True);
+                AssetDatabase.ImportAsset(copy, ImportAssetOptions.ForceSynchronousImport);
+                string before = System.IO.File.ReadAllText(fullPath);
+                System.IO.File.SetAttributes(
+                    fullPath,
+                    System.IO.File.GetAttributes(fullPath) | System.IO.FileAttributes.ReadOnly);
+
+                scope = LegacyBrushDeformerAutoMigration.EnableEventExecutionForTests();
+                LogAssert.Expect(
+                    LogType.Warning,
+                    new System.Text.RegularExpressions.Regex("read-only", System.Text.RegularExpressions.RegexOptions.IgnoreCase));
+                AssetDatabase.ImportAsset(
+                    copy,
+                    ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+                yield return null;
+                yield return null;
+
+                Assert.That(PrefabHasMigratedTarget(copy), Is.False);
+                Assert.That(System.IO.File.ReadAllText(fullPath), Is.EqualTo(before));
+            }
+            finally
+            {
+                scope?.Dispose();
+                if (System.IO.File.Exists(fullPath))
+                {
+                    System.IO.File.SetAttributes(
+                        fullPath,
+                        System.IO.File.GetAttributes(fullPath) & ~System.IO.FileAttributes.ReadOnly);
+                }
+                AssetDatabase.DeleteAsset(folder);
+                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            }
         }
 
         [Test]
@@ -818,6 +1165,51 @@ namespace Net._32Ba.LatticeDeformationTool.Tests
                 .ToArray();
             Assert.That(methods, Has.Length.EqualTo(1), name);
             return methods[0].Invoke(null, args);
+        }
+
+        private static IEnumerator WaitUntil(Func<bool> predicate, string failure)
+        {
+            const int maxFrames = 120;
+            for (int frame = 0; frame < maxFrames; frame++)
+            {
+                if (predicate()) yield break;
+                yield return null;
+            }
+            Assert.Fail(failure);
+        }
+
+        private static BrushDeformer FindSingleLegacy(Scene scene)
+        {
+            if (!scene.IsValid() || !scene.isLoaded) return null;
+            return scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<BrushDeformer>(true))
+                .SingleOrDefault();
+        }
+
+        private static bool PrefabHasMigratedTarget(string path)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            return prefab != null && prefab.GetComponentInChildren<LatticeDeformer>(true) != null;
+        }
+
+        private static int CountMigratedLayersInPrefab(string path)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            return prefab == null
+                ? 0
+                : CountMigratedLayers(prefab.GetComponentInChildren<LatticeDeformer>(true));
+        }
+
+        private static int CountMigratedLayers(LatticeDeformer target)
+        {
+            if (target == null) return 0;
+            return target.Groups
+                .Where(group => group != null &&
+                                group.Name == LegacyBrushDeformerMigration.MigratedGroupName)
+                .SelectMany(group => group.Layers)
+                .Count(layer => layer != null &&
+                                layer.Type == MeshDeformerLayerType.Brush &&
+                                layer.Name == LegacyBrushDeformerMigration.MigratedLayerName);
         }
 
         private static Fixture CreateFixture(string name)

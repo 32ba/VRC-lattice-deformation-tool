@@ -17,6 +17,40 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string MigratedGroupName = "Legacy Brush Migration";
         internal const string MigratedLayerName = "Migrated Legacy Brush";
 
+        internal static bool IsMigrationComplete(BrushDeformer legacy)
+        {
+            if (legacy == null || legacy.enabled) return false;
+
+            var target = legacy.GetComponent<LatticeDeformer>();
+            if (target == null) return false;
+
+            var serialized = new SerializedObject(legacy);
+            serialized.UpdateIfRequiredOrScript();
+            var skinnedRenderer = ReadObjectReference<SkinnedMeshRenderer>(serialized, "_skinnedMeshRenderer");
+            var meshFilter = ReadObjectReference<MeshFilter>(serialized, "_meshFilter");
+            if (skinnedRenderer == null && meshFilter == null)
+            {
+                skinnedRenderer = legacy.GetComponent<SkinnedMeshRenderer>();
+                meshFilter = skinnedRenderer == null ? legacy.GetComponent<MeshFilter>() : null;
+            }
+
+            var sourceMesh = legacy.SourceMesh;
+            if (sourceMesh == null)
+            {
+                sourceMesh = skinnedRenderer != null
+                    ? skinnedRenderer.sharedMesh
+                    : meshFilter != null ? meshFilter.sharedMesh : null;
+            }
+
+            var targetSource = ResolveKnownTargetSource(target);
+            if (sourceMesh != null && targetSource != null && !ReferenceEquals(sourceMesh, targetSource))
+            {
+                return false;
+            }
+
+            return HasSerializedMigratedLayer(target, legacy.Displacements ?? Array.Empty<Vector3>());
+        }
+
         internal static bool TryMigrate(
             BrushDeformer legacy,
             out LatticeDeformer target,
