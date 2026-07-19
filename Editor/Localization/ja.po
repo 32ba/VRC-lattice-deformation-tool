@@ -728,6 +728,51 @@ msgstr "参照が開いたメッシュのため、参照法線基準のクリア
 msgid "net.32ba.lattice-deformation-tool.localization.clearance-result-age"
 msgstr "結果の経過時間"
 
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction"
+msgstr "フィット補正"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-scope"
+msgstr "補正対象"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-penetration-only"
+msgstr "貫通頂点のみ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-warning-threshold"
+msgstr "警告しきい値以下"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-target-clearance"
+msgstr "目標クリアランス未満"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-move-mm"
+msgstr "最大移動距離 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-candidate-vertices"
+msgstr "補正対象頂点数"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-planned-move"
+msgstr "最大予定移動量"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-unresolved-estimate"
+msgstr "未解決見込み頂点数"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-fit-correction-layer"
+msgstr "Fit Correctionレイヤーを作成"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-posed-skinned-blocked"
+msgstr "SkinnedMeshがポーズ中、またはBlendShape適用中のため補正を生成できません。rest poseへ戻してください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-stale"
+msgstr "クリアランス評価が古いため、再評価後に補正を生成してください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-topology-mismatch"
+msgstr "評価メッシュのTopologyがSource Meshと一致しません。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-no-candidates"
+msgstr "選択した補正対象に該当する頂点はありません。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format"
+msgstr "補正を作成しました。改善: {0}、未解決: {1}。"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "頂点ツール"

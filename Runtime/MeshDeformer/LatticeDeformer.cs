@@ -34,6 +34,13 @@ namespace Net._32Ba.LatticeDeformationTool
         ClosedMesh = 1
     }
 
+    public enum FitCorrectionScope
+    {
+        PenetrationOnly = 0,
+        WarningThreshold = 1,
+        TargetClearance = 2
+    }
+
     [Serializable]
     public sealed class LatticeLayer
     {
@@ -46,6 +53,13 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, HideInInspector] private float[] _vertexMask = Array.Empty<float>();
         [SerializeField] private BlendShapeOutputMode _blendShapeOutput = BlendShapeOutputMode.Disabled;
         [SerializeField] private string _blendShapeName = "";
+        [SerializeField, HideInInspector] private bool _isFitCorrection;
+        [SerializeField, HideInInspector] private Renderer _fitCorrectionReferenceRenderer;
+        [SerializeField, HideInInspector] private ClearanceQueryMode _fitCorrectionQueryMode;
+        [SerializeField, HideInInspector] private FitCorrectionScope _fitCorrectionScope;
+        [SerializeField, HideInInspector] private float _fitCorrectionWarningDistance;
+        [SerializeField, HideInInspector] private float _fitCorrectionTargetDistance;
+        [SerializeField, HideInInspector] private float _fitCorrectionMaximumMove;
 
         public string Name
         {
@@ -100,6 +114,43 @@ namespace Net._32Ba.LatticeDeformationTool
         }
 
         public string EffectiveBlendShapeName => string.IsNullOrWhiteSpace(_blendShapeName) ? Name : _blendShapeName;
+
+        public bool IsFitCorrection => _isFitCorrection;
+        public Renderer FitCorrectionReferenceRenderer => _fitCorrectionReferenceRenderer;
+        public ClearanceQueryMode FitCorrectionQueryMode => _fitCorrectionQueryMode;
+        public FitCorrectionScope FitCorrectionScope => _fitCorrectionScope;
+        public float FitCorrectionWarningDistance => _fitCorrectionWarningDistance;
+        public float FitCorrectionTargetDistance => _fitCorrectionTargetDistance;
+        public float FitCorrectionMaximumMove => _fitCorrectionMaximumMove;
+
+        public void ConfigureFitCorrection(
+            Renderer referenceRenderer,
+            ClearanceQueryMode queryMode,
+            FitCorrectionScope scope,
+            float warningDistance,
+            float targetDistance,
+            float maximumMove)
+        {
+            _isFitCorrection = true;
+            _fitCorrectionReferenceRenderer = referenceRenderer;
+            _fitCorrectionQueryMode = queryMode;
+            _fitCorrectionScope = scope;
+            _fitCorrectionWarningDistance = Mathf.Max(0f, warningDistance);
+            _fitCorrectionTargetDistance = Mathf.Max(_fitCorrectionWarningDistance, targetDistance);
+            _fitCorrectionMaximumMove = Mathf.Max(0f, maximumMove);
+        }
+
+        internal void CopyFitCorrectionMetadataFrom(LatticeLayer source)
+        {
+            if (source == null || !source._isFitCorrection) return;
+            ConfigureFitCorrection(
+                source._fitCorrectionReferenceRenderer,
+                source._fitCorrectionQueryMode,
+                source._fitCorrectionScope,
+                source._fitCorrectionWarningDistance,
+                source._fitCorrectionTargetDistance,
+                source._fitCorrectionMaximumMove);
+        }
 
         public Vector3[] BrushDisplacements
         {
@@ -374,6 +425,8 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private float _clearanceTargetDistance = 0.01f;
         [SerializeField] private int _clearanceDisplayStride = 1;
         [SerializeField] private float _clearanceUpdateInterval = 0.1f;
+        [SerializeField] private FitCorrectionScope _fitCorrectionScope = FitCorrectionScope.TargetClearance;
+        [SerializeField] private float _fitCorrectionMaximumMove = 0.02f;
         [SerializeField, HideInInspector] private bool _hasInitializedFromSource = false;
         [SerializeField, HideInInspector] private Mesh _serializedSourceMesh;
 
@@ -628,6 +681,18 @@ namespace Net._32Ba.LatticeDeformationTool
             set => _clearanceUpdateInterval = Mathf.Clamp(value, 0.02f, 2f);
         }
 
+        public FitCorrectionScope FitCorrectionScope
+        {
+            get => _fitCorrectionScope;
+            set => _fitCorrectionScope = value;
+        }
+
+        public float FitCorrectionMaximumMove
+        {
+            get => Mathf.Max(0f, _fitCorrectionMaximumMove);
+            set => _fitCorrectionMaximumMove = Mathf.Max(0f, value);
+        }
+
         public bool RecalculateBoneWeights
         {
             get => _recalculateBoneWeights;
@@ -806,6 +871,7 @@ namespace Net._32Ba.LatticeDeformationTool
             };
             duplicate.SetType(sourceLayer.Type);
             duplicate.BrushDisplacements = (Vector3[])sourceLayer.BrushDisplacements.Clone();
+            duplicate.CopyFitCorrectionMetadataFrom(sourceLayer);
             if (sourceLayer.VertexMask.Length > 0)
                 duplicate.VertexMask = (float[])sourceLayer.VertexMask.Clone();
 

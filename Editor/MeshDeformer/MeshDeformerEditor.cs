@@ -39,6 +39,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SerializedProperty _clearanceTargetDistanceProp;
         private SerializedProperty _clearanceDisplayStrideProp;
         private SerializedProperty _clearanceUpdateIntervalProp;
+        private SerializedProperty _fitCorrectionScopeProp;
+        private SerializedProperty _fitCorrectionMaximumMoveProp;
         private bool _blendShapeTestMode = false;
         private float _blendShapeTestWeight = 0f;
         private Mesh _preTestMesh = null;
@@ -82,6 +84,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int _lastClearanceTargetId;
         private int _lastClearanceReferenceId;
         private bool _lastClearanceUsedPreviewProxy;
+        private ClearanceHeatmapRawEvaluation _fitCorrectionRawEvaluation;
+        private double _lastFitCorrectionEvaluationTime = double.NegativeInfinity;
+        private int _lastFitCorrectionTargetId;
+        private int _lastFitCorrectionReferenceId;
+        private FitCorrectionReport _lastFitCorrectionReport;
 
         private void OnEnable()
         {
@@ -103,6 +110,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _clearanceTargetDistanceProp = serializedObject.FindProperty("_clearanceTargetDistance");
             _clearanceDisplayStrideProp = serializedObject.FindProperty("_clearanceDisplayStride");
             _clearanceUpdateIntervalProp = serializedObject.FindProperty("_clearanceUpdateInterval");
+            _fitCorrectionScopeProp = serializedObject.FindProperty("_fitCorrectionScope");
+            _fitCorrectionMaximumMoveProp = serializedObject.FindProperty("_fitCorrectionMaximumMove");
             _weightTransferSettingsProp = serializedObject.FindProperty("_weightTransferSettings");
             ResolveActiveGroupProperties();
             _alignModeProp = serializedObject.FindProperty("_alignMode");
@@ -714,6 +723,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         _clearanceTargetDistanceProp.floatValue,
                         _clearanceUpdateIntervalProp.floatValue);
                     DrawClearanceStatistics(evaluation);
+                    DrawFitCorrectionControls(
+                        deformer,
+                        reference,
+                        (ClearanceQueryMode)_clearanceQueryModeProp.enumValueIndex,
+                        _clearanceWarningDistanceProp.floatValue,
+                        _clearanceTargetDistanceProp.floatValue,
+                        _clearanceUpdateIntervalProp.floatValue);
                 }
             }
             EditorGUILayout.EndFoldoutHeaderGroup();
@@ -777,6 +793,177 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorGUILayout.LabelField(
                 LatticeLocalization.Tr(LocKey.ClearanceResultAge),
                 age.ToString("0.00") + " s");
+        }
+
+        private void DrawFitCorrectionControls(
+            LatticeDeformer deformer,
+            Renderer reference,
+            ClearanceQueryMode queryMode,
+            float warningDistance,
+            float targetDistance,
+            float updateInterval)
+        {
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField(
+                LatticeLocalization.Tr(LocKey.FitCorrection),
+                EditorStyles.boldLabel);
+            _fitCorrectionScopeProp.enumValueIndex = EditorGUILayout.Popup(
+                LatticeLocalization.Content(LocKey.FitCorrectionScope),
+                _fitCorrectionScopeProp.enumValueIndex,
+                new[]
+                {
+                    LatticeLocalization.Content(LocKey.FitCorrectionPenetrationOnly),
+                    LatticeLocalization.Content(LocKey.FitCorrectionWarningThreshold),
+                    LatticeLocalization.Content(LocKey.FitCorrectionTargetClearance)
+                });
+            DrawMillimeterField(
+                _fitCorrectionMaximumMoveProp,
+                LocKey.FitCorrectionMaximumMoveMm,
+                0f);
+
+            Renderer targetRenderer = deformer.TargetRenderer;
+            double now = EditorApplication.timeSinceStartup;
+            int targetId = targetRenderer != null ? targetRenderer.GetInstanceID() : 0;
+            int referenceId = reference != null ? reference.GetInstanceID() : 0;
+            if (_fitCorrectionRawEvaluation == null ||
+                targetId != _lastFitCorrectionTargetId ||
+                referenceId != _lastFitCorrectionReferenceId ||
+                now - _lastFitCorrectionEvaluationTime >= Mathf.Clamp(updateInterval, 0.02f, 2f))
+            {
+                _fitCorrectionRawEvaluation = ClearanceHeatmapEvaluator.Evaluate(
+                    targetRenderer,
+                    reference,
+                    queryMode == ClearanceQueryMode.ClosedMesh
+                        ? ClearanceSignMode.ClosedMesh
+                        : ClearanceSignMode.ReferenceNormal);
+                _lastFitCorrectionEvaluationTime = now;
+                _lastFitCorrectionTargetId = targetId;
+                _lastFitCorrectionReferenceId = referenceId;
+            }
+
+            var plan = FitCorrectionGenerator.Analyze(
+                deformer,
+                _fitCorrectionRawEvaluation,
+                reference,
+                queryMode,
+                (FitCorrectionScope)_fitCorrectionScopeProp.enumValueIndex,
+                warningDistance,
+                targetDistance,
+                _fitCorrectionMaximumMoveProp.floatValue);
+            DrawFitCorrectionPlan(plan);
+
+            using (new EditorGUI.DisabledScope(!plan.CanGenerate))
+            {
+                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.CreateFitCorrectionLayer)))
+                {
+                    CreateFitCorrectionLayer(
+                        deformer,
+                        reference,
+                        queryMode,
+                        (FitCorrectionScope)_fitCorrectionScopeProp.enumValueIndex,
+                        warningDistance,
+                        targetDistance,
+                        _fitCorrectionMaximumMoveProp.floatValue);
+                }
+            }
+
+            if (_lastFitCorrectionReport != null &&
+                _lastFitCorrectionReport.Status == FitCorrectionStatus.Success)
+            {
+                EditorGUILayout.HelpBox(
+                    string.Format(
+                        LatticeLocalization.Tr(LocKey.FitCorrectionResultFormat),
+                        _lastFitCorrectionReport.ImprovedVertexCount,
+                        _lastFitCorrectionReport.UnresolvedVertexCount),
+                    MessageType.Info);
+            }
+        }
+
+        private static void DrawFitCorrectionPlan(FitCorrectionPlan plan)
+        {
+            if (plan == null) return;
+            if (plan.Status != FitCorrectionStatus.Ready)
+            {
+                string key = plan.Status switch
+                {
+                    FitCorrectionStatus.PosedSkinnedMeshUnsupported => LocKey.FitCorrectionPosedSkinnedBlocked,
+                    FitCorrectionStatus.StaleEvaluation => LocKey.FitCorrectionStale,
+                    FitCorrectionStatus.TopologyMismatch => LocKey.FitCorrectionTopologyMismatch,
+                    FitCorrectionStatus.NoCandidates => LocKey.FitCorrectionNoCandidates,
+                    FitCorrectionStatus.InvalidReference => LocKey.ClearanceInvalidReference,
+                    _ => LocKey.ClearanceInvalidTarget
+                };
+                EditorGUILayout.HelpBox(LatticeLocalization.Tr(key), MessageType.Warning);
+                return;
+            }
+
+            EditorGUILayout.LabelField(
+                LatticeLocalization.Tr(LocKey.FitCorrectionCandidateVertices),
+                plan.CandidateVertexCount.ToString());
+            EditorGUILayout.LabelField(
+                LatticeLocalization.Tr(LocKey.FitCorrectionMaximumPlannedMove),
+                (plan.MaximumAppliedMove * 1000f).ToString("0.###") + " mm");
+            EditorGUILayout.LabelField(
+                LatticeLocalization.Tr(LocKey.FitCorrectionUnresolvedEstimate),
+                plan.UnresolvedVertexCount.ToString());
+        }
+
+        private void CreateFitCorrectionLayer(
+            LatticeDeformer deformer,
+            Renderer reference,
+            ClearanceQueryMode queryMode,
+            FitCorrectionScope scope,
+            float warningDistance,
+            float targetDistance,
+            float maximumMove)
+        {
+            Renderer targetRenderer = deformer.TargetRenderer;
+            var freshEvaluation = ClearanceHeatmapEvaluator.Evaluate(
+                targetRenderer,
+                reference,
+                queryMode == ClearanceQueryMode.ClosedMesh
+                    ? ClearanceSignMode.ClosedMesh
+                    : ClearanceSignMode.ReferenceNormal);
+            var freshPlan = FitCorrectionGenerator.Analyze(
+                deformer,
+                freshEvaluation,
+                reference,
+                queryMode,
+                scope,
+                warningDistance,
+                targetDistance,
+                maximumMove);
+            if (!freshPlan.CanGenerate)
+            {
+                _lastFitCorrectionReport = new FitCorrectionReport(freshPlan.Status);
+                return;
+            }
+
+            Undo.RegisterCompleteObjectUndo(
+                deformer,
+                LatticeLocalization.Tr(LocKey.CreateFitCorrectionLayer));
+            _lastFitCorrectionReport = FitCorrectionGenerator.Generate(
+                deformer,
+                freshPlan,
+                reference,
+                queryMode,
+                scope,
+                warningDistance,
+                targetDistance,
+                maximumMove);
+            if (_lastFitCorrectionReport.Status != FitCorrectionStatus.Success) return;
+
+            deformer.InvalidateCache();
+            deformer.Deform(LatticePreviewUtility.ShouldAssignRuntimeMesh());
+            EditorUtility.SetDirty(deformer);
+            LatticePrefabUtility.MarkModified(deformer);
+            serializedObject.Update();
+            ResolveActiveGroupProperties();
+            InitializePendingGridSizes();
+            RebuildLayerList();
+            InvalidateClearanceEvaluation();
+            LatticePreviewUtility.RequestSceneRepaint();
+            SceneView.RepaintAll();
         }
 
         private void DrawClearanceHeatmapInScene(SceneView sceneView)
@@ -878,6 +1065,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _lastClearanceTargetId = 0;
             _lastClearanceReferenceId = 0;
             _lastClearanceUsedPreviewProxy = false;
+            _fitCorrectionRawEvaluation = null;
+            _lastFitCorrectionEvaluationTime = double.NegativeInfinity;
+            _lastFitCorrectionTargetId = 0;
+            _lastFitCorrectionReferenceId = 0;
         }
 
         private void ReapplyBlendShapeTestWeight(LatticeDeformer deformer)

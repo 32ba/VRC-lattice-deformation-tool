@@ -152,6 +152,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string ClearanceInvalidTarget = "net.32ba.lattice-deformation-tool.localization.clearance-invalid-target";
         internal const string ClearanceSignFallback = "net.32ba.lattice-deformation-tool.localization.clearance-sign-fallback";
         internal const string ClearanceResultAge = "net.32ba.lattice-deformation-tool.localization.clearance-result-age";
+        internal const string FitCorrection = "net.32ba.lattice-deformation-tool.localization.fit-correction";
+        internal const string FitCorrectionScope = "net.32ba.lattice-deformation-tool.localization.fit-correction-scope";
+        internal const string FitCorrectionPenetrationOnly = "net.32ba.lattice-deformation-tool.localization.fit-correction-penetration-only";
+        internal const string FitCorrectionWarningThreshold = "net.32ba.lattice-deformation-tool.localization.fit-correction-warning-threshold";
+        internal const string FitCorrectionTargetClearance = "net.32ba.lattice-deformation-tool.localization.fit-correction-target-clearance";
+        internal const string FitCorrectionMaximumMoveMm = "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-move-mm";
+        internal const string FitCorrectionCandidateVertices = "net.32ba.lattice-deformation-tool.localization.fit-correction-candidate-vertices";
+        internal const string FitCorrectionMaximumPlannedMove = "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-planned-move";
+        internal const string FitCorrectionUnresolvedEstimate = "net.32ba.lattice-deformation-tool.localization.fit-correction-unresolved-estimate";
+        internal const string CreateFitCorrectionLayer = "net.32ba.lattice-deformation-tool.localization.create-fit-correction-layer";
+        internal const string FitCorrectionPosedSkinnedBlocked = "net.32ba.lattice-deformation-tool.localization.fit-correction-posed-skinned-blocked";
+        internal const string FitCorrectionStale = "net.32ba.lattice-deformation-tool.localization.fit-correction-stale";
+        internal const string FitCorrectionTopologyMismatch = "net.32ba.lattice-deformation-tool.localization.fit-correction-topology-mismatch";
+        internal const string FitCorrectionNoCandidates = "net.32ba.lattice-deformation-tool.localization.fit-correction-no-candidates";
+        internal const string FitCorrectionResultFormat = "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format";
 
         // Vertex Selection Tool
         internal const string VertexTool = "net.32ba.lattice-deformation-tool.localization.vertex-tool";
