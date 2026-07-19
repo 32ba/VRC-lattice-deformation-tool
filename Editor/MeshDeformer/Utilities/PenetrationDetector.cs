@@ -12,8 +12,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         /// <summary>
         /// Finds vertices of the deformed mesh that are inside (penetrating) the reference mesh.
-        /// Uses a simple inside/outside test based on closest vertex and its normal direction.
-        /// Note: This is a vertex-based approximation, not a true closest-surface-point test.
+        /// Uses the shared triangle-surface clearance query and reference-normal sign mode.
         /// </summary>
         /// <param name="deformedVertices">Vertices of the deformed mesh (local space).</param>
         /// <param name="referenceMesh">The reference mesh to check against.</param>
@@ -31,49 +30,43 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return penetrating;
             }
 
-            var refVertices = referenceMesh.vertices;
-            var refNormals = referenceMesh.normals;
-            var refTriangles = referenceMesh.triangles;
-
-            if (refVertices == null || refNormals == null || refTriangles == null ||
-                refVertices.Length == 0 || refTriangles.Length == 0)
+            if (!ClearanceQuery.TryCreate(referenceMesh, Matrix4x4.identity, out var query))
             {
                 return penetrating;
             }
 
-            // For each deformed vertex, find the closest point on the reference mesh
-            // and check if the vertex is "inside" based on the normal direction
             for (int i = 0; i < deformedVertices.Length; i++)
             {
                 Vector3 pointInRefSpace = deformedToReference.MultiplyPoint3x4(deformedVertices[i]);
-
-                // Find closest vertex on reference mesh (simple brute force)
-                int closestRefVertex = -1;
-                float closestDistSq = float.MaxValue;
-
-                for (int j = 0; j < refVertices.Length; j++)
-                {
-                    float distSq = (refVertices[j] - pointInRefSpace).sqrMagnitude;
-                    if (distSq < closestDistSq)
-                    {
-                        closestDistSq = distSq;
-                        closestRefVertex = j;
-                    }
-                }
-
-                // Check if point is "inside" the reference mesh
-                // by comparing direction to closest vertex with the surface normal
-                Vector3 toPoint = pointInRefSpace - refVertices[closestRefVertex];
-                float dot = Vector3.Dot(toPoint, refNormals[closestRefVertex]);
-
-                // If dot < 0, the point is on the inside (behind the surface normal)
-                // Use a small threshold to avoid false positives on the surface
-                if (dot < -0.0001f)
+                ClearanceQueryResult result = query.QueryPoint(
+                    pointInRefSpace,
+                    ClearanceSignMode.ReferenceNormal);
+                if (result.IsValid && result.SignedClearance < -0.0001f)
                 {
                     penetrating.Add(i);
                 }
             }
 
+            return penetrating;
+        }
+
+        public static HashSet<int> DetectPenetration(
+            Vector3[] deformedVertices,
+            Matrix4x4 deformedLocalToWorld,
+            Renderer referenceRenderer,
+            ClearanceSignMode signMode = ClearanceSignMode.ReferenceNormal)
+        {
+            var penetrating = new HashSet<int>();
+            ClearanceQueryResult[] results = ClearanceQueryCache.QueryPoints(
+                referenceRenderer,
+                deformedVertices,
+                deformedLocalToWorld,
+                signMode);
+            for (int i = 0; i < results.Length; i++)
+            {
+                if (results[i].IsValid && results[i].SignedClearance < -0.0001f)
+                    penetrating.Add(i);
+            }
             return penetrating;
         }
     }

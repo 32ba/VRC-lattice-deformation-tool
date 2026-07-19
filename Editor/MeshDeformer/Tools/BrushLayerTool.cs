@@ -1382,27 +1382,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            Mesh refMesh = null;
-            if (s_penetrationReference is SkinnedMeshRenderer smr)
-            {
-                refMesh = smr.sharedMesh;
-            }
-            else if (s_penetrationReference is MeshRenderer mr)
-            {
-                var mf = mr.GetComponent<MeshFilter>();
-                if (mf != null) refMesh = mf.sharedMesh;
-            }
-
-            if (refMesh == null)
+            var deformerTransform = deformer.MeshTransform;
+            if (deformerTransform == null)
             {
                 _penetratingVertices = null;
                 return;
             }
-
-            // Compute transform from deformer space to reference space
-            var deformerTransform = deformer.MeshTransform;
-            var refTransform = s_penetrationReference.transform;
-            Matrix4x4 deformedToRef = refTransform.worldToLocalMatrix * deformerTransform.localToWorldMatrix;
 
             // Apply current displacements to get deformed positions
             var deformedVertices = new Vector3[_meshVertices.Length];
@@ -1411,7 +1396,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 deformedVertices[i] = _meshVertices[i] + deformer.GetDisplacement(i);
             }
 
-            _penetratingVertices = PenetrationDetector.DetectPenetration(deformedVertices, refMesh, deformedToRef);
+            _penetratingVertices = PenetrationDetector.DetectPenetration(
+                deformedVertices,
+                deformerTransform.localToWorldMatrix,
+                s_penetrationReference);
         }
 
         private void DrawPenetrationHighlight(Transform meshTransform)
