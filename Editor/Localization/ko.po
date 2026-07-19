@@ -643,6 +643,85 @@ msgstr "점 크기"
 msgid "net.32ba.lattice-deformation-tool.localization.dot-size.tooltip"
 msgstr ""
 
+# Clearance Heatmap
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-heatmap"
+msgstr "클리어런스 히트맵"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-clearance-heatmap"
+msgstr "클리어런스 히트맵 표시"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-reference-renderer"
+msgstr "참조 Renderer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-query-mode"
+msgstr "쿼리 모드"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-display-mode"
+msgstr "표시 모드"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-warning-threshold-mm"
+msgstr "경고 임계값 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-distance-mm"
+msgstr "목표 클리어런스 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-display-stride"
+msgstr "표시 간격"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-update-interval"
+msgstr "업데이트 간격 (초)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-minimum"
+msgstr "최소 클리어런스"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-maximum-penetration"
+msgstr "최대 관통 깊이"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-violation-vertices"
+msgstr "위반 버텍스 수"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-evaluated-vertices"
+msgstr "평가된 버텍스 수"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-actual-query-mode"
+msgstr "실제 쿼리 모드"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-reference-normal"
+msgstr "참조 노멀 기준"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-closed-mesh"
+msgstr "닫힌 메시"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-penetration-only"
+msgstr "관통만"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-include-warning"
+msgstr "경고 범위 포함"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-full-distribution"
+msgstr "전체 분포"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-evaluation-target"
+msgstr "평가 대상"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-preview"
+msgstr "NDMF 프리뷰 메시"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-rendered"
+msgstr "표시 메시"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-invalid-reference"
+msgstr "참조 Renderer가 없거나 비활성화되었거나 유효한 삼각형이 없습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-invalid-target"
+msgstr "평가 대상이 없거나 비활성화되었거나 읽을 수 있는 버텍스가 없습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-sign-fallback"
+msgstr "참조가 열린 메시이므로 참조 노멀 기준 클리어런스로 전환했습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-result-age"
+msgstr "결과 경과 시간"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "버텍스 도구"
