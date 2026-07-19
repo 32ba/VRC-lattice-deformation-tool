@@ -139,6 +139,32 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string ShowPenetration = "net.32ba.lattice-deformation-tool.localization.show-penetration";
         internal const string ReferenceMesh = "net.32ba.lattice-deformation-tool.localization.reference-mesh";
         internal const string DotSize = "net.32ba.lattice-deformation-tool.localization.dot-size";
+        internal const string ClearanceHeatmap = "net.32ba.lattice-deformation-tool.localization.clearance-heatmap";
+        internal const string ShowClearanceHeatmap = "net.32ba.lattice-deformation-tool.localization.show-clearance-heatmap";
+        internal const string ClearanceReferenceRenderer = "net.32ba.lattice-deformation-tool.localization.clearance-reference-renderer";
+        internal const string ClearanceQueryMode = "net.32ba.lattice-deformation-tool.localization.clearance-query-mode";
+        internal const string ClearanceDisplayMode = "net.32ba.lattice-deformation-tool.localization.clearance-display-mode";
+        internal const string ClearanceWarningThresholdMm = "net.32ba.lattice-deformation-tool.localization.clearance-warning-threshold-mm";
+        internal const string ClearanceTargetDistanceMm = "net.32ba.lattice-deformation-tool.localization.clearance-target-distance-mm";
+        internal const string ClearanceDisplayStride = "net.32ba.lattice-deformation-tool.localization.clearance-display-stride";
+        internal const string ClearanceUpdateInterval = "net.32ba.lattice-deformation-tool.localization.clearance-update-interval";
+        internal const string ClearanceMinimum = "net.32ba.lattice-deformation-tool.localization.clearance-minimum";
+        internal const string ClearanceMaximumPenetration = "net.32ba.lattice-deformation-tool.localization.clearance-maximum-penetration";
+        internal const string ClearanceViolationVertices = "net.32ba.lattice-deformation-tool.localization.clearance-violation-vertices";
+        internal const string ClearanceEvaluatedVertices = "net.32ba.lattice-deformation-tool.localization.clearance-evaluated-vertices";
+        internal const string ClearanceActualQueryMode = "net.32ba.lattice-deformation-tool.localization.clearance-actual-query-mode";
+        internal const string ClearanceReferenceNormal = "net.32ba.lattice-deformation-tool.localization.clearance-reference-normal";
+        internal const string ClearanceClosedMesh = "net.32ba.lattice-deformation-tool.localization.clearance-closed-mesh";
+        internal const string ClearancePenetrationOnly = "net.32ba.lattice-deformation-tool.localization.clearance-penetration-only";
+        internal const string ClearanceIncludeWarning = "net.32ba.lattice-deformation-tool.localization.clearance-include-warning";
+        internal const string ClearanceFullDistribution = "net.32ba.lattice-deformation-tool.localization.clearance-full-distribution";
+        internal const string ClearanceEvaluationTarget = "net.32ba.lattice-deformation-tool.localization.clearance-evaluation-target";
+        internal const string ClearanceTargetPreview = "net.32ba.lattice-deformation-tool.localization.clearance-target-preview";
+        internal const string ClearanceTargetRendered = "net.32ba.lattice-deformation-tool.localization.clearance-target-rendered";
+        internal const string ClearanceInvalidReference = "net.32ba.lattice-deformation-tool.localization.clearance-invalid-reference";
+        internal const string ClearanceInvalidTarget = "net.32ba.lattice-deformation-tool.localization.clearance-invalid-target";
+        internal const string ClearanceSignFallback = "net.32ba.lattice-deformation-tool.localization.clearance-sign-fallback";
+        internal const string ClearanceResultAge = "net.32ba.lattice-deformation-tool.localization.clearance-result-age";
 
         // Vertex Selection Tool
         internal const string VertexTool = "net.32ba.lattice-deformation-tool.localization.vertex-tool";

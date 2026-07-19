@@ -59,11 +59,19 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
 - Scene ビューで保護された頂点を赤、編集可能な頂点を緑で可視化
 
 **貫通検出（Penetration Detection）:**
-- `PenetrationDetector.cs` (`Editor/MeshDeformer/Utilities/`): 変形後の頂点が参照メッシュを貫通しているかを検出するユーティリティ
-  - 最近傍頂点の法線方向とのドット積で内側/外側を判定
+- `ClearanceQuery.cs` (`Editor/MeshDeformer/Utilities/`): 参照メッシュのworld-space三角形からBVHを構築し、最近傍triangle index・最近傍点・barycentric coordinate・補間法線・距離・符号付きclearanceを返す共通Query基盤
+  - `ReferenceNormal` は開いたメッシュでも補間法線基準の片側clearanceを返す。`ClosedMesh` は閉じたtopologyだけray parityで内外判定し、開いたメッシュでは結果の `SignMode` を `ReferenceNormal` として明示的にfallbackする
+  - `ClearanceQueryCache` はMeshRendererのshared mesh、SkinnedMeshRendererの現在poseをBakeしたmesh、world Transformをhashし、形状またはTransformが変わった場合だけBVHを再構築する。対象側もMeshRenderer / SkinnedMeshRendererをworld-spaceへ統一してQueryできる
+  - BVHのAABB枝刈りにより、通常Queryで対象頂点ごとの全triangle走査を行わない
+- `PenetrationDetector.cs` (`Editor/MeshDeformer/Utilities/`): `ClearanceQuery` の符号付き結果を利用して、変形後の頂点が参照メッシュを貫通しているか検出する互換Facade
   - ブラシツールの Visualization セクション「Show Penetration」トグルで有効化
   - 参照メッシュ（Renderer）を ObjectField で指定。SkinnedMeshRenderer / MeshRenderer に対応
   - 貫通頂点は赤色のドットで Scene ビューにハイライト表示
+
+**クリアランスヒートマップ:**
+- `ClearanceHeatmap.cs` (`Editor/MeshDeformer/Utilities/`): `ClearanceQuery` 結果を貫通・警告・目標未満・安全へ分類し、最小clearance、最大貫通深度、違反頂点数、評価頂点数を集計する。しきい値はworld-space meterで保持し、Inspectorではmm表示する
+- `LatticeDeformer` ごとに参照Renderer、Query mode、表示mode、警告/目標距離、表示stride、更新間隔をserializeする。ヒートマップは検出専用でMesh・Layer・BlendShapeを変更しない
+- Scene View描画は「貫通のみ」「警告範囲を含む」「全体分布」を切り替え、NDMF preview proxyが存在する場合はproxy meshを評価してInspectorへ評価対象を明示する。参照/対象の無効化、Undo/Redo、設定変更時は古い表示を破棄する
 
 ### 頂点選択ツール（Vertex Selection Tool）
 

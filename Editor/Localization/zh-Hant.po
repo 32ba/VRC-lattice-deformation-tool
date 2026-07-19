@@ -643,6 +643,85 @@ msgstr "點大小"
 msgid "net.32ba.lattice-deformation-tool.localization.dot-size.tooltip"
 msgstr ""
 
+# Clearance Heatmap
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-heatmap"
+msgstr "間隙熱圖"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-clearance-heatmap"
+msgstr "顯示間隙熱圖"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-reference-renderer"
+msgstr "參考Renderer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-query-mode"
+msgstr "查詢模式"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-display-mode"
+msgstr "顯示模式"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-warning-threshold-mm"
+msgstr "警告閾值 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-distance-mm"
+msgstr "目標間隙 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-display-stride"
+msgstr "顯示步長"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-update-interval"
+msgstr "更新間隔（秒）"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-minimum"
+msgstr "最小間隙"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-maximum-penetration"
+msgstr "最大穿透深度"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-violation-vertices"
+msgstr "違規頂點數"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-evaluated-vertices"
+msgstr "已評估頂點數"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-actual-query-mode"
+msgstr "實際查詢模式"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-reference-normal"
+msgstr "參考法線"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-closed-mesh"
+msgstr "封閉網格"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-penetration-only"
+msgstr "僅穿透"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-include-warning"
+msgstr "包含警告範圍"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-full-distribution"
+msgstr "完整分佈"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-evaluation-target"
+msgstr "評估目標"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-preview"
+msgstr "NDMF預覽網格"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-rendered"
+msgstr "顯示網格"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-invalid-reference"
+msgstr "參考Renderer遺失、已停用或沒有有效三角形。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-invalid-target"
+msgstr "評估目標遺失、已停用或沒有可讀取的頂點。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-sign-fallback"
+msgstr "參考物件是開放網格，已回退至參考法線間隙。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-result-age"
+msgstr "結果經過時間"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "頂點工具"
