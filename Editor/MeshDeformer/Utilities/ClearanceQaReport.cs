@@ -21,6 +21,26 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     }
 
     [Serializable]
+    internal sealed class ClearanceQaBlendShapeOverride
+    {
+        public string rendererRole = "";
+        public string blendShapeName = "";
+        public float weight;
+    }
+
+    [Serializable]
+    internal sealed class ClearanceQaTransformOverride
+    {
+        public string relativePath = "";
+        public bool overridePosition;
+        public Vector3 localPosition;
+        public bool overrideRotation;
+        public Vector3 localEulerAngles;
+        public bool overrideScale;
+        public Vector3 localScale = Vector3.one;
+    }
+
+    [Serializable]
     internal sealed class ClearanceQaCondition
     {
         public int index;
@@ -35,6 +55,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         public int evaluatedVertexCount;
         public bool usedNdmfPreviewProxy;
         public string evaluatedRenderer = "";
+        public bool useAnimationClip;
+        public string animationClip = "";
+        public float sampleTime;
+        public string animationRootPath = "";
+        public bool overrideThresholds;
+        public List<ClearanceQaBlendShapeOverride> blendShapeOverrides =
+            new List<ClearanceQaBlendShapeOverride>();
+        public List<ClearanceQaTransformOverride> transformOverrides =
+            new List<ClearanceQaTransformOverride>();
+        public string conditionFingerprint = "";
     }
 
     [Serializable]
@@ -172,6 +202,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     usedNdmfPreviewProxy = source.UsedNdmfPreviewProxy,
                     evaluatedRenderer = source.EvaluatedRendererName
                 });
+                ClearanceScanCondition definition = scanResult.ScanSet != null &&
+                                                    source.ConditionIndex >= 0 &&
+                                                    source.ConditionIndex < scanResult.ScanSet.Conditions.Count
+                    ? scanResult.ScanSet.Conditions[source.ConditionIndex]
+                    : null;
+                PopulateConditionDefinition(report.conditions[report.conditions.Count - 1], definition);
                 if (source.ConditionIndex == report.worstConditionIndex)
                     report.worstConditionName = source.ConditionName;
             }
@@ -194,6 +230,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     after.targetTopology.topologyHash,
                     StringComparison.Ordinal))
                 return new ClearanceQaComparison(false, "Target topology does not match.");
+            if (!string.Equals(before.referenceRenderer, after.referenceRenderer, StringComparison.Ordinal))
+                return new ClearanceQaComparison(false, "Reference renderer does not match.");
+            if (!string.Equals(before.queryMode, after.queryMode, StringComparison.Ordinal))
+                return new ClearanceQaComparison(false, "Query mode does not match.");
+            if (before.conditions == null || after.conditions == null ||
+                before.conditions.Count != after.conditions.Count)
+                return new ClearanceQaComparison(false, "Condition set does not match.");
 
             var beforeByKey = new Dictionary<string, ClearanceQaCondition>();
             for (int index = 0; index < before.conditions.Count; index++)
@@ -210,7 +253,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 ClearanceQaCondition current = after.conditions[index];
                 if (!beforeByKey.TryGetValue(ConditionKey(current), out ClearanceQaCondition previous))
-                    continue;
+                    return new ClearanceQaComparison(false, "Condition set does not match.");
+                if (!ConditionDefinitionsMatch(previous, current))
+                    return new ClearanceQaComparison(false, "Condition definition or thresholds do not match.");
                 if (!IsSuccess(previous) || !IsSuccess(current)) continue;
                 beforeMinimum = Mathf.Min(beforeMinimum, previous.minimumClearance);
                 afterMinimum = Mathf.Min(afterMinimum, current.minimumClearance);
@@ -305,7 +350,45 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         : condition.evaluatedRenderer))
                     .Append(" | ").Append(EscapeMarkdown(condition.error)).AppendLine(" |");
             }
+            builder.AppendLine();
+            builder.AppendLine("## Condition definitions");
+            for (int index = 0; index < report.conditions.Count; index++)
+            {
+                ClearanceQaCondition condition = report.conditions[index];
+                builder.AppendLine();
+                builder.Append("### ").Append(condition.index).Append(". ")
+                    .AppendLine(EscapeMarkdown(condition.name));
+                AppendField(builder, "Animation clip", condition.useAnimationClip
+                    ? condition.animationClip
+                    : "Disabled");
+                AppendField(builder, "Sample time (s)",
+                    condition.sampleTime.ToString("R", CultureInfo.InvariantCulture));
+                AppendField(builder, "Animation root", condition.animationRootPath);
+                AppendField(builder, "Threshold override", condition.overrideThresholds.ToString());
+                AppendField(builder, "BlendShape overrides",
+                    JsonUtility.ToJson(new BlendShapeOverrideList
+                    {
+                        items = condition.blendShapeOverrides ?? new List<ClearanceQaBlendShapeOverride>()
+                    }, false));
+                AppendField(builder, "Transform overrides",
+                    JsonUtility.ToJson(new TransformOverrideList
+                    {
+                        items = condition.transformOverrides ?? new List<ClearanceQaTransformOverride>()
+                    }, false));
+            }
             return builder.ToString();
+        }
+
+        [Serializable]
+        private sealed class BlendShapeOverrideList
+        {
+            public List<ClearanceQaBlendShapeOverride> items = new List<ClearanceQaBlendShapeOverride>();
+        }
+
+        [Serializable]
+        private sealed class TransformOverrideList
+        {
+            public List<ClearanceQaTransformOverride> items = new List<ClearanceQaTransformOverride>();
         }
 
         internal static ClearanceQaTopology ComputeTopology(Mesh mesh)
@@ -392,6 +475,82 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static string ConditionKey(ClearanceQaCondition condition) =>
             condition.index.ToString(CultureInfo.InvariantCulture) + "\n" + (condition.name ?? "");
+
+        private static void PopulateConditionDefinition(
+            ClearanceQaCondition destination,
+            ClearanceScanCondition source)
+        {
+            if (destination == null || source == null) return;
+            destination.useAnimationClip = source.UseAnimationClip;
+            destination.animationClip = GetObjectIdentifier(source.AnimationClip);
+            destination.sampleTime = source.SampleTime;
+            destination.animationRootPath = source.AnimationRootPath;
+            destination.overrideThresholds = source.OverrideThresholds;
+            foreach (ClearanceBlendShapeOverride item in source.BlendShapeOverrides)
+            {
+                if (item == null) continue;
+                destination.blendShapeOverrides.Add(new ClearanceQaBlendShapeOverride
+                {
+                    rendererRole = item.RendererRole.ToString(),
+                    blendShapeName = item.BlendShapeName,
+                    weight = item.Weight
+                });
+            }
+            foreach (ClearanceTransformPoseOverride item in source.TransformOverrides)
+            {
+                if (item == null) continue;
+                destination.transformOverrides.Add(new ClearanceQaTransformOverride
+                {
+                    relativePath = item.RelativePath,
+                    overridePosition = item.OverridePosition,
+                    localPosition = item.LocalPosition,
+                    overrideRotation = item.OverrideRotation,
+                    localEulerAngles = item.LocalEulerAngles,
+                    overrideScale = item.OverrideScale,
+                    localScale = item.LocalScale
+                });
+            }
+            destination.conditionFingerprint = ComputeConditionFingerprint(destination);
+        }
+
+        private static string GetObjectIdentifier(UnityEngine.Object value)
+        {
+            if (value == null) return "";
+            return UnityEditor.AssetDatabase.TryGetGUIDAndLocalFileIdentifier(
+                    value, out string guid, out long localId)
+                ? guid + ":" + localId.ToString(CultureInfo.InvariantCulture)
+                : value.name + "|" + value.GetType().Name;
+        }
+
+        private static string ComputeConditionFingerprint(ClearanceQaCondition condition)
+        {
+            var definition = new ClearanceQaCondition
+            {
+                useAnimationClip = condition.useAnimationClip,
+                animationClip = condition.animationClip,
+                sampleTime = condition.sampleTime,
+                animationRootPath = condition.animationRootPath,
+                overrideThresholds = condition.overrideThresholds,
+                blendShapeOverrides = condition.blendShapeOverrides,
+                transformOverrides = condition.transformOverrides
+            };
+            byte[] bytes = Encoding.UTF8.GetBytes(JsonUtility.ToJson(definition, false));
+            using SHA256 sha256 = SHA256.Create();
+            return Convert.ToBase64String(sha256.ComputeHash(bytes));
+        }
+
+        private static bool ConditionDefinitionsMatch(
+            ClearanceQaCondition before,
+            ClearanceQaCondition after)
+        {
+            if (before == null || after == null) return false;
+            if (!Mathf.Approximately(before.warningDistance, after.warningDistance) ||
+                !Mathf.Approximately(before.targetDistance, after.targetDistance)) return false;
+            return string.Equals(
+                before.conditionFingerprint ?? "",
+                after.conditionFingerprint ?? "",
+                StringComparison.Ordinal);
+        }
 
         private static bool IsSuccess(ClearanceQaCondition condition) =>
             condition != null && string.Equals(

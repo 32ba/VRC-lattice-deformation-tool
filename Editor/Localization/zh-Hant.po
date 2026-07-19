@@ -613,6 +613,12 @@ msgstr "可視化"
 msgid "net.32ba.lattice-deformation-tool.localization.visualization.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.show-wireframe"
+msgstr "顯示線框"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-wireframe.tooltip"
+msgstr "顯示網格邊緣，以便查看面的形狀。"
+
 msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices"
 msgstr "顯示受影響頂點"
 
@@ -754,6 +760,86 @@ msgstr "{0}：最小 {1:0.###} mm，違規 {2}，目標 {3}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-error-format"
 msgstr "{0}：錯誤 - {1}"
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction"
+msgstr "貼合校正"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-scope"
+msgstr "校正範圍"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-penetration-only"
+msgstr "僅穿透頂點"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-warning-threshold"
+msgstr "警告閾值以下"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-target-clearance"
+msgstr "目標間隙以下"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-move-mm"
+msgstr "最大移動距離 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-candidate-vertices"
+msgstr "候選頂點數"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-planned-move"
+msgstr "最大預定移動量"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-unresolved-estimate"
+msgstr "預估未解決頂點數"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-fit-correction-layer"
+msgstr "建立Fit Correction圖層"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-posed-skinned-blocked"
+msgstr "SkinnedMesh處於姿勢狀態或套用了BlendShape，無法產生校正。請先恢復rest pose。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-stale"
+msgstr "間隙評估已過期，請重新評估後產生校正。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-topology-mismatch"
+msgstr "評估網格的Topology與Source Mesh不一致。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-no-candidates"
+msgstr "沒有頂點符合所選校正範圍。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format"
+msgstr "已建立校正。改善：{0}，未解決：{1}。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-constraints"
+msgstr "形狀保護約束"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-vertex-mask"
+msgstr "使用目前圖層遮罩"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-pin-open-boundaries"
+msgstr "固定開放邊界"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-isolate-components"
+msgstr "隔離連通元件"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smooth-surface"
+msgstr "沿表面平滑"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-iterations"
+msgstr "平滑迭代次數"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-strength"
+msgstr "平滑強度"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preserve-clearance"
+msgstr "保持已解決間隙"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-symmetry"
+msgstr "使用對稱"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-axis"
+msgstr "對稱軸"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-tolerance-mm"
+msgstr "對稱容差 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preview"
+msgstr "預覽計畫修正"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clearance-report"
 msgstr "間隙QA報告"
@@ -1068,6 +1154,12 @@ msgstr "匯入 BlendShape"
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-single-frame"
+msgstr "單一影格"
+
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-all-frames"
+msgstr "所有影格"
+
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
 msgstr "(NDMF) Disable Lattice Preview"
@@ -1153,6 +1245,30 @@ msgstr "筆刷變形"
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning"
+msgstr "目前的 NDMF 流程不會處理此舊版元件。繼續編輯前，請將變形資料遷移到 Mesh Deformer。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning.tooltip"
+msgstr "遷移後，原始元件會被停用並保留為備份。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush"
+msgstr "遷移到 Mesh Deformer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush.tooltip"
+msgstr "將所有位移與網格重建設定複製到 Mesh Deformer 筆刷圖層，然後停用此舊版元件。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded"
+msgstr "遷移完成。舊版元件已停用並保留為備份。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded.tooltip"
+msgstr "遷移後的 Mesh Deformer 已包含舊版筆刷變形資料。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed"
+msgstr "遷移失敗：{0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed.tooltip"
+msgstr "驗證失敗時不會保留永久的遷移變更。"
+
 # Update notification
 msgid "net.32ba.lattice-deformation-tool.localization.update-available"
 msgstr "有新版本可用"
@@ -1162,3 +1278,59 @@ msgstr "目前: {0}  最新: {1}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
 msgstr "開啟 BOOTH 商品頁面"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition"
+msgstr "影格合成"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-single"
+msgstr "單一"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-progressive"
+msgstr "逐步累積"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade"
+msgstr "交叉淡化"
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
+msgstr "以 Rest Space 儲存移動"
+
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
+msgstr "將在已擺姿勢的 Skinned Mesh 上進行的移動編輯轉換為可重用的 rest-space 位移。Skinning 資料無效時會安全回復至原有 local-space 行為。"
+# Deformer Profile
+msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
+msgstr "變形設定檔"
+
+msgid "net.32ba.lattice-deformation-tool.localization.data-source"
+msgstr "資料來源"
+
+msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
+msgstr "內嵌資料"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
+msgstr "設定檔參照"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
+msgstr "建立設定檔"
+
+msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
+msgstr "儲存至設定檔"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
+msgstr "複製至執行個體"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
+msgstr "使用設定檔作為資料來源時，請選擇一個設定檔。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
+msgstr "設定檔資料會以獨立執行個體副本預覽。若要編輯群組與圖層，請先複製到元件。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-exact-match"
+msgstr "完全相符：此設定檔是為目前選取的來源網格儲存的。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs"
+msgstr "相容：拓撲相符，但來源資源不同或無法識別。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked"
+msgstr "拓撲不相符：此設定檔與來源網格不相容，因此未套用。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
+msgstr "舊版設定檔：沒有相容性中繼資料。可謹慎套用；重新儲存即可加入中繼資料。"

@@ -27,6 +27,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         // Groups & Layers
         internal const string DeformationGroups = "net.32ba.lattice-deformation-tool.localization.deformation-groups";
+        internal const string DeformerProfile = "net.32ba.lattice-deformation-tool.localization.deformer-profile";
+        internal const string DataSource = "net.32ba.lattice-deformation-tool.localization.data-source";
+        internal const string EmbeddedData = "net.32ba.lattice-deformation-tool.localization.embedded-data";
+        internal const string ProfileData = "net.32ba.lattice-deformation-tool.localization.profile-data";
+        internal const string CreateProfile = "net.32ba.lattice-deformation-tool.localization.create-profile";
+        internal const string SaveToProfile = "net.32ba.lattice-deformation-tool.localization.save-to-profile";
+        internal const string CopyProfileToInstance = "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance";
+        internal const string ProfileRequired = "net.32ba.lattice-deformation-tool.localization.profile-required";
+        internal const string ProfileReadOnlyInfo = "net.32ba.lattice-deformation-tool.localization.profile-read-only-info";
+        internal const string ProfileExactMatch = "net.32ba.lattice-deformation-tool.localization.profile-exact-match";
+        internal const string ProfileCompatibleSourceDiffers = "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs";
+        internal const string ProfileTopologyMismatchBlocked = "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked";
+        internal const string ProfileInsufficientMetadata = "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata";
         internal const string Layers = "net.32ba.lattice-deformation-tool.localization.layers";
         internal const string AddLatticeLayer = "net.32ba.lattice-deformation-tool.localization.add-lattice-layer";
         internal const string AddBrushLayer = "net.32ba.lattice-deformation-tool.localization.add-brush-layer";
@@ -112,6 +125,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string EnableMirror = "net.32ba.lattice-deformation-tool.localization.enable-mirror";
         internal const string MirrorAxis = "net.32ba.lattice-deformation-tool.localization.mirror-axis";
         internal const string SurfaceDistance = "net.32ba.lattice-deformation-tool.localization.surface-distance";
+        internal const string StoreMoveInRestSpace = "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space";
         internal const string ClearAllDisplacements = "net.32ba.lattice-deformation-tool.localization.clear-all-displacements";
         internal const string ClearActiveLayerDisplacements = "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements";
         internal const string BackfaceCulling = "net.32ba.lattice-deformation-tool.localization.backface-culling";
@@ -168,6 +182,33 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string ClearanceReportExportScan = "net.32ba.lattice-deformation-tool.localization.clearance-report-export-scan";
         internal const string ClearanceReportExportSuccess = "net.32ba.lattice-deformation-tool.localization.clearance-report-export-success";
         internal const string ClearanceReportExportFailure = "net.32ba.lattice-deformation-tool.localization.clearance-report-export-failure";
+        internal const string FitCorrection = "net.32ba.lattice-deformation-tool.localization.fit-correction";
+        internal const string FitCorrectionScope = "net.32ba.lattice-deformation-tool.localization.fit-correction-scope";
+        internal const string FitCorrectionPenetrationOnly = "net.32ba.lattice-deformation-tool.localization.fit-correction-penetration-only";
+        internal const string FitCorrectionWarningThreshold = "net.32ba.lattice-deformation-tool.localization.fit-correction-warning-threshold";
+        internal const string FitCorrectionTargetClearance = "net.32ba.lattice-deformation-tool.localization.fit-correction-target-clearance";
+        internal const string FitCorrectionMaximumMoveMm = "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-move-mm";
+        internal const string FitCorrectionCandidateVertices = "net.32ba.lattice-deformation-tool.localization.fit-correction-candidate-vertices";
+        internal const string FitCorrectionMaximumPlannedMove = "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-planned-move";
+        internal const string FitCorrectionUnresolvedEstimate = "net.32ba.lattice-deformation-tool.localization.fit-correction-unresolved-estimate";
+        internal const string CreateFitCorrectionLayer = "net.32ba.lattice-deformation-tool.localization.create-fit-correction-layer";
+        internal const string FitCorrectionPosedSkinnedBlocked = "net.32ba.lattice-deformation-tool.localization.fit-correction-posed-skinned-blocked";
+        internal const string FitCorrectionStale = "net.32ba.lattice-deformation-tool.localization.fit-correction-stale";
+        internal const string FitCorrectionTopologyMismatch = "net.32ba.lattice-deformation-tool.localization.fit-correction-topology-mismatch";
+        internal const string FitCorrectionNoCandidates = "net.32ba.lattice-deformation-tool.localization.fit-correction-no-candidates";
+        internal const string FitCorrectionResultFormat = "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format";
+        internal const string FitCorrectionConstraints = "net.32ba.lattice-deformation-tool.localization.fit-correction-constraints";
+        internal const string FitCorrectionUseVertexMask = "net.32ba.lattice-deformation-tool.localization.fit-correction-use-vertex-mask";
+        internal const string FitCorrectionPinOpenBoundaries = "net.32ba.lattice-deformation-tool.localization.fit-correction-pin-open-boundaries";
+        internal const string FitCorrectionIsolateComponents = "net.32ba.lattice-deformation-tool.localization.fit-correction-isolate-components";
+        internal const string FitCorrectionSmoothSurface = "net.32ba.lattice-deformation-tool.localization.fit-correction-smooth-surface";
+        internal const string FitCorrectionSmoothingIterations = "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-iterations";
+        internal const string FitCorrectionSmoothingStrength = "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-strength";
+        internal const string FitCorrectionPreserveClearance = "net.32ba.lattice-deformation-tool.localization.fit-correction-preserve-clearance";
+        internal const string FitCorrectionUseSymmetry = "net.32ba.lattice-deformation-tool.localization.fit-correction-use-symmetry";
+        internal const string FitCorrectionSymmetryAxis = "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-axis";
+        internal const string FitCorrectionSymmetryToleranceMm = "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-tolerance-mm";
+        internal const string FitCorrectionPreview = "net.32ba.lattice-deformation-tool.localization.fit-correction-preview";
 
         // Vertex Selection Tool
         internal const string VertexTool = "net.32ba.lattice-deformation-tool.localization.vertex-tool";
@@ -218,6 +259,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         // BlendShape
         internal const string BlendShapeOutput = "net.32ba.lattice-deformation-tool.localization.blendshape-output";
+        internal const string BlendShapeComposition = "net.32ba.lattice-deformation-tool.localization.blendshape-composition";
+        internal const string BlendShapeCompositionSingle = "net.32ba.lattice-deformation-tool.localization.blendshape-composition-single";
+        internal const string BlendShapeCompositionProgressive = "net.32ba.lattice-deformation-tool.localization.blendshape-composition-progressive";
+        internal const string BlendShapeCompositionCrossfade = "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade";
         internal const string BlendShapeName = "net.32ba.lattice-deformation-tool.localization.blendshape-name";
         internal const string Curve = "net.32ba.lattice-deformation-tool.localization.curve";
         internal const string EnterTestMode = "net.32ba.lattice-deformation-tool.localization.enter-test-mode";
@@ -225,6 +270,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string BlendShapeTestMode = "net.32ba.lattice-deformation-tool.localization.blendshape-test-mode";
         internal const string TestWeight = "net.32ba.lattice-deformation-tool.localization.test-weight";
         internal const string ImportBlendShape = "net.32ba.lattice-deformation-tool.localization.import-blendshape";
+        internal const string ImportBlendShapeSingleFrame = "net.32ba.lattice-deformation-tool.localization.import-blendshape-single-frame";
+        internal const string ImportBlendShapeAllFrames = "net.32ba.lattice-deformation-tool.localization.import-blendshape-all-frames";
 
         // NDMF Preview
         internal const string NDMFDisableMeshPreview = "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview";
@@ -247,6 +294,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         // Legacy Brush Deformer
         internal const string BrushDeformer = "net.32ba.lattice-deformation-tool.localization.brush-deformer";
         internal const string BrushDeformation = "net.32ba.lattice-deformation-tool.localization.brush-deformation";
+        internal const string LegacyBrushMigrationWarning = "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning";
+        internal const string MigrateLegacyBrush = "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush";
+        internal const string LegacyBrushMigrationSucceeded = "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded";
+        internal const string LegacyBrushMigrationFailed = "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed";
     }
 }
 #endif

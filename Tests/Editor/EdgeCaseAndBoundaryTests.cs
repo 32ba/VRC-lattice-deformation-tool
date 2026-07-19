@@ -354,6 +354,36 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally { fixture.Dispose(); }
         }
 
+        [Test]
+        public void InvalidateCache_AfterBlendShapeOutputDisabled_RemovesGeneratedBlendShape()
+        {
+            var fixture = CreateFixture("InvalidateCache_BlendShapeOutputDisabled");
+            try
+            {
+                var deformer = fixture.Deformer;
+                int brushLayer = deformer.AddLayer("Generated", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushLayer;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.25f, 0f, 0f));
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "GeneratedShape";
+
+                var blendShapeMesh = deformer.Deform(false);
+                Assert.That(blendShapeMesh.GetBlendShapeIndex("GeneratedShape"), Is.GreaterThanOrEqualTo(0));
+
+                deformer.InvalidateCache();
+                deformer.BlendShapeOutput = BlendShapeOutputMode.Disabled;
+                var directMesh = deformer.Deform(false);
+
+                Assert.That(directMesh.GetBlendShapeIndex("GeneratedShape"), Is.EqualTo(-1));
+                AssertApproximately(
+                    fixture.SourceMesh.vertices[0] + new Vector3(0.25f, 0f, 0f),
+                    directMesh.vertices[0],
+                    2e-3f);
+            }
+            finally { fixture.Dispose(); }
+        }
+
         // ========================================================================
         // ComputeLayeredStateHash
         // ========================================================================
@@ -611,15 +641,17 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [Test]
         public void InterpolationMode_SwitchBetweenModes_BothProduceValidResults()
         {
-            var fixture = CreateFixture("InterpolationMode_SwitchBetweenModes_BothProduceValidResults");
+            var fixture = CreateInterpolationFixture("InterpolationMode_SwitchBetweenModes_BothProduceValidResults");
             try
             {
                 var deformer = fixture.Deformer;
                 var settings = deformer.Layers[0].Settings;
                 int vertexCount = deformer.SourceMesh.vertexCount;
+                int centerVertex = vertexCount - 1;
+                var delta = new Vector3(0f, 0.2f, 0f);
 
                 settings.SetControlPointLocal(0,
-                    settings.GetControlPointLocal(0) + new Vector3(0f, 0.2f, 0f));
+                    settings.GetControlPointLocal(0) + delta);
 
                 var srcVerts = deformer.SourceMesh.vertices;
 
@@ -633,7 +665,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var triVerts = triMesh.vertices.Clone() as Vector3[];
 
                 foreach (var v in triVerts)
-                    Assert.That(float.IsNaN(v.x) || float.IsNaN(v.y) || float.IsNaN(v.z), Is.False);
+                    AssertFinite(v);
+
+                AssertApproximately(srcVerts[centerVertex], triVerts[centerVertex]);
 
                 // CubicBernstein
                 settings.Interpolation = LatticeInterpolationMode.CubicBernstein;
@@ -645,17 +679,79 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var cubicVerts = cubicMesh.vertices;
 
                 foreach (var v in cubicVerts)
-                    Assert.That(float.IsNaN(v.x) || float.IsNaN(v.y) || float.IsNaN(v.z), Is.False);
+                    AssertFinite(v);
 
-                // Both should have moved at least some vertices from source
-                bool triMoved = false, cubicMoved = false;
-                for (int i = 0; i < vertexCount; i++)
+                // The center has no contribution from corner 0 in the local trilinear cell.
+                // A 3x3x3 Bernstein lattice uses degree two per axis, so corner 0 has
+                // B0(0.5)^3 = (0.25)^3 = 1/64 influence at the center.
+                var expectedCubicCenter = srcVerts[centerVertex] + delta / 64f;
+                AssertApproximately(expectedCubicCenter, cubicVerts[centerVertex]);
+                Assert.That(
+                    (cubicVerts[centerVertex] - triVerts[centerVertex]).sqrMagnitude,
+                    Is.GreaterThan(Epsilon * Epsilon));
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void InterpolationMode_TwoPointGrid_CubicBernsteinMatchesTrilinear()
+        {
+            var fixture = CreateInterpolationFixture("InterpolationMode_TwoPointGrid_CubicBernsteinMatchesTrilinear");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var settings = deformer.Layers[0].Settings;
+                settings.GridSize = new Vector3Int(2, 2, 2);
+                settings.ResetControlPoints();
+                settings.SetControlPointLocal(0, settings.GetControlPointLocal(0) + Vector3.up * 0.2f);
+
+                settings.Interpolation = LatticeInterpolationMode.Trilinear;
+                ReleaseRuntimeMesh(deformer);
+                deformer.InvalidateCache();
+                var trilinear = deformer.Deform(false).vertices;
+
+                settings.Interpolation = LatticeInterpolationMode.CubicBernstein;
+                ReleaseRuntimeMesh(deformer);
+                deformer.InvalidateCache();
+                var bernstein = deformer.Deform(false).vertices;
+
+                Assert.That(bernstein.Length, Is.EqualTo(trilinear.Length));
+                for (int vertex = 0; vertex < trilinear.Length; vertex++)
                 {
-                    if ((triVerts[i] - srcVerts[i]).sqrMagnitude > Epsilon) triMoved = true;
-                    if ((cubicVerts[i] - srcVerts[i]).sqrMagnitude > Epsilon) cubicMoved = true;
+                    AssertFinite(bernstein[vertex]);
+                    AssertApproximately(trilinear[vertex], bernstein[vertex]);
                 }
-                Assert.That(triMoved, Is.True, "Trilinear should deform vertices");
-                Assert.That(cubicMoved, Is.True, "CubicBernstein should deform vertices");
+            }
+            finally { fixture.Dispose(); }
+        }
+
+        [Test]
+        public void InterpolationMode_AsymmetricHighOrderGrid_UsesAllAxisDegrees()
+        {
+            var fixture = CreateInterpolationFixture("InterpolationMode_AsymmetricHighOrderGrid_UsesAllAxisDegrees");
+            try
+            {
+                var deformer = fixture.Deformer;
+                var settings = deformer.Layers[0].Settings;
+                settings.GridSize = new Vector3Int(4, 3, 5);
+                settings.ResetControlPoints();
+                var delta = Vector3.up * 0.2f;
+                settings.SetControlPointLocal(0, settings.GetControlPointLocal(0) + delta);
+                settings.Interpolation = LatticeInterpolationMode.CubicBernstein;
+
+                ReleaseRuntimeMesh(deformer);
+                deformer.InvalidateCache();
+                var result = deformer.Deform(false).vertices;
+
+                foreach (var vertex in result)
+                    AssertFinite(vertex);
+
+                // At t=0.5 the first basis values for degrees 3, 2 and 4 are
+                // 1/8, 1/4 and 1/16. Their tensor product is 1/512.
+                int centerVertex = deformer.SourceMesh.vertexCount - 1;
+                AssertApproximately(
+                    deformer.SourceMesh.vertices[centerVertex] + delta / 512f,
+                    result[centerVertex]);
             }
             finally { fixture.Dispose(); }
         }
@@ -1043,6 +1139,48 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             return new TestFixture(root, sourceMesh, deformer);
         }
 
+        private static TestFixture CreateInterpolationFixture(string name)
+        {
+            var root = new GameObject(name);
+            var filter = root.AddComponent<MeshFilter>();
+            root.AddComponent<MeshRenderer>();
+
+            var sourceMesh = new Mesh
+            {
+                name = "InterpolationTestMesh",
+                vertices = new[]
+                {
+                    new Vector3(-0.5f, -0.5f, -0.5f),
+                    new Vector3( 0.5f, -0.5f, -0.5f),
+                    new Vector3( 0.5f,  0.5f, -0.5f),
+                    new Vector3(-0.5f,  0.5f, -0.5f),
+                    new Vector3(-0.5f, -0.5f,  0.5f),
+                    new Vector3( 0.5f, -0.5f,  0.5f),
+                    new Vector3( 0.5f,  0.5f,  0.5f),
+                    new Vector3(-0.5f,  0.5f,  0.5f),
+                    Vector3.zero
+                },
+                triangles = new[]
+                {
+                    0, 2, 1, 0, 3, 2,
+                    4, 5, 6, 4, 6, 7,
+                    0, 1, 5, 0, 5, 4,
+                    2, 3, 7, 2, 7, 6,
+                    0, 4, 7, 0, 7, 3,
+                    1, 2, 6, 1, 6, 5
+                }
+            };
+            sourceMesh.RecalculateNormals();
+            sourceMesh.RecalculateBounds();
+            filter.sharedMesh = sourceMesh;
+
+            var deformer = root.AddComponent<LatticeDeformer>();
+            deformer.Reset();
+            deformer.Deform(false);
+
+            return new TestFixture(root, sourceMesh, deformer);
+        }
+
         private static Mesh CreateCubeMesh()
         {
             var temp = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -1067,6 +1205,16 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That((expected - actual).sqrMagnitude,
                 Is.LessThanOrEqualTo(tolerance * tolerance),
                 $"Expected {expected} but got {actual}");
+        }
+
+        private static void AssertFinite(Vector3 value)
+        {
+            Assert.That(
+                float.IsNaN(value.x) || float.IsInfinity(value.x) ||
+                float.IsNaN(value.y) || float.IsInfinity(value.y) ||
+                float.IsNaN(value.z) || float.IsInfinity(value.z),
+                Is.False,
+                $"Expected a finite vector but got {value}");
         }
 
         private sealed class TestFixture

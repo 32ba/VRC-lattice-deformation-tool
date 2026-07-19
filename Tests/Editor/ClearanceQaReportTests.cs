@@ -54,8 +54,36 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 QueryMode = ClearanceQueryMode.ClosedMesh,
                 WorstClearances = new[] { 0.002f, -0.004f, 0.003f },
-                WorstConditionIndices = new[] { 0, 1, 0 }
+                WorstConditionIndices = new[] { 0, 1, 0 },
+                ScanSet = ScriptableObject.CreateInstance<ClearanceScanSet>()
             };
+            var firstDefinition = new ClearanceScanCondition { Name = "通常" };
+            var secondDefinition = new ClearanceScanCondition
+            {
+                Name = "腕上げ",
+                UseAnimationClip = true,
+                AnimationClip = new AnimationClip { name = "Arm Pose" },
+                SampleTime = 0.25f,
+                AnimationRootPath = "Avatar/Body",
+                OverrideThresholds = true,
+                WarningDistance = 0.004f,
+                TargetDistance = 0.008f
+            };
+            secondDefinition.BlendShapeOverrides.Add(new ClearanceBlendShapeOverride
+            {
+                RendererRole = ClearanceScanRendererRole.Target,
+                BlendShapeName = "Sleeve",
+                Weight = 75f
+            });
+            secondDefinition.TransformOverrides.Add(new ClearanceTransformPoseOverride
+            {
+                RelativePath = "Arm",
+                OverridePosition = true,
+                LocalPosition = new Vector3(1f, 2f, 3f)
+            });
+            scan.ScanSet.Conditions.Add(firstDefinition);
+            scan.ScanSet.Conditions.Add(secondDefinition);
+            scan.ScanSet.Conditions.Add(new ClearanceScanCondition { Name = "Missing" });
             scan.Conditions.Add(new ClearanceScanConditionResult(
                 0, "通常", ClearanceScanConditionStatus.Success,
                 warningDistance: 0.005f,
@@ -87,8 +115,19 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(report.conditions.Select(condition => condition.name),
                 Is.EqualTo(new[] { "通常", "腕上げ", "Missing" }));
             Assert.That(report.conditions[1].usedNdmfPreviewProxy, Is.True);
+            Assert.That(report.conditions[1].useAnimationClip, Is.True);
+            Assert.That(report.conditions[1].animationClip, Does.Contain("Arm Pose"));
+            Assert.That(report.conditions[1].sampleTime, Is.EqualTo(0.25f));
+            Assert.That(report.conditions[1].animationRootPath, Is.EqualTo("Avatar/Body"));
+            Assert.That(report.conditions[1].blendShapeOverrides.Single().blendShapeName,
+                Is.EqualTo("Sleeve"));
+            Assert.That(report.conditions[1].transformOverrides.Single().relativePath,
+                Is.EqualTo("Arm"));
+            Assert.That(report.conditions[1].conditionFingerprint, Is.Not.Empty);
             Assert.That(report.conditions[2].status, Is.EqualTo("MissingBlendShape"));
             Assert.That(report.conditions[2].error, Does.Contain("Missing"));
+            Object.DestroyImmediate(secondDefinition.AnimationClip);
+            Object.DestroyImmediate(scan.ScanSet);
         }
 
         [Test]
@@ -240,6 +279,39 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void Compare_RejectsDifferentReferenceQueryThresholdsAndConditionDefinition()
+        {
+            ClearanceQaReport before = ReportForComparison("same", 0.001f, 1);
+            before.referenceRenderer = "Avatar/Body|SkinnedMeshRenderer";
+            before.queryMode = "ClosedMesh";
+            before.conditions[0].warningDistance = 0.005f;
+            before.conditions[0].targetDistance = 0.01f;
+            before.conditions[0].conditionFingerprint = "definition-a";
+
+            ClearanceQaReport changedReference = ReportForComparison("same", 0.002f, 0);
+            CopyComparisonContext(before, changedReference);
+            changedReference.referenceRenderer = "Avatar/Other|SkinnedMeshRenderer";
+            ClearanceQaReport changedQuery = ReportForComparison("same", 0.002f, 0);
+            CopyComparisonContext(before, changedQuery);
+            changedQuery.queryMode = "ReferenceNormal";
+            ClearanceQaReport changedThreshold = ReportForComparison("same", 0.002f, 0);
+            CopyComparisonContext(before, changedThreshold);
+            changedThreshold.conditions[0].targetDistance = 0.02f;
+            ClearanceQaReport changedCondition = ReportForComparison("same", 0.002f, 0);
+            CopyComparisonContext(before, changedCondition);
+            changedCondition.conditions[0].conditionFingerprint = "definition-b";
+
+            Assert.That(ClearanceQaReportBuilder.Compare(before, changedReference).Reason,
+                Does.Contain("Reference"));
+            Assert.That(ClearanceQaReportBuilder.Compare(before, changedQuery).Reason,
+                Does.Contain("Query"));
+            Assert.That(ClearanceQaReportBuilder.Compare(before, changedThreshold).Reason,
+                Does.Contain("thresholds"));
+            Assert.That(ClearanceQaReportBuilder.Compare(before, changedCondition).Reason,
+                Does.Contain("definition"));
+        }
+
+        [Test]
         public void Writer_AtomicallyWritesAndOverwritesJsonAndMarkdown()
         {
             string directory = NewTemporaryDirectory();
@@ -316,6 +388,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 violationVertexCount = violations
             });
             return report;
+        }
+
+        private static void CopyComparisonContext(ClearanceQaReport source, ClearanceQaReport destination)
+        {
+            destination.referenceRenderer = source.referenceRenderer;
+            destination.queryMode = source.queryMode;
+            destination.conditions[0].warningDistance = source.conditions[0].warningDistance;
+            destination.conditions[0].targetDistance = source.conditions[0].targetDistance;
+            destination.conditions[0].conditionFingerprint = source.conditions[0].conditionFingerprint;
         }
 
         private static Mesh CreateQuad(int[] triangles)

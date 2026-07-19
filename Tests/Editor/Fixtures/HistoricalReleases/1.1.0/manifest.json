@@ -1,0 +1,49 @@
+{
+    "tag": "1.1.0",
+    "commitSha": "b08327c3d5308a41d8dd5438bb7fe9eec91d8382",
+    "packageVersion": "1.1.0",
+    "unityVersion": "2022.3.22f1",
+    "generator": "Tools~/HistoricalFixtures/HistoricalFixtureGenerator.cs",
+    "generatorSha256": "48a4fa7bd9ce776e1a53052c7916f33284d940eeeb134ecc15757cddb9fc1d22",
+    "runner": "Tools~/HistoricalFixtures/Generate-HistoricalFixtures.ps1",
+    "runnerSha256": "d81ea92e5c8d28e28e42aae08cf07d059fc070da8b07a708f60616897ca94539",
+    "metaGuidScheme": "sha256-v1:tag/relative-asset-path",
+    "prefabFileIdScheme": "sha256-v1:tag/relative-prefab/class/ordinal",
+    "generationMode": "unity-batchmode-tag-checkout",
+    "goldenOutputSource": "historical-runtime-deform",
+    "fixtures": [
+        {
+            "kind": "lattice",
+            "prefab": "fixture.prefab",
+            "expected": "expected.json",
+            "source": "source.asset",
+            "goldenOutputSource": "LatticeDeformer.Deform(false)"
+        }
+    ],
+    "files": [
+        {
+            "path": "expected.json",
+            "sha256": "4cbd8c91ea2ac1a7a30747b2a5065dd09d04575a054a47740cd63f6a063d3298"
+        },
+        {
+            "path": "expected.json.meta",
+            "sha256": "970363c1cf0975a8932f2b8748b9f474ee20fde85d760a492074e22d459d3dea"
+        },
+        {
+            "path": "fixture.prefab",
+            "sha256": "d01f592e8f7f0ed36eda9a6e132bcf7d37b18f47af5012e755fd1a9825e42059"
+        },
+        {
+            "path": "fixture.prefab.meta",
+            "sha256": "30b69c8cc0137e2d712c389e0f26129f6066f2c0898e0a20abdb8e35fb634942"
+        },
+        {
+            "path": "source.asset",
+            "sha256": "7c8f4da58f6222fe6a2de9b08c3f2254f95731fbac9bdbc752f5cbcb74ff7643"
+        },
+        {
+            "path": "source.asset.meta",
+            "sha256": "c1130ddd15f57880fa11d0c07442da5342d2a844f8262d179608e70e11f40b64"
+        }
+    ]
+}
