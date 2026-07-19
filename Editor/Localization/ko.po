@@ -1065,3 +1065,31 @@ msgstr "현재: {0}  최신: {1}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
 msgstr "BOOTH 상품 페이지 열기"
+
+# Deformer Profile
+msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
+msgstr "변형 프로필"
+
+msgid "net.32ba.lattice-deformation-tool.localization.data-source"
+msgstr "데이터 소스"
+
+msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
+msgstr "내장 데이터"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
+msgstr "프로필 참조"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
+msgstr "프로필 만들기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
+msgstr "프로필에 저장"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
+msgstr "인스턴스로 복제"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
+msgstr "데이터 소스로 프로필을 사용할 때는 프로필을 선택하세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
+msgstr "프로필 데이터는 독립된 인스턴스 복사본으로 미리 봅니다. 그룹과 레이어를 편집하려면 컴포넌트로 복제하세요."

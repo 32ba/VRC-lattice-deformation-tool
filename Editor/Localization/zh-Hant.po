@@ -1065,3 +1065,31 @@ msgstr "目前: {0}  最新: {1}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
 msgstr "開啟 BOOTH 商品頁面"
+
+# Deformer Profile
+msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
+msgstr "變形設定檔"
+
+msgid "net.32ba.lattice-deformation-tool.localization.data-source"
+msgstr "資料來源"
+
+msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
+msgstr "內嵌資料"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
+msgstr "設定檔參照"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
+msgstr "建立設定檔"
+
+msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
+msgstr "儲存至設定檔"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
+msgstr "複製至執行個體"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
+msgstr "使用設定檔作為資料來源時，請選擇一個設定檔。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
+msgstr "設定檔資料會以獨立執行個體副本預覽。若要編輯群組與圖層，請先複製到元件。"

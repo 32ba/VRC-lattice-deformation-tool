@@ -1065,3 +1065,31 @@ msgstr "現在: {0}  最新: {1}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
 msgstr "BOOTH 商品ページを開く"
+
+# Deformer Profile
+msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
+msgstr "変形Profile"
+
+msgid "net.32ba.lattice-deformation-tool.localization.data-source"
+msgstr "データソース"
+
+msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
+msgstr "内蔵データ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
+msgstr "Profile参照"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
+msgstr "Profileを作成"
+
+msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
+msgstr "Profileへ保存"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
+msgstr "インスタンスへ複製"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
+msgstr "データソースにProfileを使用する場合はProfileを選択してください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
+msgstr "Profileデータは独立したインスタンスコピーとしてプレビューされます。GroupやLayerを編集するにはコンポーネントへ複製してください。"

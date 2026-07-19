@@ -1065,3 +1065,31 @@ msgstr "当前: {0}  最新: {1}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
 msgstr "打开 BOOTH 商品页面"
+
+# Deformer Profile
+msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
+msgstr "变形配置文件"
+
+msgid "net.32ba.lattice-deformation-tool.localization.data-source"
+msgstr "数据源"
+
+msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
+msgstr "内置数据"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
+msgstr "配置文件引用"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
+msgstr "创建配置文件"
+
+msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
+msgstr "保存到配置文件"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
+msgstr "复制到实例"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
+msgstr "使用配置文件作为数据源时，请选择一个配置文件。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
+msgstr "配置文件数据会以独立实例副本进行预览。要编辑组和图层，请先复制到组件。"

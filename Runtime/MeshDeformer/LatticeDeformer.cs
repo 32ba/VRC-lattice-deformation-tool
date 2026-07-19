@@ -485,6 +485,8 @@ namespace Net._32Ba.LatticeDeformationTool
         // New group-based structure
         [SerializeField] private List<DeformerGroup> _groups = new List<DeformerGroup>();
         [SerializeField, HideInInspector] private int _activeGroupIndex = 0;
+        [SerializeField] private DeformerDataSource _dataSource = DeformerDataSource.Embedded;
+        [SerializeField] private MeshDeformerProfile _profile;
 
         [SerializeField] private SkinnedMeshRenderer _skinnedMeshRenderer;
         [SerializeField] private MeshFilter _meshFilter;
@@ -511,6 +513,8 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private Mesh _sourceMesh;
         [NonSerialized] private int _lastBlendShapeHash;
         [NonSerialized] private int _lastBakedBlendShapeHash;
+        [NonSerialized] private List<DeformerGroup> _profileGroups;
+        [NonSerialized] private string _profileFingerprint;
         [NonSerialized] private bool _blendShapeOutputDirty = true;
         [NonSerialized] private bool _isEnsuringLayerModelReady;
         [NonSerialized] private bool _hasIncompatibleBrushData;
@@ -620,12 +624,85 @@ namespace Net._32Ba.LatticeDeformationTool
 
         // ── Group-level API ──────────────────────────────────────────
 
+        public DeformerDataSource DataSource
+        {
+            get => _dataSource;
+            set
+            {
+                if (_dataSource == value) return;
+                _dataSource = value;
+                if (_dataSource == DeformerDataSource.Profile && _profile != null)
+                {
+                    _groups?.Clear();
+                }
+                _profileFingerprint = null;
+                EnsureGroups();
+                InvalidateCache();
+            }
+        }
+
+        public MeshDeformerProfile Profile
+        {
+            get => _profile;
+            set
+            {
+                if (_profile == value) return;
+                _profile = value;
+                if (_dataSource == DeformerDataSource.Profile && _profile != null)
+                {
+                    _groups?.Clear();
+                }
+                _profileFingerprint = null;
+                EnsureGroups();
+                InvalidateCache();
+            }
+        }
+
+        public bool UseProfile(MeshDeformerProfile profile)
+        {
+            if (profile == null) return false;
+            _profile = profile;
+            _dataSource = DeformerDataSource.Profile;
+            _groups?.Clear();
+            _profileGroups = null;
+            _profileFingerprint = null;
+            EnsureGroups();
+            InvalidateCache();
+            return true;
+        }
+
+        public bool CopyProfileToEmbedded()
+        {
+            if (_profile == null) return false;
+            var payload = _profile.CreateIndependentPayload();
+            _groups = payload.Groups;
+            _activeGroupIndex = payload.ActiveGroupIndex;
+            _dataSource = DeformerDataSource.Embedded;
+            _profileGroups = null;
+            _profileFingerprint = null;
+            EnsureGroups();
+            InvalidateCache();
+            return true;
+        }
+
+        public bool SaveToProfile(MeshDeformerProfile destination)
+        {
+            if (destination == null) return false;
+            EnsureGroups();
+            destination.Capture(GetGroupStorage(), _activeGroupIndex);
+            if (_profile == destination)
+            {
+                _profileFingerprint = null;
+            }
+            return true;
+        }
+
         public IReadOnlyList<DeformerGroup> Groups
         {
             get
             {
                 if (!EnsureGroups()) return Array.Empty<DeformerGroup>();
-                return _groups;
+                return GetGroupStorage();
             }
         }
 
@@ -633,7 +710,7 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             get
             {
-                return EnsureGroups() && _groups != null ? _groups.Count : 0;
+                return EnsureGroups() ? GetGroupStorage().Count : 0;
             }
         }
 
@@ -646,7 +723,8 @@ namespace Net._32Ba.LatticeDeformationTool
             set
             {
                 if (!EnsureGroups()) return;
-                _activeGroupIndex = _groups.Count > 0 ? Mathf.Clamp(value, 0, _groups.Count - 1) : 0;
+                var groups = GetGroupStorage();
+                _activeGroupIndex = groups.Count > 0 ? Mathf.Clamp(value, 0, groups.Count - 1) : 0;
             }
         }
 
@@ -654,30 +732,34 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             get
             {
-                if (!EnsureGroups() || _groups == null || _groups.Count == 0) return null;
-                return _groups[Mathf.Clamp(_activeGroupIndex, 0, _groups.Count - 1)];
+                if (!EnsureGroups()) return null;
+                var groups = GetGroupStorage();
+                if (groups.Count == 0) return null;
+                return groups[Mathf.Clamp(_activeGroupIndex, 0, groups.Count - 1)];
             }
         }
 
         public int AddGroup(string groupName = null)
         {
             if (!EnsureGroups()) return -1;
+            var groups = GetGroupStorage();
             var group = new DeformerGroup();
             group.Name = string.IsNullOrWhiteSpace(groupName) ? GenerateNextGroupName() : groupName;
-            _groups.Add(group);
-            _activeGroupIndex = _groups.Count - 1;
+            groups.Add(group);
+            _activeGroupIndex = groups.Count - 1;
             return _activeGroupIndex;
         }
 
         public bool RemoveGroup(int index)
         {
             if (!EnsureGroups()) return false;
-            if (index < 0 || index >= _groups.Count || _groups.Count <= 1)
+            var groups = GetGroupStorage();
+            if (index < 0 || index >= groups.Count || groups.Count <= 1)
                 return false;
 
-            _groups.RemoveAt(index);
+            groups.RemoveAt(index);
             if (_activeGroupIndex == index)
-                _activeGroupIndex = Mathf.Min(index, _groups.Count - 1);
+                _activeGroupIndex = Mathf.Min(index, groups.Count - 1);
             else if (_activeGroupIndex > index)
                 _activeGroupIndex--;
             return true;
@@ -1375,19 +1457,20 @@ namespace Net._32Ba.LatticeDeformationTool
         public int ComputeLayeredStateHash()
         {
             if (!EnsureGroups()) return 0;
+            var groups = GetGroupStorage();
 
             int hash = 17;
             hash = HashCode.Combine(hash, _legacyAbsoluteLatticeEvaluation);
             hash = HashCode.Combine(hash, _legacyPublishedBlendShapeSemantics);
             hash = HashCode.Combine(hash, (int)_deformationDataVersion);
-            hash = HashCode.Combine(hash, _groups.Count);
+            hash = HashCode.Combine(hash, groups.Count);
             hash = HashCode.Combine(hash, _activeGroupIndex);
             hash = HashCode.Combine(hash, (gameObject.name ?? "").GetHashCode());
             hash = HashCode.Combine(hash, _recalculateNormals);
             hash = HashCode.Combine(hash, _recalculateTangents);
             hash = HashCode.Combine(hash, _recalculateBounds);
 
-            foreach (var group in _groups)
+            foreach (var group in groups)
             {
                 if (group == null) { hash = HashCode.Combine(hash, 0); continue; }
                 hash = HashCode.Combine(hash, (group.Name ?? "").GetHashCode());
@@ -1652,10 +1735,11 @@ namespace Net._32Ba.LatticeDeformationTool
             var directDeltas = new Vector3[vertexCount];
             // Collect generated BlendShapes from groups and individual layers.
             var generatedBlendShapes = new List<GeneratedBlendShape>();
+            var groups = GetGroupStorage();
 
-            for (int g = 0; g < _groups.Count; g++)
+            for (int g = 0; g < groups.Count; g++)
             {
-                var group = _groups[g];
+                var group = groups[g];
                 if (group == null || !group.Enabled) continue;
 
                 var groupVertices = (Vector3[])sourceVertices.Clone();
@@ -3485,7 +3569,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
             var sourceVertices = BuildCurrentSourceVertices(out _, out _, out _);
             var meshBounds = CalculateReferencedBounds(_sourceMesh, sourceVertices, _sourceMesh.bounds);
-            foreach (var group in _groups)
+            foreach (var group in GetGroupStorage())
             {
                 if (group == null) continue;
                 var layers = group.LayersList;
@@ -3660,9 +3744,10 @@ namespace Net._32Ba.LatticeDeformationTool
         private void EnsureGroupsCore()
         {
             if (_groups == null) _groups = new List<DeformerGroup>();
+            var groups = GetGroupStorage();
 
             // Create default group if none exist
-            if (_groups.Count == 0)
+            if (groups.Count == 0)
             {
                 var defaultGroup = new DeformerGroup();
                 defaultGroup.Name = "Group";
@@ -3672,12 +3757,12 @@ namespace Net._32Ba.LatticeDeformationTool
                     Enabled = true,
                     Weight = 1f,
                 });
-                _groups.Add(defaultGroup);
+                groups.Add(defaultGroup);
                 _activeGroupIndex = 0;
             }
 
             // Ensure each group's layers are valid
-            foreach (var group in _groups)
+            foreach (var group in groups)
             {
                 if (group == null) continue;
                 var layers = group.LayersList;
@@ -3689,10 +3774,36 @@ namespace Net._32Ba.LatticeDeformationTool
                 }
             }
 
-            _activeGroupIndex = _groups.Count > 0 ? Mathf.Clamp(_activeGroupIndex, 0, _groups.Count - 1) : 0;
+            _activeGroupIndex = groups.Count > 0 ? Mathf.Clamp(_activeGroupIndex, 0, groups.Count - 1) : 0;
 
             if (_sourceMesh != null)
                 EnsureAllBrushLayerDisplacementCapacity(_sourceMesh.vertexCount);
+        }
+
+        private List<DeformerGroup> GetGroupStorage()
+        {
+            if (_groups == null) _groups = new List<DeformerGroup>();
+            if (_dataSource != DeformerDataSource.Profile || _profile == null)
+            {
+                return _groups;
+            }
+
+            if (_groups.Count > 0)
+            {
+                _groups.Clear();
+            }
+
+            string fingerprint = _profile.GetContentFingerprint();
+            if (_profileGroups == null || !string.Equals(_profileFingerprint, fingerprint, StringComparison.Ordinal))
+            {
+                var payload = _profile.CreateIndependentPayload();
+                _profileGroups = payload.Groups;
+                _activeGroupIndex = payload.ActiveGroupIndex;
+                _profileFingerprint = fingerprint;
+                InvalidateCache();
+            }
+
+            return _profileGroups;
         }
 
         // Legacy compat — still called from EnsureLayerModelReady before group migration
@@ -3935,10 +4046,11 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private string GenerateNextGroupName()
         {
+            var groups = GetGroupStorage();
             string baseName = "Group";
             bool baseExists = false;
-            for (int i = 0; i < _groups.Count; i++)
-                if (_groups[i] != null && string.Equals(_groups[i].Name, baseName, StringComparison.OrdinalIgnoreCase))
+            for (int i = 0; i < groups.Count; i++)
+                if (groups[i] != null && string.Equals(groups[i].Name, baseName, StringComparison.OrdinalIgnoreCase))
                 { baseExists = true; break; }
             if (!baseExists) return baseName;
 
@@ -3947,8 +4059,8 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 string candidate = $"{baseName} {number}";
                 bool exists = false;
-                for (int i = 0; i < _groups.Count; i++)
-                    if (_groups[i] != null && string.Equals(_groups[i].Name, candidate, StringComparison.OrdinalIgnoreCase))
+                for (int i = 0; i < groups.Count; i++)
+                    if (groups[i] != null && string.Equals(groups[i].Name, candidate, StringComparison.OrdinalIgnoreCase))
                     { exists = true; break; }
                 if (!exists) return candidate;
                 number++;
@@ -4107,7 +4219,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             bool compatible = true;
-            foreach (var group in _groups)
+            foreach (var group in GetGroupStorage())
             {
                 if (group == null) continue;
                 foreach (var layer in group.LayersList)
