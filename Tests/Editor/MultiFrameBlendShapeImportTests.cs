@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -64,6 +65,56 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
             finally
             {
+                fixture.Destroy();
+            }
+        }
+
+        [Test]
+        public void ImportAllFrames_ReoutputsSurfaceDeltasFromEachCandidateGeometry()
+        {
+            var fixture = CreateFixture();
+            Mesh expectedMesh = null;
+            try
+            {
+                Assert.That(fixture.Deformer.ImportBlendShapeAllFramesAsGroup(0), Is.GreaterThanOrEqualTo(0));
+                typeof(LatticeDeformer).GetField(
+                    "_recalculateTangents", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.SetValue(fixture.Deformer, true);
+
+                var output = fixture.Deformer.Deform(false);
+                int shape = output.GetBlendShapeIndex("Smile Imported");
+                var sourceVertices = fixture.Mesh.vertices;
+                var sourceNormals = fixture.Mesh.normals;
+                var sourceTangents = fixture.Mesh.tangents;
+
+                for (int frame = 0; frame < fixture.Weights.Length; frame++)
+                {
+                    var actualNormals = new Vector3[output.vertexCount];
+                    var actualTangents = new Vector3[output.vertexCount];
+                    output.GetBlendShapeFrameVertices(
+                        shape, frame, new Vector3[output.vertexCount], actualNormals, actualTangents);
+
+                    expectedMesh = Object.Instantiate(fixture.Mesh);
+                    var expectedVertices = (Vector3[])sourceVertices.Clone();
+                    for (int vertex = 0; vertex < expectedVertices.Length; vertex++)
+                        expectedVertices[vertex] += fixture.Deltas[frame][vertex];
+                    expectedMesh.vertices = expectedVertices;
+                    expectedMesh.RecalculateNormals();
+                    expectedMesh.RecalculateTangents();
+
+                    for (int vertex = 0; vertex < output.vertexCount; vertex++)
+                    {
+                        AssertVector(actualNormals[vertex], expectedMesh.normals[vertex] - sourceNormals[vertex]);
+                        AssertVector(actualTangents[vertex],
+                            (Vector3)expectedMesh.tangents[vertex] - (Vector3)sourceTangents[vertex]);
+                    }
+                    Object.DestroyImmediate(expectedMesh);
+                    expectedMesh = null;
+                }
+            }
+            finally
+            {
+                if (expectedMesh != null) Object.DestroyImmediate(expectedMesh);
                 fixture.Destroy();
             }
         }
@@ -174,6 +225,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var mesh = new Mesh { name = "Multi Frame Source" };
             mesh.vertices = new[] { Vector3.zero, Vector3.right, Vector3.up };
             mesh.triangles = new[] { 0, 1, 2 };
+            mesh.uv = new[] { Vector2.zero, Vector2.right, Vector2.up };
             mesh.RecalculateNormals();
             mesh.RecalculateTangents();
             mesh.RecalculateBounds();

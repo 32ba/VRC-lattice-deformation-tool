@@ -3332,8 +3332,16 @@ namespace Net._32Ba.LatticeDeformationTool
         private static bool TryBuildDeltas(
             Vector3[] sourceVertices,
             Vector3[] deformedVertices,
+            out Vector3[] deltas)
+        {
+            return TryBuildDeltas(sourceVertices, deformedVertices, out deltas, true);
+        }
+
+        private static bool TryBuildDeltas(
+            Vector3[] sourceVertices,
+            Vector3[] deformedVertices,
             out Vector3[] deltas,
-            bool requireNonZero = true)
+            bool requireNonZero)
         {
             deltas = null;
             if (sourceVertices == null || deformedVertices == null || sourceVertices.Length != deformedVertices.Length)
@@ -3457,10 +3465,13 @@ namespace Net._32Ba.LatticeDeformationTool
 
             Vector3[][] candidateDeltaNormals = null;
             Vector3[][] candidateDeltaTangents = null;
+            bool outputsCandidateWeightsDirectly = generated.CandidateWeights != null &&
+                generated.CandidateWeights.Length == candidates.Length;
             bool recomputeComposedSurfaceDeltas = !_legacyPublishedBlendShapeSemantics &&
                 generated.Composition != BlendShapeCompositionMode.Single &&
                 (_recalculateNormals || _recalculateTangents);
-            if (!recomputeComposedSurfaceDeltas && !_legacyPublishedBlendShapeSemantics &&
+            if ((outputsCandidateWeightsDirectly || !recomputeComposedSurfaceDeltas) &&
+                !_legacyPublishedBlendShapeSemantics &&
                 (_recalculateNormals || _recalculateTangents))
             {
                 candidateDeltaNormals = _recalculateNormals ? new Vector3[candidates.Length][] : null;
@@ -3480,8 +3491,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 }
             }
 
-            if (generated.CandidateWeights != null &&
-                generated.CandidateWeights.Length == candidates.Length)
+            if (outputsCandidateWeightsDirectly)
             {
                 for (int candidate = 0; candidate < candidates.Length; candidate++)
                 {
