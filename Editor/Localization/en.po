@@ -1093,3 +1093,15 @@ msgstr "Select a profile when Profile is the data source."
 
 msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
 msgstr "Profile data is previewed as an independent instance copy. Copy it to the component to edit groups and layers."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-exact-match"
+msgstr "Exact match: this profile was saved for the selected source mesh."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs"
+msgstr "Compatible: the topology matches, but the source asset differs or cannot be identified."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked"
+msgstr "Topology mismatch: this profile was not applied because it is incompatible with the source mesh."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
+msgstr "Legacy profile: compatibility metadata is unavailable. Application is allowed with caution; save the profile again to add metadata."

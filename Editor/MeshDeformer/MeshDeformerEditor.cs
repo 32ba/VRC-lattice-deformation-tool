@@ -596,40 +596,71 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void DrawProfileSection()
         {
             EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.DeformerProfile), EditorStyles.boldLabel);
-            EditorGUI.BeginChangeCheck();
             var dataSourceOptions = new[]
             {
                 LatticeLocalization.Content(LocKey.EmbeddedData),
                 LatticeLocalization.Content(LocKey.ProfileData)
             };
-            _dataSourceProp.enumValueIndex = EditorGUILayout.Popup(
+            if (targets.Length != 1 || target is not LatticeDeformer deformer)
+            {
+                using (new EditorGUI.DisabledScope(true))
+                {
+                    EditorGUILayout.Popup(
+                        LatticeLocalization.Content(LocKey.DataSource),
+                        _dataSourceProp.enumValueIndex,
+                        dataSourceOptions);
+                    EditorGUILayout.ObjectField(
+                        LatticeLocalization.Content(LocKey.DeformerProfile),
+                        _profileProp.objectReferenceValue,
+                        typeof(MeshDeformerProfile),
+                        false);
+                }
+                return;
+            }
+
+            EditorGUI.BeginChangeCheck();
+            var selectedSource = (DeformerDataSource)EditorGUILayout.Popup(
                 LatticeLocalization.Content(LocKey.DataSource),
-                _dataSourceProp.enumValueIndex,
+                (int)deformer.DataSource,
                 dataSourceOptions);
-            EditorGUILayout.PropertyField(_profileProp, LatticeLocalization.Content(LocKey.DeformerProfile));
+            var selectedProfile = (MeshDeformerProfile)EditorGUILayout.ObjectField(
+                LatticeLocalization.Content(LocKey.DeformerProfile),
+                deformer.Profile,
+                typeof(MeshDeformerProfile),
+                false);
             bool changed = EditorGUI.EndChangeCheck();
 
             if (changed)
             {
-                serializedObject.ApplyModifiedProperties();
-                foreach (var instance in EnumerateTargets())
+                Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.DeformerProfile));
+                bool applied = true;
+                if (selectedSource == DeformerDataSource.Profile && selectedProfile != null)
                 {
-                    if (instance.DataSource == DeformerDataSource.Profile && instance.Profile != null)
-                    {
-                        Undo.RecordObject(instance, LatticeLocalization.Tr(LocKey.DeformerProfile));
-                        instance.UseProfile(instance.Profile);
-                    }
-                    instance.InvalidateCache();
-                    instance.Deform(LatticePreviewUtility.ShouldAssignRuntimeMesh());
-                    LatticePrefabUtility.MarkModified(instance);
+                    applied = deformer.UseProfile(selectedProfile);
                 }
-                RebuildGroupList();
+                else
+                {
+                    deformer.DataSource = selectedSource;
+                    deformer.Profile = selectedProfile;
+                }
+
+                if (!applied)
+                {
+                    EditorGUILayout.HelpBox(
+                        LatticeLocalization.Tr(LocKey.ProfileTopologyMismatchBlocked),
+                        MessageType.Error);
+                }
+                else
+                {
+                    deformer.InvalidateCache();
+                    deformer.Deform(LatticePreviewUtility.ShouldAssignRuntimeMesh());
+                    LatticePrefabUtility.MarkModified(deformer);
+                    serializedObject.Update();
+                    RebuildGroupList();
+                }
             }
 
-            if (targets.Length != 1 || target is not LatticeDeformer deformer)
-            {
-                return;
-            }
+            DrawProfileCompatibility(deformer);
 
             using (new GUILayout.HorizontalScope())
             {
@@ -643,9 +674,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     if (GUILayout.Button(LatticeLocalization.Content(LocKey.SaveToProfile)))
                     {
                         Undo.RecordObject(deformer.Profile, LatticeLocalization.Tr(LocKey.SaveToProfile));
-                        deformer.SaveToProfile(deformer.Profile);
-                        EditorUtility.SetDirty(deformer.Profile);
-                        AssetDatabase.SaveAssets();
+                        if (deformer.SaveToProfile(deformer.Profile))
+                        {
+                            SetProfileSourceIdentity(deformer, deformer.Profile);
+                            EditorUtility.SetDirty(deformer.Profile);
+                            AssetDatabase.SaveAssets();
+                        }
                     }
 
                     if (GUILayout.Button(LatticeLocalization.Content(LocKey.CopyProfileToInstance)))
@@ -675,7 +709,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (string.IsNullOrEmpty(path)) return;
 
             var profile = CreateInstance<MeshDeformerProfile>();
-            deformer.SaveToProfile(profile);
+            if (!deformer.SaveToProfile(profile))
+            {
+                DestroyImmediate(profile);
+                return;
+            }
+            SetProfileSourceIdentity(deformer, profile);
             AssetDatabase.CreateAsset(profile, path);
             AssetDatabase.SaveAssets();
 
@@ -684,6 +723,66 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             LatticePrefabUtility.MarkModified(deformer);
             serializedObject.Update();
             RebuildGroupList();
+        }
+
+        private static void DrawProfileCompatibility(LatticeDeformer deformer)
+        {
+            if (deformer.Profile == null) return;
+
+            var status = EvaluateProfileCompatibility(deformer, deformer.Profile);
+            string key;
+            MessageType messageType;
+            switch (status)
+            {
+                case ProfileCompatibilityStatus.ExactMatch:
+                    key = LocKey.ProfileExactMatch;
+                    messageType = MessageType.Info;
+                    break;
+                case ProfileCompatibilityStatus.CompatibleSourceDiffers:
+                    key = LocKey.ProfileCompatibleSourceDiffers;
+                    messageType = MessageType.Info;
+                    break;
+                case ProfileCompatibilityStatus.TopologyMismatch:
+                    key = LocKey.ProfileTopologyMismatchBlocked;
+                    messageType = MessageType.Error;
+                    break;
+                default:
+                    key = LocKey.ProfileInsufficientMetadata;
+                    messageType = MessageType.Warning;
+                    break;
+            }
+
+            EditorGUILayout.HelpBox(LatticeLocalization.Tr(key), messageType);
+        }
+
+        private static ProfileCompatibilityStatus EvaluateProfileCompatibility(
+            LatticeDeformer deformer,
+            MeshDeformerProfile profile)
+        {
+            var status = deformer.EvaluateProfileCompatibility(profile);
+            if (TryGetSourceAssetIdentity(deformer.SourceMesh, out string guid, out long localId))
+            {
+                status = deformer.EvaluateProfileCompatibility(profile, guid, localId);
+            }
+            return status;
+        }
+
+        private static void SetProfileSourceIdentity(LatticeDeformer deformer, MeshDeformerProfile profile)
+        {
+            if (profile != null &&
+                TryGetSourceAssetIdentity(deformer.SourceMesh, out string guid, out long localId))
+            {
+                profile.SetSourceAssetIdentity(guid, localId);
+            }
+        }
+
+        private static bool TryGetSourceAssetIdentity(Mesh mesh, out string guid, out long localId)
+        {
+            guid = "";
+            localId = 0;
+            return mesh != null &&
+                   AssetDatabase.TryGetGUIDAndLocalFileIdentifier(mesh, out guid, out localId) &&
+                   !string.IsNullOrEmpty(guid);
         }
 
         private void DrawBottomSection()

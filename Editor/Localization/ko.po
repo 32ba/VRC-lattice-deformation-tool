@@ -1093,3 +1093,15 @@ msgstr "데이터 소스로 프로필을 사용할 때는 프로필을 선택하
 
 msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
 msgstr "프로필 데이터는 독립된 인스턴스 복사본으로 미리 봅니다. 그룹과 레이어를 편집하려면 컴포넌트로 복제하세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-exact-match"
+msgstr "정확히 일치: 이 프로필은 선택한 소스 메시용으로 저장되었습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs"
+msgstr "호환됨: 토폴로지는 일치하지만 소스 에셋이 다르거나 식별할 수 없습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked"
+msgstr "토폴로지 불일치: 소스 메시와 호환되지 않아 이 프로필을 적용하지 않았습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
+msgstr "레거시 프로필: 호환성 메타데이터가 없습니다. 주의하여 적용할 수 있으며 다시 저장하면 메타데이터가 추가됩니다."

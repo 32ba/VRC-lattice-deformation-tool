@@ -514,6 +514,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private int _lastBlendShapeHash;
         [NonSerialized] private int _lastBakedBlendShapeHash;
         [NonSerialized] private List<DeformerGroup> _profileGroups;
+        [NonSerialized] private List<DeformerGroup> _blockedProfileGroups;
         [NonSerialized] private string _profileFingerprint;
         [NonSerialized] private bool _blendShapeOutputDirty = true;
         [NonSerialized] private bool _isEnsuringLayerModelReady;
@@ -630,6 +631,11 @@ namespace Net._32Ba.LatticeDeformationTool
             set
             {
                 if (_dataSource == value) return;
+                if (value == DeformerDataSource.Profile && _profile != null &&
+                    EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch)
+                {
+                    return;
+                }
                 _dataSource = value;
                 if (_dataSource == DeformerDataSource.Profile && _profile != null)
                 {
@@ -647,6 +653,11 @@ namespace Net._32Ba.LatticeDeformationTool
             set
             {
                 if (_profile == value) return;
+                if (_dataSource == DeformerDataSource.Profile && value != null &&
+                    EvaluateProfileCompatibility(value) == ProfileCompatibilityStatus.TopologyMismatch)
+                {
+                    return;
+                }
                 _profile = value;
                 if (_dataSource == DeformerDataSource.Profile && _profile != null)
                 {
@@ -661,10 +672,12 @@ namespace Net._32Ba.LatticeDeformationTool
         public bool UseProfile(MeshDeformerProfile profile)
         {
             if (profile == null) return false;
+            if (EvaluateProfileCompatibility(profile) == ProfileCompatibilityStatus.TopologyMismatch) return false;
             _profile = profile;
             _dataSource = DeformerDataSource.Profile;
             _groups?.Clear();
             _profileGroups = null;
+            _blockedProfileGroups = null;
             _profileFingerprint = null;
             EnsureGroups();
             InvalidateCache();
@@ -674,11 +687,14 @@ namespace Net._32Ba.LatticeDeformationTool
         public bool CopyProfileToEmbedded()
         {
             if (_profile == null) return false;
+            if (EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch)
+                return false;
             var payload = _profile.CreateIndependentPayload();
             _groups = payload.Groups;
             _activeGroupIndex = payload.ActiveGroupIndex;
             _dataSource = DeformerDataSource.Embedded;
             _profileGroups = null;
+            _blockedProfileGroups = null;
             _profileFingerprint = null;
             EnsureGroups();
             InvalidateCache();
@@ -688,13 +704,36 @@ namespace Net._32Ba.LatticeDeformationTool
         public bool SaveToProfile(MeshDeformerProfile destination)
         {
             if (destination == null) return false;
+            CacheSourceMesh();
+            if (_dataSource == DeformerDataSource.Profile && _profile != null &&
+                EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch)
+            {
+                return false;
+            }
             EnsureGroups();
-            destination.Capture(GetGroupStorage(), _activeGroupIndex);
+            destination.Capture(GetGroupStorage(), _activeGroupIndex, _sourceMesh);
             if (_profile == destination)
             {
                 _profileFingerprint = null;
             }
             return true;
+        }
+
+        public ProfileCompatibilityStatus EvaluateProfileCompatibility(
+            MeshDeformerProfile profile = null,
+            string assetGuid = "",
+            long assetLocalId = 0)
+        {
+            var targetProfile = profile != null ? profile : _profile;
+            if (targetProfile == null) return ProfileCompatibilityStatus.InsufficientMetadata;
+            Mesh compatibilitySource = GetCompatibilitySourceMesh();
+            // A Mesh can be mutated in place without changing its reference or vertex count.
+            // Re-evaluate its exact vertex/index fingerprint so stale compatibility results
+            // can never authorize vertex-indexed profile data for a changed topology.
+            return targetProfile.EvaluateCompatibility(
+                compatibilitySource,
+                assetGuid ?? "",
+                assetLocalId);
         }
 
         public IReadOnlyList<DeformerGroup> Groups
@@ -3789,6 +3828,24 @@ namespace Net._32Ba.LatticeDeformationTool
                 return _groups;
             }
 
+            if (EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch)
+            {
+                _profileGroups = null;
+                _profileFingerprint = null;
+                if (_blockedProfileGroups == null)
+                {
+                    _blockedProfileGroups = new List<DeformerGroup>
+                    {
+                        new DeformerGroup
+                        {
+                            Name = "Incompatible Profile",
+                            Enabled = false
+                        }
+                    };
+                }
+                return _blockedProfileGroups;
+            }
+
             if (_groups.Count > 0)
             {
                 _groups.Clear();
@@ -3799,6 +3856,7 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 var payload = _profile.CreateIndependentPayload();
                 _profileGroups = payload.Groups;
+                _blockedProfileGroups = null;
                 _activeGroupIndex = payload.ActiveGroupIndex;
                 _profileFingerprint = fingerprint;
                 InvalidateCache();
@@ -3855,6 +3913,21 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             return null;
+        }
+
+        private Mesh GetCompatibilitySourceMesh()
+        {
+            Mesh sharedMesh = GetSharedSourceMesh();
+            // Deform(true) assigns the generated runtime mesh to the renderer. Profile
+            // compatibility is defined against the original source in that situation.
+            if (_runtimeMesh != null && ReferenceEquals(sharedMesh, _runtimeMesh))
+            {
+                return _sourceMesh;
+            }
+
+            // This method is intentionally read-only. A rejected compatibility check must
+            // not synchronize serialized source state or release an existing preview mesh.
+            return sharedMesh != null ? sharedMesh : (_sourceMesh != null ? _sourceMesh : _serializedSourceMesh);
         }
 
         private void TryAutoConfigureSettings()
