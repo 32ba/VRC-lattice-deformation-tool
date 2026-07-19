@@ -81,14 +81,19 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
 
 **複数ConditionクリアランスScan:**
 - `ClearanceScanSet.cs` (`Runtime/MeshDeformer/`): 明示的なCondition順を保持する再利用可能asset。AnimationClip/sample time/relative animation root、対象・参照BlendShape、relative Transform pose override、Condition固有の警告/目標距離を保存する
-- `ClearanceScanRunner.cs` (`Editor/MeshDeformer/Utilities/`): 1 Editor updateにつき1 Conditionを評価し、進捗・Cancelを提供する。各Conditionの統計・頂点clearance・NDMF proxy利用有無と、頂点ごとのworst Conditionを決定的に集計する
-- Scan開始時にAvatar root配下のTransform/active state、Renderer enabled、SkinnedMeshRendererの全BlendShape weight、Animator設定をsnapshotし、完了・Cancel・Condition例外時に必ず復元する。無効Conditionは個別errorとして記録し次へ進む。結果Conditionは明示操作でSceneへ再適用でき、Restoreでscan前状態へ戻す
+- `ClearanceScanRunner.cs` (`Editor/MeshDeformer/Utilities/`): 1 Editor updateにつき1 Conditionを評価し、進捗・Cancelを提供する。各Conditionの統計・頂点clearance・NDMF proxy利用有無と、頂点ごとのworst Conditionを決定的に集計する。評価meshはscan開始時のoriginal mesh identityと位置非依存のtopology hashを維持し（NDMF proxyはtopology一致を必須とする）、proxyへ対象Renderer/Bone poseとBlendShape weightを同期する
+- Scan開始時にAvatar root配下と外部Preview proxyのTransform/active state、Renderer enabled/shared mesh、SkinnedMeshRendererの全BlendShape weight、Animator設定をsnapshotし、完了・Cancel・Condition例外時に復元する。Condition間でUndoを伴う利用者編集を検出した場合はscanを中止してその編集を保持する。無効Conditionは個別errorとして記録し次へ進む。結果Conditionは明示操作でSceneへ再適用でき、Restoreでscan前状態へ戻す
 **Fit Correction:**
 - `FitCorrectionGenerator.cs` (`Editor/MeshDeformer/Utilities/`): クリアランス評価から不足量を参照面のworld-space法線方向へ補正し、元Meshや既存Layerを変更せず専用Brushレイヤーとして追加する
 - 対象範囲は貫通のみ・警告距離以下・目標距離未満から選択し、最大移動量もworld-spaceで制限する。生成後は改善数と未解決数を再評価して表示する
 - 生成レイヤーには参照Renderer、Query mode、対象範囲、警告/目標距離、最大移動量を保存する。古い評価、頂点数不一致、無効な参照、rest poseでないSkinnedMeshRendererでは生成をfail-closedにする
 - 形状保護制約としてactive layerのVertex Mask、open boundary固定、connected component分離、mesh adjacencyだけを使うsurface-aware smoothing、平滑化後のclearance再投影、`SymmetryVertexMap`による明示的な対称補正を個別に切り替えられる。Mask/boundary/max moveをclearance再投影より優先し、未解決頂点は隠さず報告する
 - Scene Viewでは生成前のworld-space移動をPreviewでき、生成Brushレイヤーには使用したconstraintとMask snapshotも保存する。全constraintを無効にした場合は基本Fit Correctionと同じ結果を維持する
+
+**クリアランスQAレポート:**
+- `ClearanceQaReport.cs` (`Editor/MeshDeformer/Utilities/`): 現在のHeatmapまたは複数Condition Scan結果をschema v1のJSONとMarkdownへ変換する。Scanレポートは評価時点のtarget/reference/topologyと、Clip/sample/root/BlendShape/Transform overrideを含むCondition定義を不変snapshotとして保持し、package/Unity version、UTC評価時刻、Query mode、しきい値、Condition統計・error、worst Conditionとともに出力する
+- 対象Mesh互換性はvertex/triangle/submesh countと、vertex座標を含めずsubmesh topology/index bufferからSHA-256で計算したTopology hashで識別する。共有用JSON/Markdownへ頂点座標、index配列、per-vertex clearance、変形deltaを出力しない
+- JSONとMarkdownは同一directory内のtemporary fileへ先に完全出力し、既存ファイルのbackupを取ってから置換する。片方の置換に失敗した場合は両方をrollbackし、不完全な既存レポートを残さない。同じschemaとTopology hashのレポートだけを比較対象とする
 
 ### 頂点選択ツール（Vertex Selection Tool）
 

@@ -841,6 +841,21 @@ msgstr "對稱容差 (mm)"
 msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preview"
 msgstr "預覽計畫修正"
 
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report"
+msgstr "間隙QA報告"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-current"
+msgstr "匯出目前結果 (JSON + Markdown)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-scan"
+msgstr "匯出掃描結果 (JSON + Markdown)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-success"
+msgstr "已儲存JSON和Markdown報告。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-failure"
+msgstr "無法儲存報告：{0}"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "頂點工具"

@@ -31,6 +31,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal readonly float[] VertexClearances;
         internal readonly bool UsedNdmfPreviewProxy;
         internal readonly string EvaluatedRendererName;
+        internal readonly ClearanceQaCondition ConditionSnapshot;
 
         internal bool IsSuccess => Status == ClearanceScanConditionStatus.Success;
 
@@ -44,7 +45,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ClearanceHeatmapStatistics statistics = default,
             float[] vertexClearances = null,
             bool usedNdmfPreviewProxy = false,
-            string evaluatedRendererName = "")
+            string evaluatedRendererName = "",
+            ClearanceScanCondition conditionDefinition = null)
         {
             ConditionIndex = conditionIndex;
             ConditionName = conditionName ?? "";
@@ -56,6 +58,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             VertexClearances = vertexClearances ?? Array.Empty<float>();
             UsedNdmfPreviewProxy = usedNdmfPreviewProxy;
             EvaluatedRendererName = evaluatedRendererName ?? "";
+            ConditionSnapshot = ClearanceQaReportBuilder.SnapshotConditionDefinition(
+                conditionDefinition);
         }
     }
 
@@ -70,6 +74,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal string TargetRendererName = "";
         internal string ReferenceRendererName = "";
         internal ClearanceQueryMode QueryMode;
+        internal ClearanceQaReport ReportHeaderSnapshot;
 
         internal int SuccessfulConditionCount
         {
@@ -112,7 +117,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly bool _restoreOnComplete;
         private readonly Func<Renderer, Renderer> _previewProxyResolver;
         private readonly Action<int> _afterConditionApplied;
+        private readonly Mesh _expectedEvaluationMesh;
+        private readonly string _expectedTopologyHash;
         private bool _disposed;
+        private bool _undoRedoObserved;
+        private bool _preserveExternalEdits;
+        private int _baselineUndoGroup;
 
         internal ClearanceScanResult Result { get; }
         internal int NextConditionIndex { get; private set; }
@@ -160,6 +170,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     : ResolveEvaluationTarget(originalTarget, out bool usedInitialProxy);
                 if (ReferenceEquals(initialPreviewProxy, originalTarget)) initialPreviewProxy = null;
             }
+            Renderer initialEvaluationTarget = initialPreviewProxy != null
+                ? initialPreviewProxy
+                : originalTarget;
+            _expectedEvaluationMesh = GetRendererMesh(initialEvaluationTarget);
+            _expectedTopologyHash = ClearanceQaReportBuilder.ComputeTopology(
+                _expectedEvaluationMesh).topologyHash;
             _snapshot = SceneStateSnapshot.Capture(
                 _avatarRoot,
                 originalTarget,
@@ -175,8 +191,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 ReferenceRendererName = referenceRenderer != null
                     ? GetHierarchyName(referenceRenderer.transform)
                     : "",
-                QueryMode = queryMode
+                QueryMode = queryMode,
+                ReportHeaderSnapshot = ClearanceQaReportBuilder.CreateHeaderSnapshot(
+                    originalTarget,
+                    referenceRenderer,
+                    queryMode,
+                    DateTime.UtcNow)
             };
+            _baselineUndoGroup = Undo.GetCurrentGroup();
+            if (_restoreOnComplete) Undo.undoRedoPerformed += OnUndoRedoPerformed;
         }
 
         internal void Step()
@@ -193,7 +216,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            _snapshot.Restore();
+            if (_restoreOnComplete && NextConditionIndex > 0 &&
+                (_undoRedoObserved || Undo.GetCurrentGroup() != _baselineUndoGroup))
+            {
+                Result.WasCancelled = true;
+                _preserveExternalEdits = true;
+                IsCompleted = true;
+                return;
+            }
+            if (NextConditionIndex > 0) _snapshot.Restore();
             int conditionIndex = NextConditionIndex++;
             ClearanceScanCondition condition = _scanSet.Conditions[conditionIndex];
             ClearanceScanConditionResult conditionResult;
@@ -220,6 +251,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
             Result.Conditions.Add(conditionResult);
             if (conditionResult.IsSuccess) AccumulateWorst(conditionResult);
+            if (_restoreOnComplete && NextConditionIndex < _scanSet.Conditions.Count)
+                _snapshot.Restore();
+            _baselineUndoGroup = Undo.GetCurrentGroup();
             if (NextConditionIndex >= _scanSet.Conditions.Count) Complete();
         }
 
@@ -248,7 +282,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (_disposed) return;
             _disposed = true;
-            _snapshot.Restore();
+            if (_restoreOnComplete) Undo.undoRedoPerformed -= OnUndoRedoPerformed;
+            if (!_preserveExternalEdits) _snapshot.Restore();
         }
 
         private ClearanceScanConditionResult EvaluateCondition(
@@ -314,6 +349,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 evaluationTarget = ResolveEvaluationTarget(originalTarget, out usedPreviewProxy);
             }
             if (evaluationTarget != originalTarget &&
+                !TrySynchronizePose(originalTarget, evaluationTarget, out string poseError))
+            {
+                return Error(
+                    conditionIndex,
+                    condition,
+                    ClearanceScanConditionStatus.InvalidRenderer,
+                    "Preview proxy: " + poseError);
+            }
+            if (evaluationTarget != originalTarget &&
                 !TrySynchronizeBlendShapeWeights(originalTarget, evaluationTarget, out string syncError))
             {
                 return Error(
@@ -352,6 +396,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             _afterConditionApplied?.Invoke(conditionIndex);
+
+            Mesh currentEvaluationMesh = GetRendererMesh(evaluationTarget);
+            string currentTopologyHash = ClearanceQaReportBuilder.ComputeTopology(
+                currentEvaluationMesh).topologyHash;
+            if (string.IsNullOrEmpty(_expectedTopologyHash) ||
+                (!usedPreviewProxy && !ReferenceEquals(currentEvaluationMesh, _expectedEvaluationMesh)) ||
+                !string.Equals(currentTopologyHash, _expectedTopologyHash, StringComparison.Ordinal))
+            {
+                return Error(
+                    conditionIndex,
+                    condition,
+                    ClearanceScanConditionStatus.EvaluationFailed,
+                    "Target topology or vertex identity changed during the scan.");
+            }
 
             float warningDistance = condition.OverrideThresholds
                 ? condition.WarningDistance
@@ -392,7 +450,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 usedNdmfPreviewProxy: usedPreviewProxy,
                 evaluatedRendererName: evaluationTarget != null
                     ? GetHierarchyName(evaluationTarget.transform)
-                    : "");
+                    : "",
+                conditionDefinition: condition);
         }
 
         private void AccumulateWorst(ClearanceScanConditionResult condition)
@@ -423,17 +482,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (_restoreOnComplete) _snapshot.Restore();
         }
 
-        private static ClearanceScanConditionResult Error(
+        private void OnUndoRedoPerformed()
+        {
+            _undoRedoObserved = true;
+        }
+
+        private ClearanceScanConditionResult Error(
             int conditionIndex,
             ClearanceScanCondition condition,
             ClearanceScanConditionStatus status,
             string message)
         {
+            float warningDistance = condition != null && condition.OverrideThresholds
+                ? condition.WarningDistance
+                : _defaultWarningDistance;
+            float targetDistance = condition != null && condition.OverrideThresholds
+                ? condition.TargetDistance
+                : _defaultTargetDistance;
             return new ClearanceScanConditionResult(
                 conditionIndex,
                 condition?.Name ?? "",
                 status,
-                message);
+                message,
+                warningDistance,
+                targetDistance,
+                conditionDefinition: condition);
         }
 
         internal static Renderer ResolveEvaluationTarget(Renderer original, out bool usedPreviewProxy)
@@ -510,6 +583,84 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 proxySkinned.SetBlendShapeWeight(proxyIndex, weight);
             }
             return true;
+        }
+
+        private static bool TrySynchronizePose(Renderer original, Renderer proxy, out string error)
+        {
+            error = "";
+            if (original == null || proxy == null)
+            {
+                error = "Target renderer is missing.";
+                return false;
+            }
+            CopyWorldTransform(original.transform, proxy.transform);
+            if (original is not SkinnedMeshRenderer originalSkinned) return true;
+            if (proxy is not SkinnedMeshRenderer proxySkinned)
+            {
+                error = "Skinned target requires a SkinnedMeshRenderer proxy.";
+                return false;
+            }
+            Transform[] originalBones = originalSkinned.bones ?? Array.Empty<Transform>();
+            Transform[] proxyBones = proxySkinned.bones ?? Array.Empty<Transform>();
+            Transform originalRootBone = originalSkinned.rootBone;
+            Transform proxyRootBone = proxySkinned.rootBone;
+            if ((originalRootBone == null) != (proxyRootBone == null))
+            {
+                error = "Proxy root bone layout does not match the target renderer.";
+                return false;
+            }
+            if (originalRootBone != null && !ReferenceEquals(originalRootBone, proxyRootBone))
+                CopyWorldTransform(originalRootBone, proxyRootBone);
+            if (originalBones.Length != proxyBones.Length)
+            {
+                error = "Proxy bone layout does not match the target renderer.";
+                return false;
+            }
+            for (int index = 0; index < originalBones.Length; index++)
+            {
+                Transform source = originalBones[index];
+                Transform destination = proxyBones[index];
+                if (source == null || destination == null)
+                {
+                    if (source != destination)
+                    {
+                        error = "Proxy bone layout contains a missing bone.";
+                        return false;
+                    }
+                    continue;
+                }
+                if (ReferenceEquals(source, destination)) continue;
+                if (ReferenceEquals(source, originalRootBone) &&
+                    ReferenceEquals(destination, proxyRootBone)) continue;
+                destination.localPosition = source.localPosition;
+                destination.localRotation = source.localRotation;
+                destination.localScale = source.localScale;
+            }
+            return true;
+        }
+
+        private static void CopyWorldTransform(Transform source, Transform destination)
+        {
+            if (source == null || destination == null || ReferenceEquals(source, destination)) return;
+            destination.SetPositionAndRotation(source.position, source.rotation);
+            Vector3 parentScale = destination.parent != null
+                ? destination.parent.lossyScale
+                : Vector3.one;
+            Vector3 sourceScale = source.lossyScale;
+            destination.localScale = new Vector3(
+                Mathf.Abs(parentScale.x) > 1e-8f ? sourceScale.x / parentScale.x : source.localScale.x,
+                Mathf.Abs(parentScale.y) > 1e-8f ? sourceScale.y / parentScale.y : source.localScale.y,
+                Mathf.Abs(parentScale.z) > 1e-8f ? sourceScale.z / parentScale.z : source.localScale.z);
+        }
+
+        private static Mesh GetRendererMesh(Renderer renderer)
+        {
+            return renderer switch
+            {
+                SkinnedMeshRenderer skinned => skinned.sharedMesh,
+                MeshRenderer meshRenderer => meshRenderer.GetComponent<MeshFilter>()?.sharedMesh,
+                _ => null
+            };
         }
 
         private static string GetHierarchyName(Transform transform)
@@ -625,12 +776,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 AddAnimatedComponents(root, scanSet, components);
             }
             AddRenderer(target, renderers, skinned);
+            AddRendererTransforms(target, transforms);
             AddRenderer(reference, renderers, skinned);
+            AddRendererTransforms(reference, transforms);
             if (additionalRenderers != null)
             {
                 for (int index = 0; index < additionalRenderers.Length; index++)
                 {
                     AddRenderer(additionalRenderers[index], renderers, skinned);
+                    AddRendererTransforms(additionalRenderers[index], transforms);
                 }
             }
 
@@ -684,6 +838,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 for (int bindingIndex = 0; bindingIndex < objectBindings.Length; bindingIndex++)
                     AddBoundComponent(animationRoot, objectBindings[bindingIndex], destination);
             }
+        }
+
+        private static void AddRendererTransforms(Renderer renderer, List<Transform> destination)
+        {
+            if (renderer == null) return;
+            AddTransform(renderer.transform, destination);
+            if (renderer is not SkinnedMeshRenderer skinned) return;
+            AddTransform(skinned.rootBone, destination);
+            Transform[] bones = skinned.bones;
+            if (bones == null) return;
+            for (int index = 0; index < bones.Length; index++) AddTransform(bones[index], destination);
+        }
+
+        private static void AddTransform(Transform transform, List<Transform> destination)
+        {
+            if (transform != null && !destination.Contains(transform)) destination.Add(transform);
         }
 
         private static void AddBoundComponent(

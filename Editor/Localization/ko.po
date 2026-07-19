@@ -841,6 +841,21 @@ msgstr "대칭 허용 거리 (mm)"
 msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preview"
 msgstr "예정된 보정 미리보기"
 
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report"
+msgstr "클리어런스 QA 보고서"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-current"
+msgstr "현재 결과 내보내기 (JSON + Markdown)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-scan"
+msgstr "스캔 결과 내보내기 (JSON + Markdown)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-success"
+msgstr "JSON 및 Markdown 보고서를 저장했습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-failure"
+msgstr "보고서를 저장할 수 없습니다: {0}"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "버텍스 도구"

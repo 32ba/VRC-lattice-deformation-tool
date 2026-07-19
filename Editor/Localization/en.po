@@ -841,6 +841,21 @@ msgstr "Symmetry Tolerance (mm)"
 msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preview"
 msgstr "Preview Planned Correction"
 
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report"
+msgstr "Clearance QA Report"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-current"
+msgstr "Export Current Result (JSON + Markdown)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-scan"
+msgstr "Export Scan Result (JSON + Markdown)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-success"
+msgstr "JSON and Markdown reports were saved."
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-failure"
+msgstr "The report could not be saved: {0}"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "Vertex Tool"

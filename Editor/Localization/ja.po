@@ -841,6 +841,21 @@ msgstr "対称許容距離 (mm)"
 msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preview"
 msgstr "補正予定をプレビュー"
 
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report"
+msgstr "クリアランスQAレポート"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-current"
+msgstr "現在の結果を出力 (JSON + Markdown)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-scan"
+msgstr "Scan結果を出力 (JSON + Markdown)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-success"
+msgstr "JSONとMarkdownレポートを保存しました。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-failure"
+msgstr "レポートを保存できませんでした: {0}"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "頂点ツール"
