@@ -146,6 +146,51 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(changedLayer, Is.Not.EqualTo(key));
             Assert.That(changedRuntimeMesh, Is.Not.EqualTo(key));
             Assert.That(changedTransform, Is.Not.EqualTo(key));
+            Assert.That(key.Equals((object)same), Is.True);
+            Assert.That(key.Equals((object)"not a cache key"), Is.False);
+        }
+
+        [Test]
+        public void MeshNormalUtility_HandlesEmptyStoredMissingAndMalformedGeometry()
+        {
+            Assert.That(MeshNormalUtility.GetOrCalculateNormals(null, null, null), Is.Empty);
+            Assert.That(
+                MeshNormalUtility.GetOrCalculateNormals(null, System.Array.Empty<Vector3>(), null),
+                Is.Empty);
+
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                normals = new[] { Vector3.right, Vector3.right, Vector3.right }
+            };
+            try
+            {
+                Assert.That(
+                    MeshNormalUtility.GetOrCalculateNormals(mesh, mesh.vertices, null),
+                    Is.EqualTo(mesh.normals));
+
+                var withoutTriangles = MeshNormalUtility.GetOrCalculateNormals(
+                    null,
+                    new[] { Vector3.zero, Vector3.right },
+                    null);
+                Assert.That(withoutTriangles, Is.EqualTo(new[] { Vector3.zero, Vector3.zero }));
+
+                var malformed = MeshNormalUtility.GetOrCalculateNormals(
+                    null,
+                    new[] { Vector3.zero, Vector3.right, Vector3.up, Vector3.one },
+                    new[] { 0, 1, 99 });
+                Assert.That(malformed, Is.All.EqualTo(Vector3.zero));
+
+                var isolated = MeshNormalUtility.GetOrCalculateNormals(
+                    null,
+                    new[] { Vector3.zero, Vector3.right, Vector3.up, Vector3.forward },
+                    new[] { 0, 1, 2 });
+                Assert.That(isolated[3], Is.EqualTo(Vector3.zero));
+            }
+            finally
+            {
+                Object.DestroyImmediate(mesh);
+            }
         }
 
         [Test]

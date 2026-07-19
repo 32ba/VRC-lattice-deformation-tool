@@ -470,6 +470,58 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeDeformerPreviewFilter_CubicBernsteinPreviewMatchesBakeInput()
+        {
+            var root = new GameObject("cubic-preview-bake-parity");
+            var primitive = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var source = Object.Instantiate(primitive.GetComponent<MeshFilter>().sharedMesh);
+            Mesh preview = null;
+            try
+            {
+                Object.DestroyImmediate(primitive);
+                primitive = null;
+                root.AddComponent<MeshFilter>().sharedMesh = source;
+                root.AddComponent<MeshRenderer>();
+                var deformer = root.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                deformer.Deform(false);
+
+                var settings = deformer.Layers[0].Settings;
+                settings.Interpolation = LatticeInterpolationMode.CubicBernstein;
+                settings.SetControlPointLocal(
+                    0,
+                    settings.GetControlPointLocal(0) + Vector3.up * 0.2f);
+                deformer.InvalidateCache();
+
+                // LatticeDeformerBakePass uses Deform(false) as its bake input.
+                var bakeInput = deformer.Deform(false).vertices;
+                var generate = typeof(LatticeDeformerPreviewFilter).GetMethod(
+                    "GeneratePreviewMesh",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                Assert.That(generate, Is.Not.Null);
+                preview = (Mesh)generate.Invoke(null, new object[] { deformer });
+
+                Assert.That(preview, Is.Not.Null);
+                Assert.That(preview.vertexCount, Is.EqualTo(bakeInput.Length));
+                var previewVertices = preview.vertices;
+                for (int vertex = 0; vertex < bakeInput.Length; vertex++)
+                {
+                    Assert.That(
+                        (previewVertices[vertex] - bakeInput[vertex]).sqrMagnitude,
+                        Is.LessThanOrEqualTo(1e-8f),
+                        $"Preview and bake input diverged at vertex {vertex}.");
+                }
+            }
+            finally
+            {
+                if (preview != null) Object.DestroyImmediate(preview);
+                if (primitive != null) Object.DestroyImmediate(primitive);
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
         public void LatticeDeformerPreviewFilter_RestoreProxyMesh_RestoresUpstreamMeshAndClearsRegistration()
         {
             var original = new GameObject("restore-proxy-original");

@@ -72,6 +72,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             {
                 return TransferCore(sourceMesh, sourceWeights, targetMesh, settings);
             }
+            // This is the final Unity/job safety net. Validated input failures are covered
+            // individually; forcing UnityException/job corruption is not deterministic.
+#line hidden
             catch (Exception exception) when (
                 exception is ArgumentException ||
                 exception is InvalidOperationException ||
@@ -82,6 +85,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 // build. The caller keeps the mesh's existing weights when success is false.
                 return Failure($"Weight transfer stopped safely: {exception.Message}");
             }
+#line default
         }
 
         private static TransferResult TransferCore(

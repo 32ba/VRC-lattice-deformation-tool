@@ -48,6 +48,46 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.Throws<ArgumentException>(() =>
                 NativeSparseMatrixCSR.FromCOO(
                     1, 1, new List<(int, int, double)> { (0, 0, double.NaN) }, Allocator.TempJob));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                NativeSparseMatrixCSR.FromCOO(0, -1, new List<(int, int, double)>(), Allocator.TempJob));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                NativeSparseMatrixCSR.FromCOO(
+                    1, 1, new List<(int, int, double)> { (0, 1, 1.0) }, Allocator.TempJob));
+            Assert.Throws<ArgumentException>(() =>
+                NativeSparseMatrixCSR.FromCOO(
+                    1,
+                    1,
+                    new List<(int, int, double)>
+                    {
+                        (0, 0, double.MaxValue),
+                        (0, 0, double.MaxValue)
+                    },
+                    Allocator.TempJob));
+            Assert.Throws<ArgumentNullException>(() =>
+                NativeSparseMatrixCSR.FromIndexed(1, 1, null, Allocator.TempJob));
+        }
+
+        [Test]
+        public void NativeSparseMatrix_ValidateContents_RejectsEveryMalformedStorageInvariant()
+        {
+            Assert.Throws<ArgumentException>(() => default(NativeSparseMatrixCSR).ValidateContents());
+
+            var inconsistent = CreateRawMatrix(1, 1, 1, new[] { 1.0 }, new[] { 0 }, new[] { 0, 1 }, new[] { 1.0 });
+            inconsistent.NonZeroCount = 2;
+            try { Assert.Throws<ArgumentException>(() => inconsistent.ValidateContents()); }
+            finally { inconsistent.Dispose(); }
+
+            var badStart = CreateRawMatrix(1, 1, 1, new[] { 1.0 }, new[] { 0 }, new[] { 1, 1 }, new[] { 1.0 });
+            try { Assert.Throws<ArgumentException>(() => badStart.ValidateContents()); }
+            finally { badStart.Dispose(); }
+
+            var badEnd = CreateRawMatrix(1, 1, 1, new[] { 1.0 }, new[] { 0 }, new[] { 0, 0 }, new[] { 1.0 });
+            try { Assert.Throws<ArgumentException>(() => badEnd.ValidateContents()); }
+            finally { badEnd.Dispose(); }
+
+            var badDiagonal = CreateRawMatrix(1, 1, 1, new[] { 1.0 }, new[] { 0 }, new[] { 0, 1 }, new[] { double.NaN });
+            try { Assert.Throws<ArgumentException>(() => badDiagonal.ValidateContents()); }
+            finally { badDiagonal.Dispose(); }
         }
 
         [Test]
@@ -489,6 +529,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         {
             var vertices = new[] { Vector3.zero, Vector3.right, Vector3.up };
 
+            Assert.Throws<ArgumentNullException>(() => new MeshSpatialQuery(null, Array.Empty<int>(), null));
+            Assert.Throws<ArgumentNullException>(() => new MeshSpatialQuery(Array.Empty<Vector3>(), null, null));
+
+            using (var empty = new MeshSpatialQuery(Array.Empty<Vector3>(), Array.Empty<int>(), null))
+            {
+                Assert.That(empty.FindClosestPoint(Vector3.zero).found, Is.False);
+            }
+
             using (var query = new MeshSpatialQuery(vertices, new[] { 0, 1 }, null))
             {
                 Assert.That(query.FindClosestPoint(Vector3.zero).found, Is.False);
@@ -507,6 +555,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     vertices,
                     new[] { 0, 1, 2 },
                     new[] { Vector3.forward, new Vector3(0f, float.PositiveInfinity, 0f), Vector3.forward }));
+
+            using var valid = new MeshSpatialQuery(vertices, new[] { 0, 1, 2 }, null);
+            Assert.That(InvokeSpatialPrivate<int>(valid, "GetMaxSearchRadius", 0f), Is.EqualTo(-1));
         }
 
         [Test]
@@ -1010,6 +1061,36 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(results[0, 0], Is.GreaterThan(0.0));
             Assert.That(results[1, 0], Is.EqualTo(0.0),
                 "Fallback must not traverse the edge contributed only by a degenerate triangle.");
+
+            var selfEdge = new WeightInpainting(
+                new[] { Vector3.zero },
+                new[] { 0, 0, 0 },
+                1,
+                1e-8f);
+            var selfAdjacency = (List<int>[])typeof(WeightInpainting)
+                .GetField("_adjacency", BindingFlags.Instance | BindingFlags.NonPublic)
+                .GetValue(selfEdge);
+            Assert.That(selfAdjacency[0], Is.Empty);
+
+            InvokeInpaintingPrivate<object>(selfEdge, "AddOppositeVertex", dict, 0, 0, 0);
+        }
+
+        [Test]
+        public void WeightInpainting_RejectsInvalidTriangleIndexAndNullConfidence()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new WeightInpainting(
+                new[] { Vector3.zero },
+                new[] { 1, 0, 0 },
+                1,
+                1e-8f));
+
+            var inpainting = new WeightInpainting(
+                new[] { Vector3.zero },
+                Array.Empty<int>(),
+                1,
+                1e-8f);
+            Assert.Throws<ArgumentNullException>(() =>
+                inpainting.Inpaint(new[] { Bone(0, 1f) }, null, 1));
         }
 
         [Test]
@@ -1119,7 +1200,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(RobustWeightTransfer.Transfer(null, new[] { Bone(0, 1f) }, mesh).success, Is.False);
                 Assert.That(RobustWeightTransfer.Transfer(mesh, null, mesh).success, Is.False);
                 Assert.That(RobustWeightTransfer.Transfer(mesh, Array.Empty<BoneWeight>(), mesh).success, Is.False);
-                Assert.That(RobustWeightTransfer.Transfer(mesh, new[] { Bone(0, 1f) }, null).success, Is.False);
+                Assert.That(
+                    RobustWeightTransfer.Transfer(
+                        mesh,
+                        new[] { Bone(0, 1f), Bone(0, 1f), Bone(0, 1f) },
+                        null).success,
+                    Is.False);
             }
             finally
             {
@@ -1173,6 +1259,20 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     new WeightTransferSettings { tolerance = float.PositiveInfinity });
                 Assert.That(invalidTolerance.success, Is.False);
 
+                var invalidAngle = RobustWeightTransfer.Transfer(
+                    sourceMesh,
+                    sourceWeights,
+                    targetMesh,
+                    new WeightTransferSettings { normalAngleThreshold = float.NaN });
+                Assert.That(invalidAngle.success, Is.False);
+
+                var invalidIterations = RobustWeightTransfer.Transfer(
+                    sourceMesh,
+                    sourceWeights,
+                    targetMesh,
+                    new WeightTransferSettings { maxIterations = -1 });
+                Assert.That(invalidIterations.success, Is.False);
+
                 var vertices = targetMesh.vertices;
                 vertices[1] = new Vector3(float.NaN, 0f, 0f);
                 targetMesh.vertices = vertices;
@@ -1181,6 +1281,37 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(invalidVertices.errorMessage, Does.Contain("Target vertices"));
 
                 targetMesh.vertices = sourceMesh.vertices;
+                var sourceVertices = sourceMesh.vertices;
+                sourceVertices[0] = new Vector3(float.NaN, 0f, 0f);
+                sourceMesh.vertices = sourceVertices;
+                var invalidSourceVertices = RobustWeightTransfer.Transfer(sourceMesh, sourceWeights, targetMesh);
+                Assert.That(invalidSourceVertices.success, Is.False);
+                Assert.That(invalidSourceVertices.errorMessage, Does.Contain("Source vertices"));
+
+                sourceMesh.vertices = targetMesh.vertices;
+                sourceMesh.normals = new[]
+                {
+                    Vector3.forward,
+                    new Vector3(float.NaN, 0f, 0f),
+                    Vector3.forward
+                };
+                var invalidSourceNormals = RobustWeightTransfer.Transfer(sourceMesh, sourceWeights, targetMesh);
+                Assert.That(invalidSourceNormals.success, Is.False);
+                Assert.That(invalidSourceNormals.errorMessage, Does.Contain("Source normals"));
+
+                sourceMesh.RecalculateNormals();
+                targetMesh.normals = new[]
+                {
+                    Vector3.forward,
+                    new Vector3(float.NaN, 0f, 0f),
+                    Vector3.forward
+                };
+                var invalidTargetNormals = RobustWeightTransfer.Transfer(sourceMesh, sourceWeights, targetMesh);
+                Assert.That(invalidTargetNormals.success, Is.False);
+                Assert.That(invalidTargetNormals.errorMessage, Does.Contain("Target normals"));
+
+                targetMesh.vertices = sourceMesh.vertices;
+                targetMesh.RecalculateNormals();
                 sourceMesh.bindposes = Array.Empty<Matrix4x4>();
                 var missingBindPoses = RobustWeightTransfer.Transfer(sourceMesh, sourceWeights, targetMesh);
                 Assert.That(missingBindPoses.success, Is.False);
@@ -1191,6 +1322,36 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 UnityEngine.Object.DestroyImmediate(sourceMesh);
                 UnityEngine.Object.DestroyImmediate(targetMesh);
             }
+        }
+
+        [Test]
+        public void RobustWeightTransfer_PrivateValidation_RejectsUnavailableAndOverflowingVectors()
+        {
+            var method = typeof(RobustWeightTransfer).GetMethod(
+                "TryValidateFiniteVectors",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null);
+
+            var unavailable = new object[] { null, "Vectors", true, null };
+            Assert.That((bool)method.Invoke(null, unavailable), Is.False);
+            Assert.That((string)unavailable[3], Does.Contain("unavailable"));
+
+            var overflow = new object[]
+            {
+                new[]
+                {
+                    new Vector3(-float.MaxValue, 0f, 0f),
+                    new Vector3(float.MaxValue, 0f, 0f)
+                },
+                "Vectors",
+                true,
+                null
+            };
+            Assert.That((bool)method.Invoke(null, overflow), Is.False);
+            Assert.That((string)overflow[3], Does.Contain("supported"));
+
+            Assert.Throws<ArgumentNullException>(() => RobustWeightTransfer.ApplyZeroWeightFallback(null, Array.Empty<BoneWeight>()));
+            Assert.Throws<ArgumentNullException>(() => RobustWeightTransfer.ApplyZeroWeightFallback(Array.Empty<BoneWeight>(), null));
         }
 
         [Test]
@@ -1951,6 +2112,27 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That(method, Is.Not.Null);
             return (T)method.Invoke(target, args);
+        }
+
+        private static NativeSparseMatrixCSR CreateRawMatrix(
+            int rows,
+            int cols,
+            int nonZeroCount,
+            double[] values,
+            int[] colIndices,
+            int[] rowPointers,
+            double[] diagonal)
+        {
+            return new NativeSparseMatrixCSR
+            {
+                RowCount = rows,
+                ColCount = cols,
+                NonZeroCount = nonZeroCount,
+                Values = new NativeArray<double>(values, Allocator.TempJob),
+                ColIndices = new NativeArray<int>(colIndices, Allocator.TempJob),
+                RowPointers = new NativeArray<int>(rowPointers, Allocator.TempJob),
+                Diagonal = new NativeArray<double>(diagonal, Allocator.TempJob)
+            };
         }
 
         private static T InvokeSpatialPrivate<T>(MeshSpatialQuery target, string methodName, params object[] args)

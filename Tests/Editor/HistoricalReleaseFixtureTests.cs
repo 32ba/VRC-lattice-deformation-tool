@@ -677,6 +677,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 if (yaml.Contains("_deformationDataVersion:") ||
                     yaml.Contains("_deformationDataSourceVersion:") ||
                     yaml.Contains("_legacyAbsoluteLatticeEvaluation:") ||
+                    yaml.Contains("_legacyTrilinearInterpolation:") ||
                     yaml.Contains("_legacyPublishedBlendShapeSemantics:"))
                 {
                     errors.Add($"{tag.Tag}/{fixture.Kind}: prefab unexpectedly contains current version marker fields.");
@@ -1246,6 +1247,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                                       layer.Settings.Interpolation == LatticeInterpolationMode.CubicBernstein),
                     Is.True,
                     "The upgraded local fixture lost its CubicBernstein lattice interpolation.");
+                Assert.That(
+                    deformer.Groups
+                        .Where(group => group != null)
+                        .SelectMany(group => group.Layers)
+                        .Where(layer => layer != null && layer.Type == MeshDeformerLayerType.Lattice &&
+                                        layer.Settings.Interpolation == LatticeInterpolationMode.CubicBernstein)
+                        .All(layer => layer.Settings.UsesLegacyTrilinearInterpolation),
+                    Is.True,
+                    "Published CubicBernstein data must retain its historical trilinear output.");
             }
 
             if (fixture.Tag.Classification != DeformationDataVersion.V1_2_1)
@@ -1385,6 +1395,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                             layerLabel + ".boundsSize");
                         Assert.That(RequireRelative(settings, "_interpolation").intValue,
                             Is.EqualTo((int)ParseEnum<LatticeInterpolationMode>(goldenLayer.settings.interpolation)),
+                            layerLabel);
+                        bool expectsLegacyTrilinearInterpolation =
+                            ParseEnum<MeshDeformerLayerType>(goldenLayer.type) == MeshDeformerLayerType.Lattice &&
+                            ParseEnum<LatticeInterpolationMode>(goldenLayer.settings.interpolation) ==
+                            LatticeInterpolationMode.CubicBernstein;
+                        Assert.That(
+                            RequireRelative(settings, "_legacyTrilinearInterpolation").boolValue,
+                            Is.EqualTo(expectsLegacyTrilinearInterpolation),
                             layerLabel);
                         Assert.That(RequireRelative(settings, "_applySpace").intValue,
                             Is.EqualTo(goldenLayer.settings.legacyApplySpaceValue), layerLabel);

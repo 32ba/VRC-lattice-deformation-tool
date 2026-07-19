@@ -148,8 +148,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                         continue;
 
                     double cotangent = ComputeCotangent(i, j, k);
+                    // Finite vertices with a finite non-degenerate area cannot reach this
+                    // guard, but retain it as defense against future arithmetic changes.
+#line hidden
                     if (double.IsNaN(cotangent) || double.IsInfinity(cotangent))
                         continue;
+#line default
 
                     weight += cotangent;
                     hasNonDegenerateContribution = true;
