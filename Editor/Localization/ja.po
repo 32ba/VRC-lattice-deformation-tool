@@ -728,6 +728,38 @@ msgstr "参照が開いたメッシュのため、参照法線基準のクリア
 msgid "net.32ba.lattice-deformation-tool.localization.clearance-result-age"
 msgstr "結果の経過時間"
 
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan"
+msgstr "クリアランスScan"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-set"
+msgstr "Scan Set"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-avatar-root"
+msgstr "Avatar Root"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-run"
+msgstr "クリアランスScanを実行"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-cancel"
+msgstr "Scanをキャンセル"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-progress-format"
+msgstr "{0}/{1}  {2}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-summary-format"
+msgstr "成功: {0}/{1}、最悪Condition index: {2}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-apply-condition"
+msgstr "ConditionをSceneへ適用"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-restore-scene"
+msgstr "Scene状態を復元"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-success-format"
+msgstr "{0}: 最小 {1:0.###} mm、違反 {2}、対象 {3}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-error-format"
+msgstr "{0}: エラー - {1}"
 msgid "net.32ba.lattice-deformation-tool.localization.fit-correction"
 msgstr "フィット補正"
 

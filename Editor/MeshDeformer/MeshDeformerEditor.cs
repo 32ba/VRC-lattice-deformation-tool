@@ -42,6 +42,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SerializedProperty _clearanceTargetDistanceProp;
         private SerializedProperty _clearanceDisplayStrideProp;
         private SerializedProperty _clearanceUpdateIntervalProp;
+        private SerializedProperty _clearanceScanSetProp;
+        private SerializedProperty _clearanceScanAvatarRootProp;
         private SerializedProperty _fitCorrectionScopeProp;
         private SerializedProperty _fitCorrectionMaximumMoveProp;
         private SerializedProperty _fitCorrectionUseVertexMaskProp;
@@ -100,6 +102,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int _lastClearanceTargetId;
         private int _lastClearanceReferenceId;
         private bool _lastClearanceUsedPreviewProxy;
+        private ClearanceScanOperation _clearanceScanOperation;
+        private ClearanceScanResult _clearanceScanResult;
+        private ClearanceScanPreviewState _clearanceScanPreviewState;
         private ClearanceHeatmapRawEvaluation _fitCorrectionRawEvaluation;
         private double _lastFitCorrectionEvaluationTime = double.NegativeInfinity;
         private int _lastFitCorrectionTargetId;
@@ -129,6 +134,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _clearanceTargetDistanceProp = serializedObject.FindProperty("_clearanceTargetDistance");
             _clearanceDisplayStrideProp = serializedObject.FindProperty("_clearanceDisplayStride");
             _clearanceUpdateIntervalProp = serializedObject.FindProperty("_clearanceUpdateInterval");
+            _clearanceScanSetProp = serializedObject.FindProperty("_clearanceScanSet");
+            _clearanceScanAvatarRootProp = serializedObject.FindProperty("_clearanceScanAvatarRoot");
             _fitCorrectionScopeProp = serializedObject.FindProperty("_fitCorrectionScope");
             _fitCorrectionMaximumMoveProp = serializedObject.FindProperty("_fitCorrectionMaximumMove");
             _fitCorrectionUseVertexMaskProp = serializedObject.FindProperty("_fitCorrectionUseVertexMask");
@@ -190,6 +197,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ReleaseChecker.OnUpdateCheckCompleted -= Repaint;
             SceneView.duringSceneGui -= DrawClearanceHeatmapInScene;
             Undo.undoRedoPerformed -= OnClearanceStateChanged;
+            EditorApplication.update -= AdvanceClearanceScan;
+            _clearanceScanOperation?.Cancel();
+            _clearanceScanOperation?.Dispose();
+            _clearanceScanOperation = null;
+            _clearanceScanPreviewState?.Dispose();
+            _clearanceScanPreviewState = null;
             ExitBlendShapeTestMode();
 
             foreach (var deformer in EnumerateTargets())
@@ -961,6 +974,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         _clearanceTargetDistanceProp.floatValue,
                         _clearanceUpdateIntervalProp.floatValue);
                     DrawClearanceStatistics(evaluation);
+                    DrawClearanceScanControls(
+                        deformer,
+                        reference,
+                        (ClearanceQueryMode)_clearanceQueryModeProp.enumValueIndex,
+                        _clearanceWarningDistanceProp.floatValue,
+                        _clearanceTargetDistanceProp.floatValue);
                     DrawFitCorrectionControls(
                         deformer,
                         reference,
@@ -1041,6 +1060,160 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorGUILayout.LabelField(
                 LatticeLocalization.Tr(LocKey.ClearanceResultAge),
                 age.ToString("0.00") + " s");
+        }
+
+        private void DrawClearanceScanControls(
+            LatticeDeformer deformer,
+            Renderer reference,
+            ClearanceQueryMode queryMode,
+            float warningDistance,
+            float targetDistance)
+        {
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField(
+                LatticeLocalization.Tr(LocKey.ClearanceScan),
+                EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(
+                _clearanceScanSetProp,
+                LatticeLocalization.Content(LocKey.ClearanceScanSet));
+            EditorGUILayout.PropertyField(
+                _clearanceScanAvatarRootProp,
+                LatticeLocalization.Content(LocKey.ClearanceScanAvatarRoot));
+
+            if (_clearanceScanOperation != null)
+            {
+                Rect progressRect = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
+                string progressText = string.Format(
+                    LatticeLocalization.Tr(LocKey.ClearanceScanProgressFormat),
+                    _clearanceScanOperation.NextConditionIndex,
+                    (_clearanceScanSetProp.objectReferenceValue as ClearanceScanSet)?.Conditions.Count ?? 0,
+                    _clearanceScanOperation.CurrentConditionName);
+                EditorGUI.ProgressBar(progressRect, _clearanceScanOperation.Progress, progressText);
+                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearanceScanCancel)))
+                {
+                    _clearanceScanOperation.Cancel();
+                    FinishClearanceScan();
+                }
+            }
+            else
+            {
+                using (new EditorGUI.DisabledScope(
+                           _clearanceScanSetProp.objectReferenceValue == null || reference == null))
+                {
+                    if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearanceScanRun)))
+                    {
+                        serializedObject.ApplyModifiedProperties();
+                        _clearanceScanPreviewState?.Dispose();
+                        _clearanceScanPreviewState = null;
+                        _clearanceScanOperation = new ClearanceScanOperation(
+                            deformer.ClearanceScanSet,
+                            deformer,
+                            reference,
+                            deformer.ClearanceScanAvatarRoot,
+                            queryMode,
+                            warningDistance,
+                            targetDistance);
+                        EditorApplication.update -= AdvanceClearanceScan;
+                        EditorApplication.update += AdvanceClearanceScan;
+                    }
+                }
+            }
+
+            DrawClearanceScanResult(
+                deformer,
+                reference,
+                queryMode,
+                warningDistance,
+                targetDistance);
+        }
+
+        private void AdvanceClearanceScan()
+        {
+            if (_clearanceScanOperation == null)
+            {
+                EditorApplication.update -= AdvanceClearanceScan;
+                return;
+            }
+            _clearanceScanOperation.Step();
+            if (_clearanceScanOperation.IsCompleted) FinishClearanceScan();
+            Repaint();
+            SceneView.RepaintAll();
+        }
+
+        private void FinishClearanceScan()
+        {
+            EditorApplication.update -= AdvanceClearanceScan;
+            if (_clearanceScanOperation == null) return;
+            _clearanceScanResult = _clearanceScanOperation.Result;
+            _clearanceScanOperation.Dispose();
+            _clearanceScanOperation = null;
+            InvalidateClearanceEvaluation();
+            Repaint();
+            SceneView.RepaintAll();
+        }
+
+        private void DrawClearanceScanResult(
+            LatticeDeformer deformer,
+            Renderer reference,
+            ClearanceQueryMode queryMode,
+            float warningDistance,
+            float targetDistance)
+        {
+            if (_clearanceScanResult == null) return;
+            EditorGUILayout.HelpBox(
+                string.Format(
+                    LatticeLocalization.Tr(LocKey.ClearanceScanSummaryFormat),
+                    _clearanceScanResult.SuccessfulConditionCount,
+                    _clearanceScanResult.Conditions.Count,
+                    _clearanceScanResult.WorstConditionIndex),
+                _clearanceScanResult.WasCancelled ? MessageType.Warning : MessageType.Info);
+
+            for (int index = 0; index < _clearanceScanResult.Conditions.Count; index++)
+            {
+                ClearanceScanConditionResult condition = _clearanceScanResult.Conditions[index];
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                {
+                    string label = condition.IsSuccess
+                        ? string.Format(
+                            LatticeLocalization.Tr(LocKey.ClearanceScanConditionSuccessFormat),
+                            condition.ConditionName,
+                            condition.Statistics.MinimumClearance * 1000f,
+                            condition.Statistics.ViolationVertexCount,
+                            condition.UsedNdmfPreviewProxy ? "NDMF Proxy" : "Original")
+                        : string.Format(
+                            LatticeLocalization.Tr(LocKey.ClearanceScanConditionErrorFormat),
+                            condition.ConditionName,
+                            condition.ErrorMessage);
+                    EditorGUILayout.LabelField(label, EditorStyles.wordWrappedLabel);
+                    if (!condition.IsSuccess) continue;
+                    if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearanceScanApplyCondition)))
+                    {
+                        _clearanceScanPreviewState?.Dispose();
+                        ClearanceScanPreviewState.TryApply(
+                            _clearanceScanResult.ScanSet,
+                            condition.ConditionIndex,
+                            deformer,
+                            reference,
+                            deformer.ClearanceScanAvatarRoot,
+                            queryMode,
+                            warningDistance,
+                            targetDistance,
+                            out _clearanceScanPreviewState,
+                            out _);
+                        InvalidateClearanceEvaluation();
+                        SceneView.RepaintAll();
+                    }
+                }
+            }
+
+            if (_clearanceScanPreviewState != null &&
+                GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearanceScanRestoreScene)))
+            {
+                _clearanceScanPreviewState.Dispose();
+                _clearanceScanPreviewState = null;
+                InvalidateClearanceEvaluation();
+                SceneView.RepaintAll();
+            }
         }
 
         private void DrawFitCorrectionControls(

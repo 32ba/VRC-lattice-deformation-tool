@@ -728,6 +728,38 @@ msgstr "참조가 열린 메시이므로 참조 노멀 기준 클리어런스로
 msgid "net.32ba.lattice-deformation-tool.localization.clearance-result-age"
 msgstr "결과 경과 시간"
 
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan"
+msgstr "클리어런스 스캔"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-set"
+msgstr "스캔 세트"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-avatar-root"
+msgstr "아바타 루트"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-run"
+msgstr "클리어런스 스캔 실행"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-cancel"
+msgstr "스캔 취소"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-progress-format"
+msgstr "{0}/{1}  {2}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-summary-format"
+msgstr "성공: {0}/{1}, 최악 조건 인덱스: {2}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-apply-condition"
+msgstr "조건을 씬에 적용"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-restore-scene"
+msgstr "씬 상태 복원"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-success-format"
+msgstr "{0}: 최소 {1:0.###} mm, 위반 {2}, 대상 {3}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-error-format"
+msgstr "{0}: 오류 - {1}"
 msgid "net.32ba.lattice-deformation-tool.localization.fit-correction"
 msgstr "맞춤 보정"
 

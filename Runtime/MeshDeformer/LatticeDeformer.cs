@@ -730,6 +730,8 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private float _clearanceTargetDistance = 0.01f;
         [SerializeField] private int _clearanceDisplayStride = 1;
         [SerializeField] private float _clearanceUpdateInterval = 0.1f;
+        [SerializeField] private ClearanceScanSet _clearanceScanSet;
+        [SerializeField] private Transform _clearanceScanAvatarRoot;
         [SerializeField] private FitCorrectionScope _fitCorrectionScope = FitCorrectionScope.TargetClearance;
         [SerializeField] private float _fitCorrectionMaximumMove = 0.02f;
         [SerializeField] private bool _fitCorrectionUseVertexMask = true;
@@ -1235,6 +1237,17 @@ namespace Net._32Ba.LatticeDeformationTool
             set => _fitCorrectionMaximumMove = IsFinite(value) ? Mathf.Max(0f, value) : 0f;
         }
 
+        public ClearanceScanSet ClearanceScanSet
+        {
+            get => _clearanceScanSet;
+            set => _clearanceScanSet = value;
+        }
+
+        public Transform ClearanceScanAvatarRoot
+        {
+            get => _clearanceScanAvatarRoot;
+            set => _clearanceScanAvatarRoot = value;
+        }
         public bool FitCorrectionUseVertexMask { get => _fitCorrectionUseVertexMask; set => _fitCorrectionUseVertexMask = value; }
         public bool FitCorrectionPinOpenBoundaries { get => _fitCorrectionPinOpenBoundaries; set => _fitCorrectionPinOpenBoundaries = value; }
         public bool FitCorrectionIsolateComponents { get => _fitCorrectionIsolateComponents; set => _fitCorrectionIsolateComponents = value; }
