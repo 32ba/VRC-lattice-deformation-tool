@@ -50,8 +50,9 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
   - **操作**: Alt+スクロールで半径、Shift+スクロールで強度調整
 - `GeodesicDistanceCalculator.cs`: 測地線距離計算（Dijkstra ベースの表面距離フォールオフ用）
 - SkinnedMeshRenderer の Move ブラシは任意で、ポーズ上の renderer-local 移動量を頂点ごとの blended skinning matrix で逆変換し、rest-space 変位として保存できる。不正 weight・bind pose 不足・特異行列は従来の local-space 変位へ安全に fallback する
-- 旧 `BrushDeformer` コンポーネント向けの NDMF Preview/Bake は現在登録されていない。Inspector の明示移行から、変位と再構築設定を専用 `DeformerGroup` / Brush レイヤーへコピーできる。移行後も旧コンポーネントは削除せず、無効化したバックアップとして保持する
+- 旧 `BrushDeformer` はデシリアライズ互換性だけのために残し、空の `AddComponentMenu` で新規追加を禁止する。NDMF Preview/Bakeは登録しない。Editorのdelay callbackでロード済みScene、Prefab Stage、`Assets/`内のimport済みPrefabを検出し、変位と再構築設定を専用 `DeformerGroup` / Brushレイヤーへ自動移行する。移行後も旧コンポーネントは削除せず、無効化したバックアップとして保持する
 - 旧 `BrushDeformer` の複数選択移行は1つの原子的な操作として扱い、1件でも失敗したら全対象を Undo で戻し、移行前のsource meshからruntime previewを再構築する。既存 `LatticeDeformer` とのsource不一致は、初期化を伴うpublic group APIへ触れる前にfail-fastで拒否する
+- 自動移行はserialization callback、Play Mode、compile/import中、batch mode、read-only/package assetでは実行しない。Scene/Prefab単位で全対象を原子的に処理し、失敗時は元データを保ったまま警告する。Prefab assetは`LoadPrefabContents`で隔離して検証し、全件成功後だけ保存する。再検出時はmarker・source・payloadを純粋に照合して重複Group/Layerを作らない
 
 **頂点マスク（Vertex Mask）:**
 - `LatticeLayer` に `_vertexMask` (`float[]`) を保持。各頂点の編集可能度を 0.0（保護）〜 1.0（編集可能）で管理

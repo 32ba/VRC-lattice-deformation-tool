@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using nadena.dev.ndmf.preview;
 using UnityEditor;
-using UnityEditor.EditorTools;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using Net._32Ba.LatticeDeformationTool;
@@ -141,12 +140,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 LatticePreviewUtility.RequestSceneRepaint();
             }
 
-            EditorGUILayout.Space();
-            if (GUILayout.Button(LatticeLocalization.Tr(LocKey.OpenBrushEditor)))
-            {
-                ToolManager.SetActiveTool<MeshDeformerTool>();
-                LatticePreviewUtility.RequestSceneRepaint();
-            }
         }
 
         private void DrawLegacyMigration()
