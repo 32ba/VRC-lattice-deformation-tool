@@ -49,6 +49,7 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
   - **ミラー編集**: X/Y/Z 軸対称。Normal/Smooth/Mask に加えて Move ブラシもミラー側へ反転移動量を適用
   - **操作**: Alt+スクロールで半径、Shift+スクロールで強度調整
 - `GeodesicDistanceCalculator.cs`: 測地線距離計算（Dijkstra ベースの表面距離フォールオフ用）
+- SkinnedMeshRenderer の Move ブラシは任意で、ポーズ上の renderer-local 移動量を頂点ごとの blended skinning matrix で逆変換し、rest-space 変位として保存できる。不正 weight・bind pose 不足・特異行列は従来の local-space 変位へ安全に fallback する
 - 旧 `BrushDeformer` コンポーネント向けの NDMF Preview/Bake は現在登録されていない。Inspector の明示移行から、変位と再構築設定を専用 `DeformerGroup` / Brush レイヤーへコピーできる。移行後も旧コンポーネントは削除せず、無効化したバックアップとして保持する
 - 旧 `BrushDeformer` の複数選択移行は1つの原子的な操作として扱い、1件でも失敗したら全対象を Undo で戻し、移行前のsource meshからruntime previewを再構築する。既存 `LatticeDeformer` とのsource不一致は、初期化を伴うpublic group APIへ触れる前にfail-fastで拒否する
 
@@ -83,6 +84,7 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
   - **変換モード**: Move（移動）、Rotate（回転）、Scale（スケール）
   - **プロポーショナル編集**: 選択頂点周囲の頂点にも減衰付きで影響。Smooth/Linear/Constant 減衰
   - **操作**: W/E/R で変換モード切替、Alt+スクロールでプロポーショナル半径調整
+  - Vertex Selection Move も Move ブラシと同じ rest-space 逆変換 option を共有し、MeshRenderer には影響しない
 
 ### DeformerGroup アーキテクチャ
 

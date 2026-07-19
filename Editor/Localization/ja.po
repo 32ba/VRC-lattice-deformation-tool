@@ -1066,6 +1066,11 @@ msgstr "現在: {0}  最新: {1}"
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
 msgstr "BOOTH 商品ページを開く"
 
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
+msgstr "MoveをRest Spaceで保存"
+
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
+msgstr "ポーズ中のSkinned Mesh上で行ったMove編集を、再利用可能なrest-space変位へ戻します。Skinningデータが不正な場合は従来のlocal-space動作へ安全にフォールバックします。"
 # Deformer Profile
 msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
 msgstr "変形Profile"

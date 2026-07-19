@@ -788,7 +788,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private bool ApplyMoveBrush(LatticeDeformer deformer, Transform meshTransform, Vector3 localHitPoint, float localRadius, float strength, Event evt)
         {
-            float radiusSq = localRadius * localRadius;
             // Compute mouse delta in world space, then convert to local
             var mouseDelta = evt.delta;
             if (mouseDelta.sqrMagnitude < 0.001f) return false;
@@ -815,8 +814,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 localCameraForward = meshTransform.InverseTransformDirection(camera.transform.forward);
             }
 
+            return ApplyMoveBrushLocalDelta(
+                deformer, localHitPoint, localRadius, strength, localDelta, localCameraForward);
+        }
+
+        private bool ApplyMoveBrushLocalDelta(
+            LatticeDeformer deformer,
+            Vector3 localHitPoint,
+            float localRadius,
+            float strength,
+            Vector3 localDelta,
+            Vector3 localCameraForward)
+        {
+            float radiusSq = localRadius * localRadius;
+
             bool modified = false;
             int vertexCount = _meshVertices.Length;
+            var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
+                ? SkinnedVertexHelper.CreateRestSpaceDeltaConverter(deformer)
+                : null;
 
             for (int i = 0; i < vertexCount; i++)
             {
@@ -854,7 +870,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
                 }
 
-                var delta = localDelta * (strength * falloff * 10f);
+                var storedDelta = restSpaceConverter != null
+                    ? restSpaceConverter.ConvertOrFallback(i, localDelta)
+                    : localDelta;
+                var delta = storedDelta * (strength * falloff * 10f);
                 float maskValue = GetActiveLayerMaskValue(deformer, i);
                 if (maskValue < 1e-6f) continue;
                 delta *= maskValue;
@@ -1170,6 +1189,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
 
                     var mirroredDelta = MirrorDirection(_lastMoveBrushLocalDelta);
+                    var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
+                        ? SkinnedVertexHelper.CreateRestSpaceDeltaConverter(deformer)
+                        : null;
                     for (int i = 0; i < vertexCount; i++)
                     {
                         if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
@@ -1185,7 +1207,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         float t = dist / localRadius;
                         float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
 
-                        var delta = mirroredDelta * (strength * falloff * 10f);
+                        var storedDelta = restSpaceConverter != null
+                            ? restSpaceConverter.ConvertOrFallback(i, mirroredDelta)
+                            : mirroredDelta;
+                        var delta = storedDelta * (strength * falloff * 10f);
                         float maskValue = GetActiveLayerMaskValue(deformer, i);
                         if (maskValue < 1e-6f) continue;
                         delta *= maskValue;
@@ -1958,6 +1983,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 new GUIContent(LatticeLocalization.Tr(LocKey.BrushStrength) + " (%)", LatticeLocalization.Tooltip(LocKey.BrushStrength)),
                 strengthPercent, 0f, 100f);
             BrushToolHandler.BrushStrength = strengthPercent / 100f;
+
+            if (BrushToolHandler.CurrentBrushMode == BrushToolHandler.BrushMode.Move &&
+                deformer != null && deformer.GetComponent<SkinnedMeshRenderer>() != null)
+            {
+                SkinnedVertexHelper.StoreMovesInRestSpace = EditorGUILayout.Toggle(
+                    LatticeLocalization.Content(LocKey.StoreMoveInRestSpace),
+                    SkinnedVertexHelper.StoreMovesInRestSpace);
+            }
 
             // Falloff type (text only — falloff curves are self-explanatory with names)
             var falloffContent = new GUIContent[]

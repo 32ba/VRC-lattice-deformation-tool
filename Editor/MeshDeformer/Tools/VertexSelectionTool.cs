@@ -877,14 +877,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void ApplyMoveDelta(LatticeDeformer deformer, Vector3 localDelta)
         {
+            var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
+                ? SkinnedVertexHelper.CreateRestSpaceDeltaConverter(deformer)
+                : null;
             foreach (int i in s_selectedVertices)
             {
-                deformer.AddDisplacement(i, localDelta);
+                deformer.AddDisplacement(i, restSpaceConverter != null
+                    ? restSpaceConverter.ConvertOrFallback(i, localDelta)
+                    : localDelta);
             }
 
             if (ProportionalEditing)
             {
-                ApplyProportionalMove(deformer, localDelta);
+                ApplyProportionalMove(deformer, localDelta, restSpaceConverter);
             }
 
             bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
@@ -954,7 +959,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             LatticePreviewUtility.RequestSceneRepaint();
         }
 
-        private void ApplyProportionalMove(LatticeDeformer deformer, Vector3 localDelta)
+        private void ApplyProportionalMove(
+            LatticeDeformer deformer,
+            Vector3 localDelta,
+            SkinnedVertexHelper.RestSpaceDeltaConverter restSpaceConverter)
         {
             if (_meshVertices == null) return;
 
@@ -966,7 +974,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 float influence = ComputeProportionalInfluence(i);
                 if (influence <= 0f) continue;
 
-                deformer.AddDisplacement(i, localDelta * influence);
+                var storedDelta = restSpaceConverter != null
+                    ? restSpaceConverter.ConvertOrFallback(i, localDelta)
+                    : localDelta;
+                deformer.AddDisplacement(i, storedDelta * influence);
             }
         }
 
@@ -1466,6 +1477,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             int modeIndex = GUILayout.Toolbar((int)VertexSelectionHandler.CurrentTransformMode, modeContent);
             modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
             VertexSelectionHandler.CurrentTransformMode = (VertexSelectionHandler.TransformMode)modeIndex;
+
+            if (VertexSelectionHandler.CurrentTransformMode == VertexSelectionHandler.TransformMode.Move &&
+                deformer != null && deformer.GetComponent<SkinnedMeshRenderer>() != null)
+            {
+                SkinnedVertexHelper.StoreMovesInRestSpace = EditorGUILayout.Toggle(
+                    LatticeLocalization.Content(LocKey.StoreMoveInRestSpace),
+                    SkinnedVertexHelper.StoreMovesInRestSpace);
+            }
 
             // Handle orientation selector
             var orientContent = new GUIContent[]
