@@ -755,6 +755,21 @@ msgstr "{0}：最小 {1:0.###} mm，违规 {2}，目标 {3}"
 msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-error-format"
 msgstr "{0}：错误 - {1}"
 
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report"
+msgstr "间隙QA报告"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-current"
+msgstr "导出当前结果 (JSON + Markdown)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-scan"
+msgstr "导出扫描结果 (JSON + Markdown)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-success"
+msgstr "已保存JSON和Markdown报告。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-failure"
+msgstr "无法保存报告：{0}"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "顶点工具"

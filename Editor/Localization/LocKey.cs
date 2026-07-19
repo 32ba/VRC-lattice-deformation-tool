@@ -163,6 +163,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string ClearanceScanRestoreScene = "net.32ba.lattice-deformation-tool.localization.clearance-scan-restore-scene";
         internal const string ClearanceScanConditionSuccessFormat = "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-success-format";
         internal const string ClearanceScanConditionErrorFormat = "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-error-format";
+        internal const string ClearanceReport = "net.32ba.lattice-deformation-tool.localization.clearance-report";
+        internal const string ClearanceReportExportCurrent = "net.32ba.lattice-deformation-tool.localization.clearance-report-export-current";
+        internal const string ClearanceReportExportScan = "net.32ba.lattice-deformation-tool.localization.clearance-report-export-scan";
+        internal const string ClearanceReportExportSuccess = "net.32ba.lattice-deformation-tool.localization.clearance-report-export-success";
+        internal const string ClearanceReportExportFailure = "net.32ba.lattice-deformation-tool.localization.clearance-report-export-failure";
 
         // Vertex Selection Tool
         internal const string VertexTool = "net.32ba.lattice-deformation-tool.localization.vertex-tool";

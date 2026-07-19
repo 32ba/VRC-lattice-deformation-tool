@@ -393,17 +393,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (_restoreOnComplete) _snapshot.Restore();
         }
 
-        private static ClearanceScanConditionResult Error(
+        private ClearanceScanConditionResult Error(
             int conditionIndex,
             ClearanceScanCondition condition,
             ClearanceScanConditionStatus status,
             string message)
         {
+            float warningDistance = condition != null && condition.OverrideThresholds
+                ? condition.WarningDistance
+                : _defaultWarningDistance;
+            float targetDistance = condition != null && condition.OverrideThresholds
+                ? condition.TargetDistance
+                : _defaultTargetDistance;
             return new ClearanceScanConditionResult(
                 conditionIndex,
                 condition?.Name ?? "",
                 status,
-                message);
+                message,
+                warningDistance,
+                targetDistance);
         }
 
         internal static Renderer ResolveEvaluationTarget(Renderer original, out bool usedPreviewProxy)

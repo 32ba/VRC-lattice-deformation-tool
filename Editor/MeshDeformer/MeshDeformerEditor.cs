@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Reflection;
 using nadena.dev.ndmf.preview;
 using UnityEditor;
@@ -733,6 +734,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         (ClearanceQueryMode)_clearanceQueryModeProp.enumValueIndex,
                         _clearanceWarningDistanceProp.floatValue,
                         _clearanceTargetDistanceProp.floatValue);
+                    DrawClearanceReportControls(
+                        deformer,
+                        reference,
+                        (ClearanceQueryMode)_clearanceQueryModeProp.enumValueIndex,
+                        _clearanceWarningDistanceProp.floatValue,
+                        _clearanceTargetDistanceProp.floatValue,
+                        evaluation);
                 }
             }
             EditorGUILayout.EndFoldoutHeaderGroup();
@@ -950,6 +958,77 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 InvalidateClearanceEvaluation();
                 SceneView.RepaintAll();
             }
+        }
+
+        private void DrawClearanceReportControls(
+            LatticeDeformer deformer,
+            Renderer reference,
+            ClearanceQueryMode queryMode,
+            float warningDistance,
+            float targetDistance,
+            ClearanceHeatmapEvaluation currentEvaluation)
+        {
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField(
+                LatticeLocalization.Tr(LocKey.ClearanceReport),
+                EditorStyles.boldLabel);
+            using (new EditorGUI.DisabledScope(
+                       currentEvaluation == null ||
+                       currentEvaluation.Status != ClearanceEvaluationStatus.Valid))
+            {
+                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearanceReportExportCurrent)))
+                {
+                    Renderer evaluatedRenderer = ResolveClearanceTargetRenderer(
+                        deformer,
+                        out bool usedPreviewProxy);
+                    ExportClearanceReport(ClearanceQaReportBuilder.FromCurrentEvaluation(
+                        deformer,
+                        reference,
+                        evaluatedRenderer,
+                        currentEvaluation,
+                        queryMode,
+                        warningDistance,
+                        targetDistance,
+                        usedPreviewProxy));
+                }
+            }
+            using (new EditorGUI.DisabledScope(
+                       _clearanceScanResult == null ||
+                       _clearanceScanResult.Conditions.Count == 0))
+            {
+                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearanceReportExportScan)))
+                {
+                    ExportClearanceReport(ClearanceQaReportBuilder.FromScanResult(
+                        deformer,
+                        reference,
+                        _clearanceScanResult));
+                }
+            }
+        }
+
+        private static void ExportClearanceReport(ClearanceQaReport report)
+        {
+            string jsonPath = EditorUtility.SaveFilePanel(
+                LatticeLocalization.Tr(LocKey.ClearanceReport),
+                "",
+                "clearance-qa-report",
+                "json");
+            if (string.IsNullOrEmpty(jsonPath)) return;
+            string markdownPath = Path.ChangeExtension(jsonPath, ".md");
+            bool written = ClearanceQaReportWriter.TryWritePair(
+                jsonPath,
+                markdownPath,
+                ClearanceQaReportBuilder.ToJson(report),
+                ClearanceQaReportBuilder.ToMarkdown(report),
+                out string error);
+            EditorUtility.DisplayDialog(
+                LatticeLocalization.Tr(LocKey.ClearanceReport),
+                written
+                    ? LatticeLocalization.Tr(LocKey.ClearanceReportExportSuccess)
+                    : string.Format(
+                        LatticeLocalization.Tr(LocKey.ClearanceReportExportFailure),
+                        error),
+                "OK");
         }
 
         private void DrawClearanceHeatmapInScene(SceneView sceneView)
