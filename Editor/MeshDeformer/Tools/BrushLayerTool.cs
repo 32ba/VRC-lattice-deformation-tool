@@ -1063,7 +1063,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void ApplyMirror(LatticeDeformer deformer, Vector3 localHitPoint, float localRadius, float strength, float direction)
         {
             float radiusSq = localRadius * localRadius;
-            if (_meshVertices == null || _meshVertices.Length == 0) return;
+            if (_cachedMesh == null || _meshVertices == null || _meshVertices.Length == 0) return;
+
+            var mirrorMap = SymmetryVertexMapCache.GetOrCreate(
+                _cachedMesh,
+                (int)s_mirrorAxis,
+                unmatchedBehavior: UnmatchedSymmetryVertexBehavior.Skip);
 
             // Mirror the brush center
             var mirroredCenter = MirrorPosition(localHitPoint);
@@ -1087,6 +1092,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     for (int i = 0; i < vertexCount; i++)
                     {
+                        if (!mirrorMap.TryGetPartner(i, out _)) continue;
                         if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
                         {
                             continue;
@@ -1123,6 +1129,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                     for (int i = 0; i < vertexCount; i++)
                     {
+                        if (!mirrorMap.TryGetPartner(i, out _)) continue;
                         if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
                         {
                             continue;
@@ -1195,6 +1202,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                     for (int i = 0; i < vertexCount; i++)
                     {
+                        if (!mirrorMap.TryGetPartner(i, out _)) continue;
                         if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
                         {
                             continue;
@@ -1219,24 +1227,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private Vector3 MirrorPosition(Vector3 position)
         {
-            switch (s_mirrorAxis)
-            {
-                case MirrorAxis.X: return new Vector3(-position.x, position.y, position.z);
-                case MirrorAxis.Y: return new Vector3(position.x, -position.y, position.z);
-                case MirrorAxis.Z: return new Vector3(position.x, position.y, -position.z);
-                default: return position;
-            }
+            return SymmetryVertexMapCache.Mirror(position, (int)s_mirrorAxis);
         }
 
         private Vector3 MirrorDirection(Vector3 dir)
         {
-            switch (s_mirrorAxis)
-            {
-                case MirrorAxis.X: return new Vector3(-dir.x, dir.y, dir.z);
-                case MirrorAxis.Y: return new Vector3(dir.x, -dir.y, dir.z);
-                case MirrorAxis.Z: return new Vector3(dir.x, dir.y, -dir.z);
-                default: return dir;
-            }
+            return SymmetryVertexMapCache.MirrorDirection(dir, (int)s_mirrorAxis);
         }
 
         private Color GetBrushColor()

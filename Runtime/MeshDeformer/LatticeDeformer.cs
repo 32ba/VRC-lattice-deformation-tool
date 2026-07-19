@@ -1182,7 +1182,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
                 for (int i = 0; i < vertices.Length; i++)
                 {
-                    float coord = axis == 0 ? vertices[i].x : axis == 1 ? vertices[i].y : vertices[i].z;
+                    float coord = SymmetryVertexMapCache.GetSignedDistance(vertices[i], axis);
                     bool isPositive = coord >= 0f;
                     if (isPositive != keepPositiveSide)
                     {
@@ -1261,7 +1261,10 @@ namespace Net._32Ba.LatticeDeformationTool
                 var displacements = layer.BrushDisplacements;
 
                 int vertexCount = vertices.Length;
-                var mirrorMap = BuildBrushMirrorMap(vertices, axis);
+                var mirrorMap = SymmetryVertexMapCache.GetOrCreate(
+                    _sourceMesh,
+                    axis,
+                    unmatchedBehavior: UnmatchedSymmetryVertexBehavior.Self);
                 var newDisplacements = new Vector3[vertexCount];
                 var masks = layer.VertexMask;
                 bool hasMask = masks.Length == vertexCount;
@@ -1269,10 +1272,8 @@ namespace Net._32Ba.LatticeDeformationTool
 
                 for (int i = 0; i < vertexCount; i++)
                 {
-                    var displacement = displacements[mirrorMap[i]];
-                    if (axis == 0) displacement.x = -displacement.x;
-                    else if (axis == 1) displacement.y = -displacement.y;
-                    else displacement.z = -displacement.z;
+                    var displacement = SymmetryVertexMapCache.MirrorDirection(
+                        displacements[mirrorMap[i]], axis);
 
                     newDisplacements[i] = displacement;
                     if (hasMask)

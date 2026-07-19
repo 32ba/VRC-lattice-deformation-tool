@@ -147,6 +147,9 @@ DeformerGroup [Serializable]
 
 VRChat アバターの対称ワークフロー向けのレイヤー操作機能。
 
+- `SymmetryVertexMapCache`: メッシュ・軸・中心オフセット・許容距離ごとの対称頂点マップを空間ハッシュで構築してキャッシュする共通基盤
+  - 中心軸上の頂点は自己対応にし、非対称頂点は用途ごとにスキップまたは自己処理を選択する
+  - Brush Mirror、Vertex Selection の対称選択、Brush Layer Flip が同じマップを利用する
 - `LatticeDeformer.SplitLayerByAxis(int layerIndex, int axis, bool keepPositiveSide)`: 指定軸で片側の変形データをゼロにリセット
   - ブラシレイヤー: ソースメッシュ頂点座標の正負で判定し、対象側の変位をゼロクリア
   - ラティスレイヤー: グリッド中点で分割し、対象側の制御点をデフォルト位置にリセット

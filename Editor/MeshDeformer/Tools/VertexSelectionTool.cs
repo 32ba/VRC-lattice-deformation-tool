@@ -1401,6 +1401,30 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             SceneView.RepaintAll();
         }
 
+        internal static void SelectMirrorPartners(LatticeDeformer deformer, int axis)
+        {
+            if (deformer == null || s_selectedVertices.Count == 0) return;
+            var mesh = deformer.SourceMesh;
+            if (mesh == null) return;
+
+            var mirrorMap = SymmetryVertexMapCache.GetOrCreate(
+                mesh,
+                axis,
+                unmatchedBehavior: UnmatchedSymmetryVertexBehavior.Skip);
+            var originalSelection = new int[s_selectedVertices.Count];
+            s_selectedVertices.CopyTo(originalSelection);
+
+            for (int i = 0; i < originalSelection.Length; i++)
+            {
+                if (mirrorMap.TryGetPartner(originalSelection[i], out int partnerIndex))
+                {
+                    s_selectedVertices.Add(partnerIndex);
+                }
+            }
+
+            SceneView.RepaintAll();
+        }
+
         internal static string GetSelectionLabel()
         {
             if (s_selectedVertices.Count == 0)
@@ -1529,6 +1553,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (GUILayout.Button(ToolIcons.Content(ToolIcons.Invert, LocKey.Invert)))
                 {
                     VertexSelectionHandler.InvertSelection(deformer);
+                }
+            }
+
+            using (new GUILayout.HorizontalScope())
+            {
+                GUILayout.Label(LatticeLocalization.Content(LocKey.MirrorAxis), GUILayout.Width(75f));
+                int mirrorAxis = GUILayout.Toolbar(
+                    (int)BrushToolHandler.CurrentMirrorAxis,
+                    BrushToolHandler.AxisOptions);
+                mirrorAxis = Mathf.Clamp(mirrorAxis, 0, BrushToolHandler.AxisOptions.Length - 1);
+                BrushToolHandler.CurrentMirrorAxis = (BrushToolHandler.MirrorAxis)mirrorAxis;
+
+                using (new EditorGUI.DisabledScope(VertexSelectionHandler.SelectedVertexCount == 0))
+                {
+                    if (GUILayout.Button(ToolIcons.Content(ToolIcons.Mirror, LocKey.Mirror)))
+                    {
+                        VertexSelectionHandler.SelectMirrorPartners(deformer, mirrorAxis);
+                    }
                 }
             }
 
