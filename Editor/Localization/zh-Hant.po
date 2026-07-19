@@ -773,6 +773,42 @@ msgstr "沒有頂點符合所選校正範圍。"
 msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format"
 msgstr "已建立校正。改善：{0}，未解決：{1}。"
 
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-constraints"
+msgstr "形狀保護約束"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-vertex-mask"
+msgstr "使用目前圖層遮罩"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-pin-open-boundaries"
+msgstr "固定開放邊界"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-isolate-components"
+msgstr "隔離連通元件"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smooth-surface"
+msgstr "沿表面平滑"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-iterations"
+msgstr "平滑迭代次數"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-strength"
+msgstr "平滑強度"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preserve-clearance"
+msgstr "保持已解決間隙"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-symmetry"
+msgstr "使用對稱"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-axis"
+msgstr "對稱軸"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-tolerance-mm"
+msgstr "對稱容差 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preview"
+msgstr "預覽計畫修正"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "頂點工具"

@@ -104,6 +104,17 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, HideInInspector] private float _fitCorrectionWarningDistance;
         [SerializeField, HideInInspector] private float _fitCorrectionTargetDistance;
         [SerializeField, HideInInspector] private float _fitCorrectionMaximumMove;
+        [SerializeField, HideInInspector] private bool _fitCorrectionUsedVertexMask;
+        [SerializeField, HideInInspector] private float[] _fitCorrectionConstraintMask = Array.Empty<float>();
+        [SerializeField, HideInInspector] private bool _fitCorrectionPinnedOpenBoundaries;
+        [SerializeField, HideInInspector] private bool _fitCorrectionIsolatedComponents;
+        [SerializeField, HideInInspector] private bool _fitCorrectionSmoothedSurface;
+        [SerializeField, HideInInspector] private int _fitCorrectionSmoothingIterations;
+        [SerializeField, HideInInspector] private float _fitCorrectionSmoothingStrength;
+        [SerializeField, HideInInspector] private bool _fitCorrectionPreservedClearance;
+        [SerializeField, HideInInspector] private bool _fitCorrectionUsedSymmetry;
+        [SerializeField, HideInInspector] private int _fitCorrectionSymmetryAxis;
+        [SerializeField, HideInInspector] private float _fitCorrectionSymmetryTolerance;
         [SerializeField] private AnimationCurve _blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
         [SerializeField, HideInInspector] private bool _hasImportedBlendShapeFrameWeight;
         [SerializeField, HideInInspector] private float _importedBlendShapeFrameWeight;
@@ -175,6 +186,18 @@ namespace Net._32Ba.LatticeDeformationTool
         public float FitCorrectionWarningDistance => _fitCorrectionWarningDistance;
         public float FitCorrectionTargetDistance => _fitCorrectionTargetDistance;
         public float FitCorrectionMaximumMove => _fitCorrectionMaximumMove;
+        public bool FitCorrectionUsedVertexMask => _fitCorrectionUsedVertexMask;
+        public IReadOnlyList<float> FitCorrectionConstraintMask =>
+            _fitCorrectionConstraintMask ?? (_fitCorrectionConstraintMask = Array.Empty<float>());
+        public bool FitCorrectionPinnedOpenBoundaries => _fitCorrectionPinnedOpenBoundaries;
+        public bool FitCorrectionIsolatedComponents => _fitCorrectionIsolatedComponents;
+        public bool FitCorrectionSmoothedSurface => _fitCorrectionSmoothedSurface;
+        public int FitCorrectionSmoothingIterations => _fitCorrectionSmoothingIterations;
+        public float FitCorrectionSmoothingStrength => _fitCorrectionSmoothingStrength;
+        public bool FitCorrectionPreservedClearance => _fitCorrectionPreservedClearance;
+        public bool FitCorrectionUsedSymmetry => _fitCorrectionUsedSymmetry;
+        public int FitCorrectionSymmetryAxis => _fitCorrectionSymmetryAxis;
+        public float FitCorrectionSymmetryTolerance => _fitCorrectionSymmetryTolerance;
 
         public void ConfigureFitCorrection(
             Renderer referenceRenderer,
@@ -195,6 +218,48 @@ namespace Net._32Ba.LatticeDeformationTool
             _fitCorrectionMaximumMove = IsFinite(maximumMove) ? Mathf.Max(0f, maximumMove) : 0f;
         }
 
+        public void ConfigureFitCorrectionConstraints(
+            bool useVertexMask,
+            float[] constraintMask,
+            bool pinOpenBoundaries,
+            bool isolateComponents,
+            bool smoothSurface,
+            int smoothingIterations,
+            float smoothingStrength,
+            bool preserveClearance,
+            bool useSymmetry,
+            int symmetryAxis,
+            float symmetryTolerance)
+        {
+            _fitCorrectionUsedVertexMask = useVertexMask;
+            if (constraintMask == null)
+            {
+                _fitCorrectionConstraintMask = Array.Empty<float>();
+            }
+            else
+            {
+                _fitCorrectionConstraintMask = new float[constraintMask.Length];
+                for (int vertex = 0; vertex < constraintMask.Length; vertex++)
+                {
+                    float value = constraintMask[vertex];
+                    _fitCorrectionConstraintMask[vertex] = IsFinite(value) ? Mathf.Clamp01(value) : 0f;
+                }
+            }
+            _fitCorrectionPinnedOpenBoundaries = pinOpenBoundaries;
+            _fitCorrectionIsolatedComponents = isolateComponents;
+            _fitCorrectionSmoothedSurface = smoothSurface;
+            _fitCorrectionSmoothingIterations = Mathf.Max(0, smoothingIterations);
+            _fitCorrectionSmoothingStrength = IsFinite(smoothingStrength)
+                ? Mathf.Clamp01(smoothingStrength)
+                : 0f;
+            _fitCorrectionPreservedClearance = preserveClearance;
+            _fitCorrectionUsedSymmetry = useSymmetry;
+            _fitCorrectionSymmetryAxis = Mathf.Clamp(symmetryAxis, 0, 2);
+            _fitCorrectionSymmetryTolerance = IsFinite(symmetryTolerance)
+                ? Mathf.Max(1e-6f, symmetryTolerance)
+                : 1e-4f;
+        }
+
         internal void CopyFitCorrectionMetadataFrom(LatticeLayer source)
         {
             if (source == null || !source._isFitCorrection) return;
@@ -205,6 +270,18 @@ namespace Net._32Ba.LatticeDeformationTool
                 source._fitCorrectionWarningDistance,
                 source._fitCorrectionTargetDistance,
                 source._fitCorrectionMaximumMove);
+            ConfigureFitCorrectionConstraints(
+                source._fitCorrectionUsedVertexMask,
+                source._fitCorrectionConstraintMask,
+                source._fitCorrectionPinnedOpenBoundaries,
+                source._fitCorrectionIsolatedComponents,
+                source._fitCorrectionSmoothedSurface,
+                source._fitCorrectionSmoothingIterations,
+                source._fitCorrectionSmoothingStrength,
+                source._fitCorrectionPreservedClearance,
+                source._fitCorrectionUsedSymmetry,
+                source._fitCorrectionSymmetryAxis,
+                source._fitCorrectionSymmetryTolerance);
         }
 
         public bool HasImportedBlendShapeFrameWeight => _hasImportedBlendShapeFrameWeight;
@@ -249,7 +326,42 @@ namespace Net._32Ba.LatticeDeformationTool
               !IsFinite(_fitCorrectionMaximumMove) ||
               _fitCorrectionWarningDistance < 0f ||
               _fitCorrectionTargetDistance < _fitCorrectionWarningDistance ||
-              _fitCorrectionMaximumMove < 0f));
+              _fitCorrectionMaximumMove < 0f ||
+              HasMalformedFitCorrectionConstraints()));
+
+        private bool HasMalformedFitCorrectionConstraints()
+        {
+            if (_fitCorrectionSmoothedSurface &&
+                (_fitCorrectionSmoothingIterations < 0 ||
+                 !IsFinite(_fitCorrectionSmoothingStrength) ||
+                 _fitCorrectionSmoothingStrength < 0f ||
+                 _fitCorrectionSmoothingStrength > 1f))
+            {
+                return true;
+            }
+
+            if (_fitCorrectionUsedSymmetry &&
+                ((_fitCorrectionSymmetryAxis < 0 || _fitCorrectionSymmetryAxis > 2) ||
+                 !IsFinite(_fitCorrectionSymmetryTolerance) ||
+                 _fitCorrectionSymmetryTolerance < 1e-6f))
+            {
+                return true;
+            }
+
+            if (!_fitCorrectionUsedVertexMask) return false;
+            if (_fitCorrectionConstraintMask == null ||
+                _fitCorrectionConstraintMask.Length != SerializedBrushDisplacementCount)
+            {
+                return true;
+            }
+
+            for (int vertex = 0; vertex < _fitCorrectionConstraintMask.Length; vertex++)
+            {
+                float value = _fitCorrectionConstraintMask[vertex];
+                if (!IsFinite(value) || value < 0f || value > 1f) return true;
+            }
+            return false;
+        }
 
         private static bool IsFinite(float value)
         {
@@ -620,6 +732,17 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private float _clearanceUpdateInterval = 0.1f;
         [SerializeField] private FitCorrectionScope _fitCorrectionScope = FitCorrectionScope.TargetClearance;
         [SerializeField] private float _fitCorrectionMaximumMove = 0.02f;
+        [SerializeField] private bool _fitCorrectionUseVertexMask = true;
+        [SerializeField] private bool _fitCorrectionPinOpenBoundaries = true;
+        [SerializeField] private bool _fitCorrectionIsolateComponents = true;
+        [SerializeField] private bool _fitCorrectionSmoothSurface = true;
+        [SerializeField] private int _fitCorrectionSmoothingIterations = 2;
+        [SerializeField] private float _fitCorrectionSmoothingStrength = 0.5f;
+        [SerializeField] private bool _fitCorrectionPreserveClearance = true;
+        [SerializeField] private bool _fitCorrectionUseSymmetry;
+        [SerializeField] private int _fitCorrectionSymmetryAxis;
+        [SerializeField] private float _fitCorrectionSymmetryTolerance = SymmetryVertexMapCache.DefaultTolerance;
+        [SerializeField] private bool _fitCorrectionPreview = true;
         [SerializeField, HideInInspector] private bool _hasInitializedFromSource = false;
         [SerializeField, HideInInspector] private Mesh _serializedSourceMesh;
 
@@ -1111,6 +1234,18 @@ namespace Net._32Ba.LatticeDeformationTool
             get => IsFinite(_fitCorrectionMaximumMove) ? Mathf.Max(0f, _fitCorrectionMaximumMove) : 0f;
             set => _fitCorrectionMaximumMove = IsFinite(value) ? Mathf.Max(0f, value) : 0f;
         }
+
+        public bool FitCorrectionUseVertexMask { get => _fitCorrectionUseVertexMask; set => _fitCorrectionUseVertexMask = value; }
+        public bool FitCorrectionPinOpenBoundaries { get => _fitCorrectionPinOpenBoundaries; set => _fitCorrectionPinOpenBoundaries = value; }
+        public bool FitCorrectionIsolateComponents { get => _fitCorrectionIsolateComponents; set => _fitCorrectionIsolateComponents = value; }
+        public bool FitCorrectionSmoothSurface { get => _fitCorrectionSmoothSurface; set => _fitCorrectionSmoothSurface = value; }
+        public int FitCorrectionSmoothingIterations { get => Mathf.Max(0, _fitCorrectionSmoothingIterations); set => _fitCorrectionSmoothingIterations = Mathf.Max(0, value); }
+        public float FitCorrectionSmoothingStrength { get => IsFinite(_fitCorrectionSmoothingStrength) ? Mathf.Clamp01(_fitCorrectionSmoothingStrength) : 0f; set => _fitCorrectionSmoothingStrength = IsFinite(value) ? Mathf.Clamp01(value) : 0f; }
+        public bool FitCorrectionPreserveClearance { get => _fitCorrectionPreserveClearance; set => _fitCorrectionPreserveClearance = value; }
+        public bool FitCorrectionUseSymmetry { get => _fitCorrectionUseSymmetry; set => _fitCorrectionUseSymmetry = value; }
+        public int FitCorrectionSymmetryAxis { get => Mathf.Clamp(_fitCorrectionSymmetryAxis, 0, 2); set => _fitCorrectionSymmetryAxis = Mathf.Clamp(value, 0, 2); }
+        public float FitCorrectionSymmetryTolerance { get => IsFinite(_fitCorrectionSymmetryTolerance) ? Mathf.Max(1e-6f, _fitCorrectionSymmetryTolerance) : 1e-4f; set => _fitCorrectionSymmetryTolerance = IsFinite(value) ? Mathf.Max(1e-6f, value) : 1e-4f; }
+        public bool FitCorrectionPreview { get => _fitCorrectionPreview; set => _fitCorrectionPreview = value; }
 
         public bool RecalculateBoneWeights
         {

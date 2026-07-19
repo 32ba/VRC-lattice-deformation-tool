@@ -773,6 +773,42 @@ msgstr "선택한 보정 범위에 해당하는 버텍스가 없습니다."
 msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format"
 msgstr "보정을 만들었습니다. 개선: {0}, 미해결: {1}."
 
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-constraints"
+msgstr "형상 보호 제약"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-vertex-mask"
+msgstr "활성 레이어 마스크 사용"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-pin-open-boundaries"
+msgstr "열린 경계 고정"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-isolate-components"
+msgstr "연결 요소 분리"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smooth-surface"
+msgstr "표면 기반 스무딩"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-iterations"
+msgstr "스무딩 반복 횟수"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-strength"
+msgstr "스무딩 강도"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preserve-clearance"
+msgstr "해결된 클리어런스 유지"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-symmetry"
+msgstr "대칭 사용"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-axis"
+msgstr "대칭 축"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-tolerance-mm"
+msgstr "대칭 허용 거리 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preview"
+msgstr "예정된 보정 미리보기"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "버텍스 도구"
