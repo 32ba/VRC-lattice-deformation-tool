@@ -123,7 +123,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             DateTime? evaluatedAtUtc = null)
         {
             Renderer sourceRenderer = deformer != null ? deformer.TargetRenderer : null;
-            var report = CreateHeader(
+            var report = CreateHeaderSnapshot(
                 sourceRenderer,
                 referenceRenderer,
                 queryMode,
@@ -170,11 +170,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             DateTime? evaluatedAtUtc = null)
         {
             Renderer sourceRenderer = deformer != null ? deformer.TargetRenderer : null;
-            var report = CreateHeader(
-                sourceRenderer,
-                referenceRenderer,
-                scanResult != null ? scanResult.QueryMode : ClearanceQueryMode.ReferenceNormal,
-                evaluatedAtUtc ?? DateTime.UtcNow);
+            var report = scanResult?.ReportHeaderSnapshot != null
+                ? CloneReport(scanResult.ReportHeaderSnapshot)
+                : CreateHeaderSnapshot(
+                    sourceRenderer,
+                    referenceRenderer,
+                    scanResult != null ? scanResult.QueryMode : ClearanceQueryMode.ReferenceNormal,
+                    evaluatedAtUtc ?? DateTime.UtcNow);
             if (scanResult == null) return report;
             report.scanCancelled = scanResult.WasCancelled;
             report.worstConditionIndex = scanResult.WorstConditionIndex;
@@ -202,12 +204,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     usedNdmfPreviewProxy = source.UsedNdmfPreviewProxy,
                     evaluatedRenderer = source.EvaluatedRendererName
                 });
-                ClearanceScanCondition definition = scanResult.ScanSet != null &&
-                                                    source.ConditionIndex >= 0 &&
-                                                    source.ConditionIndex < scanResult.ScanSet.Conditions.Count
-                    ? scanResult.ScanSet.Conditions[source.ConditionIndex]
-                    : null;
-                PopulateConditionDefinition(report.conditions[report.conditions.Count - 1], definition);
+                CopyConditionDefinition(
+                    source.ConditionSnapshot,
+                    report.conditions[report.conditions.Count - 1]);
                 if (source.ConditionIndex == report.worstConditionIndex)
                     report.worstConditionName = source.ConditionName;
             }
@@ -435,7 +434,30 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return topology;
         }
 
-        private static ClearanceQaReport CreateHeader(
+        internal static string ComputeVertexIdentityHash(Mesh mesh)
+        {
+            if (mesh == null) return "";
+            using var stream = new MemoryStream();
+            using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
+            using (Mesh.MeshDataArray meshDataArray = Mesh.AcquireReadOnlyMeshData(mesh))
+            {
+                Mesh.MeshData data = meshDataArray[0];
+                writer.Write(data.vertexCount);
+                writer.Write(mesh.vertexBufferCount);
+                for (int streamIndex = 0; streamIndex < mesh.vertexBufferCount; streamIndex++)
+                {
+                    var bytes = data.GetVertexData<byte>(streamIndex);
+                    writer.Write(bytes.Length);
+                    for (int index = 0; index < bytes.Length; index++) writer.Write(bytes[index]);
+                }
+                writer.Write(ComputeTopology(mesh).topologyHash);
+            }
+            stream.Position = 0;
+            using SHA256 sha256 = SHA256.Create();
+            return Convert.ToBase64String(sha256.ComputeHash(stream));
+        }
+
+        internal static ClearanceQaReport CreateHeaderSnapshot(
             Renderer targetRenderer,
             Renderer referenceRenderer,
             ClearanceQueryMode queryMode,
@@ -476,11 +498,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static string ConditionKey(ClearanceQaCondition condition) =>
             condition.index.ToString(CultureInfo.InvariantCulture) + "\n" + (condition.name ?? "");
 
-        private static void PopulateConditionDefinition(
-            ClearanceQaCondition destination,
+        internal static ClearanceQaCondition SnapshotConditionDefinition(
             ClearanceScanCondition source)
         {
-            if (destination == null || source == null) return;
+            if (source == null) return null;
+            var destination = new ClearanceQaCondition();
             destination.useAnimationClip = source.UseAnimationClip;
             destination.animationClip = GetObjectIdentifier(source.AnimationClip);
             destination.sampleTime = source.SampleTime;
@@ -511,6 +533,33 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 });
             }
             destination.conditionFingerprint = ComputeConditionFingerprint(destination);
+            return destination;
+        }
+
+        private static void CopyConditionDefinition(
+            ClearanceQaCondition source,
+            ClearanceQaCondition destination)
+        {
+            if (source == null || destination == null) return;
+            destination.useAnimationClip = source.useAnimationClip;
+            destination.animationClip = source.animationClip;
+            destination.sampleTime = source.sampleTime;
+            destination.animationRootPath = source.animationRootPath;
+            destination.overrideThresholds = source.overrideThresholds;
+            destination.blendShapeOverrides = source.blendShapeOverrides != null
+                ? new List<ClearanceQaBlendShapeOverride>(source.blendShapeOverrides)
+                : new List<ClearanceQaBlendShapeOverride>();
+            destination.transformOverrides = source.transformOverrides != null
+                ? new List<ClearanceQaTransformOverride>(source.transformOverrides)
+                : new List<ClearanceQaTransformOverride>();
+            destination.conditionFingerprint = source.conditionFingerprint;
+        }
+
+        private static ClearanceQaReport CloneReport(ClearanceQaReport source)
+        {
+            var clone = JsonUtility.FromJson<ClearanceQaReport>(JsonUtility.ToJson(source, false));
+            clone.conditions = new List<ClearanceQaCondition>();
+            return clone;
         }
 
         private static string GetObjectIdentifier(UnityEngine.Object value)

@@ -55,7 +55,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 QueryMode = ClearanceQueryMode.ClosedMesh,
                 WorstClearances = new[] { 0.002f, -0.004f, 0.003f },
                 WorstConditionIndices = new[] { 0, 1, 0 },
-                ScanSet = ScriptableObject.CreateInstance<ClearanceScanSet>()
+                ScanSet = ScriptableObject.CreateInstance<ClearanceScanSet>(),
+                ReportHeaderSnapshot = ClearanceQaReportBuilder.CreateHeaderSnapshot(
+                    fixture.Target,
+                    fixture.Reference,
+                    ClearanceQueryMode.ClosedMesh,
+                    DateTime.UnixEpoch)
             };
             var firstDefinition = new ClearanceScanCondition { Name = "通常" };
             var secondDefinition = new ClearanceScanCondition
@@ -90,7 +95,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 targetDistance: 0.01f,
                 statistics: new ClearanceHeatmapStatistics(0.002f, 0f, 2, 3),
                 vertexClearances: new[] { 0.002f, 0.004f, 0.003f },
-                evaluatedRendererName: "Root/Target"));
+                evaluatedRendererName: "Root/Target",
+                conditionDefinition: firstDefinition));
             scan.Conditions.Add(new ClearanceScanConditionResult(
                 1, "腕上げ", ClearanceScanConditionStatus.Success,
                 warningDistance: 0.004f,
@@ -98,10 +104,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 statistics: new ClearanceHeatmapStatistics(-0.004f, 0.004f, 3, 3),
                 vertexClearances: new[] { 0.003f, -0.004f, 0.004f },
                 usedNdmfPreviewProxy: true,
-                evaluatedRendererName: "Preview/Target"));
+                evaluatedRendererName: "Preview/Target",
+                conditionDefinition: secondDefinition));
             scan.Conditions.Add(new ClearanceScanConditionResult(
                 2, "Missing", ClearanceScanConditionStatus.MissingBlendShape,
-                "BlendShape was not found: Missing"));
+                "BlendShape was not found: Missing",
+                conditionDefinition: scan.ScanSet.Conditions[2]));
 
             ClearanceQaReport report = ClearanceQaReportBuilder.FromScanResult(
                 fixture.Deformer,
@@ -276,6 +284,69 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(comparison.ComparedConditionCount, Is.EqualTo(1));
             Assert.That(incompatible.IsCompatible, Is.False);
             Assert.That(incompatible.Reason, Does.Contain("topology"));
+        }
+
+        [Test]
+        public void ScanReport_UsesEvaluationTimeHeaderAndConditionSnapshotsAfterInputsChange()
+        {
+            using var original = Fixture.Create("Original Target", "Original Reference");
+            using var changed = Fixture.Create("Changed Target", "Changed Reference");
+            var definition = new ClearanceScanCondition
+            {
+                Name = "Pose",
+                SampleTime = 0.25f,
+                AnimationRootPath = "Original Root"
+            };
+            definition.BlendShapeOverrides.Add(new ClearanceBlendShapeOverride
+            {
+                RendererRole = ClearanceScanRendererRole.Target,
+                BlendShapeName = "Original Shape",
+                Weight = 25f
+            });
+            var scan = new ClearanceScanResult
+            {
+                QueryMode = ClearanceQueryMode.ClosedMesh,
+                ReportHeaderSnapshot = ClearanceQaReportBuilder.CreateHeaderSnapshot(
+                    original.Target,
+                    original.Reference,
+                    ClearanceQueryMode.ClosedMesh,
+                    DateTime.UnixEpoch)
+            };
+            scan.Conditions.Add(new ClearanceScanConditionResult(
+                0,
+                "Pose",
+                ClearanceScanConditionStatus.Success,
+                warningDistance: 0.005f,
+                targetDistance: 0.01f,
+                statistics: new ClearanceHeatmapStatistics(0.001f, 0f, 0, 4),
+                conditionDefinition: definition));
+            string originalTopology = scan.ReportHeaderSnapshot.targetTopology.topologyHash;
+
+            definition.SampleTime = 0.75f;
+            definition.AnimationRootPath = "Changed Root";
+            definition.BlendShapeOverrides[0].BlendShapeName = "Changed Shape";
+            Mesh replacement = CreateQuad(new[] { 0, 1, 3, 1, 2, 3 });
+            changed.Target.GetComponent<MeshFilter>().sharedMesh = replacement;
+            try
+            {
+                ClearanceQaReport report = ClearanceQaReportBuilder.FromScanResult(
+                    changed.Deformer,
+                    changed.Reference,
+                    scan,
+                    DateTime.UtcNow);
+
+                Assert.That(report.targetRenderer, Does.Contain("Original Target"));
+                Assert.That(report.referenceRenderer, Does.Contain("Original Reference"));
+                Assert.That(report.targetTopology.topologyHash, Is.EqualTo(originalTopology));
+                Assert.That(report.conditions.Single().sampleTime, Is.EqualTo(0.25f));
+                Assert.That(report.conditions.Single().animationRootPath, Is.EqualTo("Original Root"));
+                Assert.That(report.conditions.Single().blendShapeOverrides.Single().blendShapeName,
+                    Is.EqualTo("Original Shape"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(replacement);
+            }
         }
 
         [Test]

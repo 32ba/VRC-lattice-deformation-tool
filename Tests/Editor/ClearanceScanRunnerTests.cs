@@ -344,6 +344,46 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void SameVertexCountDifferentTopology_IsRejectedOnFirstCondition()
+        {
+            var fixture = Fixture.CreateMeshRenderers();
+            var alternate = new Mesh { name = "Reordered Topology" };
+            alternate.vertices = new[]
+            {
+                new Vector3(0.4f, -0.4f, 0f),
+                new Vector3(-0.4f, -0.4f, 0f),
+                new Vector3(0f, 0.4f, 0f)
+            };
+            alternate.triangles = new[] { 0, 2, 1 };
+            alternate.RecalculateNormals();
+            var scanSet = NewScanSet(new ClearanceScanCondition { Name = "Changed First" });
+            MeshFilter filter = fixture.Target.GetComponent<MeshFilter>();
+            using var operation = new ClearanceScanOperation(
+                scanSet,
+                fixture.Deformer,
+                fixture.Reference,
+                fixture.Root.transform,
+                ClearanceQueryMode.ReferenceNormal,
+                0.005f,
+                0.01f,
+                afterConditionApplied: _ => filter.sharedMesh = alternate);
+            try
+            {
+                ClearanceScanConditionResult result = operation.RunToCompletion().Conditions.Single();
+
+                Assert.That(result.Status, Is.EqualTo(ClearanceScanConditionStatus.EvaluationFailed));
+                Assert.That(result.ErrorMessage, Does.Contain("vertex identity"));
+                Assert.That(filter.sharedMesh, Is.SameAs(fixture.TargetMesh));
+            }
+            finally
+            {
+                Object.DestroyImmediate(scanSet);
+                Object.DestroyImmediate(alternate);
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
         public void Cancel_RestoresTransformAndReportsPartialProgress()
         {
             var fixture = Fixture.CreateMeshRenderers();
@@ -368,6 +408,40 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
             finally
             {
+                Object.DestroyImmediate(scanSet);
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void UserEditBetweenSteps_CancelsWithoutOverwritingTheEdit()
+        {
+            var fixture = Fixture.CreateMeshRenderers();
+            var scanSet = NewScanSet(
+                PoseCondition("First", -0.01f),
+                PoseCondition("Second", 0.02f));
+            var operation = NewOperation(fixture, scanSet);
+            try
+            {
+                operation.Step();
+                Undo.IncrementCurrentGroup();
+                Undo.RecordObject(fixture.Target.transform, "User edit during clearance scan");
+                Vector3 userPosition = new Vector3(0.2f, 0.3f, 0.4f);
+                fixture.Target.transform.localPosition = userPosition;
+                Undo.IncrementCurrentGroup();
+
+                operation.Step();
+
+                Assert.That(operation.IsCompleted, Is.True);
+                Assert.That(operation.Result.WasCancelled, Is.True);
+                Assert.That(operation.Result.Conditions.Count, Is.EqualTo(1));
+                Assert.That(fixture.Target.transform.localPosition, Is.EqualTo(userPosition));
+                operation.Dispose();
+                Assert.That(fixture.Target.transform.localPosition, Is.EqualTo(userPosition));
+            }
+            finally
+            {
+                operation.Dispose();
                 Object.DestroyImmediate(scanSet);
                 fixture.Dispose();
             }
@@ -469,6 +543,67 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally
             {
                 Object.DestroyImmediate(scanSet);
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void TransformOverridePose_IsSynchronizedToExternalPreviewProxyBonesAndRestored()
+        {
+            var fixture = Fixture.CreateSkinnedRenderers();
+            var originalBoneObject = new GameObject("Bone");
+            originalBoneObject.transform.SetParent(fixture.Root.transform);
+            fixture.TargetSkinned.bones = new[] { originalBoneObject.transform };
+            fixture.TargetSkinned.rootBone = originalBoneObject.transform;
+            var proxyObject = new GameObject("External Posed Proxy");
+            var proxyBoneObject = new GameObject("Proxy Bone");
+            proxyBoneObject.transform.SetParent(proxyObject.transform);
+            proxyBoneObject.transform.localPosition = Vector3.one;
+            var proxy = proxyObject.AddComponent<SkinnedMeshRenderer>();
+            proxy.sharedMesh = fixture.TargetMesh;
+            proxy.bones = new[] { proxyBoneObject.transform };
+            proxy.rootBone = proxyBoneObject.transform;
+            var condition = new ClearanceScanCondition { Name = "Bone Pose" };
+            condition.TransformOverrides.Add(new ClearanceTransformPoseOverride
+            {
+                RelativePath = "Bone",
+                OverridePosition = true,
+                LocalPosition = new Vector3(0.1f, 0.2f, 0.3f),
+                OverrideRotation = true,
+                LocalEulerAngles = new Vector3(10f, 20f, 30f)
+            });
+            var scanSet = NewScanSet(condition);
+            Vector3 observedPosition = Vector3.zero;
+            Quaternion observedRotation = Quaternion.identity;
+            using var operation = new ClearanceScanOperation(
+                scanSet,
+                fixture.Deformer,
+                fixture.Reference,
+                fixture.Root.transform,
+                ClearanceQueryMode.ReferenceNormal,
+                0.005f,
+                0.01f,
+                previewProxyResolver: _ => proxy,
+                afterConditionApplied: _ =>
+                {
+                    observedPosition = proxyBoneObject.transform.localPosition;
+                    observedRotation = proxyBoneObject.transform.localRotation;
+                });
+            try
+            {
+                ClearanceScanResult result = operation.RunToCompletion();
+
+                Assert.That(result.SuccessfulConditionCount, Is.EqualTo(1));
+                Assert.That(observedPosition, Is.EqualTo(new Vector3(0.1f, 0.2f, 0.3f)));
+                Assert.That(Quaternion.Angle(
+                    observedRotation,
+                    Quaternion.Euler(10f, 20f, 30f)), Is.LessThan(0.01f));
+                Assert.That(proxyBoneObject.transform.localPosition, Is.EqualTo(Vector3.one));
+            }
+            finally
+            {
+                Object.DestroyImmediate(scanSet);
+                Object.DestroyImmediate(proxyObject);
                 fixture.Dispose();
             }
         }
