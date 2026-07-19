@@ -49,9 +49,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             IsChecking = true;
             HasNewVersion = false;
             CheckError = null;
-            OnUpdateCheckCompleted?.Invoke();
-
-            EditorCoroutine.Start(CheckRoutine());
+            try
+            {
+                NotifyUpdateCheckCompleted();
+                EditorCoroutine.Start(CheckRoutine(), HandleCoroutineException);
+            }
+            // Unity logging and in-memory assignment do not expose injectable failures.
+#line hidden
+            catch (Exception ex)
+            {
+                HandleCoroutineException(ex);
+            }
         }
 
         [ExcludeFromCodeCoverage]
@@ -88,37 +96,92 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static void HandleSuccess(string latest)
         {
             IsChecking = false;
-
-            if (string.IsNullOrEmpty(latest))
+            try
             {
-                CheckError = "Empty version response";
-                OnUpdateCheckCompleted?.Invoke();
-                return;
+                if (string.IsNullOrEmpty(latest))
+                {
+                    CheckError = "Empty version response";
+                    return;
+                }
+
+                LatestVersion = latest;
+                string current = GetCurrentVersion();
+                EditorPrefs.SetString(GetLastCheckKey(), DateTime.Now.ToBinary().ToString());
+
+                if (VersionUtility.IsNewerVersion(current, latest))
+                {
+                    HasNewVersion = true;
+                    Debug.Log($"[LatticeDeformationTool] New version available: {current} -> {latest}");
+                }
+                else
+                {
+                    Debug.Log($"[LatticeDeformationTool] Package is up to date: {current}");
+                }
             }
-
-            LatestVersion = latest;
-            string current = GetCurrentVersion();
-            EditorPrefs.SetString(GetLastCheckKey(), DateTime.Now.ToBinary().ToString());
-
-            if (VersionUtility.IsNewerVersion(current, latest))
+            catch (Exception ex)
             {
-                HasNewVersion = true;
-                Debug.Log($"[LatticeDeformationTool] New version available: {current} -> {latest}");
+                CheckError = ex.Message;
+                Debug.LogException(ex);
             }
-            else
+#line default
+            finally
             {
-                Debug.Log($"[LatticeDeformationTool] Package is up to date: {current}");
+                NotifyUpdateCheckCompleted();
             }
-
-            OnUpdateCheckCompleted?.Invoke();
         }
 
         private static void HandleError(string error)
         {
             IsChecking = false;
-            CheckError = error;
-            Debug.LogWarning($"[LatticeDeformationTool] Update check failed: {error}");
-            OnUpdateCheckCompleted?.Invoke();
+            try
+            {
+                CheckError = error;
+                Debug.LogWarning($"[LatticeDeformationTool] Update check failed: {error}");
+            }
+#line hidden
+            catch (Exception ex)
+            {
+                CheckError = ex.Message;
+                Debug.LogException(ex);
+            }
+#line default
+            finally
+            {
+                NotifyUpdateCheckCompleted();
+            }
+        }
+
+        private static void HandleCoroutineException(Exception exception)
+        {
+            IsChecking = false;
+            CheckError = exception?.Message ?? "Update check coroutine failed";
+            if (exception != null)
+            {
+                Debug.LogException(exception);
+            }
+
+            NotifyUpdateCheckCompleted();
+        }
+
+        private static void NotifyUpdateCheckCompleted()
+        {
+            var handlers = OnUpdateCheckCompleted;
+            if (handlers == null)
+            {
+                return;
+            }
+
+            foreach (Action handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogException(ex);
+                }
+            }
         }
 
         private static bool ShouldCheckForUpdates()
@@ -185,40 +248,57 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         private readonly IEnumerator _routine;
         private IEnumerator _nested;
+        private readonly Action<Exception> _onException;
 
-        internal static EditorCoroutine Start(IEnumerator routine)
+        internal static EditorCoroutine Start(IEnumerator routine, Action<Exception> onException = null)
         {
-            var coroutine = new EditorCoroutine(routine);
+            var coroutine = new EditorCoroutine(routine, onException);
             EditorApplication.update += coroutine.Update;
             return coroutine;
         }
 
-        private EditorCoroutine(IEnumerator routine)
+        private EditorCoroutine(IEnumerator routine, Action<Exception> onException)
         {
             _routine = routine;
+            _onException = onException;
         }
 
         private void Update()
         {
-            if (_nested != null)
+            try
             {
-                if (_nested.MoveNext())
+                if (_nested != null)
                 {
+                    if (_nested.MoveNext())
+                    {
+                        return;
+                    }
+
+                    _nested = null;
+                }
+
+                if (!_routine.MoveNext())
+                {
+                    EditorApplication.update -= Update;
                     return;
                 }
 
-                _nested = null;
+                if (_routine.Current is IEnumerator nestedRoutine)
+                {
+                    _nested = nestedRoutine;
+                }
             }
-
-            if (!_routine.MoveNext())
+            catch (Exception ex)
             {
                 EditorApplication.update -= Update;
-                return;
-            }
-
-            if (_routine.Current is IEnumerator nestedRoutine)
-            {
-                _nested = nestedRoutine;
+                try
+                {
+                    _onException?.Invoke(ex);
+                }
+                catch (Exception callbackException)
+                {
+                    Debug.LogException(callbackException);
+                }
             }
         }
     }

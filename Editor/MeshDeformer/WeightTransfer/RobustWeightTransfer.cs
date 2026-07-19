@@ -8,13 +8,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 {
     /// <summary>
     /// Main API for Robust Weight Transfer.
-    /// Implements "Robust Skin Weights Transfer via Weight Inpainting" (SIGGRAPH Asia 2023).
+    /// Uses a two-stage workflow inspired by "Robust Skin Weights Transfer via Weight Inpainting"
+    /// (SIGGRAPH Asia 2023), with cotangent harmonic interpolation as a practical approximation.
     /// </summary>
     public static class RobustWeightTransfer
     {
         private const float DefaultMaxTransferDistanceRatio = 0.05f;
         private const float DeformationPercentile = 0.95f;
         private const float DeformationMargin = 1.2f;
+        internal const float KnownConfidenceThreshold = 0.5f;
 
         /// <summary>
         /// Result of weight transfer operation.
@@ -66,6 +68,32 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             Mesh targetMesh,
             WeightTransferSettings settings = null)
         {
+            try
+            {
+                return TransferCore(sourceMesh, sourceWeights, targetMesh, settings);
+            }
+            // This is the final Unity/job safety net. Validated input failures are covered
+            // individually; forcing UnityException/job corruption is not deterministic.
+#line hidden
+            catch (Exception exception) when (
+                exception is ArgumentException ||
+                exception is InvalidOperationException ||
+                exception is IndexOutOfRangeException ||
+                exception is UnityException)
+            {
+                // Malformed mesh payloads and Unity/job safety failures must not abort the NDMF
+                // build. The caller keeps the mesh's existing weights when success is false.
+                return Failure($"Weight transfer stopped safely: {exception.Message}");
+            }
+#line default
+        }
+
+        private static TransferResult TransferCore(
+            Mesh sourceMesh,
+            BoneWeight[] sourceWeights,
+            Mesh targetMesh,
+            WeightTransferSettings settings)
+        {
             if (sourceMesh == null)
             {
                 return new TransferResult
@@ -84,6 +112,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 };
             }
 
+            if (sourceWeights.Length < sourceMesh.vertexCount)
+            {
+                return new TransferResult
+                {
+                    success = false,
+                    errorMessage = "Source weights do not cover every source vertex."
+                };
+            }
+
             if (targetMesh == null)
             {
                 return new TransferResult
@@ -95,8 +132,30 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
             settings = settings ?? WeightTransferSettings.Default;
 
+            if (!TryValidateSettings(settings, out string settingsError))
+            {
+                return Failure(settingsError);
+            }
+
+            int boneCount = sourceMesh.bindposes.Length;
+            if (boneCount <= 0)
+            {
+                return Failure("Source mesh has bone weights but no bind poses.");
+            }
+
+            var sourceVertices = sourceMesh.vertices;
+            var sourceNormals = sourceMesh.normals;
             var targetVertices = targetMesh.vertices;
             var targetNormals = targetMesh.normals;
+            if (!TryValidateFiniteVectors(sourceVertices, "Source vertices", true, out string vectorError))
+                return Failure(vectorError);
+            if (!TryValidateFiniteVectors(targetVertices, "Target vertices", true, out vectorError))
+                return Failure(vectorError);
+            if (!TryValidateFiniteVectors(sourceNormals, "Source normals", false, out vectorError))
+                return Failure(vectorError);
+            if (!TryValidateFiniteVectors(targetNormals, "Target normals", false, out vectorError))
+                return Failure(vectorError);
+
             var targetTriangles = GetAllTriangles(targetMesh);
             int vertexCount = targetVertices.Length;
 
@@ -114,7 +173,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 Array.Copy(sourceWeights, result.weights, vertexCount);
             }
 
-            // Confidence mask: 1.0 = transferred, 0.0 = needs inpainting
+            // Confidence mask: values at/above KnownConfidenceThreshold are known; 0 needs inpainting.
             var confidenceMask = new float[vertexCount];
 
             var sw = Stopwatch.StartNew();
@@ -128,36 +187,44 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 settings,
                 result.weights,
                 confidenceMask,
+                boneCount,
                 ref result.transferredCount);
 
             var stage1Time = sw.ElapsedMilliseconds;
             sw.Restart();
 
-            RunStage2InpaintingIfNeeded(settings, result.transferredCount, vertexCount, targetTriangles, targetVertices, sourceMesh.bindposes.Length, result.weights, confidenceMask, ref result.inpaintedCount);
+            RunStage2InpaintingIfNeeded(
+                settings,
+                targetTriangles,
+                targetVertices,
+                boneCount,
+                result.weights,
+                confidenceMask,
+                ref result.inpaintedCount);
+
+            // Anything Stage 2 could not resolve must take the explicit fallback path below.
+            ClearUnknownWeights(result.weights, confidenceMask);
 
             var stage2Time = sw.ElapsedMilliseconds;
             Debug.Log($"[WeightTransfer] Stage1: {stage1Time}ms, Stage2: {stage2Time}ms");
 
-            if (!settings.enableInpainting || result.transferredCount >= vertexCount)
-            {
-                // Fill non-transferred vertices with zero weights
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    if (confidenceMask[i] < 0.5f)
-                    {
-                        result.weights[i] = new BoneWeight();
-                    }
-                }
-            }
-
-            int fallbackCount = ApplyZeroWeightFallback(result.weights, sourceWeights);
+            int fallbackCount = ApplyZeroWeightFallback(result.weights, sourceWeights, boneCount);
 
             if (fallbackCount > 0)
             {
-                Debug.LogWarning($"[WeightTransfer] {fallbackCount} vertices had zero weights; fell back to safe defaults.");
+                Debug.LogWarning($"[WeightTransfer] {fallbackCount} vertices had invalid or zero weights; fell back to safe defaults.");
             }
 
             return result;
+        }
+
+        private static TransferResult Failure(string message)
+        {
+            return new TransferResult
+            {
+                success = false,
+                errorMessage = message
+            };
         }
 
         /// <summary>
@@ -191,6 +258,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             WeightTransferSettings settings,
             BoneWeight[] outWeights,
             float[] outConfidence,
+            int boneCount,
             ref int transferredCount)
         {
             var sourceVertices = sourceMesh.vertices;
@@ -203,7 +271,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 float maxTransferDistance = ResolveMaxTransferDistance(settings, sourceVertices, targetVertices);
                 float safeMaxTransferDistance = Mathf.Max(maxTransferDistance, 1e-6f);
                 float maxDistSq = safeMaxTransferDistance * safeMaxTransferDistance;
-                float normalThresholdCos = Mathf.Cos(settings.normalAngleThreshold * Mathf.Deg2Rad);
+                float normalThresholdCos = Mathf.Cos(
+                    Mathf.Clamp(settings.normalAngleThreshold, 0f, 180f) * Mathf.Deg2Rad);
 
                 // Use batch processing for all vertices at once
                 var queryResults = spatialQuery.FindClosestPointsBatch(targetVertices, safeMaxTransferDistance);
@@ -212,9 +281,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 {
                     var queryResult = queryResults[i];
                     var targetPos = targetVertices[i];
-                    var targetNormal = targetNormals != null && i < targetNormals.Length
+                    var targetNormal = targetNormals != null &&
+                                       i < targetNormals.Length &&
+                                       targetNormals[i].sqrMagnitude > 1e-12f
                         ? targetNormals[i]
-                        : Vector3.up;
+                        : queryResult.interpolatedNormal;
 
                     if (!queryResult.found)
                     {
@@ -222,19 +293,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                         continue;
                     }
 
-                    float normalDot = Vector3.Dot(targetNormal.normalized, queryResult.interpolatedNormal.normalized);
+                    float normalDot = targetNormal.sqrMagnitude <= 1e-12f ||
+                                      queryResult.interpolatedNormal.sqrMagnitude <= 1e-12f
+                        ? 1f
+                        : Vector3.Dot(targetNormal.normalized, queryResult.interpolatedNormal.normalized);
                     if (ShouldRejectTransfer(targetPos, queryResult.closestPoint, maxDistSq, normalDot, normalThresholdCos))
                     {
                         outConfidence[i] = 0f;
                         continue;
                     }
-
-                    // Transfer weight using barycentric interpolation
-                    outWeights[i] = InterpolateBoneWeight(
-                        sourceWeights[queryResult.triangleIndices.x],
-                        sourceWeights[queryResult.triangleIndices.y],
-                        sourceWeights[queryResult.triangleIndices.z],
-                        queryResult.barycentricCoords);
 
                     // Compute confidence based on distance and normal alignment
                     float distSq = (targetPos - queryResult.closestPoint).sqrMagnitude;
@@ -243,11 +310,39 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                     float normalConfidence = normalDenominator <= 1e-6f
                         ? 1f
                         : (normalDot - normalThresholdCos) / normalDenominator;
-                    outConfidence[i] = distConfidence * normalConfidence;
+                    float confidence = Mathf.Clamp01(distConfidence * normalConfidence);
+                    if (!IsKnownConfidence(confidence))
+                    {
+                        outConfidence[i] = 0f;
+                        continue;
+                    }
+
+                    // Transfer weight using barycentric interpolation only for a known match.
+                    var interpolatedWeight = InterpolateBoneWeight(
+                        sourceWeights[queryResult.triangleIndices.x],
+                        sourceWeights[queryResult.triangleIndices.y],
+                        sourceWeights[queryResult.triangleIndices.z],
+                        queryResult.barycentricCoords);
+                    if (!TryNormalizeBoneWeight(ref interpolatedWeight, boneCount))
+                    {
+                        outWeights[i] = new BoneWeight();
+                        outConfidence[i] = 0f;
+                        continue;
+                    }
+
+                    outWeights[i] = interpolatedWeight;
+                    outConfidence[i] = confidence;
 
                     transferredCount++;
                 }
             }
+        }
+
+        internal static bool IsKnownConfidence(float confidence)
+        {
+            return !float.IsNaN(confidence) &&
+                   !float.IsInfinity(confidence) &&
+                   confidence >= KnownConfidenceThreshold;
         }
 
         internal static bool ShouldRejectTransfer(Vector3 targetPos, Vector3 closestPoint, float maxDistSq, float normalDot, float normalThresholdCos)
@@ -258,31 +353,46 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
         internal static int ApplyZeroWeightFallback(BoneWeight[] weights, BoneWeight[] sourceWeights)
         {
+            return ApplyZeroWeightFallback(weights, sourceWeights, int.MaxValue);
+        }
+
+        private static int ApplyZeroWeightFallback(
+            BoneWeight[] weights,
+            BoneWeight[] sourceWeights,
+            int boneCount)
+        {
+            if (weights == null)
+                throw new ArgumentNullException(nameof(weights));
+            if (sourceWeights == null)
+                throw new ArgumentNullException(nameof(sourceWeights));
+
             int fallbackCount = 0;
             int vertexCount = weights.Length;
-            if (sourceWeights.Length == vertexCount)
+            bool canUsePerVertexSource = sourceWeights.Length == vertexCount;
+            for (int i = 0; i < vertexCount; i++)
             {
-                for (int i = 0; i < vertexCount; i++)
+                var candidate = weights[i];
+                if (TryNormalizeBoneWeight(ref candidate, boneCount))
                 {
-                    var bw = weights[i];
-                    if (bw.weight0 <= 0f && bw.weight1 <= 0f && bw.weight2 <= 0f && bw.weight3 <= 0f)
+                    weights[i] = candidate;
+                    continue;
+                }
+
+                if (canUsePerVertexSource)
+                {
+                    candidate = sourceWeights[i];
+                    if (TryNormalizeBoneWeight(ref candidate, boneCount))
                     {
-                        weights[i] = sourceWeights[i];
+                        weights[i] = candidate;
                         fallbackCount++;
+                        continue;
                     }
                 }
-            }
-            else
-            {
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    var bw = weights[i];
-                    if (bw.weight0 <= 0f && bw.weight1 <= 0f && bw.weight2 <= 0f && bw.weight3 <= 0f)
-                    {
-                        weights[i] = new BoneWeight { boneIndex0 = 0, weight0 = 1f };
-                        fallbackCount++;
-                    }
-                }
+
+                weights[i] = boneCount > 0
+                    ? new BoneWeight { boneIndex0 = 0, weight0 = 1f }
+                    : new BoneWeight();
+                fallbackCount++;
             }
 
             return fallbackCount;
@@ -325,7 +435,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         }
 
         /// <summary>
-        /// Stage 2: Laplacian-based weight inpainting for vertices not transferred in Stage 1.
+        /// Stage 2: cotangent harmonic weight interpolation for vertices not transferred in Stage 1.
         /// </summary>
         private static void Stage2Inpainting(
             Vector3[] targetVertices,
@@ -336,7 +446,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             WeightTransferSettings settings,
             ref int inpaintedCount)
         {
-            // Use WeightInpainting class for Laplacian-based interpolation
+            // Use WeightInpainting for the paper-inspired harmonic approximation.
             var inpainting = new WeightInpainting(
                 targetVertices,
                 targetTriangles,
@@ -345,12 +455,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
             inpainting.Inpaint(weights, confidence, boneCount);
 
-            // Count inpainted vertices
+            // Promote only unknown vertices that received finite, valid, normalized weights.
             for (int i = 0; i < confidence.Length; i++)
             {
-                if (confidence[i] < 0.5f)
+                if (IsKnownConfidence(confidence[i]))
                 {
+                    continue;
+                }
+
+                var weight = weights[i];
+                if (TryNormalizeInpaintedWeight(ref weight, boneCount))
+                {
+                    weights[i] = weight;
+                    confidence[i] = 1f;
                     inpaintedCount++;
+                }
+                else
+                {
+                    weights[i] = new BoneWeight();
+                    confidence[i] = 0f;
                 }
             }
         }
@@ -358,8 +481,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         [ExcludeFromCodeCoverage]
         private static void RunStage2InpaintingIfNeeded(
             WeightTransferSettings settings,
-            int transferredCount,
-            int vertexCount,
             int[] targetTriangles,
             Vector3[] targetVertices,
             int boneCount,
@@ -367,17 +488,104 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             float[] confidenceMask,
             ref int inpaintedCount)
         {
-            if (settings.enableInpainting && transferredCount < vertexCount && targetTriangles.Length > 0)
+            // Canonicalize NaN/Infinity and remove stale source weights before checking whether
+            // the interpolation problem has enough boundary data to be solvable.
+            ClearUnknownWeights(weights, confidenceMask);
+
+            int knownCount = CountKnownConfidence(confidenceMask);
+            int unknownCount = confidenceMask.Length - knownCount;
+            if (!settings.enableInpainting ||
+                knownCount == 0 ||
+                unknownCount == 0 ||
+                targetTriangles == null ||
+                targetTriangles.Length < 3 ||
+                boneCount <= 0)
             {
-                Stage2Inpainting(
-                    targetVertices,
-                    targetTriangles,
-                    boneCount,
-                    weights,
-                    confidenceMask,
-                    settings,
-                    ref inpaintedCount);
+                return;
             }
+
+            Stage2Inpainting(
+                targetVertices,
+                targetTriangles,
+                boneCount,
+                weights,
+                confidenceMask,
+                settings,
+                ref inpaintedCount);
+        }
+
+        private static int CountKnownConfidence(float[] confidence)
+        {
+            int count = 0;
+            for (int i = 0; i < confidence.Length; i++)
+            {
+                if (IsKnownConfidence(confidence[i]))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        private static void ClearUnknownWeights(BoneWeight[] weights, float[] confidence)
+        {
+            int count = Mathf.Min(weights.Length, confidence.Length);
+            for (int i = 0; i < count; i++)
+            {
+                if (IsKnownConfidence(confidence[i]))
+                {
+                    confidence[i] = Mathf.Clamp01(confidence[i]);
+                    continue;
+                }
+
+                confidence[i] = 0f;
+                weights[i] = new BoneWeight();
+            }
+        }
+
+        private static bool TryNormalizeInpaintedWeight(ref BoneWeight weight, int boneCount)
+        {
+            return TryNormalizeBoneWeight(ref weight, boneCount);
+        }
+
+        private static bool TryNormalizeBoneWeight(ref BoneWeight weight, int boneCount)
+        {
+            if (!IsValidInfluence(weight.weight0, weight.boneIndex0, boneCount) ||
+                !IsValidInfluence(weight.weight1, weight.boneIndex1, boneCount) ||
+                !IsValidInfluence(weight.weight2, weight.boneIndex2, boneCount) ||
+                !IsValidInfluence(weight.weight3, weight.boneIndex3, boneCount))
+            {
+                return false;
+            }
+
+            float total = weight.weight0 + weight.weight1 + weight.weight2 + weight.weight3;
+            if (!IsFinite(total) || total <= 1e-8f)
+            {
+                return false;
+            }
+
+            float inverseTotal = 1f / total;
+            weight.weight0 *= inverseTotal;
+            weight.weight1 *= inverseTotal;
+            weight.weight2 *= inverseTotal;
+            weight.weight3 *= inverseTotal;
+            return IsFinite(weight.weight0) &&
+                   IsFinite(weight.weight1) &&
+                   IsFinite(weight.weight2) &&
+                   IsFinite(weight.weight3);
+        }
+
+        private static bool IsValidInfluence(float weight, int boneIndex, int boneCount)
+        {
+            return IsFinite(weight) &&
+                   weight >= 0f &&
+                   (weight <= 0f || boneIndex >= 0 && boneIndex < boneCount);
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
         }
 
         /// <summary>
@@ -409,7 +617,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
             // Sort by weight descending and take top 4
             var sortedWeights = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, float>>(boneWeights);
-            sortedWeights.Sort((a, b) => b.Value.CompareTo(a.Value));
+            sortedWeights.Sort((a, b) =>
+            {
+                int weightComparison = b.Value.CompareTo(a.Value);
+                return weightComparison != 0 ? weightComparison : a.Key.CompareTo(b.Key);
+            });
 
             var result = new BoneWeight();
             float totalWeight = 0f;
@@ -455,11 +667,85 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 
         private static void AddBoneWeight(System.Collections.Generic.Dictionary<int, float> dict, int boneIndex, float weight)
         {
-            if (weight <= 0f) return;
+            if (!IsFinite(weight) || weight <= 0f || boneIndex < 0) return;
             if (dict.ContainsKey(boneIndex))
                 dict[boneIndex] += weight;
             else
                 dict[boneIndex] = weight;
+        }
+
+        private static bool TryValidateSettings(WeightTransferSettings settings, out string error)
+        {
+            if (!IsFinite(settings.maxTransferDistance))
+            {
+                error = "Maximum transfer distance must be finite.";
+                return false;
+            }
+
+            if (!IsFinite(settings.normalAngleThreshold))
+            {
+                error = "Normal angle threshold must be finite.";
+                return false;
+            }
+
+            if (settings.maxIterations < 0)
+            {
+                error = "Maximum solver iterations cannot be negative.";
+                return false;
+            }
+
+            if (!IsFinite(settings.tolerance) || settings.tolerance < 0f)
+            {
+                error = "Solver tolerance must be finite and non-negative.";
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
+        private static bool TryValidateFiniteVectors(
+            Vector3[] values,
+            string label,
+            bool validateExtent,
+            out string error)
+        {
+            if (values == null)
+            {
+                error = $"{label} are unavailable.";
+                return false;
+            }
+
+            for (int i = 0; i < values.Length; i++)
+            {
+                Vector3 value = values[i];
+                if (!IsFinite(value.x) || !IsFinite(value.y) || !IsFinite(value.z))
+                {
+                    error = $"{label} contain a non-finite value at index {i}.";
+                    return false;
+                }
+            }
+
+            if (validateExtent && values.Length > 1)
+            {
+                Vector3 minimum = values[0];
+                Vector3 maximum = values[0];
+                for (int i = 1; i < values.Length; i++)
+                {
+                    minimum = Vector3.Min(minimum, values[i]);
+                    maximum = Vector3.Max(maximum, values[i]);
+                }
+
+                Vector3 extent = maximum - minimum;
+                if (!IsFinite(extent.x) || !IsFinite(extent.y) || !IsFinite(extent.z))
+                {
+                    error = $"{label} exceed the supported finite coordinate range.";
+                    return false;
+                }
+            }
+
+            error = null;
+            return true;
         }
 
         private static float ResolveMaxTransferDistance(

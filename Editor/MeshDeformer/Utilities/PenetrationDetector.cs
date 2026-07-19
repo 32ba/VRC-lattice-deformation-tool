@@ -25,7 +25,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             var penetrating = new HashSet<int>();
 
-            if (deformedVertices == null || referenceMesh == null)
+            if (deformedVertices == null || !HasCompleteNormals(referenceMesh))
             {
                 return penetrating;
             }
@@ -57,6 +57,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ClearanceSignMode signMode = ClearanceSignMode.ReferenceNormal)
         {
             var penetrating = new HashSet<int>();
+            Mesh referenceMesh = null;
+            if (referenceRenderer is SkinnedMeshRenderer skinned)
+            {
+                referenceMesh = skinned.sharedMesh;
+            }
+            else if (referenceRenderer is MeshRenderer meshRenderer)
+            {
+                var filter = meshRenderer.GetComponent<MeshFilter>();
+                referenceMesh = filter != null ? filter.sharedMesh : null;
+            }
+
+            // Preserve the legacy penetration detector contract: a reference without
+            // authored per-vertex normals is not classified by inferred face normals.
+            if (!HasCompleteNormals(referenceMesh)) return penetrating;
+
             ClearanceQueryResult[] results = ClearanceQueryCache.QueryPoints(
                 referenceRenderer,
                 deformedVertices,
@@ -68,6 +83,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     penetrating.Add(i);
             }
             return penetrating;
+        }
+
+        private static bool HasCompleteNormals(Mesh mesh)
+        {
+            if (mesh == null || mesh.vertexCount == 0) return false;
+            try
+            {
+                Vector3[] normals = mesh.normals;
+                return normals != null && normals.Length == mesh.vertexCount;
+            }
+            catch (UnityException)
+            {
+                return false;
+            }
         }
     }
 }
