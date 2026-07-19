@@ -602,6 +602,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
             Transform[] originalBones = originalSkinned.bones ?? Array.Empty<Transform>();
             Transform[] proxyBones = proxySkinned.bones ?? Array.Empty<Transform>();
+            Transform originalRootBone = originalSkinned.rootBone;
+            Transform proxyRootBone = proxySkinned.rootBone;
+            if ((originalRootBone == null) != (proxyRootBone == null))
+            {
+                error = "Proxy root bone layout does not match the target renderer.";
+                return false;
+            }
+            if (originalRootBone != null && !ReferenceEquals(originalRootBone, proxyRootBone))
+                CopyWorldTransform(originalRootBone, proxyRootBone);
             if (originalBones.Length != proxyBones.Length)
             {
                 error = "Proxy bone layout does not match the target renderer.";
@@ -621,6 +630,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     continue;
                 }
                 if (ReferenceEquals(source, destination)) continue;
+                if (ReferenceEquals(source, originalRootBone) &&
+                    ReferenceEquals(destination, proxyRootBone)) continue;
                 destination.localPosition = source.localPosition;
                 destination.localRotation = source.localRotation;
                 destination.localScale = source.localScale;

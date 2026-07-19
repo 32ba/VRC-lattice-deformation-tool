@@ -555,29 +555,34 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         public void TransformOverridePose_IsSynchronizedToExternalPreviewProxyBonesAndRestored()
         {
             var fixture = Fixture.CreateSkinnedRenderers();
+            var originalRootBoneObject = new GameObject("Root Bone");
+            originalRootBoneObject.transform.SetParent(fixture.Root.transform);
             var originalBoneObject = new GameObject("Bone");
-            originalBoneObject.transform.SetParent(fixture.Root.transform);
+            originalBoneObject.transform.SetParent(originalRootBoneObject.transform);
             fixture.TargetSkinned.bones = new[] { originalBoneObject.transform };
-            fixture.TargetSkinned.rootBone = originalBoneObject.transform;
+            fixture.TargetSkinned.rootBone = originalRootBoneObject.transform;
             var proxyObject = new GameObject("External Posed Proxy");
+            var proxyRootBoneObject = new GameObject("Proxy Root Bone");
+            proxyRootBoneObject.transform.SetParent(proxyObject.transform);
+            proxyRootBoneObject.transform.localPosition = Vector3.one;
             var proxyBoneObject = new GameObject("Proxy Bone");
-            proxyBoneObject.transform.SetParent(proxyObject.transform);
-            proxyBoneObject.transform.localPosition = Vector3.one;
+            proxyBoneObject.transform.SetParent(proxyRootBoneObject.transform);
+            proxyBoneObject.transform.localPosition = Vector3.right;
             var proxy = proxyObject.AddComponent<SkinnedMeshRenderer>();
             proxy.sharedMesh = fixture.TargetMesh;
             proxy.bones = new[] { proxyBoneObject.transform };
-            proxy.rootBone = proxyBoneObject.transform;
+            proxy.rootBone = proxyRootBoneObject.transform;
             var condition = new ClearanceScanCondition { Name = "Bone Pose" };
             condition.TransformOverrides.Add(new ClearanceTransformPoseOverride
             {
-                RelativePath = "Bone",
+                RelativePath = "Root Bone",
                 OverridePosition = true,
                 LocalPosition = new Vector3(0.1f, 0.2f, 0.3f),
                 OverrideRotation = true,
                 LocalEulerAngles = new Vector3(10f, 20f, 30f)
             });
             var scanSet = NewScanSet(condition);
-            Vector3 observedPosition = Vector3.zero;
+            Vector3 observedRootPosition = Vector3.zero;
             Quaternion observedRotation = Quaternion.identity;
             using var operation = new ClearanceScanOperation(
                 scanSet,
@@ -590,19 +595,20 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 previewProxyResolver: _ => proxy,
                 afterConditionApplied: _ =>
                 {
-                    observedPosition = proxyBoneObject.transform.localPosition;
-                    observedRotation = proxyBoneObject.transform.localRotation;
+                    observedRootPosition = proxyRootBoneObject.transform.position;
+                    observedRotation = proxyRootBoneObject.transform.rotation;
                 });
             try
             {
                 ClearanceScanResult result = operation.RunToCompletion();
 
                 Assert.That(result.SuccessfulConditionCount, Is.EqualTo(1));
-                Assert.That(observedPosition, Is.EqualTo(new Vector3(0.1f, 0.2f, 0.3f)));
+                Assert.That(observedRootPosition, Is.EqualTo(new Vector3(0.1f, 0.2f, 0.3f)));
                 Assert.That(Quaternion.Angle(
                     observedRotation,
                     Quaternion.Euler(10f, 20f, 30f)), Is.LessThan(0.01f));
-                Assert.That(proxyBoneObject.transform.localPosition, Is.EqualTo(Vector3.one));
+                Assert.That(proxyRootBoneObject.transform.localPosition, Is.EqualTo(Vector3.one));
+                Assert.That(proxyBoneObject.transform.localPosition, Is.EqualTo(Vector3.right));
             }
             finally
             {
