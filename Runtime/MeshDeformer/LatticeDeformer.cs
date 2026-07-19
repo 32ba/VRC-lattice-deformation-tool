@@ -378,6 +378,8 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private float _clearanceUpdateInterval = 0.1f;
         [SerializeField, HideInInspector] private bool _hasInitializedFromSource = false;
         [SerializeField, HideInInspector] private Mesh _serializedSourceMesh;
+        [SerializeField, HideInInspector] private int _serializedSourceVertexCount;
+        [SerializeField, HideInInspector] private int _serializedSourceTopologyHash;
 
         // Preview alignment (per-instance)
         [SerializeField, HideInInspector] private LatticeAlignMode _alignMode = LatticeAlignMode.Mode1_TransformOnly;
@@ -2090,7 +2092,15 @@ namespace Net._32Ba.LatticeDeformationTool
             if (!ReferenceEquals(_serializedSourceMesh, nextSource))
             {
                 _serializedSourceMesh = nextSource;
+                _serializedSourceVertexCount = nextSource != null ? nextSource.vertexCount : 0;
+                _serializedSourceTopologyHash = CalculateSourceTopologyHash(nextSource);
                 _hasInitializedFromSource = false;
+            }
+            else if (nextSource != null && _serializedSourceVertexCount == 0 && _serializedSourceTopologyHash == 0)
+            {
+                // Establish a baseline for assets saved before validation metadata existed.
+                _serializedSourceVertexCount = nextSource.vertexCount;
+                _serializedSourceTopologyHash = CalculateSourceTopologyHash(nextSource);
             }
 
             if (!meshChanged)
@@ -2101,6 +2111,25 @@ namespace Net._32Ba.LatticeDeformationTool
             InvalidateCache();
             ReleaseRuntimeMesh();
             EnsureAllBrushLayerDisplacementCapacity(_sourceMesh != null ? _sourceMesh.vertexCount : 0);
+        }
+
+        private static int CalculateSourceTopologyHash(Mesh mesh)
+        {
+            if (mesh == null) return 0;
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + mesh.vertexCount;
+                hash = hash * 31 + mesh.subMeshCount;
+                for (int subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
+                {
+                    hash = hash * 31 + (int)mesh.GetTopology(subMesh);
+                    var indices = mesh.GetIndices(subMesh);
+                    hash = hash * 31 + indices.Length;
+                    for (int i = 0; i < indices.Length; i++) hash = hash * 31 + indices[i];
+                }
+                return hash;
+            }
         }
 
         private Mesh GetSharedSourceMesh()

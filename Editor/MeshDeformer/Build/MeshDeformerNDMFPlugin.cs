@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using nadena.dev.ndmf;
 using Net._32Ba.LatticeDeformationTool;
@@ -56,6 +58,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (!ShouldProcessDeformer(deformer))
             {
                 return;
+            }
+
+            var diagnostics = MeshDeformerValidator.Validate(deformer, GetCurrentTargetMesh(deformer));
+            MeshDeformerValidator.Log(diagnostics);
+            if (MeshDeformerValidator.HasErrors(diagnostics))
+            {
+                throw new InvalidOperationException(
+                    $"Mesh Deformer validation failed for '{deformer.name}'. See MDV diagnostic codes in the Editor log.");
             }
 
             var skinnedMesh = deformer.GetComponent<SkinnedMeshRenderer>();
@@ -138,6 +148,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal static bool ShouldProcessDeformer(LatticeDeformer deformer)
         {
             return deformer != null && deformer.enabled;
+        }
+
+        internal static bool ValidateBeforeBake(LatticeDeformer deformer)
+        {
+            return !MeshDeformerValidator.HasErrors(ValidateBeforeBakeDiagnostics(deformer));
+        }
+
+        internal static IReadOnlyList<MeshDeformerDiagnostic> ValidateBeforeBakeDiagnostics(LatticeDeformer deformer)
+        {
+            return MeshDeformerValidator.Validate(deformer, GetCurrentTargetMesh(deformer));
+        }
+
+        private static Mesh GetCurrentTargetMesh(LatticeDeformer deformer)
+        {
+            if (deformer == null) return null;
+            var skinned = deformer.GetComponent<SkinnedMeshRenderer>();
+            if (skinned != null) return skinned.sharedMesh;
+            return deformer.GetComponent<MeshFilter>()?.sharedMesh;
         }
     }
 }

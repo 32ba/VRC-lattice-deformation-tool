@@ -1159,3 +1159,8 @@ msgstr "以 Rest Space 儲存移動"
 
 msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
 msgstr "將在已擺姿勢的 Skinned Mesh 上進行的移動編輯轉換為可重用的 rest-space 位移。Skinning 資料無效時會安全回復至原有 local-space 行為。"
+msgid "net.32ba.lattice-deformation-tool.localization.validation"
+msgstr "驗證"
+
+msgid "net.32ba.lattice-deformation-tool.localization.validation-fix"
+msgstr "修正"

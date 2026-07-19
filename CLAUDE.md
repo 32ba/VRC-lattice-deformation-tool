@@ -74,6 +74,12 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
 - `LatticeDeformer` ごとに参照Renderer、Query mode、表示mode、警告/目標距離、表示stride、更新間隔をserializeする。ヒートマップは検出専用でMesh・Layer・BlendShapeを変更しない
 - Scene View描画は「貫通のみ」「警告範囲を含む」「全体分布」を切り替え、NDMF preview proxyが存在する場合はproxy meshを評価してInspectorへ評価対象を明示する。参照/対象の無効化、Undo/Redo、設定変更時は古い表示を破棄する
 
+**共通Validation:**
+- `MeshDeformerValidator.cs` (`Editor/MeshDeformer/Validation/`): Inspector、NDMF Preview、Bake前で共有する診断API。`MDVxxx` のstable code、severity、対象Object/group/layer/property、任意の明示Fixを返す
+- Renderer/source mesh、保存後のtopology drift、Brush/Mask配列長、Lattice設定、Group/Layer構造、BlendShape名、Profile互換性、Clearance参照、rest-space変換、Preview/Bake対象差を検査する。無効component/group/layerは致命Errorにしない
+- BakeはErrorが1件でもあればMesh生成・置換前に停止する。Warningはstable codeと継続時の意味をEditor logへ出し、Bake自体は継続する
+- Fixはsilentに実行せずInspectorのボタンから対象`LatticeDeformer` 1件だけをUndo可能に変更する。診断側から通常のgroup/layer getterを呼んで配列を暗黙補正しない
+
 ### 頂点選択ツール（Vertex Selection Tool）
 
 頂点を直接選択して Move/Rotate/Scale 変換を適用するツール。ブラシレイヤーの変位データを操作する。

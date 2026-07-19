@@ -115,6 +115,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return Task.FromResult<IRenderFilterNode>(null);
             }
 
+            Mesh evaluationTarget = GetRendererMesh(pairList[0].original);
+            var diagnostics = MeshDeformerValidator.Validate(deformer, evaluationTarget);
+            MeshDeformerValidator.Log(diagnostics);
+            if (MeshDeformerValidator.HasErrors(diagnostics))
+            {
+                return Task.FromResult<IRenderFilterNode>(null);
+            }
+
             _ = context.Observe(
                 deformer,
                 LatticePreviewState.Create,
@@ -359,6 +367,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 return null;
             }
+        }
+
+        internal static IReadOnlyList<MeshDeformerDiagnostic> ValidateBeforePreview(
+            LatticeDeformer deformer,
+            Mesh evaluationTarget = null)
+        {
+            return MeshDeformerValidator.Validate(deformer, evaluationTarget);
+        }
+
+        private static Mesh GetRendererMesh(Renderer renderer)
+        {
+            if (renderer is SkinnedMeshRenderer skinned) return skinned.sharedMesh;
+            return renderer != null ? renderer.GetComponent<MeshFilter>()?.sharedMesh : null;
         }
 
         private static void CopyBlendShapes(Mesh source, Mesh destination)

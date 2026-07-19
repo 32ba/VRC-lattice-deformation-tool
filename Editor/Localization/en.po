@@ -1162,3 +1162,8 @@ msgstr "Store Move in Rest Space"
 
 msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
 msgstr "Converts Move edits made on a posed Skinned Mesh back into reusable rest-space displacements. Invalid skinning data safely falls back to the existing local-space behavior."
+msgid "net.32ba.lattice-deformation-tool.localization.validation"
+msgstr "Validation"
+
+msgid "net.32ba.lattice-deformation-tool.localization.validation-fix"
+msgstr "Fix"
