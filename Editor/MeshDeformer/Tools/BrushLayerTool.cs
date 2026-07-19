@@ -1582,27 +1582,26 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            Mesh refMesh = null;
-            if (s_penetrationReference is SkinnedMeshRenderer smr)
-            {
-                refMesh = smr.sharedMesh;
-            }
-            else if (s_penetrationReference is MeshRenderer mr)
-            {
-                var mf = mr.GetComponent<MeshFilter>();
-                if (mf != null) refMesh = mf.sharedMesh;
-            }
-
-            if (refMesh == null)
+            var deformerTransform = deformer.MeshTransform;
+            if (deformerTransform == null)
             {
                 InvalidatePenetrationCache();
                 return;
             }
 
-            // Compute transform from deformer space to reference space
-            var deformerTransform = deformer.MeshTransform;
             var refTransform = s_penetrationReference.transform;
-            if (deformerTransform == null || refTransform == null)
+            Mesh refMesh = null;
+            if (s_penetrationReference is SkinnedMeshRenderer skinnedReference)
+            {
+                refMesh = skinnedReference.sharedMesh;
+            }
+            else if (s_penetrationReference is MeshRenderer meshReference)
+            {
+                var filter = meshReference.GetComponent<MeshFilter>();
+                refMesh = filter != null ? filter.sharedMesh : null;
+            }
+
+            if (refTransform == null || refMesh == null)
             {
                 InvalidatePenetrationCache();
                 return;
@@ -1622,7 +1621,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 deformerTransform.localToWorldMatrix,
                 refTransform.worldToLocalMatrix);
 
-            if (_hasPenetrationCacheKey && _penetrationCacheKey.Equals(nextKey))
+            // A skinned reference can change pose without changing its shared mesh or transform.
+            // Let ClearanceQueryCache inspect its baked geometry on every update in that case.
+            if (!(s_penetrationReference is SkinnedMeshRenderer) &&
+                _hasPenetrationCacheKey && _penetrationCacheKey.Equals(nextKey))
             {
                 return;
             }
@@ -1650,8 +1652,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 deformerTransform.localToWorldMatrix,
                 refTransform.worldToLocalMatrix);
 
-            Matrix4x4 deformedToRef = refTransform.worldToLocalMatrix * deformerTransform.localToWorldMatrix;
-            var detected = PenetrationDetector.DetectPenetration(deformedVertices, refMesh, deformedToRef);
+            var detected = PenetrationDetector.DetectPenetration(
+                deformedVertices,
+                deformerTransform.localToWorldMatrix,
+                s_penetrationReference);
             _penetratingVertices = detected;
             _penetrationDeformedVertices = deformedVertices;
             _penetrationCacheKey = nextKey;
