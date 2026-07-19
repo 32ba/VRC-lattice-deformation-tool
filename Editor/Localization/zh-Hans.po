@@ -944,6 +944,12 @@ msgstr "导入 BlendShape"
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-single-frame"
+msgstr "单帧"
+
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-all-frames"
+msgstr "所有帧"
+
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
 msgstr "(NDMF) Disable Lattice Preview"

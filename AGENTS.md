@@ -131,8 +131,10 @@ DeformerGroup [Serializable]
 
 **読み込み**:
 - `LatticeDeformer.ImportBlendShapeAsLayer(int blendShapeIndex)`: ソースメッシュの BlendShape をアクティブグループのブラシレイヤーとしてインポート
+- `LatticeDeformer.ImportBlendShapeAllFramesAsGroup(int blendShapeIndex)`: multi-frame BlendShapeを専用Crossfadeグループへ展開し、各frameを独立したBrushレイヤーとしてインポートする。元frameの順序とweightはレイヤーの非表示metadataへ保持する
+- 全frame由来の有効レイヤーが厳密昇順のweight metadataを維持している間は、生成BlendShapeを100分割へ再サンプルせず、元のframe数・weightで直接出力する。各レイヤーの変位は独立編集でき、zero-delta frameも候補として保持する
 - `LatticeDeformer.GetSourceBlendShapeNames()`: 利用可能な BlendShape 名一覧を取得
-- Inspector UI の「Import BlendShape」ドロップダウンからも操作可能
+- Inspector UI の「Import BlendShape」ドロップダウンで「単一フレーム」と「全フレーム」を選択できる
 
 ### レイヤー左右分割・反転（L/R Split & Flip）
 
