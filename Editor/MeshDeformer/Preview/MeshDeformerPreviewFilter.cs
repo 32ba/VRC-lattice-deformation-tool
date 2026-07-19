@@ -22,6 +22,105 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static bool PreviewToggleEnabled => s_previewToggle.IsEnabled.Value;
 
+        internal static int ComputeBlendShapeWeightStateHash(
+            SkinnedMeshRenderer renderer,
+            Mesh sourceMesh)
+        {
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + (renderer != null ? renderer.GetInstanceID() : 0);
+                hash = hash * 31 + (sourceMesh != null ? sourceMesh.GetInstanceID() : 0);
+
+                int sourceBlendShapeCount = sourceMesh != null ? sourceMesh.blendShapeCount : 0;
+                hash = hash * 31 + sourceBlendShapeCount;
+
+                var assignedMesh = renderer != null ? renderer.sharedMesh : null;
+                hash = hash * 31 + (assignedMesh != null ? assignedMesh.GetInstanceID() : 0);
+                int assignedBlendShapeCount = assignedMesh != null ? assignedMesh.blendShapeCount : 0;
+                hash = hash * 31 + assignedBlendShapeCount;
+
+                if (renderer == null)
+                {
+                    return hash;
+                }
+
+                int readableWeightCount = Mathf.Min(sourceBlendShapeCount, assignedBlendShapeCount);
+                for (int i = 0; i < sourceBlendShapeCount; i++)
+                {
+                    float weight = i < readableWeightCount ? renderer.GetBlendShapeWeight(i) : 0f;
+                    hash = hash * 31 + BitConverter.SingleToInt32Bits(weight);
+                }
+
+                return hash;
+            }
+        }
+
+        internal static Mesh GetRendererMesh(Renderer renderer)
+        {
+            switch (renderer)
+            {
+                case SkinnedMeshRenderer skinned:
+                    return skinned.sharedMesh;
+                case MeshRenderer meshRenderer:
+                    return meshRenderer.GetComponent<MeshFilter>()?.sharedMesh;
+                default:
+                    return null;
+            }
+        }
+
+        internal static void AssignRendererMesh(Renderer renderer, Mesh mesh)
+        {
+            switch (renderer)
+            {
+                case SkinnedMeshRenderer skinned:
+                    skinned.sharedMesh = mesh;
+                    break;
+                case MeshRenderer meshRenderer:
+                {
+                    var meshFilter = meshRenderer.GetComponent<MeshFilter>();
+                    if (meshFilter != null)
+                    {
+                        meshFilter.sharedMesh = mesh;
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        internal static void RestoreProxyMesh(
+            Renderer original,
+            Renderer proxy,
+            Mesh previousProxyMesh,
+            long registrationGeneration)
+        {
+            // A replacement node may already own this original/proxy pair. In that
+            // case the older node must neither overwrite the replacement mesh nor
+            // remove the replacement's alignment registration.
+            bool ownsRegistration = LatticePreviewUtility.IsCurrentProxyRegistration(
+                original,
+                proxy,
+                registrationGeneration);
+            if (!ownsRegistration && LatticePreviewUtility.IsProxyRegistered(original, proxy))
+            {
+                // A newer node is using the same proxy renderer.
+                return;
+            }
+
+            try
+            {
+                if (proxy != null)
+                {
+                    AssignRendererMesh(proxy, previousProxyMesh);
+                }
+            }
+            finally
+            {
+                LatticePreviewUtility.ClearProxy(original, proxy, registrationGeneration);
+            }
+        }
+
         public IEnumerable<TogglablePreviewNode> GetPreviewControlNodes()
         {
             yield return s_previewToggle;
@@ -79,6 +178,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var pairList = proxyPairs
                 .Select(pair => (original: pair.Item1, proxy: pair.Item2))
                 .Where(p => p.original != null && p.proxy != null)
+                .GroupBy(p => (p.original.GetInstanceID(), p.proxy.GetInstanceID()))
+                .Select(grouped => grouped.First())
                 .ToList();
 
             if (pairList.Count == 0)
@@ -147,12 +248,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             private readonly LatticeDeformer _deformer;
             private readonly List<Target> _targets = new List<Target>();
             private readonly Mesh _previewMesh;
+            private int _lastBlendShapeWeightStateHash;
 
             public PreviewNode(LatticeDeformer deformer, IEnumerable<(Renderer original, Renderer proxy)> proxyPairs, Mesh previewMesh)
             {
                 _deformer = deformer;
                 _previewMesh = previewMesh;
                 _previewMesh.MarkDynamic();
+                _lastBlendShapeWeightStateHash = ComputeBlendShapeWeightStateHash(
+                    _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
+                    _deformer != null ? _deformer.SourceMesh : null);
 
                 foreach (var (original, proxy) in proxyPairs)
                 {
@@ -161,32 +266,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         continue;
                     }
 
-                    LatticePreviewUtility.RegisterProxy(original, proxy);
-
+                    var observedProxyMesh = GetRendererMesh(proxy);
+                    long registrationGeneration = LatticePreviewUtility.RegisterProxy(
+                        original,
+                        proxy,
+                        observedProxyMesh,
+                        out var restorationMesh);
                     var target = new Target
                     {
                         OriginalRenderer = original,
                         ProxyRenderer = proxy,
-                        OriginalMeshFilter = original.GetComponent<MeshFilter>(),
-                        ProxyMeshFilter = proxy.GetComponent<MeshFilter>(),
-                        OriginalSkinned = original as SkinnedMeshRenderer,
-                        ProxySkinned = proxy as SkinnedMeshRenderer,
+                        PreviousProxyMesh = restorationMesh,
+                        RegistrationGeneration = registrationGeneration,
                     };
-
-                    if (target.OriginalMeshFilter != null)
-                    {
-                        target.OriginalMesh = target.OriginalMeshFilter.sharedMesh;
-                    }
-                    else if (target.OriginalSkinned != null)
-                    {
-                        target.OriginalMesh = target.OriginalSkinned.sharedMesh;
-                    }
 
                     ApplyPreviewMesh(target);
                     _targets.Add(target);
                 }
-
-                UpdatePreviewMesh();
             }
 
             public RenderAspects WhatChanged => RenderAspects.Mesh;
@@ -199,28 +295,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             public void OnFrameGroup()
             {
-                UpdatePreviewMesh();
+                int currentHash = ComputeBlendShapeWeightStateHash(
+                    _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
+                    _deformer != null ? _deformer.SourceMesh : null);
+                if (currentHash == _lastBlendShapeWeightStateHash)
+                {
+                    return;
+                }
+
+                if (UpdatePreviewMesh())
+                {
+                    _lastBlendShapeWeightStateHash = ComputeBlendShapeWeightStateHash(
+                        _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
+                        _deformer != null ? _deformer.SourceMesh : null);
+                }
             }
 
             public void Dispose()
             {
                 foreach (var target in _targets)
                 {
-                    if (target.OriginalMesh == null)
-                    {
-                        continue;
-                    }
-
-                    LatticePreviewUtility.ClearProxy(target.OriginalRenderer);
-
-                    if (target.ProxyMeshFilter != null)
-                    {
-                        target.ProxyMeshFilter.sharedMesh = target.OriginalMesh;
-                    }
-                    else if (target.ProxySkinned != null)
-                    {
-                        target.ProxySkinned.sharedMesh = target.OriginalMesh;
-                    }
+                    RestoreProxyMesh(
+                        target.OriginalRenderer,
+                        target.ProxyRenderer,
+                        target.PreviousProxyMesh,
+                        target.RegistrationGeneration);
                 }
 
                 if (_previewMesh != null)
@@ -231,32 +330,29 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             private void ApplyPreviewMesh(Target target)
             {
-                if (target == null)
+                if (target == null ||
+                    !LatticePreviewUtility.IsCurrentProxyRegistration(
+                        target.OriginalRenderer,
+                        target.ProxyRenderer,
+                        target.RegistrationGeneration))
                 {
                     return;
                 }
 
-                if (target.ProxyMeshFilter != null)
-                {
-                    target.ProxyMeshFilter.sharedMesh = _previewMesh;
-                }
-                else if (target.ProxySkinned != null)
-                {
-                    target.ProxySkinned.sharedMesh = _previewMesh;
-                }
+                AssignRendererMesh(target.ProxyRenderer, _previewMesh);
             }
 
-            private void UpdatePreviewMesh()
+            private bool UpdatePreviewMesh()
             {
                 if (_deformer == null || _previewMesh == null)
                 {
-                    return;
+                    return false;
                 }
 
                 var runtimeMesh = _deformer.Deform(false);
                 if (runtimeMesh == null)
                 {
-                    return;
+                    return false;
                 }
 
                 var vertices = runtimeMesh.vertices;
@@ -285,6 +381,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     ApplyPreviewMesh(target);
                 }
+
+                return true;
             }
 
             private Target EnsureTarget(Renderer original, Renderer proxy)
@@ -300,26 +398,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     return null;
                 }
 
-                LatticePreviewUtility.RegisterProxy(original, proxy);
-
+                var observedProxyMesh = GetRendererMesh(proxy);
+                long registrationGeneration = LatticePreviewUtility.RegisterProxy(
+                    original,
+                    proxy,
+                    observedProxyMesh,
+                    out var restorationMesh);
                 var target = new Target
                 {
                     OriginalRenderer = original,
                     ProxyRenderer = proxy,
-                    OriginalMeshFilter = original.GetComponent<MeshFilter>(),
-                    ProxyMeshFilter = proxy.GetComponent<MeshFilter>(),
-                    OriginalSkinned = original as SkinnedMeshRenderer,
-                    ProxySkinned = proxy as SkinnedMeshRenderer,
+                    PreviousProxyMesh = restorationMesh,
+                    RegistrationGeneration = registrationGeneration,
                 };
-
-                if (target.OriginalMeshFilter != null)
-                {
-                    target.OriginalMesh = target.OriginalMeshFilter.sharedMesh;
-                }
-                else if (target.OriginalSkinned != null)
-                {
-                    target.OriginalMesh = target.OriginalSkinned.sharedMesh;
-                }
 
                 ApplyPreviewMesh(target);
                 _targets.Add(target);
@@ -331,11 +422,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             public Renderer OriginalRenderer;
             public Renderer ProxyRenderer;
-            public Mesh OriginalMesh;
-            public MeshFilter OriginalMeshFilter;
-            public MeshFilter ProxyMeshFilter;
-            public SkinnedMeshRenderer OriginalSkinned;
-            public SkinnedMeshRenderer ProxySkinned;
+            public Mesh PreviousProxyMesh;
+            public long RegistrationGeneration;
         }
 
         private static Mesh GeneratePreviewMesh(LatticeDeformer deformer)

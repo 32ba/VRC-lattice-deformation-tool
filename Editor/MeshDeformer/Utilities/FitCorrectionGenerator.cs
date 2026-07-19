@@ -13,7 +13,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         StaleEvaluation = 4,
         TopologyMismatch = 5,
         PosedSkinnedMeshUnsupported = 6,
-        NoCandidates = 7
+        NoCandidates = 7,
+        InvalidSettings = 8,
+        InvalidTargetTransform = 9
     }
 
     internal sealed class FitCorrectionPlan
@@ -93,6 +95,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             float targetDistance,
             float maximumMove)
         {
+            if (!AreSettingsValid(queryMode, scope, warningDistance, targetDistance, maximumMove))
+            {
+                return new FitCorrectionPlan(FitCorrectionStatus.InvalidSettings);
+            }
+
             warningDistance = Mathf.Max(0f, warningDistance);
             targetDistance = Mathf.Max(warningDistance, targetDistance);
             maximumMove = Mathf.Max(0f, maximumMove);
@@ -132,13 +139,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return new FitCorrectionPlan(FitCorrectionStatus.PosedSkinnedMeshUnsupported);
             }
 
+            Matrix4x4 localToWorld = targetRenderer.transform.localToWorldMatrix;
+            Matrix4x4 worldToLocal = targetRenderer.transform.worldToLocalMatrix;
+            if (!AreInverseTransforms(localToWorld, worldToLocal))
+            {
+                return new FitCorrectionPlan(FitCorrectionStatus.InvalidTargetTransform);
+            }
+
             var before = ClearanceHeatmapEvaluator.Classify(
                 rawEvaluation,
                 warningDistance,
                 targetDistance);
             var localDisplacements = new Vector3[vertexCount];
             var correctedWorldPositions = (Vector3[])rawEvaluation.WorldPositions.Clone();
-            Matrix4x4 worldToLocal = targetRenderer.transform.worldToLocalMatrix;
             int candidates = 0;
             int unresolved = 0;
             float maximumApplied = 0f;
@@ -163,7 +176,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 float appliedMove = Mathf.Min(requiredMove, maximumMove);
                 if (requiredMove - appliedMove > 1e-6f) unresolved++;
                 Vector3 worldDisplacement = normal * appliedMove;
-                localDisplacements[vertex] = worldToLocal.MultiplyVector(worldDisplacement);
+                Vector3 localDisplacement = worldToLocal.MultiplyVector(worldDisplacement);
+                Vector3 reconstructedWorldDisplacement = localToWorld.MultiplyVector(localDisplacement);
+                float roundTripToleranceSq = Mathf.Max(
+                    1e-12f,
+                    worldDisplacement.sqrMagnitude * 1e-8f);
+                if (!IsFinite(localDisplacement) ||
+                    !IsFinite(reconstructedWorldDisplacement) ||
+                    (reconstructedWorldDisplacement - worldDisplacement).sqrMagnitude > roundTripToleranceSq)
+                {
+                    return new FitCorrectionPlan(FitCorrectionStatus.InvalidTargetTransform);
+                }
+
+                localDisplacements[vertex] = localDisplacement;
                 correctedWorldPositions[vertex] += worldDisplacement;
                 maximumApplied = Mathf.Max(maximumApplied, appliedMove);
             }
@@ -190,6 +215,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (deformer == null || plan == null || !plan.CanGenerate)
                 return new FitCorrectionReport(plan?.Status ?? FitCorrectionStatus.InvalidTarget);
+            if (!AreSettingsValid(queryMode, scope, warningDistance, targetDistance, maximumMove))
+                return new FitCorrectionReport(FitCorrectionStatus.InvalidSettings);
 
             int layerIndex = deformer.AddLayer("Fit Correction", MeshDeformerLayerType.Brush);
             if (layerIndex < 0)
@@ -255,6 +282,46 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             };
         }
 
+        private static bool AreSettingsValid(
+            ClearanceQueryMode queryMode,
+            FitCorrectionScope scope,
+            float warningDistance,
+            float targetDistance,
+            float maximumMove)
+        {
+            return (queryMode == ClearanceQueryMode.ReferenceNormal ||
+                    queryMode == ClearanceQueryMode.ClosedMesh) &&
+                   (scope == FitCorrectionScope.PenetrationOnly ||
+                    scope == FitCorrectionScope.WarningThreshold ||
+                    scope == FitCorrectionScope.TargetClearance) &&
+                   IsFinite(warningDistance) &&
+                   IsFinite(targetDistance) &&
+                   IsFinite(maximumMove);
+        }
+
+        private static bool AreInverseTransforms(Matrix4x4 localToWorld, Matrix4x4 worldToLocal)
+        {
+            if (!IsFinite(localToWorld) || !IsFinite(worldToLocal)) return false;
+            float determinant = localToWorld.determinant;
+            if (!IsFinite(determinant) || Mathf.Abs(determinant) <= 1e-12f) return false;
+            return IsApproximatelyIdentity(localToWorld * worldToLocal) &&
+                   IsApproximatelyIdentity(worldToLocal * localToWorld);
+        }
+
+        private static bool IsApproximatelyIdentity(Matrix4x4 value)
+        {
+            const float tolerance = 1e-4f;
+            for (int row = 0; row < 4; row++)
+            {
+                for (int column = 0; column < 4; column++)
+                {
+                    float expected = row == column ? 1f : 0f;
+                    if (Mathf.Abs(value[row, column] - expected) > tolerance) return false;
+                }
+            }
+            return true;
+        }
+
         private static bool IsSkinnedRestPose(
             SkinnedMeshRenderer renderer,
             Vector3[] bakedWorldPositions)
@@ -286,6 +353,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
                    !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
                    !float.IsNaN(value.z) && !float.IsInfinity(value.z);
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
+        private static bool IsFinite(Matrix4x4 value)
+        {
+            for (int row = 0; row < 4; row++)
+            {
+                for (int column = 0; column < 4; column++)
+                {
+                    if (!IsFinite(value[row, column])) return false;
+                }
+            }
+            return true;
         }
     }
 }

@@ -98,6 +98,96 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void NonFiniteSettings_FailClosedWithoutCreatingLayer()
+        {
+            var fixture = CreateFixture(-0.002f, 0.003f);
+            try
+            {
+                int originalLayerCount = fixture.Deformer.Layers.Count;
+                var raw = Evaluate(fixture);
+
+                var invalidPlan = Analyze(
+                    fixture,
+                    raw,
+                    FitCorrectionScope.TargetClearance,
+                    float.NaN);
+                Assert.That(invalidPlan.Status, Is.EqualTo(FitCorrectionStatus.InvalidSettings));
+                Assert.That(invalidPlan.CanGenerate, Is.False);
+
+                var validPlan = Analyze(
+                    fixture,
+                    raw,
+                    FitCorrectionScope.TargetClearance,
+                    0.1f);
+                var report = FitCorrectionGenerator.Generate(
+                    fixture.Deformer,
+                    validPlan,
+                    fixture.Reference,
+                    ClearanceQueryMode.ReferenceNormal,
+                    FitCorrectionScope.TargetClearance,
+                    0.005f,
+                    0.01f,
+                    float.PositiveInfinity);
+
+                Assert.That(report.Status, Is.EqualTo(FitCorrectionStatus.InvalidSettings));
+                Assert.That(fixture.Deformer.Layers.Count, Is.EqualTo(originalLayerCount));
+
+                fixture.Deformer.FitCorrectionMaximumMove = float.NaN;
+                Assert.That(fixture.Deformer.FitCorrectionMaximumMove, Is.EqualTo(0f));
+                var layer = fixture.Deformer.Layers[0];
+                layer.ConfigureFitCorrection(
+                    fixture.Reference,
+                    ClearanceQueryMode.ReferenceNormal,
+                    FitCorrectionScope.TargetClearance,
+                    float.NaN,
+                    float.PositiveInfinity,
+                    float.NaN);
+                Assert.That(layer.FitCorrectionWarningDistance, Is.EqualTo(0f));
+                Assert.That(layer.FitCorrectionTargetDistance, Is.EqualTo(0f));
+                Assert.That(layer.FitCorrectionMaximumMove, Is.EqualTo(0f));
+            }
+            finally
+            {
+                fixture.Destroy();
+            }
+        }
+
+        [Test]
+        public void SingularTargetTransform_FailsClosedWithoutCreatingLayer()
+        {
+            var fixture = CreateFixture(-0.002f, 0.003f);
+            try
+            {
+                fixture.Target.transform.localScale = new Vector3(0f, 1f, 1f);
+                var raw = Evaluate(fixture);
+                int originalLayerCount = fixture.Deformer.Layers.Count;
+
+                var plan = Analyze(
+                    fixture,
+                    raw,
+                    FitCorrectionScope.TargetClearance,
+                    0.1f);
+                var report = FitCorrectionGenerator.Generate(
+                    fixture.Deformer,
+                    plan,
+                    fixture.Reference,
+                    ClearanceQueryMode.ReferenceNormal,
+                    FitCorrectionScope.TargetClearance,
+                    0.005f,
+                    0.01f,
+                    0.1f);
+
+                Assert.That(plan.Status, Is.EqualTo(FitCorrectionStatus.InvalidTargetTransform));
+                Assert.That(report.Status, Is.EqualTo(FitCorrectionStatus.InvalidTargetTransform));
+                Assert.That(fixture.Deformer.Layers.Count, Is.EqualTo(originalLayerCount));
+            }
+            finally
+            {
+                fixture.Destroy();
+            }
+        }
+
+        [Test]
         public void CorrectionScopes_SelectDifferentVertexSets()
         {
             var fixture = CreateFixture(-0.002f, 0.003f, 0.008f, 0.02f);
@@ -258,11 +348,17 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         public void TopologyMismatch_DoesNotGenerateLayer()
         {
             var fixture = CreateFixture(-0.002f, 0.02f, 0.02f);
-            var replacement = CreateTargetMesh(-0.002f, 0.003f, 0.008f, 0.02f);
             try
             {
-                fixture.Target.GetComponent<MeshFilter>().sharedMesh = replacement;
-                var raw = Evaluate(fixture);
+                var evaluated = Evaluate(fixture);
+                var raw = new ClearanceHeatmapRawEvaluation(
+                    new[] { evaluated.WorldPositions[0], evaluated.WorldPositions[1] },
+                    new[] { evaluated.QueryResults[0], evaluated.QueryResults[1] },
+                    ClearanceEvaluationStatus.Valid,
+                    evaluated.TargetRenderer,
+                    evaluated.ReferenceRenderer,
+                    evaluated.TargetStateHash,
+                    evaluated.ReferenceStateHash);
                 int layersBefore = fixture.Deformer.Layers.Count;
                 var plan = Analyze(fixture, raw, FitCorrectionScope.TargetClearance, 0.1f);
 
@@ -271,7 +367,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
             finally
             {
-                Object.DestroyImmediate(replacement);
                 fixture.Destroy();
             }
         }

@@ -18,7 +18,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         Valid = 0,
         InvalidReference = 1,
         InvalidTarget = 2,
-        NoValidSamples = 3
+        NoValidSamples = 3,
+        InvalidThresholds = 4
     }
 
     internal readonly struct ClearanceHeatmapStatistics
@@ -168,6 +169,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             float warningDistance,
             float targetDistance)
         {
+            if (!IsFinite(warningDistance) || !IsFinite(targetDistance))
+            {
+                return new ClearanceHeatmapEvaluation(
+                    raw?.WorldPositions ?? Array.Empty<Vector3>(),
+                    raw?.QueryResults ?? Array.Empty<ClearanceQueryResult>(),
+                    Array.Empty<ClearanceClassification>(),
+                    default,
+                    ClearanceEvaluationStatus.InvalidThresholds,
+                    ClearanceSignMode.ReferenceNormal,
+                    false);
+            }
+
             warningDistance = Mathf.Max(0f, warningDistance);
             targetDistance = Mathf.Max(warningDistance, targetDistance);
             if (raw == null || raw.Status != ClearanceEvaluationStatus.Valid)
@@ -193,7 +206,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             for (int i = 0; i < raw.QueryResults.Length; i++)
             {
                 ClearanceQueryResult result = raw.QueryResults[i];
-                if (!result.IsValid)
+                if (!result.IsValid || !IsFinite(result.SignedClearance))
                 {
                     classifications[i] = ClearanceClassification.Invalid;
                     continue;
@@ -276,6 +289,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool IsUsableRenderer(Renderer renderer)
         {
             return renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy;
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
         }
     }
 }
