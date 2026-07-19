@@ -190,6 +190,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal void Activate(LatticeDeformer deformer)
         {
+            ResetSelectionGesture();
+            ResetTransformGesture();
             _activeDeformer = deformer;
             Undo.undoRedoPerformed += OnUndoRedo;
             SceneView.RepaintAll();
@@ -198,32 +200,56 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal void Deactivate()
         {
             Undo.undoRedoPerformed -= OnUndoRedo;
-            ClearSelection();
-            InvalidateCache();
-            _activeDeformer = null;
+            try
+            {
+                EndTransform();
+            }
+            finally
+            {
+                ResetSelectionGesture();
+                ClearSelection();
+                InvalidateCache();
+                _activeDeformer = null;
+            }
         }
 
         private void OnUndoRedo()
         {
+            ResetSelectionGesture();
+            ResetTransformGesture();
             if (_activeDeformer != null)
             {
                 bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
                 _activeDeformer.Deform(assignToRenderer);
             }
 
+            SceneView.RepaintAll();
+        }
+
+        private void ResetSelectionGesture()
+        {
+            _isDraggingSelection = false;
+            _selectionStartPos = Vector2.zero;
+        }
+
+        private void ResetTransformGesture()
+        {
             _isTransforming = false;
             _preTransformDisplacements = null;
             _preTransformPositions = null;
-            SceneView.RepaintAll();
+            _handleRotation = Quaternion.identity;
+            _handleScale = Vector3.one;
         }
 
         internal void OnToolGUI(EditorWindow window, LatticeDeformer deformer)
         {
             Profiler.BeginSample("VertexSelection.OnToolGUI");
-            if (Event.current != null && Event.current.commandName == "UndoRedoPerformed")
+            try
             {
-                return;
-            }
+                if (Event.current != null && Event.current.commandName == "UndoRedoPerformed")
+                {
+                    return;
+                }
 
             if (deformer.ActiveLayerType != MeshDeformerLayerType.Brush)
             {
@@ -292,7 +318,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             // Handle selection input
             // Draw vertex dots
-            DrawVertices(deformer, meshTransform);
+            DrawVertices(meshTransform);
 
             // Draw and handle transform BEFORE selection input so handles get priority
             if (s_selectedVertices.Count > 0)
@@ -320,7 +346,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
             }
-            Profiler.EndSample();
+            }
+            finally
+            {
+                Profiler.EndSample();
+            }
         }
 
         private void HandleSelectionInput(LatticeDeformer deformer, Transform meshTransform, Event evt)
@@ -480,96 +510,146 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return s_vertexDotMaterial;
         }
 
-        private void DrawVertices(LatticeDeformer deformer, Transform meshTransform)
+        private void DrawVertices(Transform meshTransform)
         {
             Profiler.BeginSample("VertexSelection.DrawVertices");
-            if (_deformedVertices == null || _deformedVertices.Length == 0)
+            try
+            {
+                if (_deformedVertices == null || _deformedVertices.Length == 0)
+                {
+                    return;
+                }
+
+                // Wireframe
+                if (s_showWireframe && _meshTriangles != null)
+                {
+                    WireframeRenderer.Draw(
+                        _meshTriangles,
+                        _worldPositions,
+                        _deformedVertices,
+                        meshTransform.localToWorldMatrix);
+                }
+
+                var cam = Camera.current;
+                if (cam == null)
+                {
+                    return;
+                }
+
+                var matrix = meshTransform.localToWorldMatrix;
+                var camRight = cam.transform.right;
+                var camUp = cam.transform.up;
+                int vertexCount = _deformedVertices.Length;
+                bool showInfluence = ProportionalEditing && s_selectedVertices.Count > 0;
+
+                // Set up batched GL drawing with depth test.
+                var material = EnsureVertexDotMaterial();
+                material.SetInt("_ZTest", BackfaceCulling
+                    ? (int)CompareFunction.LessEqual
+                    : (int)CompareFunction.Always);
+                material.SetPass(0);
+
+                // Precompute a uniform dot scale from camera distance to mesh center
+                // instead of calling HandleUtility.GetHandleSize per vertex.
+                float baseRadius = HandleUtility.GetHandleSize(meshTransform.position) * 0.004f;
+
+                Profiler.BeginSample("VertexSelection.DrawVertices.Loop");
+                try
+                {
+                    DrawVertexDots(
+                        vertexCount,
+                        matrix,
+                        camRight,
+                        camUp,
+                        baseRadius,
+                        showInfluence);
+                }
+                finally
+                {
+                    Profiler.EndSample();
+                }
+            }
+            finally
             {
                 Profiler.EndSample();
-                return;
             }
+        }
 
-            // Wireframe
-            if (s_showWireframe && _meshTriangles != null)
+        private void DrawVertexDots(
+            int vertexCount,
+            Matrix4x4 matrix,
+            Vector3 camRight,
+            Vector3 camUp,
+            float baseRadius,
+            bool showInfluence)
+        {
+            bool matrixPushed = false;
+            bool drawingQuads = false;
+            try
             {
-                WireframeRenderer.Draw(_meshTriangles, _worldPositions, _deformedVertices, meshTransform.localToWorldMatrix);
-            }
+                GL.PushMatrix();
+                matrixPushed = true;
+                GL.MultMatrix(Matrix4x4.identity);
+                GL.Begin(GL.QUADS);
+                drawingQuads = true;
 
-            var cam = Camera.current;
-            if (cam == null) { Profiler.EndSample(); return; }
-
-            var matrix = meshTransform.localToWorldMatrix;
-            var camRight = cam.transform.right;
-            var camUp = cam.transform.up;
-
-            int vertexCount = _deformedVertices.Length;
-            bool showInfluence = ProportionalEditing && s_selectedVertices.Count > 0;
-
-            // Set up batched GL drawing with depth test
-            var mat = EnsureVertexDotMaterial();
-            mat.SetInt("_ZTest", BackfaceCulling
-                ? (int)CompareFunction.LessEqual
-                : (int)CompareFunction.Always);
-            mat.SetPass(0);
-
-            // Precompute a uniform dot scale from camera distance to mesh center
-            // instead of calling HandleUtility.GetHandleSize per vertex
-            float baseHandleSize = HandleUtility.GetHandleSize(meshTransform.position);
-            float baseRadius = baseHandleSize * 0.004f;
-
-            Profiler.BeginSample("VertexSelection.DrawVertices.Loop");
-            GL.PushMatrix();
-            GL.MultMatrix(Matrix4x4.identity);
-            GL.Begin(GL.QUADS);
-
-            for (int i = 0; i < vertexCount; i++)
-            {
-                var worldPos = DeformedToWorld(i, matrix);
-                bool isSelected = s_selectedVertices.Contains(i);
-
-                Color col;
-                float dotSize;
-                if (isSelected)
+                for (int i = 0; i < vertexCount; i++)
                 {
-                    col = k_SelectedVertexColor;
-                    dotSize = VertexDotSize * 1.5f;
-                }
-                else if (showInfluence)
-                {
-                    float influence = ComputeProportionalInfluence(i);
-                    if (influence > 0f)
+                    var worldPos = DeformedToWorld(i, matrix);
+                    bool isSelected = s_selectedVertices.Contains(i);
+
+                    Color color;
+                    float dotSize;
+                    if (isSelected)
                     {
-                        col = InfluenceToColor(influence);
-                        dotSize = Mathf.Lerp(VertexDotSize * 0.6f, VertexDotSize * 1.4f, influence);
+                        color = k_SelectedVertexColor;
+                        dotSize = VertexDotSize * 1.5f;
+                    }
+                    else if (showInfluence)
+                    {
+                        float influence = ComputeProportionalInfluence(i);
+                        if (influence > 0f)
+                        {
+                            color = InfluenceToColor(influence);
+                            dotSize = Mathf.Lerp(
+                                VertexDotSize * 0.6f,
+                                VertexDotSize * 1.4f,
+                                influence);
+                        }
+                        else
+                        {
+                            color = k_UnselectedVertexColor;
+                            dotSize = VertexDotSize;
+                        }
                     }
                     else
                     {
-                        col = k_UnselectedVertexColor;
+                        color = k_UnselectedVertexColor;
                         dotSize = VertexDotSize;
                     }
-                }
-                else
-                {
-                    col = k_UnselectedVertexColor;
-                    dotSize = VertexDotSize;
-                }
 
-                float r = baseRadius * dotSize;
-                var right = camRight * r;
-                var up = camUp * r;
+                    float radius = baseRadius * dotSize;
+                    var right = camRight * radius;
+                    var up = camUp * radius;
 
-                GL.Color(col);
-                GL.TexCoord2(0f, 0f); GL.Vertex(worldPos - right - up);
-                GL.TexCoord2(1f, 0f); GL.Vertex(worldPos + right - up);
-                GL.TexCoord2(1f, 1f); GL.Vertex(worldPos + right + up);
-                GL.TexCoord2(0f, 1f); GL.Vertex(worldPos - right + up);
+                    GL.Color(color);
+                    GL.TexCoord2(0f, 0f); GL.Vertex(worldPos - right - up);
+                    GL.TexCoord2(1f, 0f); GL.Vertex(worldPos + right - up);
+                    GL.TexCoord2(1f, 1f); GL.Vertex(worldPos + right + up);
+                    GL.TexCoord2(0f, 1f); GL.Vertex(worldPos - right + up);
+                }
             }
-
-            GL.End();
-            GL.PopMatrix();
-            Profiler.EndSample();
-
-            Profiler.EndSample();
+            finally
+            {
+                try
+                {
+                    if (drawingQuads) GL.End();
+                }
+                finally
+                {
+                    if (matrixPushed) GL.PopMatrix();
+                }
+            }
         }
 
         private static Color InfluenceToColor(float t)
@@ -782,29 +862,34 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void EndTransform()
         {
-            if (_isTransforming)
+            try
             {
-                if (_activeDeformer != null)
+                if (_isTransforming && _activeDeformer != null)
                 {
                     LatticePrefabUtility.MarkModified(_activeDeformer);
                 }
             }
-
-            _isTransforming = false;
-            _preTransformDisplacements = null;
-            _preTransformPositions = null;
+            finally
+            {
+                ResetTransformGesture();
+            }
         }
 
         private void ApplyMoveDelta(LatticeDeformer deformer, Vector3 localDelta)
         {
+            var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
+                ? SkinnedVertexHelper.CreateRestSpaceDeltaConverter(deformer)
+                : null;
             foreach (int i in s_selectedVertices)
             {
-                deformer.AddDisplacement(i, localDelta);
+                deformer.AddDisplacement(i, restSpaceConverter != null
+                    ? restSpaceConverter.ConvertOrFallback(i, localDelta)
+                    : localDelta);
             }
 
             if (ProportionalEditing)
             {
-                ApplyProportionalMove(deformer, localDelta);
+                ApplyProportionalMove(deformer, localDelta, restSpaceConverter);
             }
 
             bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
@@ -874,7 +959,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             LatticePreviewUtility.RequestSceneRepaint();
         }
 
-        private void ApplyProportionalMove(LatticeDeformer deformer, Vector3 localDelta)
+        private void ApplyProportionalMove(
+            LatticeDeformer deformer,
+            Vector3 localDelta,
+            SkinnedVertexHelper.RestSpaceDeltaConverter restSpaceConverter)
         {
             if (_meshVertices == null) return;
 
@@ -886,7 +974,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 float influence = ComputeProportionalInfluence(i);
                 if (influence <= 0f) continue;
 
-                deformer.AddDisplacement(i, localDelta * influence);
+                var storedDelta = restSpaceConverter != null
+                    ? restSpaceConverter.ConvertOrFallback(i, localDelta)
+                    : localDelta;
+                deformer.AddDisplacement(i, storedDelta * influence);
             }
         }
 
@@ -1024,14 +1115,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             // s_proportionalRadius is world-space — draw directly
             var prevMatrix = Handles.matrix;
-            Handles.matrix = Matrix4x4.identity;
+            try
+            {
+                Handles.matrix = Matrix4x4.identity;
 
-            Handles.color = k_ProportionalRadiusColor;
-            Handles.DrawWireDisc(pivotWorld, Vector3.up, s_proportionalRadius);
-            Handles.DrawWireDisc(pivotWorld, Vector3.right, s_proportionalRadius);
-            Handles.DrawWireDisc(pivotWorld, Vector3.forward, s_proportionalRadius);
-
-            Handles.matrix = prevMatrix;
+                Handles.color = k_ProportionalRadiusColor;
+                Handles.DrawWireDisc(pivotWorld, Vector3.up, s_proportionalRadius);
+                Handles.DrawWireDisc(pivotWorld, Vector3.right, s_proportionalRadius);
+                Handles.DrawWireDisc(pivotWorld, Vector3.forward, s_proportionalRadius);
+            }
+            finally
+            {
+                Handles.matrix = prevMatrix;
+            }
         }
 
         private void DrawSelectionRect(Vector2 currentMousePos)
@@ -1039,18 +1135,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var rect = MakeRect(_selectionStartPos, currentMousePos);
 
             Handles.BeginGUI();
-            var fillColor = new Color(0.3f, 0.6f, 1f, 0.15f);
-            var outlineColor = new Color(0.3f, 0.6f, 1f, 0.6f);
+            try
+            {
+                var fillColor = new Color(0.3f, 0.6f, 1f, 0.15f);
+                var outlineColor = new Color(0.3f, 0.6f, 1f, 0.6f);
 
-            EditorGUI.DrawRect(rect, fillColor);
+                EditorGUI.DrawRect(rect, fillColor);
 
-            // Draw outline
-            EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, 1f), outlineColor);
-            EditorGUI.DrawRect(new Rect(rect.x, rect.yMax - 1f, rect.width, 1f), outlineColor);
-            EditorGUI.DrawRect(new Rect(rect.x, rect.y, 1f, rect.height), outlineColor);
-            EditorGUI.DrawRect(new Rect(rect.xMax - 1f, rect.y, 1f, rect.height), outlineColor);
-
-            Handles.EndGUI();
+                // Draw outline
+                EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, 1f), outlineColor);
+                EditorGUI.DrawRect(new Rect(rect.x, rect.yMax - 1f, rect.width, 1f), outlineColor);
+                EditorGUI.DrawRect(new Rect(rect.x, rect.y, 1f, rect.height), outlineColor);
+                EditorGUI.DrawRect(new Rect(rect.xMax - 1f, rect.y, 1f, rect.height), outlineColor);
+            }
+            finally
+            {
+                Handles.EndGUI();
+            }
         }
 
         private bool IsVertexFrontFacing(int index, Matrix4x4 matrix)
@@ -1152,12 +1253,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _cachedMesh = mesh;
             _meshVertices = mesh.vertices;
             _meshTriangles = mesh.triangles;
-            _meshNormals = mesh.normals;
-            if (_meshNormals == null || _meshNormals.Length != _meshVertices.Length)
-            {
-                mesh.RecalculateNormals();
-                _meshNormals = mesh.normals;
-            }
+            _meshNormals = MeshNormalUtility.GetOrCalculateNormals(
+                mesh,
+                _meshVertices,
+                _meshTriangles);
             RefreshDeformedVertices(deformer);
         }
 
@@ -1263,13 +1362,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static void ClearSelection()
         {
-            if (s_selectedVertices.Count == 0)
-            {
-                return;
-            }
-
+            bool hadSelection = s_selectedVertices.Count != 0;
             s_selectedVertices.Clear();
-            SceneView.RepaintAll();
+            s_lastSelectedVertex = -1;
+            if (hadSelection)
+            {
+                SceneView.RepaintAll();
+            }
         }
 
         internal static void SelectAll(LatticeDeformer deformer)
@@ -1378,6 +1477,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             int modeIndex = GUILayout.Toolbar((int)VertexSelectionHandler.CurrentTransformMode, modeContent);
             modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
             VertexSelectionHandler.CurrentTransformMode = (VertexSelectionHandler.TransformMode)modeIndex;
+
+            if (VertexSelectionHandler.CurrentTransformMode == VertexSelectionHandler.TransformMode.Move &&
+                deformer != null && deformer.GetComponent<SkinnedMeshRenderer>() != null)
+            {
+                SkinnedVertexHelper.StoreMovesInRestSpace = EditorGUILayout.Toggle(
+                    LatticeLocalization.Content(LocKey.StoreMoveInRestSpace),
+                    SkinnedVertexHelper.StoreMovesInRestSpace);
+            }
 
             // Handle orientation selector
             var orientContent = new GUIContent[]

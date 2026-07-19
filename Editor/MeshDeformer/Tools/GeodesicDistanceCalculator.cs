@@ -26,7 +26,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             var distances = new Dictionary<int, float>();
 
-            if (adjacency == null || vertices == null || startVertex < 0 || startVertex >= adjacency.Count)
+            if (adjacency == null || vertices == null ||
+                startVertex < 0 || startVertex >= adjacency.Count || startVertex >= vertices.Length)
             {
                 return distances;
             }
@@ -45,13 +46,26 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             while (pq.Count > 0)
             {
                 var (currentDist, current) = pq.Min;
-                pq.Remove(pq.Min);
+                pq.Remove((currentDist, current));
 
-                if (current >= adjacency.Count || adjacency[current] == null) continue;
+                if (current < 0 || current >= adjacency.Count || current >= vertices.Length ||
+                    adjacency[current] == null)
+                {
+                    continue;
+                }
 
                 foreach (int neighbor in adjacency[current])
                 {
+                    if (neighbor < 0 || neighbor >= adjacency.Count || neighbor >= vertices.Length)
+                    {
+                        continue;
+                    }
+
                     float edgeLength = (vertices[neighbor] - vertices[current]).magnitude;
+                    if (float.IsNaN(edgeLength) || float.IsInfinity(edgeLength))
+                    {
+                        continue;
+                    }
                     float newDist = currentDist + edgeLength;
 
                     if (newDist > maxDistance)

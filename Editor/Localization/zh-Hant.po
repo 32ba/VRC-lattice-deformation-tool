@@ -613,6 +613,12 @@ msgstr "可視化"
 msgid "net.32ba.lattice-deformation-tool.localization.visualization.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.show-wireframe"
+msgstr "顯示線框"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-wireframe.tooltip"
+msgstr "顯示網格邊緣，以便查看面的形狀。"
+
 msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices"
 msgstr "顯示受影響頂點"
 
@@ -1101,6 +1107,12 @@ msgstr "匯入 BlendShape"
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-single-frame"
+msgstr "單一影格"
+
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-all-frames"
+msgstr "所有影格"
+
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
 msgstr "(NDMF) Disable Lattice Preview"
@@ -1186,6 +1198,30 @@ msgstr "筆刷變形"
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning"
+msgstr "目前的 NDMF 流程不會處理此舊版元件。繼續編輯前，請將變形資料遷移到 Mesh Deformer。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning.tooltip"
+msgstr "遷移後，原始元件會被停用並保留為備份。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush"
+msgstr "遷移到 Mesh Deformer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush.tooltip"
+msgstr "將所有位移與網格重建設定複製到 Mesh Deformer 筆刷圖層，然後停用此舊版元件。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded"
+msgstr "遷移完成。舊版元件已停用並保留為備份。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded.tooltip"
+msgstr "遷移後的 Mesh Deformer 已包含舊版筆刷變形資料。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed"
+msgstr "遷移失敗：{0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed.tooltip"
+msgstr "驗證失敗時不會保留永久的遷移變更。"
+
 # Update notification
 msgid "net.32ba.lattice-deformation-tool.localization.update-available"
 msgstr "有新版本可用"
@@ -1195,3 +1231,59 @@ msgstr "目前: {0}  最新: {1}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
 msgstr "開啟 BOOTH 商品頁面"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition"
+msgstr "影格合成"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-single"
+msgstr "單一"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-progressive"
+msgstr "逐步累積"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade"
+msgstr "交叉淡化"
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
+msgstr "以 Rest Space 儲存移動"
+
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
+msgstr "將在已擺姿勢的 Skinned Mesh 上進行的移動編輯轉換為可重用的 rest-space 位移。Skinning 資料無效時會安全回復至原有 local-space 行為。"
+# Deformer Profile
+msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
+msgstr "變形設定檔"
+
+msgid "net.32ba.lattice-deformation-tool.localization.data-source"
+msgstr "資料來源"
+
+msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
+msgstr "內嵌資料"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
+msgstr "設定檔參照"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
+msgstr "建立設定檔"
+
+msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
+msgstr "儲存至設定檔"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
+msgstr "複製至執行個體"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
+msgstr "使用設定檔作為資料來源時，請選擇一個設定檔。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
+msgstr "設定檔資料會以獨立執行個體副本預覽。若要編輯群組與圖層，請先複製到元件。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-exact-match"
+msgstr "完全相符：此設定檔是為目前選取的來源網格儲存的。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs"
+msgstr "相容：拓撲相符，但來源資源不同或無法識別。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked"
+msgstr "拓撲不相符：此設定檔與來源網格不相容，因此未套用。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
+msgstr "舊版設定檔：沒有相容性中繼資料。可謹慎套用；重新儲存即可加入中繼資料。"

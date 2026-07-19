@@ -1,6 +1,9 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
+using System.Reflection;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
@@ -58,6 +61,40 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 ClearanceClassification.Clear
             }));
             Assert.That(narrow.QueryResults, Is.SameAs(wide.QueryResults));
+        }
+
+        [TestCase(float.NaN, 0.01f)]
+        [TestCase(float.PositiveInfinity, 0.01f)]
+        [TestCase(0.005f, float.NaN)]
+        [TestCase(0.005f, float.PositiveInfinity)]
+        public void NonFiniteThresholds_FailClosed(float warningDistance, float targetDistance)
+        {
+            var raw = CreateRawEvaluation(-0.001f, 0.02f);
+
+            var evaluation = ClearanceHeatmapEvaluator.Classify(
+                raw,
+                warningDistance,
+                targetDistance);
+
+            Assert.That(evaluation.Status, Is.EqualTo(ClearanceEvaluationStatus.InvalidThresholds));
+            Assert.That(evaluation.Classifications, Is.Empty);
+            Assert.That(evaluation.Statistics.EvaluatedVertexCount, Is.Zero);
+        }
+
+        [Test]
+        public void NonFiniteQueryClearance_IsNotClassifiedAsClear()
+        {
+            var raw = CreateRawEvaluation(float.NaN, float.PositiveInfinity, 0.02f);
+
+            var evaluation = ClearanceHeatmapEvaluator.Classify(raw, 0.005f, 0.01f);
+
+            Assert.That(evaluation.Classifications, Is.EqualTo(new[]
+            {
+                ClearanceClassification.Invalid,
+                ClearanceClassification.Invalid,
+                ClearanceClassification.Clear
+            }));
+            Assert.That(evaluation.Statistics.EvaluatedVertexCount, Is.EqualTo(1));
         }
 
         [Test]
@@ -243,6 +280,78 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void NdmfPreviewProxy_IsSelectedAsClearanceEvaluationTarget()
+        {
+            var originalMesh = CreatePointMesh(0.01f);
+            var proxyMesh = CreatePointMesh(0.03f);
+            var original = CreateRenderer("Original", originalMesh);
+            var proxy = CreateRenderer("Preview Proxy", proxyMesh);
+            var deformer = original.gameObject.AddComponent<LatticeDeformer>();
+            var serializedDeformer = new SerializedObject(deformer);
+            serializedDeformer.FindProperty("_meshFilter").objectReferenceValue =
+                original.GetComponent<MeshFilter>();
+            serializedDeformer.ApplyModifiedPropertiesWithoutUndo();
+            var session = new FakePreviewSession();
+            session.OriginalToProxy[original] = proxy;
+            try
+            {
+                Assert.That(NDMFPreviewProxyUtility.TryGetProxyRenderer(
+                    original,
+                    session,
+                    out Renderer resolvedProxy),
+                    Is.True);
+
+                Renderer selected = LatticeDeformerEditor.ResolveClearanceTargetRenderer(
+                    deformer,
+                    resolvedProxy,
+                    out bool usedPreviewProxy);
+
+                Assert.That(usedPreviewProxy, Is.True);
+                Assert.That(selected, Is.SameAs(proxy));
+                Assert.That(ClearanceQueryCache.TryGetWorldVertices(selected, out Vector3[] positions), Is.True);
+                Assert.That(positions[0].z, Is.EqualTo(0.03f).Within(Epsilon));
+            }
+            finally
+            {
+                DestroyRenderer(proxy, proxyMesh);
+                DestroyRenderer(original, originalMesh);
+            }
+        }
+
+        [Test]
+        public void UndoRedo_InvalidatesEditorClearanceCache()
+        {
+            var targetMesh = CreatePointMesh(0.01f);
+            var target = CreateRenderer("Undo Target", targetMesh);
+            var deformer = target.gameObject.AddComponent<LatticeDeformer>();
+            UnityEditor.Editor editor = UnityEditor.Editor.CreateEditor(
+                deformer,
+                typeof(LatticeDeformerEditor));
+            var cacheField = typeof(LatticeDeformerEditor).GetField(
+                "_clearanceRawEvaluation",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            try
+            {
+                Assert.That(cacheField, Is.Not.Null);
+                cacheField.SetValue(editor, CreateRawEvaluation(0.01f));
+                Assert.That(cacheField.GetValue(editor), Is.Not.Null);
+
+                Undo.RegisterCompleteObjectUndo(deformer, "Clearance cache invalidation");
+                deformer.ShowClearanceHeatmap = true;
+                Undo.FlushUndoRecordObjects();
+                Undo.PerformUndo();
+
+                Assert.That(cacheField.GetValue(editor), Is.Null);
+            }
+            finally
+            {
+                Object.DestroyImmediate(editor);
+                DestroyRenderer(target, targetMesh);
+                Undo.ClearAll();
+            }
+        }
+
+        [Test]
         public void DeformerClearanceSettings_ClampAndSerialize()
         {
             var gameObject = new GameObject("Settings");
@@ -260,6 +369,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(deformer.ClearanceTargetDistance, Is.EqualTo(0f));
                 Assert.That(deformer.ClearanceDisplayStride, Is.EqualTo(64));
                 Assert.That(deformer.ClearanceUpdateInterval, Is.EqualTo(0.02f).Within(Epsilon));
+
+                deformer.ClearanceWarningDistance = float.NaN;
+                deformer.ClearanceTargetDistance = float.PositiveInfinity;
+                deformer.ClearanceUpdateInterval = float.NaN;
+                Assert.That(deformer.ClearanceWarningDistance, Is.EqualTo(0f));
+                Assert.That(deformer.ClearanceTargetDistance, Is.EqualTo(0f));
+                Assert.That(deformer.ClearanceUpdateInterval, Is.EqualTo(0.1f).Within(Epsilon));
 
                 string json = JsonUtility.ToJson(deformer);
                 var copyObject = new GameObject("Settings Copy");
@@ -340,6 +456,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         {
             if (renderer != null) Object.DestroyImmediate(renderer.gameObject);
             if (mesh != null) Object.DestroyImmediate(mesh);
+        }
+
+        private sealed class FakePreviewSession
+        {
+            public Dictionary<Renderer, Renderer> OriginalToProxy { get; } =
+                new Dictionary<Renderer, Renderer>();
         }
     }
 }

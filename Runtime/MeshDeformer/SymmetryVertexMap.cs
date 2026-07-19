@@ -63,15 +63,20 @@ namespace Net._32Ba.LatticeDeformationTool
 
             var key = new MapKey(axis, centerOffset, tolerance, unmatchedBehavior);
             var cache = s_meshCaches.GetOrCreateValue(mesh);
-            if (cache.VertexCount != mesh.vertexCount)
+            var vertices = mesh.vertices;
+            int vertexStateHash = ComputeVertexStateHash(vertices);
+            if (cache.VertexCount != vertices.Length || cache.VertexStateHash != vertexStateHash ||
+                !VertexDataEquals(cache.Vertices, vertices))
             {
                 cache.Maps.Clear();
-                cache.VertexCount = mesh.vertexCount;
+                cache.VertexCount = vertices.Length;
+                cache.VertexStateHash = vertexStateHash;
+                cache.Vertices = vertices;
             }
 
             if (!cache.Maps.TryGetValue(key, out var map))
             {
-                map = Build(mesh.vertices, axis, centerOffset, tolerance, unmatchedBehavior);
+                map = Build(vertices, axis, centerOffset, tolerance, unmatchedBehavior);
                 cache.Maps.Add(key, map);
             }
 
@@ -268,6 +273,31 @@ namespace Net._32Ba.LatticeDeformationTool
                    !float.IsNaN(value.z) && !float.IsInfinity(value.z);
         }
 
+        private static int ComputeVertexStateHash(Vector3[] vertices)
+        {
+            unchecked
+            {
+                int hash = vertices.Length;
+                for (int i = 0; i < vertices.Length; i++)
+                {
+                    hash = hash * 397 ^ vertices[i].x.GetHashCode();
+                    hash = hash * 397 ^ vertices[i].y.GetHashCode();
+                    hash = hash * 397 ^ vertices[i].z.GetHashCode();
+                }
+                return hash;
+            }
+        }
+
+        private static bool VertexDataEquals(Vector3[] left, Vector3[] right)
+        {
+            if (left == null || right == null || left.Length != right.Length) return false;
+            for (int i = 0; i < left.Length; i++)
+            {
+                if (left[i] != right[i]) return false;
+            }
+            return true;
+        }
+
         private static void SetAxisCoordinate(ref Vector3 value, int axis, float coordinate)
         {
             if (axis == 0) value.x = coordinate;
@@ -292,6 +322,8 @@ namespace Net._32Ba.LatticeDeformationTool
         private sealed class MeshCache
         {
             internal int VertexCount = -1;
+            internal int VertexStateHash;
+            internal Vector3[] Vertices;
             internal readonly Dictionary<MapKey, SymmetryVertexMap> Maps =
                 new Dictionary<MapKey, SymmetryVertexMap>();
         }
