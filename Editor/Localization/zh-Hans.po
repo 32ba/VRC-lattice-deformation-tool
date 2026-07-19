@@ -1063,3 +1063,15 @@ msgstr "使用配置文件作为数据源时，请选择一个配置文件。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
 msgstr "配置文件数据会以独立实例副本进行预览。要编辑组和图层，请先复制到组件。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-exact-match"
+msgstr "完全匹配：此配置文件是为当前所选源网格保存的。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs"
+msgstr "兼容：拓扑一致，但源资源不同或无法识别。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked"
+msgstr "拓扑不匹配：此配置文件与源网格不兼容，因此未应用。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
+msgstr "旧版配置文件：没有兼容性元数据。可谨慎应用；重新保存即可添加元数据。"

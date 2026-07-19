@@ -1063,3 +1063,15 @@ msgstr "使用設定檔作為資料來源時，請選擇一個設定檔。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
 msgstr "設定檔資料會以獨立執行個體副本預覽。若要編輯群組與圖層，請先複製到元件。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-exact-match"
+msgstr "完全相符：此設定檔是為目前選取的來源網格儲存的。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs"
+msgstr "相容：拓撲相符，但來源資源不同或無法識別。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked"
+msgstr "拓撲不相符：此設定檔與來源網格不相容，因此未套用。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
+msgstr "舊版設定檔：沒有相容性中繼資料。可謹慎套用；重新儲存即可加入中繼資料。"

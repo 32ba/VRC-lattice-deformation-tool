@@ -108,6 +108,8 @@ DeformerGroup [Serializable]
 - `MeshDeformerProfile` (`ScriptableObject`) は Group / Layer / Mask / Brush displacement / BlendShape出力設定を複数コンポーネント間で共有する
 - `LatticeDeformer.DataSource` が `Profile` の場合、Preview/BakeはProfileから作成した非シリアライズの独立コピーを使用し、Prefabへ変形payloadを重複保存せずProfileを意図せず変更しない
 - `SaveToProfile()` でインスタンスの現在データをProfileへ明示保存し、`CopyProfileToEmbedded()` でProfileから編集可能な内蔵データへ複製する
+- Profile保存時はSource Mesh本体を埋め込まず、頂点・index・triangle・submesh・bindpose数、BlendShape signature、頂点/index topology hash、任意のAsset GUID/local file IDを互換性メタデータとして記録する
+- Profile適用時は `ExactMatch` / `CompatibleSourceDiffers` / `TopologyMismatch` / `InsufficientMetadata` を区別し、Topology不一致はコンポーネント・Renderer・Profileを変更せず拒否する。互換性メタデータを持たない旧Profileは警告付きで適用でき、再保存時に現行メタデータを付与する
 
 ### BlendShape 出力・読み込み
 
