@@ -45,32 +45,47 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var mat = EnsureMaterial();
             mat.SetPass(0);
 
-            GL.PushMatrix();
-            GL.MultMatrix(Matrix4x4.identity);
-            GL.Begin(GL.LINES);
-            GL.Color(k_wireColor);
-
-            int triCount = triangles.Length / 3;
-            for (int t = 0; t < triCount; t++)
+            bool matrixPushed = false;
+            bool drawingLines = false;
+            try
             {
-                int i0 = triangles[t * 3];
-                int i1 = triangles[t * 3 + 1];
-                int i2 = triangles[t * 3 + 2];
+                GL.PushMatrix();
+                matrixPushed = true;
+                GL.MultMatrix(Matrix4x4.identity);
+                GL.Begin(GL.LINES);
+                drawingLines = true;
+                GL.Color(k_wireColor);
 
-                Vector3 p0 = GetWorldPos(i0, worldPositions, localVertices, localToWorld);
-                Vector3 p1 = GetWorldPos(i1, worldPositions, localVertices, localToWorld);
-                Vector3 p2 = GetWorldPos(i2, worldPositions, localVertices, localToWorld);
+                int triCount = triangles.Length / 3;
+                for (int t = 0; t < triCount; t++)
+                {
+                    int i0 = triangles[t * 3];
+                    int i1 = triangles[t * 3 + 1];
+                    int i2 = triangles[t * 3 + 2];
 
-                // Edge 0-1
-                GL.Vertex(p0); GL.Vertex(p1);
-                // Edge 1-2
-                GL.Vertex(p1); GL.Vertex(p2);
-                // Edge 2-0
-                GL.Vertex(p2); GL.Vertex(p0);
+                    Vector3 p0 = GetWorldPos(i0, worldPositions, localVertices, localToWorld);
+                    Vector3 p1 = GetWorldPos(i1, worldPositions, localVertices, localToWorld);
+                    Vector3 p2 = GetWorldPos(i2, worldPositions, localVertices, localToWorld);
+
+                    // Edge 0-1
+                    GL.Vertex(p0); GL.Vertex(p1);
+                    // Edge 1-2
+                    GL.Vertex(p1); GL.Vertex(p2);
+                    // Edge 2-0
+                    GL.Vertex(p2); GL.Vertex(p0);
+                }
             }
-
-            GL.End();
-            GL.PopMatrix();
+            finally
+            {
+                try
+                {
+                    if (drawingLines) GL.End();
+                }
+                finally
+                {
+                    if (matrixPushed) GL.PopMatrix();
+                }
+            }
         }
 
         private static Vector3 GetWorldPos(int index, Vector3[] worldPositions, Vector3[] localVertices, Matrix4x4 localToWorld)

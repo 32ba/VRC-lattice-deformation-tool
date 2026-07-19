@@ -1,0 +1,239 @@
+{
+    "tag": "0.0.1",
+    "kind": "lattice-world",
+    "deformerPath": "",
+    "classifiedVersion": "V0_0_1",
+    "serializedLayerModelVersion": -1,
+    "serializedFlatLayerCount": -1,
+    "serializedGroups": [],
+    "serializedFlatLayers": [],
+    "serializedActiveFlatLayerIndex": -1,
+    "serializedFlatBlendShapeOutput": "",
+    "serializedFlatBlendShapeName": "",
+    "serializedFlatBlendShapeCurve": {
+        "preWrapMode": 8,
+        "postWrapMode": 8,
+        "keys": [
+            {
+                "time": 0.0,
+                "value": 0.0,
+                "inTangent": 0.0,
+                "outTangent": 1.0,
+                "inWeight": 0.0,
+                "outWeight": 0.0,
+                "weightedMode": 0
+            },
+            {
+                "time": 1.0,
+                "value": 1.0,
+                "inTangent": 1.0,
+                "outTangent": 0.0,
+                "inWeight": 0.0,
+                "outWeight": 0.0,
+                "weightedMode": 0
+            }
+        ]
+    },
+    "legacyAbsoluteEvaluation": true,
+    "tolerance": 0.00004999999873689376,
+    "activeGroupIndex": 0,
+    "groups": [
+        {
+            "name": "Group",
+            "enabled": true,
+            "activeLayerIndex": 0,
+            "blendShapeOutput": "Disabled",
+            "blendShapeName": "",
+            "blendShapeCurve": {
+                "preWrapMode": 8,
+                "postWrapMode": 8,
+                "keys": [
+                    {
+                        "time": 0.0,
+                        "value": 0.0,
+                        "inTangent": 0.0,
+                        "outTangent": 1.0,
+                        "inWeight": 0.0,
+                        "outWeight": 0.0,
+                        "weightedMode": 0
+                    },
+                    {
+                        "time": 1.0,
+                        "value": 1.0,
+                        "inTangent": 1.0,
+                        "outTangent": 0.0,
+                        "inWeight": 0.0,
+                        "outWeight": 0.0,
+                        "weightedMode": 0
+                    }
+                ]
+            },
+            "layers": [
+                {
+                    "name": "Lattice Layer",
+                    "type": "Lattice",
+                    "enabled": true,
+                    "weight": 1.0,
+                    "blendShapeOutput": "Disabled",
+                    "blendShapeName": "",
+                    "settings": {
+                        "gridSize": {
+                            "x": 2,
+                            "y": 2,
+                            "z": 2
+                        },
+                        "boundsCenter": {
+                            "x": 3.0263454914093019,
+                            "y": -1.5862163305282593,
+                            "z": 2.969566583633423
+                        },
+                        "boundsSize": {
+                            "x": 2.8744874000549318,
+                            "y": 1.6513937711715699,
+                            "z": 2.8804283142089845
+                        },
+                        "interpolation": "Trilinear",
+                        "legacyApplySpaceValue": 1,
+                        "controlPoints": [
+                            {
+                                "x": 1.522601842880249,
+                                "y": -2.373913049697876,
+                                "z": 1.5008524656295777
+                            },
+                            {
+                                "x": 4.537689208984375,
+                                "y": -2.368213176727295,
+                                "z": 1.4970524311065674
+                            },
+                            {
+                                "x": 1.5074018239974976,
+                                "y": -0.8099193572998047,
+                                "z": 1.4932523965835572
+                            },
+                            {
+                                "x": 4.552889347076416,
+                                "y": -0.8156194090843201,
+                                "z": 1.4894524812698365
+                            },
+                            {
+                                "x": 1.492201805114746,
+                                "y": -2.3511130809783937,
+                                "z": 4.4534807205200199
+                            },
+                            {
+                                "x": 4.568089008331299,
+                                "y": -2.3454132080078127,
+                                "z": 4.45728063583374
+                            },
+                            {
+                                "x": 1.4770017862319947,
+                                "y": -0.8327193856239319,
+                                "z": 4.461080551147461
+                            },
+                            {
+                                "x": 4.58328914642334,
+                                "y": -0.8384193778038025,
+                                "z": 4.464880466461182
+                            }
+                        ]
+                    },
+                    "brushDisplacements": [],
+                    "vertexMask": []
+                }
+            ]
+        }
+    ],
+    "expectedVertices": [
+        {
+            "x": -1.1007388830184937,
+            "y": 2.562410354614258,
+            "z": -0.10371718555688858
+        },
+        {
+            "x": -1.1007388830184937,
+            "y": 2.562410354614258,
+            "z": -0.10371718555688858
+        },
+        {
+            "x": -1.1007388830184937,
+            "y": 2.562410354614258,
+            "z": -0.10371718555688858
+        },
+        {
+            "x": -1.1007388830184937,
+            "y": 2.562410354614258,
+            "z": -0.10371718555688858
+        }
+    ],
+    "outputBlendShapes": [],
+    "componentSettings": {
+        "recalculateNormals": false,
+        "recalculateTangents": true,
+        "recalculateBounds": false,
+        "recalculateBoneWeights": false,
+        "weightTransfer": {
+            "maxTransferDistance": 0.05000000074505806,
+            "normalAngleThreshold": 60.0,
+            "enableInpainting": true,
+            "maxIterations": 1000,
+            "tolerance": 9.999999974752428e-7
+        }
+    },
+    "legacyBrush": {
+        "displacements": [],
+        "recalculateNormals": false,
+        "recalculateTangents": false,
+        "recalculateBounds": false,
+        "recalculateBoneWeights": false,
+        "weightTransfer": {
+            "maxTransferDistance": 0.0,
+            "normalAngleThreshold": 0.0,
+            "enableInpainting": false,
+            "maxIterations": 0,
+            "tolerance": 0.0
+        }
+    },
+    "transformProbes": [
+        {
+            "position": {
+                "x": -2.0999999046325685,
+                "y": 3.4000000953674318,
+                "z": -1.7000000476837159
+            },
+            "rotation": {
+                "x": -0.3076329529285431,
+                "y": 0.42219334840774538,
+                "z": -0.011320888996124268,
+                "w": 0.8526351451873779
+            },
+            "scale": {
+                "x": 0.550000011920929,
+                "y": 1.850000023841858,
+                "z": 1.2999999523162842
+            },
+            "expectedVertices": [
+                {
+                    "x": 2.2155508995056154,
+                    "y": -3.235201120376587,
+                    "z": 1.4649922847747803
+                },
+                {
+                    "x": 2.2155508995056154,
+                    "y": -3.235201120376587,
+                    "z": 1.4649922847747803
+                },
+                {
+                    "x": 2.2155508995056154,
+                    "y": -3.235201120376587,
+                    "z": 1.4649922847747803
+                },
+                {
+                    "x": 2.2155508995056154,
+                    "y": -3.235201120376587,
+                    "z": 1.4649922847747803
+                }
+            ],
+            "outputBlendShapes": []
+        }
+    ]
+}
