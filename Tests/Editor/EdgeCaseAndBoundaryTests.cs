@@ -354,6 +354,36 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally { fixture.Dispose(); }
         }
 
+        [Test]
+        public void InvalidateCache_AfterBlendShapeOutputDisabled_RemovesGeneratedBlendShape()
+        {
+            var fixture = CreateFixture("InvalidateCache_BlendShapeOutputDisabled");
+            try
+            {
+                var deformer = fixture.Deformer;
+                int brushLayer = deformer.AddLayer("Generated", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushLayer;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, new Vector3(0.25f, 0f, 0f));
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                deformer.BlendShapeName = "GeneratedShape";
+
+                var blendShapeMesh = deformer.Deform(false);
+                Assert.That(blendShapeMesh.GetBlendShapeIndex("GeneratedShape"), Is.GreaterThanOrEqualTo(0));
+
+                deformer.InvalidateCache();
+                deformer.BlendShapeOutput = BlendShapeOutputMode.Disabled;
+                var directMesh = deformer.Deform(false);
+
+                Assert.That(directMesh.GetBlendShapeIndex("GeneratedShape"), Is.EqualTo(-1));
+                AssertApproximately(
+                    fixture.SourceMesh.vertices[0] + new Vector3(0.25f, 0f, 0f),
+                    directMesh.vertices[0],
+                    2e-3f);
+            }
+            finally { fixture.Dispose(); }
+        }
+
         // ========================================================================
         // ComputeLayeredStateHash
         // ========================================================================

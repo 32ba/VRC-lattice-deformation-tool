@@ -205,6 +205,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         // Legacy Brush Deformer
         internal const string BrushDeformer = "net.32ba.lattice-deformation-tool.localization.brush-deformer";
         internal const string BrushDeformation = "net.32ba.lattice-deformation-tool.localization.brush-deformation";
+        internal const string LegacyBrushMigrationWarning = "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning";
+        internal const string MigrateLegacyBrush = "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush";
+        internal const string LegacyBrushMigrationSucceeded = "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded";
+        internal const string LegacyBrushMigrationFailed = "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed";
     }
 }
 #endif

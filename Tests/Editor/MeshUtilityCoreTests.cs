@@ -1,4 +1,6 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
+using System.Reflection;
 using Net._32Ba.LatticeDeformationTool;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
@@ -48,6 +50,27 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void PenetrationDetector_HandlesReferenceMeshWithoutNormals()
+        {
+            var reference = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            try
+            {
+                Assert.That(
+                    PenetrationDetector.DetectPenetration(
+                        new[] { new Vector3(0.1f, 0.1f, -1f) }, reference, Matrix4x4.identity),
+                    Is.Empty);
+            }
+            finally
+            {
+                Object.DestroyImmediate(reference);
+            }
+        }
+
+        [Test]
         public void PenetrationDetector_DetectsVerticesBehindClosestNormal()
         {
             var reference = new Mesh
@@ -83,6 +106,240 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally
             {
                 Object.DestroyImmediate(reference);
+            }
+        }
+
+        [Test]
+        public void PenetrationDetectionCacheKey_TracksGeometryAndTransformState()
+        {
+            var targetMatrix = Matrix4x4.TRS(
+                new Vector3(1f, 2f, 3f),
+                Quaternion.Euler(10f, 20f, 30f),
+                new Vector3(1f, 2f, 1f));
+            var referenceMatrix = Matrix4x4.TRS(
+                new Vector3(-1f, 0.5f, 2f),
+                Quaternion.Euler(0f, 45f, 0f),
+                Vector3.one).inverse;
+
+            var key = new PenetrationDetectionCacheKey(
+                101, 2, 11, 12, 13, 14, 100, 200, targetMatrix, referenceMatrix);
+            var same = new PenetrationDetectionCacheKey(
+                101, 2, 11, 12, 13, 14, 100, 200, targetMatrix, referenceMatrix);
+            var changedLayer = new PenetrationDetectionCacheKey(
+                102, 2, 11, 12, 13, 14, 100, 200, targetMatrix, referenceMatrix);
+            var changedRuntimeMesh = new PenetrationDetectionCacheKey(
+                101, 2, 11, 12, 13, 15, 100, 200, targetMatrix, referenceMatrix);
+            var changedTransform = new PenetrationDetectionCacheKey(
+                101,
+                2,
+                11,
+                12,
+                13,
+                14,
+                100,
+                200,
+                Matrix4x4.Translate(Vector3.right) * targetMatrix,
+                referenceMatrix);
+
+            Assert.That(same, Is.EqualTo(key));
+            Assert.That(same.GetHashCode(), Is.EqualTo(key.GetHashCode()));
+            Assert.That(changedLayer, Is.Not.EqualTo(key));
+            Assert.That(changedRuntimeMesh, Is.Not.EqualTo(key));
+            Assert.That(changedTransform, Is.Not.EqualTo(key));
+        }
+
+        [Test]
+        public void BrushPenetrationDetection_UsesFullyComposedDeformation()
+        {
+            var targetObject = new GameObject("penetration-composed-target");
+            var referenceObject = new GameObject("penetration-composed-reference");
+            Mesh source = null;
+            Mesh reference = null;
+            var showField = typeof(BrushToolHandler).GetField(
+                "s_showPenetration",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            var referenceField = typeof(BrushToolHandler).GetField(
+                "s_penetrationReference",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            bool previousShow = (bool)showField.GetValue(null);
+            var previousReference = referenceField.GetValue(null);
+            try
+            {
+                source = new Mesh
+                {
+                    vertices = new[]
+                    {
+                        new Vector3(0f, 0f, 0.1f),
+                        new Vector3(1f, 0f, 0.1f),
+                        new Vector3(0f, 1f, 0.1f)
+                    },
+                    triangles = new[] { 0, 1, 2 }
+                };
+                source.RecalculateNormals();
+                source.RecalculateBounds();
+                var targetFilter = targetObject.AddComponent<MeshFilter>();
+                targetObject.AddComponent<MeshRenderer>();
+                targetFilter.sharedMesh = source;
+
+                var deformer = targetObject.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                int penetratingLayerIndex = deformer.AddLayer("Non-active penetration", MeshDeformerLayerType.Brush);
+                var penetratingLayer = deformer.Layers[penetratingLayerIndex];
+                penetratingLayer.EnsureBrushDisplacementCapacity(source.vertexCount);
+                for (int i = 0; i < source.vertexCount; i++)
+                {
+                    penetratingLayer.SetBrushDisplacement(i, new Vector3(0f, 0f, -0.2f));
+                }
+
+                int activeLayerIndex = deformer.AddLayer("Active neutral brush", MeshDeformerLayerType.Brush);
+                deformer.Layers[activeLayerIndex].EnsureBrushDisplacementCapacity(source.vertexCount);
+                Assert.That(deformer.GetDisplacement(0), Is.EqualTo(Vector3.zero));
+                Assert.That(deformer.Deform(false), Is.Not.Null);
+
+                reference = new Mesh
+                {
+                    vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                    normals = new[] { Vector3.forward, Vector3.forward, Vector3.forward },
+                    triangles = new[] { 0, 1, 2 }
+                };
+                var referenceFilter = referenceObject.AddComponent<MeshFilter>();
+                var referenceRenderer = referenceObject.AddComponent<MeshRenderer>();
+                referenceFilter.sharedMesh = reference;
+
+                var handler = new BrushToolHandler();
+                typeof(BrushToolHandler)
+                    .GetField("_meshVertices", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(handler, source.vertices);
+                showField.SetValue(null, true);
+                referenceField.SetValue(null, referenceRenderer);
+
+                typeof(BrushToolHandler)
+                    .GetMethod("UpdatePenetrationDetection", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .Invoke(handler, new object[] { deformer });
+
+                var penetrating = (HashSet<int>)typeof(BrushToolHandler)
+                    .GetField("_penetratingVertices", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .GetValue(handler);
+                Assert.That(penetrating, Is.Not.Null);
+                Assert.That(penetrating.Contains(0), Is.True,
+                    "Penetration from a non-active layer must be detected in the final composed output.");
+                var highlightedVertices = (Vector3[])typeof(BrushToolHandler)
+                    .GetField("_penetrationDeformedVertices", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .GetValue(handler);
+                Assert.That(highlightedVertices[0].z, Is.EqualTo(-0.1f).Within(1e-6f),
+                    "Highlight positions must use the same fully composed vertices as detection.");
+            }
+            finally
+            {
+                showField.SetValue(null, previousShow);
+                referenceField.SetValue(null, previousReference);
+                Object.DestroyImmediate(targetObject);
+                Object.DestroyImmediate(referenceObject);
+                if (source != null) Object.DestroyImmediate(source);
+                if (reference != null) Object.DestroyImmediate(reference);
+            }
+        }
+
+        [Test]
+        public void MeshNormalUtility_CalculatesVisualizationNormalsWithoutMutatingSourceMesh()
+        {
+            var source = new Mesh
+            {
+                name = "Normals Must Remain Unserialized",
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            try
+            {
+                Assert.That(source.normals, Is.Empty);
+
+                var calculated = MeshNormalUtility.GetOrCalculateNormals(
+                    source,
+                    source.vertices,
+                    source.triangles);
+
+                Assert.That(calculated, Has.Length.EqualTo(3));
+                Assert.That(calculated[0], Is.EqualTo(Vector3.forward));
+                Assert.That(calculated[1], Is.EqualTo(Vector3.forward));
+                Assert.That(calculated[2], Is.EqualTo(Vector3.forward));
+                Assert.That(
+                    source.normals,
+                    Is.Empty,
+                    "Editor visualization must not call RecalculateNormals on the shared source asset.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
+        public void MeshDeformerTool_TargetChangeRequiresHandlerReactivation()
+        {
+            var first = new GameObject("first-handler-target");
+            var second = new GameObject("second-handler-target");
+            try
+            {
+                var firstDeformer = first.AddComponent<LatticeDeformer>();
+                var secondDeformer = second.AddComponent<LatticeDeformer>();
+
+                Assert.That(
+                    MeshDeformerTool.NeedsHandlerReactivation(firstDeformer, firstDeformer),
+                    Is.False);
+                Assert.That(
+                    MeshDeformerTool.NeedsHandlerReactivation(firstDeformer, secondDeformer),
+                    Is.True,
+                    "The same handler type still owns target-specific caches and gesture state.");
+                Assert.That(
+                    MeshDeformerTool.NeedsHandlerReactivation(null, firstDeformer),
+                    Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(first);
+                Object.DestroyImmediate(second);
+            }
+        }
+
+        [Test]
+        public void VertexSelectionHandler_TargetSwitchClearsInFlightGestureState()
+        {
+            var first = new GameObject("first-gesture-target");
+            var second = new GameObject("second-gesture-target");
+            var handler = new VertexSelectionHandler();
+            try
+            {
+                var firstDeformer = first.AddComponent<LatticeDeformer>();
+                var secondDeformer = second.AddComponent<LatticeDeformer>();
+
+                handler.Activate(firstDeformer);
+                SetHandlerField(handler, "_isDraggingSelection", true);
+                SetHandlerField(handler, "_selectionStartPos", new Vector2(41f, 73f));
+                SetHandlerField(handler, "_isTransforming", true);
+                SetHandlerField(handler, "_preTransformDisplacements", new[] { Vector3.one });
+                SetHandlerField(handler, "_preTransformPositions", new[] { Vector3.right });
+                SetHandlerField(handler, "_handleRotation", Quaternion.Euler(10f, 20f, 30f));
+                SetHandlerField(handler, "_handleScale", new Vector3(2f, 3f, 4f));
+
+                handler.Deactivate();
+                handler.Activate(secondDeformer);
+
+                Assert.That(GetHandlerField<bool>(handler, "_isDraggingSelection"), Is.False);
+                Assert.That(GetHandlerField<Vector2>(handler, "_selectionStartPos"), Is.EqualTo(Vector2.zero));
+                Assert.That(GetHandlerField<bool>(handler, "_isTransforming"), Is.False);
+                Assert.That(GetHandlerField<Vector3[]>(handler, "_preTransformDisplacements"), Is.Null);
+                Assert.That(GetHandlerField<Vector3[]>(handler, "_preTransformPositions"), Is.Null);
+                Assert.That(GetHandlerField<Quaternion>(handler, "_handleRotation"), Is.EqualTo(Quaternion.identity));
+                Assert.That(GetHandlerField<Vector3>(handler, "_handleScale"), Is.EqualTo(Vector3.one));
+                Assert.That(
+                    GetHandlerField<LatticeDeformer>(handler, "_activeDeformer"),
+                    Is.SameAs(secondDeformer));
+            }
+            finally
+            {
+                handler.Deactivate();
+                Object.DestroyImmediate(first);
+                Object.DestroyImmediate(second);
             }
         }
 
@@ -227,6 +484,24 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 boneIndex0 = 0,
                 weight0 = 1f
             };
+        }
+
+        private static void SetHandlerField<T>(VertexSelectionHandler handler, string name, T value)
+        {
+            var field = typeof(VertexSelectionHandler).GetField(
+                name,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null, name);
+            field.SetValue(handler, value);
+        }
+
+        private static T GetHandlerField<T>(VertexSelectionHandler handler, string name)
+        {
+            var field = typeof(VertexSelectionHandler).GetField(
+                name,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null, name);
+            return (T)field.GetValue(handler);
         }
     }
 }

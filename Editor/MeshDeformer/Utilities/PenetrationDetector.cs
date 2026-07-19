@@ -36,7 +36,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var refTriangles = referenceMesh.triangles;
 
             if (refVertices == null || refNormals == null || refTriangles == null ||
-                refVertices.Length == 0 || refTriangles.Length == 0)
+                refVertices.Length == 0 || refNormals.Length != refVertices.Length || refTriangles.Length < 3)
             {
                 return penetrating;
             }
