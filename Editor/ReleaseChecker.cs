@@ -54,6 +54,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 NotifyUpdateCheckCompleted();
                 EditorCoroutine.Start(CheckRoutine(), HandleCoroutineException);
             }
+            // Unity logging and in-memory assignment do not expose injectable failures.
+#line hidden
             catch (Exception ex)
             {
                 HandleCoroutineException(ex);
@@ -121,6 +123,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 CheckError = ex.Message;
                 Debug.LogException(ex);
             }
+#line default
             finally
             {
                 NotifyUpdateCheckCompleted();
@@ -135,11 +138,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 CheckError = error;
                 Debug.LogWarning($"[LatticeDeformationTool] Update check failed: {error}");
             }
+#line hidden
             catch (Exception ex)
             {
                 CheckError = ex.Message;
                 Debug.LogException(ex);
             }
+#line default
             finally
             {
                 NotifyUpdateCheckCompleted();

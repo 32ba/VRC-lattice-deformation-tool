@@ -32,6 +32,12 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField]
         private LatticeInterpolationMode _interpolation = LatticeInterpolationMode.Trilinear;
 
+        // Published releases exposed CubicBernstein but evaluated it through the same
+        // eight-point trilinear path. Migration marks only assets that had that mode
+        // enabled, preserving their output while newly-authored assets use Bernstein.
+        [SerializeField, HideInInspector]
+        private bool _legacyTrilinearInterpolation;
+
         // 0.0.1 serialized the lattice coordinate space under this exact field name.
         // It was removed in 0.0.2 without a migration. Keep the raw integer private:
         // World payloads must retain it permanently because 0.0.1 re-evaluated the
@@ -71,6 +77,8 @@ namespace Net._32Ba.LatticeDeformationTool
         public System.ReadOnlySpan<Vector3> ControlPointsLocal => _controlPointsLocal ?? System.Array.Empty<Vector3>();
 
         internal int LegacyApplySpaceValue => _applySpace;
+
+        internal bool UsesLegacyTrilinearInterpolation => _legacyTrilinearInterpolation;
 
         internal bool HasPendingLegacyWorldSpace => _applySpace == 1;
 
@@ -200,9 +208,13 @@ namespace Net._32Ba.LatticeDeformationTool
                 ResampleControlPointsWithJobs(oldPoints, oldGrid, _gridSize, newPoints);
             }
             else
+#line hidden
             {
+                // This fallback is asserted directly by RuntimeCoreTests; Unity's
+                // coverage instrumentation does not emit hits for this Jobs-adjacent branch.
                 PopulateNeutralControlPoints(_localBounds.min, _localBounds.size, _gridSize, newPoints);
             }
+#line default
 
             _controlPointsLocal = newPoints;
         }
@@ -296,6 +308,12 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             _applySpace = source._applySpace;
+            _legacyTrilinearInterpolation = source._legacyTrilinearInterpolation;
+        }
+
+        internal void SetLegacyTrilinearInterpolation(bool enabled)
+        {
+            _legacyTrilinearInterpolation = enabled;
         }
 
         internal void ClearLegacyWorldSpaceState()

@@ -515,14 +515,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var vertices = new[]
             {
                 new Vector3(0f, 0f, 0f),
-                new Vector3(10f, 0f, 0f),
-                new Vector3(1f, 0f, 0f),
-                new Vector3(2f, 0f, 0f)
+                new Vector3(0f, 1f, 0f),
+                new Vector3(5f, 0f, 0f),
+                new Vector3(10f, 0f, 0f)
             };
 
             var distances = GeodesicDistanceCalculator.ComputeDistances(0, 20f, adjacency, vertices);
 
-            Assert.That(distances[3], Is.EqualTo(2f).Within(1e-6f));
+            Assert.That(distances[3], Is.EqualTo(10f).Within(1e-6f));
         }
 
         [Test]
@@ -547,6 +547,21 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(
                 GeodesicDistanceCalculator.ComputeDistances(2, 2f, adjacency, vertices),
                 Is.Empty);
+        }
+
+        [Test]
+        public void GeodesicDistanceCalculator_SkipsNonFiniteEdges()
+        {
+            var adjacency = new List<HashSet<int>>
+            {
+                new HashSet<int> { 1 },
+                new HashSet<int> { 0 }
+            };
+            var vertices = new[] { Vector3.zero, new Vector3(float.NaN, 0f, 0f) };
+
+            var distances = GeodesicDistanceCalculator.ComputeDistances(0, 10f, adjacency, vertices);
+
+            Assert.That(distances.Keys, Is.EquivalentTo(new[] { 0 }));
         }
 
         [Test]
@@ -623,6 +638,27 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 ReleaseChecker.OnUpdateCheckCompleted -= OnCompleted;
                 RestoreReleaseCheckerState(previousState);
+            }
+        }
+
+        [Test]
+        public void ReleaseChecker_NotifyWithoutSubscribers_ReturnsNormally()
+        {
+            var field = typeof(ReleaseChecker).GetField(
+                "OnUpdateCheckCompleted",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null);
+            var previous = field.GetValue(null);
+            try
+            {
+                field.SetValue(null, null);
+                Assert.That(
+                    () => InvokeReleaseCheckerPrivate<object>("NotifyUpdateCheckCompleted"),
+                    Throws.Nothing);
+            }
+            finally
+            {
+                field.SetValue(null, previous);
             }
         }
 
