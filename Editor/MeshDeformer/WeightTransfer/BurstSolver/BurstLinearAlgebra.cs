@@ -35,16 +35,29 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
         public static double Dot(NativeArray<double> a, NativeArray<double> b)
         {
             var result = new NativeArray<double>(1, Allocator.TempJob);
+            try
+            {
+                return Dot(a, b, result);
+            }
+            finally
+            {
+                if (result.IsCreated) result.Dispose();
+            }
+        }
+
+        internal static double Dot(
+            NativeArray<double> a,
+            NativeArray<double> b,
+            NativeArray<double> scalarResult)
+        {
             var job = new DotProductJob
             {
                 a = a,
                 b = b,
-                result = result
+                result = scalarResult
             };
             job.Schedule().Complete();
-            double value = result[0];
-            result.Dispose();
-            return value;
+            return scalarResult[0];
         }
 
         /// <summary>
@@ -53,15 +66,27 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
         public static double Norm(NativeArray<double> a)
         {
             var result = new NativeArray<double>(1, Allocator.TempJob);
+            try
+            {
+                return Norm(a, result);
+            }
+            finally
+            {
+                if (result.IsCreated) result.Dispose();
+            }
+        }
+
+        internal static double Norm(
+            NativeArray<double> a,
+            NativeArray<double> scalarResult)
+        {
             var job = new NormJob
             {
                 a = a,
-                result = result
+                result = scalarResult
             };
             job.Schedule().Complete();
-            double value = result[0];
-            result.Dispose();
-            return value;
+            return scalarResult[0];
         }
 
         /// <summary>

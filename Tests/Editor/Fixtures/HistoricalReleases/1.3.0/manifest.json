@@ -1,0 +1,95 @@
+{
+    "tag": "1.3.0",
+    "commitSha": "6ffebe0f01b822292e4db090bcd5dea8b0b7648f",
+    "packageVersion": "1.3.0",
+    "unityVersion": "2022.3.22f1",
+    "generator": "Tools~/HistoricalFixtures/HistoricalFixtureGenerator.cs",
+    "generatorSha256": "48a4fa7bd9ce776e1a53052c7916f33284d940eeeb134ecc15757cddb9fc1d22",
+    "runner": "Tools~/HistoricalFixtures/Generate-HistoricalFixtures.ps1",
+    "runnerSha256": "d81ea92e5c8d28e28e42aae08cf07d059fc070da8b07a708f60616897ca94539",
+    "metaGuidScheme": "sha256-v1:tag/relative-asset-path",
+    "prefabFileIdScheme": "sha256-v1:tag/relative-prefab/class/ordinal",
+    "generationMode": "unity-batchmode-tag-checkout",
+    "goldenOutputSource": "historical-runtime-deform",
+    "fixtures": [
+        {
+            "kind": "lattice",
+            "prefab": "fixture.prefab",
+            "expected": "expected.json",
+            "source": "source.asset",
+            "goldenOutputSource": "LatticeDeformer.Deform(false)"
+        },
+        {
+            "kind": "lattice-remove-active-last",
+            "prefab": "fixture-remove-active-last.prefab",
+            "expected": "expected-remove-active-last.json",
+            "source": "source.asset",
+            "goldenOutputSource": "LatticeDeformer.Deform(false)"
+        },
+        {
+            "kind": "legacy-brush",
+            "prefab": "legacy-brush.prefab",
+            "expected": "legacy-brush-expected.json",
+            "source": "source.asset",
+            "goldenOutputSource": "BrushDeformer.Deform(false)"
+        }
+    ],
+    "files": [
+        {
+            "path": "expected-remove-active-last.json",
+            "sha256": "d0f13c34c5ddf2f2bd0dfeea53a6358c3556e4a82e1c012e9f9c0ed7f1d2e9d8"
+        },
+        {
+            "path": "expected-remove-active-last.json.meta",
+            "sha256": "a8989eb03ca62a4b26f288220b5d110bf037a2fe45675a0d3e5f0c1e3f2177b1"
+        },
+        {
+            "path": "expected.json",
+            "sha256": "86df3a9506d8c2e1800e6f46b67553df2878aa8d8dcd36a050b7bbf335ecde2b"
+        },
+        {
+            "path": "expected.json.meta",
+            "sha256": "209b07184d327bfb1bb29eb5b8a1316097cf00fcd79d150503f1b550b33feca8"
+        },
+        {
+            "path": "fixture-remove-active-last.prefab",
+            "sha256": "8aad4ac9fe0590dd6f28e0ba9837fbcc5ff2e9053fa9727986c515f4788e4a97"
+        },
+        {
+            "path": "fixture-remove-active-last.prefab.meta",
+            "sha256": "2ce72d6707cd6e663dfbc3a22efaf7c81406b788def536232da631a240f30c4a"
+        },
+        {
+            "path": "fixture.prefab",
+            "sha256": "3971f55c96153295705e2cb0846473f9da2a0c68056b14f2814f25b73434f4d1"
+        },
+        {
+            "path": "fixture.prefab.meta",
+            "sha256": "717c6c0e8499f4eb18d7843cea04b854ab26e923ecb1c4de4dd96f036ab56841"
+        },
+        {
+            "path": "legacy-brush-expected.json",
+            "sha256": "0f6bebf6aea659ae54cb62191b7e11b842d88033423049b42e8effc532b3e13a"
+        },
+        {
+            "path": "legacy-brush-expected.json.meta",
+            "sha256": "0a16c5cd62baa4d16295c484642f9a07f458099b351217a469084373007a68a6"
+        },
+        {
+            "path": "legacy-brush.prefab",
+            "sha256": "374d6f076edd782e866dcdc0a5cef9d34cd305861d22d8f175e1ba5900eb5503"
+        },
+        {
+            "path": "legacy-brush.prefab.meta",
+            "sha256": "4e1fd6ed9a22498573d4807df33de157152b9e2d027fcd788ef4768127e9fb79"
+        },
+        {
+            "path": "source.asset",
+            "sha256": "7c8f4da58f6222fe6a2de9b08c3f2254f95731fbac9bdbc752f5cbcb74ff7643"
+        },
+        {
+            "path": "source.asset.meta",
+            "sha256": "88b1f67609e86b5a5e92598a42ca5958527a6815fced70ea835beac2c700069f"
+        }
+    ]
+}

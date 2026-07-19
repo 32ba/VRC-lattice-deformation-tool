@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
@@ -150,10 +151,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _restoreOnComplete = restoreOnComplete;
             _previewProxyResolver = previewProxyResolver;
             _afterConditionApplied = afterConditionApplied;
+            Renderer originalTarget = deformer != null ? deformer.TargetRenderer : null;
+            Renderer initialPreviewProxy = null;
+            if (originalTarget != null)
+            {
+                initialPreviewProxy = previewProxyResolver != null
+                    ? previewProxyResolver(originalTarget)
+                    : ResolveEvaluationTarget(originalTarget, out bool usedInitialProxy);
+                if (ReferenceEquals(initialPreviewProxy, originalTarget)) initialPreviewProxy = null;
+            }
             _snapshot = SceneStateSnapshot.Capture(
                 _avatarRoot,
-                deformer != null ? deformer.TargetRenderer : null,
-                referenceRenderer);
+                originalTarget,
+                referenceRenderer,
+                scanSet,
+                initialPreviewProxy);
             Result = new ClearanceScanResult
             {
                 ScanSet = scanSet,
@@ -301,6 +313,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 evaluationTarget = ResolveEvaluationTarget(originalTarget, out usedPreviewProxy);
             }
+            if (evaluationTarget != originalTarget &&
+                !TrySynchronizeBlendShapeWeights(originalTarget, evaluationTarget, out string syncError))
+            {
+                return Error(
+                    conditionIndex,
+                    condition,
+                    ClearanceScanConditionStatus.MissingBlendShape,
+                    syncError);
+            }
             for (int index = 0; index < condition.BlendShapeOverrides.Count; index++)
             {
                 ClearanceBlendShapeOverride blendShape = condition.BlendShapeOverrides[index];
@@ -317,7 +338,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (blendShape.RendererRole == ClearanceScanRendererRole.Target &&
                     evaluationTarget != originalTarget)
                 {
-                    TrySetBlendShape(evaluationTarget, blendShape, out _);
+                    if (!TrySetBlendShape(evaluationTarget, blendShape, out string proxyError))
+                    {
+                        return Error(
+                            conditionIndex,
+                            condition,
+                            proxyError == "Renderer is not a SkinnedMeshRenderer."
+                                ? ClearanceScanConditionStatus.InvalidRenderer
+                                : ClearanceScanConditionStatus.MissingBlendShape,
+                            "Preview proxy: " + proxyError);
+                    }
                 }
             }
 
@@ -440,6 +470,48 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return true;
         }
 
+        private static bool TrySynchronizeBlendShapeWeights(
+            Renderer original,
+            Renderer proxy,
+            out string error)
+        {
+            error = "";
+            if (original is not SkinnedMeshRenderer originalSkinned ||
+                originalSkinned.sharedMesh == null)
+            {
+                return true;
+            }
+            if (proxy is not SkinnedMeshRenderer proxySkinned || proxySkinned.sharedMesh == null)
+            {
+                for (int index = 0; index < originalSkinned.sharedMesh.blendShapeCount; index++)
+                {
+                    if (Mathf.Abs(originalSkinned.GetBlendShapeWeight(index)) > 1e-6f)
+                    {
+                        error = "Preview proxy cannot represent active target BlendShapes.";
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            Mesh originalMesh = originalSkinned.sharedMesh;
+            Mesh proxyMesh = proxySkinned.sharedMesh;
+            for (int index = 0; index < originalMesh.blendShapeCount; index++)
+            {
+                string shapeName = originalMesh.GetBlendShapeName(index);
+                float weight = originalSkinned.GetBlendShapeWeight(index);
+                int proxyIndex = proxyMesh.GetBlendShapeIndex(shapeName);
+                if (proxyIndex < 0)
+                {
+                    if (Mathf.Abs(weight) <= 1e-6f) continue;
+                    error = "Preview proxy is missing active BlendShape: " + shapeName;
+                    return false;
+                }
+                proxySkinned.SetBlendShapeWeight(proxyIndex, weight);
+            }
+            return true;
+        }
+
         private static string GetHierarchyName(Transform transform)
         {
             if (transform == null) return "";
@@ -513,17 +585,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     internal sealed class SceneStateSnapshot
     {
         private readonly TransformState[] _transforms;
+        private readonly ComponentState[] _components;
         private readonly RendererState[] _renderers;
         private readonly SkinnedRendererState[] _skinnedRenderers;
         private readonly AnimatorState[] _animators;
 
         private SceneStateSnapshot(
             TransformState[] transforms,
+            ComponentState[] components,
             RendererState[] renderers,
             SkinnedRendererState[] skinnedRenderers,
             AnimatorState[] animators)
         {
             _transforms = transforms;
+            _components = components;
             _renderers = renderers;
             _skinnedRenderers = skinnedRenderers;
             _animators = animators;
@@ -532,9 +607,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal static SceneStateSnapshot Capture(
             Transform root,
             Renderer target,
-            Renderer reference)
+            Renderer reference,
+            ClearanceScanSet scanSet = null,
+            params Renderer[] additionalRenderers)
         {
             var transforms = new List<Transform>();
+            var components = new List<Component>();
             var renderers = new List<Renderer>();
             var skinned = new List<SkinnedMeshRenderer>();
             var animators = new List<Animator>();
@@ -544,13 +622,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 renderers.AddRange(root.GetComponentsInChildren<Renderer>(true));
                 skinned.AddRange(root.GetComponentsInChildren<SkinnedMeshRenderer>(true));
                 animators.AddRange(root.GetComponentsInChildren<Animator>(true));
+                AddAnimatedComponents(root, scanSet, components);
             }
             AddRenderer(target, renderers, skinned);
             AddRenderer(reference, renderers, skinned);
+            if (additionalRenderers != null)
+            {
+                for (int index = 0; index < additionalRenderers.Length; index++)
+                {
+                    AddRenderer(additionalRenderers[index], renderers, skinned);
+                }
+            }
 
             var transformStates = new TransformState[transforms.Count];
             for (int index = 0; index < transforms.Count; index++)
                 transformStates[index] = new TransformState(transforms[index]);
+            var componentStates = new ComponentState[components.Count];
+            for (int index = 0; index < components.Count; index++)
+                componentStates[index] = new ComponentState(components[index]);
             var rendererStates = new RendererState[renderers.Count];
             for (int index = 0; index < renderers.Count; index++)
                 rendererStates[index] = new RendererState(renderers[index]);
@@ -561,15 +650,57 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             for (int index = 0; index < animators.Count; index++)
                 animatorStates[index] = new AnimatorState(animators[index]);
             return new SceneStateSnapshot(
-                transformStates, rendererStates, skinnedStates, animatorStates);
+                transformStates, componentStates, rendererStates, skinnedStates, animatorStates);
         }
 
         internal void Restore()
         {
+            for (int index = 0; index < _components.Length; index++) _components[index].Restore();
+            for (int index = 0; index < _animators.Length; index++) _animators[index].Restore();
             for (int index = 0; index < _transforms.Length; index++) _transforms[index].Restore();
             for (int index = 0; index < _renderers.Length; index++) _renderers[index].Restore();
             for (int index = 0; index < _skinnedRenderers.Length; index++) _skinnedRenderers[index].Restore();
-            for (int index = 0; index < _animators.Length; index++) _animators[index].Restore();
+        }
+
+        private static void AddAnimatedComponents(
+            Transform avatarRoot,
+            ClearanceScanSet scanSet,
+            List<Component> destination)
+        {
+            if (avatarRoot == null || scanSet == null) return;
+            for (int conditionIndex = 0; conditionIndex < scanSet.Conditions.Count; conditionIndex++)
+            {
+                ClearanceScanCondition condition = scanSet.Conditions[conditionIndex];
+                if (condition == null || !condition.UseAnimationClip || condition.AnimationClip == null) continue;
+                Transform animationRoot = string.IsNullOrEmpty(condition.AnimationRootPath)
+                    ? avatarRoot
+                    : avatarRoot.Find(condition.AnimationRootPath);
+                if (animationRoot == null) continue;
+                EditorCurveBinding[] bindings = AnimationUtility.GetCurveBindings(condition.AnimationClip);
+                for (int bindingIndex = 0; bindingIndex < bindings.Length; bindingIndex++)
+                    AddBoundComponent(animationRoot, bindings[bindingIndex], destination);
+                EditorCurveBinding[] objectBindings = AnimationUtility.GetObjectReferenceCurveBindings(
+                    condition.AnimationClip);
+                for (int bindingIndex = 0; bindingIndex < objectBindings.Length; bindingIndex++)
+                    AddBoundComponent(animationRoot, objectBindings[bindingIndex], destination);
+            }
+        }
+
+        private static void AddBoundComponent(
+            Transform animationRoot,
+            EditorCurveBinding binding,
+            List<Component> destination)
+        {
+            if (binding.type == null || binding.type == typeof(Transform) ||
+                !typeof(Component).IsAssignableFrom(binding.type))
+            {
+                return;
+            }
+            Transform target = string.IsNullOrEmpty(binding.path)
+                ? animationRoot
+                : animationRoot.Find(binding.path);
+            Component component = target != null ? target.GetComponent(binding.type) : null;
+            if (component != null && !destination.Contains(component)) destination.Add(component);
         }
 
         private static void AddRenderer(
@@ -608,6 +739,38 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _transform.localScale = _scale;
                 if (_transform.gameObject.activeSelf != _active)
                     _transform.gameObject.SetActive(_active);
+            }
+        }
+
+        private readonly struct ComponentState
+        {
+            private readonly Component _component;
+            private readonly string _json;
+
+            internal ComponentState(Component component)
+            {
+                _component = component;
+                try
+                {
+                    _json = component != null ? EditorJsonUtility.ToJson(component) : null;
+                }
+                catch (Exception)
+                {
+                    _json = null;
+                }
+            }
+
+            internal void Restore()
+            {
+                if (_component == null || string.IsNullOrEmpty(_json)) return;
+                try
+                {
+                    EditorJsonUtility.FromJsonOverwrite(_json, _component);
+                }
+                catch (Exception)
+                {
+                    // Best-effort serialized restoration; specialized state below still restores essentials.
+                }
             }
         }
 
@@ -676,6 +839,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             private readonly bool _applyRootMotion;
             private readonly AnimatorUpdateMode _updateMode;
             private readonly AnimatorCullingMode _cullingMode;
+            private readonly LayerState[] _layers;
+            private readonly ParameterState[] _parameters;
 
             internal AnimatorState(Animator animator)
             {
@@ -685,6 +850,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _applyRootMotion = animator != null && animator.applyRootMotion;
                 _updateMode = animator != null ? animator.updateMode : AnimatorUpdateMode.Normal;
                 _cullingMode = animator != null ? animator.cullingMode : AnimatorCullingMode.AlwaysAnimate;
+                if (animator == null)
+                {
+                    _layers = Array.Empty<LayerState>();
+                    _parameters = Array.Empty<ParameterState>();
+                    return;
+                }
+
+                _layers = new LayerState[animator.layerCount];
+                for (int layer = 0; layer < _layers.Length; layer++)
+                    _layers[layer] = new LayerState(animator, layer);
+                AnimatorControllerParameter[] parameters = animator.parameters;
+                _parameters = new ParameterState[parameters.Length];
+                for (int index = 0; index < parameters.Length; index++)
+                    _parameters[index] = new ParameterState(animator, parameters[index]);
             }
 
             internal void Restore()
@@ -695,6 +874,86 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _animator.applyRootMotion = _applyRootMotion;
                 _animator.updateMode = _updateMode;
                 _animator.cullingMode = _cullingMode;
+                bool canRestoreState = _animator.runtimeAnimatorController != null &&
+                                       _animator.gameObject.activeInHierarchy;
+                if (canRestoreState)
+                {
+                    bool restoreEnabled = _animator.enabled;
+                    _animator.enabled = true;
+                    for (int layer = 0; layer < _layers.Length && layer < _animator.layerCount; layer++)
+                        _layers[layer].RestoreState(_animator, layer);
+                    _animator.Update(0f);
+                    for (int layer = 0; layer < _layers.Length && layer < _animator.layerCount; layer++)
+                        _layers[layer].RestoreWeight(_animator, layer);
+                    for (int index = 0; index < _parameters.Length; index++)
+                        _parameters[index].Restore(_animator);
+                    _animator.enabled = restoreEnabled;
+                }
+                _animator.enabled = _enabled;
+            }
+        }
+
+        private readonly struct LayerState
+        {
+            private readonly int _fullPathHash;
+            private readonly float _normalizedTime;
+            private readonly float _weight;
+
+            internal LayerState(Animator animator, int layer)
+            {
+                AnimatorStateInfo state = animator.GetCurrentAnimatorStateInfo(layer);
+                _fullPathHash = state.fullPathHash;
+                _normalizedTime = state.normalizedTime;
+                _weight = animator.GetLayerWeight(layer);
+            }
+
+            internal void RestoreState(Animator animator, int layer)
+            {
+                if (_fullPathHash != 0) animator.Play(_fullPathHash, layer, _normalizedTime);
+            }
+
+            internal void RestoreWeight(Animator animator, int layer)
+            {
+                animator.SetLayerWeight(layer, _weight);
+            }
+        }
+
+        private readonly struct ParameterState
+        {
+            private readonly int _hash;
+            private readonly AnimatorControllerParameterType _type;
+            private readonly float _floatValue;
+            private readonly int _intValue;
+            private readonly bool _boolValue;
+
+            internal ParameterState(Animator animator, AnimatorControllerParameter parameter)
+            {
+                _hash = parameter.nameHash;
+                _type = parameter.type;
+                _floatValue = _type == AnimatorControllerParameterType.Float ? animator.GetFloat(_hash) : 0f;
+                _intValue = _type == AnimatorControllerParameterType.Int ? animator.GetInteger(_hash) : 0;
+                _boolValue = (_type == AnimatorControllerParameterType.Bool ||
+                              _type == AnimatorControllerParameterType.Trigger) && animator.GetBool(_hash);
+            }
+
+            internal void Restore(Animator animator)
+            {
+                switch (_type)
+                {
+                    case AnimatorControllerParameterType.Float:
+                        animator.SetFloat(_hash, _floatValue);
+                        break;
+                    case AnimatorControllerParameterType.Int:
+                        animator.SetInteger(_hash, _intValue);
+                        break;
+                    case AnimatorControllerParameterType.Bool:
+                        animator.SetBool(_hash, _boolValue);
+                        break;
+                    case AnimatorControllerParameterType.Trigger:
+                        if (_boolValue) animator.SetTrigger(_hash);
+                        else animator.ResetTrigger(_hash);
+                        break;
+                }
             }
         }
     }

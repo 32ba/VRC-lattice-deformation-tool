@@ -760,6 +760,86 @@ msgstr "{0}: minimum {1:0.###} mm, violations {2}, target {3}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-error-format"
 msgstr "{0}: Error - {1}"
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction"
+msgstr "Fit Correction"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-scope"
+msgstr "Correction Scope"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-penetration-only"
+msgstr "Penetration Only"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-warning-threshold"
+msgstr "Warning Threshold"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-target-clearance"
+msgstr "Below Target Clearance"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-move-mm"
+msgstr "Maximum Move (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-candidate-vertices"
+msgstr "Candidate Vertices"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-planned-move"
+msgstr "Maximum Planned Move"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-unresolved-estimate"
+msgstr "Estimated Unresolved Vertices"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-fit-correction-layer"
+msgstr "Create Fit Correction Layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-posed-skinned-blocked"
+msgstr "Correction is blocked because the SkinnedMesh is posed or has active BlendShapes. Return it to rest pose first."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-stale"
+msgstr "The clearance evaluation is stale. Re-evaluate before generating a correction."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-topology-mismatch"
+msgstr "The evaluated mesh topology does not match the source mesh."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-no-candidates"
+msgstr "No vertices match the selected correction scope."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format"
+msgstr "Correction created. Improved: {0}, unresolved: {1}."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-constraints"
+msgstr "Shape Protection Constraints"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-vertex-mask"
+msgstr "Use Active Layer Mask"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-pin-open-boundaries"
+msgstr "Pin Open Boundaries"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-isolate-components"
+msgstr "Isolate Connected Components"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smooth-surface"
+msgstr "Surface-aware Smoothing"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-iterations"
+msgstr "Smoothing Iterations"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-strength"
+msgstr "Smoothing Strength"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preserve-clearance"
+msgstr "Preserve Solved Clearance"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-symmetry"
+msgstr "Use Symmetry"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-axis"
+msgstr "Symmetry Axis"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-tolerance-mm"
+msgstr "Symmetry Tolerance (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preview"
+msgstr "Preview Planned Correction"
 
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
@@ -1059,6 +1139,12 @@ msgstr "Import BlendShape"
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape.tooltip"
 msgstr "Load an existing ShapeKey as a paint layer to edit."
 
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-single-frame"
+msgstr "Single Frame"
+
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-all-frames"
+msgstr "All Frames"
+
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
 msgstr "(NDMF) Disable Lattice Preview"
@@ -1090,6 +1176,9 @@ msgstr "Offset"
 
 msgid "net.32ba.lattice-deformation-tool.localization.offset.tooltip"
 msgstr "Nudge the cage display position (visual only, doesn't affect deformation)."
+
+msgid "net.32ba.lattice-deformation-tool.localization.offset-tooltip"
+msgstr "Offset applied directly in proxy-local space before automatic centering and clamping"
 
 msgid "net.32ba.lattice-deformation-tool.localization.debug-log-alignment"
 msgstr "(Debug) Log Preview Alignment to Console"
@@ -1141,6 +1230,30 @@ msgstr "Brush Deformation"
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr "Section for brush-based vertex deformation settings."
 
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning"
+msgstr "This legacy component is not processed by the current NDMF pipeline. Migrate its deformation data to Mesh Deformer before continuing to edit it."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning.tooltip"
+msgstr "The original component will be kept as a disabled backup after migration."
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush"
+msgstr "Migrate to Mesh Deformer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush.tooltip"
+msgstr "Copies every displacement and rebuild option into a Mesh Deformer brush layer, then disables this legacy component."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded"
+msgstr "Migration completed. The legacy component was disabled and retained as a backup."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded.tooltip"
+msgstr "The migrated Mesh Deformer now contains the legacy brush deformation data."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed"
+msgstr "Migration failed: {0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed.tooltip"
+msgstr "No persistent migration changes are kept when validation fails."
+
 # Update notification
 msgid "net.32ba.lattice-deformation-tool.localization.update-available"
 msgstr "A new version is available"
@@ -1150,3 +1263,59 @@ msgstr "Current: {0}  Latest: {1}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
 msgstr "Open BOOTH Product Page"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition"
+msgstr "Frame Composition"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-single"
+msgstr "Single"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-progressive"
+msgstr "Progressive"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade"
+msgstr "Crossfade"
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
+msgstr "Store Move in Rest Space"
+
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
+msgstr "Converts Move edits made on a posed Skinned Mesh back into reusable rest-space displacements. Invalid skinning data safely falls back to the existing local-space behavior."
+# Deformer Profile
+msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
+msgstr "Deformer Profile"
+
+msgid "net.32ba.lattice-deformation-tool.localization.data-source"
+msgstr "Data Source"
+
+msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
+msgstr "Embedded"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
+msgstr "Profile"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
+msgstr "Create Profile"
+
+msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
+msgstr "Save to Profile"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
+msgstr "Copy to Instance"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
+msgstr "Select a profile when Profile is the data source."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
+msgstr "Profile data is previewed as an independent instance copy. Copy it to the component to edit groups and layers."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-exact-match"
+msgstr "Exact match: this profile was saved for the selected source mesh."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs"
+msgstr "Compatible: the topology matches, but the source asset differs or cannot be identified."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked"
+msgstr "Topology mismatch: this profile was not applied because it is incompatible with the source mesh."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
+msgstr "Legacy profile: compatibility metadata is unavailable. Application is allowed with caution; save the profile again to add metadata."

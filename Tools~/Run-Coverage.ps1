@@ -69,7 +69,6 @@ if ($vrchatAvailable) {
 }
 
 $assemblyFilters = "assemblyFilters:+" + ($targetAssemblies -join ",+")
-$packagePath = $packagePathForFileCheck.Replace("\", "/")
 $coverageOptions = @(
     "generateAdditionalMetrics"
     "generateHtmlReport"
@@ -77,7 +76,9 @@ $coverageOptions = @(
     "generateAdditionalReports"
     "generateTestReferences"
     $assemblyFilters
-    "pathFilters:+$packagePath/Runtime/**,+$packagePath/Editor/**,-**/Tests/**"
+    # Unity portable PDBs record package documents as .\Packages\..., even when
+    # the project/package paths passed to Unity are absolute.
+    "pathFilters:+**/Packages/net.32ba.lattice-deformation-tool/Runtime/**,+**/Packages/net.32ba.lattice-deformation-tool/Editor/**,-**/Tests/**"
 ) -join ";"
 
 Write-Host "ProjectPath: $ProjectPath"
@@ -123,7 +124,8 @@ $arguments = @(
     "-projectPath", $ProjectPath
     "-runTests"
     "-testPlatform", "editmode"
-    "-assemblyNames", ($testAssemblies -join ",")
+    # Unity Test Framework 1.4.x splits array-valued CLI options on semicolons.
+    "-assemblyNames", ($testAssemblies -join ";")
     "-testResults", $TestResultsPath
     "-debugCodeOptimization"
     "-burst-disable-compilation"
@@ -131,15 +133,14 @@ $arguments = @(
     "-coverageResultsPath", $ResultsPath
     "-coverageOptions", $coverageOptions
     "-logFile", (Join-Path $ResultsPath "unity-coverage.log")
-    "-quit"
 )
 
 Write-Host "ProjectPath: $ProjectPath"
 Write-Host "ResultsPath: $ResultsPath"
 Write-Host "CoverageOptions: $coverageOptions"
 
-& $UnityPath @arguments
-$exitCode = $LASTEXITCODE
+$unityProcess = Start-Process -FilePath $UnityPath -ArgumentList $arguments -PassThru -Wait
+$exitCode = $unityProcess.ExitCode
 if ($exitCode -ne 0) {
     throw "Unity coverage run failed with exit code $exitCode. See $(Join-Path $ResultsPath 'unity-coverage.log')"
 }

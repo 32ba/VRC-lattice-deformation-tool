@@ -214,6 +214,109 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeLocalization_AllCatalogsContainShowWireframeLabelAndTooltip()
+        {
+            var method = typeof(LatticeLocalization).GetMethod(
+                "EnsureCatalogLoaded",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null);
+
+            foreach (LatticeLocalization.Language language in Enum.GetValues(typeof(LatticeLocalization.Language)))
+            {
+                var catalog = method.Invoke(null, new object[] { language, true })
+                    as IReadOnlyDictionary<string, string>;
+
+                Assert.That(catalog, Is.Not.Null, language.ToString());
+                Assert.That(catalog[LocKey.ShowWireframe], Is.Not.Null.And.Not.Empty, language.ToString());
+                Assert.That(
+                    catalog[LocKey.ShowWireframe + ".tooltip"],
+                    Is.Not.Null.And.Not.Empty,
+                    language.ToString());
+            }
+        }
+
+        [Test]
+        public void LatticeLocalization_AllCatalogsContainLegacyBrushMigrationMessages()
+        {
+            var method = typeof(LatticeLocalization).GetMethod(
+                "EnsureCatalogLoaded",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null);
+
+            string[] keys =
+            {
+                LocKey.LegacyBrushMigrationWarning,
+                LocKey.MigrateLegacyBrush,
+                LocKey.LegacyBrushMigrationSucceeded,
+                LocKey.LegacyBrushMigrationFailed
+            };
+
+            foreach (LatticeLocalization.Language language in Enum.GetValues(typeof(LatticeLocalization.Language)))
+            {
+                var catalog = method.Invoke(null, new object[] { language, true })
+                    as IReadOnlyDictionary<string, string>;
+
+                Assert.That(catalog, Is.Not.Null, language.ToString());
+                foreach (string key in keys)
+                {
+                    Assert.That(catalog.ContainsKey(key), Is.True, $"{language}: {key}");
+                    Assert.That(catalog[key], Is.Not.Null.And.Not.Empty, $"{language}: {key}");
+                    Assert.That(catalog.ContainsKey(key + ".tooltip"), Is.True, $"{language}: {key}.tooltip");
+                    Assert.That(
+                        catalog[key + ".tooltip"],
+                        Is.Not.Null.And.Not.Empty,
+                        $"{language}: {key}.tooltip");
+                }
+
+                Assert.That(
+                    catalog[LocKey.LegacyBrushMigrationFailed],
+                    Does.Contain("{0}"),
+                    $"{language}: failure reason placeholder");
+            }
+        }
+
+        [Test]
+        public void LatticeLocalization_AllPoFilesDeclareIdenticalMessageIds()
+        {
+            string[] relativePaths =
+            {
+                "Editor/Localization/en.po",
+                "Editor/Localization/ja.po",
+                "Editor/Localization/ko.po",
+                "Editor/Localization/zh-Hans.po",
+                "Editor/Localization/zh-Hant.po"
+            };
+
+            var keySets = relativePaths.ToDictionary(
+                relativePath => relativePath,
+                relativePath =>
+                {
+                    string absolutePath = InvokeLocalizationPrivate<string>(
+                        "ResolveCatalogPath",
+                        relativePath);
+                    Assert.That(absolutePath, Is.Not.Null.And.Not.Empty, relativePath);
+                    Assert.That(File.Exists(absolutePath), Is.True, relativePath);
+                    return LatticeLocalization.ParsePo(File.ReadAllLines(absolutePath))
+                        .Keys
+                        .ToHashSet(StringComparer.Ordinal);
+                });
+
+            var baseline = keySets[relativePaths[0]];
+            foreach (string relativePath in relativePaths.Skip(1))
+            {
+                var current = keySets[relativePath];
+                Assert.That(
+                    baseline.Except(current).OrderBy(key => key),
+                    Is.Empty,
+                    $"{relativePath} is missing msgid values declared by {relativePaths[0]}");
+                Assert.That(
+                    current.Except(baseline).OrderBy(key => key),
+                    Is.Empty,
+                    $"{relativePath} declares msgid values missing from {relativePaths[0]}");
+            }
+        }
+
+        [Test]
         public void LatticeLocalization_PrivateLoadCatalog_HandlesMissingAndInvalidRoot()
         {
             var root = Path.Combine(Path.GetTempPath(), "lattice-localization-missing-" + Guid.NewGuid().ToString("N"));
@@ -412,14 +515,53 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var vertices = new[]
             {
                 new Vector3(0f, 0f, 0f),
-                new Vector3(10f, 0f, 0f),
-                new Vector3(1f, 0f, 0f),
-                new Vector3(2f, 0f, 0f)
+                new Vector3(0f, 1f, 0f),
+                new Vector3(5f, 0f, 0f),
+                new Vector3(10f, 0f, 0f)
             };
 
             var distances = GeodesicDistanceCalculator.ComputeDistances(0, 20f, adjacency, vertices);
 
-            Assert.That(distances[3], Is.EqualTo(2f).Within(1e-6f));
+            Assert.That(distances[3], Is.EqualTo(10f).Within(1e-6f));
+        }
+
+        [Test]
+        public void GeodesicDistanceCalculator_IgnoresInvalidNeighborsAndDistance()
+        {
+            var adjacency = new List<HashSet<int>>
+            {
+                new HashSet<int> { -1, 1, 99 },
+                new HashSet<int> { 0 },
+                new HashSet<int> { 0 }
+            };
+            var vertices = new[] { Vector3.zero, Vector3.right };
+
+            var distances = GeodesicDistanceCalculator.ComputeDistances(0, 2f, adjacency, vertices);
+
+            Assert.That(distances.Keys, Is.EquivalentTo(new[] { 0, 1 }));
+            var nanDistances = GeodesicDistanceCalculator.ComputeDistances(0, float.NaN, adjacency, vertices);
+            Assert.That(nanDistances.Keys, Is.EquivalentTo(new[] { 0, 1 }));
+            Assert.That(
+                GeodesicDistanceCalculator.ComputeDistances(0, -1f, adjacency, vertices),
+                Does.ContainKey(0));
+            Assert.That(
+                GeodesicDistanceCalculator.ComputeDistances(2, 2f, adjacency, vertices),
+                Is.Empty);
+        }
+
+        [Test]
+        public void GeodesicDistanceCalculator_SkipsNonFiniteEdges()
+        {
+            var adjacency = new List<HashSet<int>>
+            {
+                new HashSet<int> { 1 },
+                new HashSet<int> { 0 }
+            };
+            var vertices = new[] { Vector3.zero, new Vector3(float.NaN, 0f, 0f) };
+
+            var distances = GeodesicDistanceCalculator.ComputeDistances(0, 10f, adjacency, vertices);
+
+            Assert.That(distances.Keys, Is.EquivalentTo(new[] { 0 }));
         }
 
         [Test]
@@ -463,6 +605,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [Test]
         public void ReleaseChecker_PrivateHandlers_UpdateStateAndRaiseEvent()
         {
+            var previousState = CaptureReleaseCheckerState();
             int completed = 0;
             void OnCompleted() => completed++;
 
@@ -494,6 +637,91 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally
             {
                 ReleaseChecker.OnUpdateCheckCompleted -= OnCompleted;
+                RestoreReleaseCheckerState(previousState);
+            }
+        }
+
+        [Test]
+        public void ReleaseChecker_NotifyWithoutSubscribers_ReturnsNormally()
+        {
+            var field = typeof(ReleaseChecker).GetField(
+                "OnUpdateCheckCompleted",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null);
+            var previous = field.GetValue(null);
+            try
+            {
+                field.SetValue(null, null);
+                Assert.That(
+                    () => InvokeReleaseCheckerPrivate<object>("NotifyUpdateCheckCompleted"),
+                    Throws.Nothing);
+            }
+            finally
+            {
+                field.SetValue(null, previous);
+            }
+        }
+
+        [Test]
+        public void ReleaseChecker_CompletionNotificationException_DoesNotStopOtherSubscribers()
+        {
+            var previousState = CaptureReleaseCheckerState();
+            int completed = 0;
+            void ThrowingSubscriber() => throw new InvalidOperationException("completion subscriber failed");
+            void CountingSubscriber() => completed++;
+
+            ReleaseChecker.OnUpdateCheckCompleted += ThrowingSubscriber;
+            ReleaseChecker.OnUpdateCheckCompleted += CountingSubscriber;
+            try
+            {
+                LogAssert.Expect(
+                    LogType.Warning,
+                    new System.Text.RegularExpressions.Regex(@"\[LatticeDeformationTool\] Update check failed: network failed"));
+                LogAssert.Expect(
+                    LogType.Exception,
+                    new System.Text.RegularExpressions.Regex("completion subscriber failed"));
+
+                InvokeReleaseCheckerHandler("HandleError", "network failed");
+
+                Assert.That(ReleaseChecker.IsChecking, Is.False);
+                Assert.That(completed, Is.EqualTo(1));
+                Assert.That(ReleaseChecker.CheckError, Is.EqualTo("network failed"));
+            }
+            finally
+            {
+                ReleaseChecker.OnUpdateCheckCompleted -= ThrowingSubscriber;
+                ReleaseChecker.OnUpdateCheckCompleted -= CountingSubscriber;
+                RestoreReleaseCheckerState(previousState);
+            }
+        }
+
+        [Test]
+        public void EditorCoroutine_Exception_ClearsReleaseCheckerStateAndNotifiesOnce()
+        {
+            var previousState = CaptureReleaseCheckerState();
+            SetReleaseCheckerIsChecking(true);
+            int completed = 0;
+            void OnCompleted() => completed++;
+            ReleaseChecker.OnUpdateCheckCompleted += OnCompleted;
+            try
+            {
+                LogAssert.Expect(LogType.Exception, new System.Text.RegularExpressions.Regex("routine failed"));
+
+                var coroutine = EditorCoroutine.Start(
+                    ThrowingRoutine(),
+                    exception => InvokeReleaseCheckerExceptionHandler(exception));
+                Assert.That(InvokeRegisteredEditorCoroutineUpdate(coroutine), Is.True);
+                Assert.That(InvokeRegisteredEditorCoroutineUpdate(coroutine), Is.True);
+
+                Assert.That(ReleaseChecker.IsChecking, Is.False);
+                Assert.That(ReleaseChecker.CheckError, Is.EqualTo("routine failed"));
+                Assert.That(completed, Is.EqualTo(1));
+                Assert.That(IsEditorCoroutineRegistered(coroutine), Is.False);
+            }
+            finally
+            {
+                ReleaseChecker.OnUpdateCheckCompleted -= OnCompleted;
+                RestoreReleaseCheckerState(previousState);
             }
         }
 
@@ -545,6 +773,99 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
             Assert.That(method, Is.Not.Null);
             method.Invoke(null, new object[] { value });
+        }
+
+        private static void InvokeReleaseCheckerExceptionHandler(Exception exception)
+        {
+            var method = typeof(ReleaseChecker).GetMethod(
+                "HandleCoroutineException",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null);
+            method.Invoke(null, new object[] { exception });
+        }
+
+        private static void SetReleaseCheckerIsChecking(bool value)
+        {
+            SetReleaseCheckerBackingField("<IsChecking>k__BackingField", value);
+        }
+
+        private readonly struct ReleaseCheckerState
+        {
+            public readonly bool IsChecking;
+            public readonly string CheckError;
+            public readonly string LatestVersion;
+            public readonly bool HasNewVersion;
+
+            public ReleaseCheckerState(bool isChecking, string checkError, string latestVersion, bool hasNewVersion)
+            {
+                IsChecking = isChecking;
+                CheckError = checkError;
+                LatestVersion = latestVersion;
+                HasNewVersion = hasNewVersion;
+            }
+        }
+
+        private static ReleaseCheckerState CaptureReleaseCheckerState()
+        {
+            return new ReleaseCheckerState(
+                ReleaseChecker.IsChecking,
+                ReleaseChecker.CheckError,
+                ReleaseChecker.LatestVersion,
+                ReleaseChecker.HasNewVersion);
+        }
+
+        private static void RestoreReleaseCheckerState(ReleaseCheckerState state)
+        {
+            SetReleaseCheckerBackingField("<IsChecking>k__BackingField", state.IsChecking);
+            SetReleaseCheckerBackingField("<CheckError>k__BackingField", state.CheckError);
+            SetReleaseCheckerBackingField("<LatestVersion>k__BackingField", state.LatestVersion);
+            SetReleaseCheckerBackingField("<HasNewVersion>k__BackingField", state.HasNewVersion);
+        }
+
+        private static void SetReleaseCheckerBackingField(string fieldName, object value)
+        {
+            var field = typeof(ReleaseChecker).GetField(
+                fieldName,
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null);
+            field.SetValue(null, value);
+        }
+
+        private static bool InvokeRegisteredEditorCoroutineUpdate(EditorCoroutine coroutine)
+        {
+            var field = typeof(EditorApplication).GetField(
+                "update",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null);
+
+            var callbacks = field.GetValue(null) as Delegate;
+            var callback = callbacks?.GetInvocationList()
+                .FirstOrDefault(item => ReferenceEquals(item.Target, coroutine));
+            if (callback == null)
+            {
+                return false;
+            }
+
+            callback.DynamicInvoke();
+            return true;
+        }
+
+        private static bool IsEditorCoroutineRegistered(EditorCoroutine coroutine)
+        {
+            var field = typeof(EditorApplication).GetField(
+                "update",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null);
+
+            var callbacks = field.GetValue(null) as Delegate;
+            return callbacks != null && callbacks.GetInvocationList()
+                .Any(item => ReferenceEquals(item.Target, coroutine));
+        }
+
+        private static System.Collections.IEnumerator ThrowingRoutine()
+        {
+            yield return null;
+            throw new InvalidOperationException("routine failed");
         }
 
         private static T InvokeReleaseCheckerPrivate<T>(string methodName, params object[] args)

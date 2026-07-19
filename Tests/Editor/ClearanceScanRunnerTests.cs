@@ -4,6 +4,7 @@ using System.Linq;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEditor.Animations;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -85,6 +86,97 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Object.DestroyImmediate(scanSet);
                 Object.DestroyImmediate(clip);
                 fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void AnimationSample_RestoresArbitrarySerializedComponentProperty()
+        {
+            var fixture = Fixture.CreateMeshRenderers();
+            var probeObject = new GameObject("Probe");
+            probeObject.transform.SetParent(fixture.Root.transform, false);
+            var probe = probeObject.AddComponent<ClearanceScanAnimationProbe>();
+            probe.Value = 7f;
+            var clip = new AnimationClip { legacy = true, name = "Component Property" };
+            clip.SetCurve(
+                "Probe",
+                typeof(ClearanceScanAnimationProbe),
+                nameof(ClearanceScanAnimationProbe.Value),
+                AnimationCurve.Constant(0f, 1f, 42f));
+            var scanSet = NewScanSet(new ClearanceScanCondition
+            {
+                Name = "Component",
+                UseAnimationClip = true,
+                AnimationClip = clip,
+                SampleTime = 0.5f
+            });
+            try
+            {
+                ClearanceScanResult result = Run(fixture, scanSet);
+
+                Assert.That(result.SuccessfulConditionCount, Is.EqualTo(1));
+                Assert.That(probe.Value, Is.EqualTo(7f).Within(Epsilon));
+            }
+            finally
+            {
+                Object.DestroyImmediate(scanSet);
+                Object.DestroyImmediate(clip);
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void SceneSnapshot_RestoresAnimatorLayerStatesWeightsAndParameters()
+        {
+            const string controllerPath = "Assets/__ClearanceScanAnimator.controller";
+            var root = new GameObject("Animator Root");
+            var animator = root.AddComponent<Animator>();
+            AnimatorController controller = AnimatorController.CreateAnimatorControllerAtPath(controllerPath);
+            controller.AddParameter("Float", AnimatorControllerParameterType.Float);
+            controller.AddParameter("Int", AnimatorControllerParameterType.Int);
+            controller.AddParameter("Bool", AnimatorControllerParameterType.Bool);
+            AnimatorState baseA = controller.layers[0].stateMachine.AddState("BaseA");
+            AnimatorState baseB = controller.layers[0].stateMachine.AddState("BaseB");
+            controller.layers[0].stateMachine.defaultState = baseA;
+            controller.AddLayer("Upper");
+            AnimatorControllerLayer upper = controller.layers[1];
+            AnimatorState upperA = upper.stateMachine.AddState("UpperA");
+            AnimatorState upperB = upper.stateMachine.AddState("UpperB");
+            upper.stateMachine.defaultState = upperA;
+            controller.layers = new[] { controller.layers[0], upper };
+            animator.runtimeAnimatorController = controller;
+            animator.Rebind();
+            animator.Play(Animator.StringToHash("Base Layer.BaseA"), 0, 0.25f);
+            animator.Play(Animator.StringToHash("Upper.UpperA"), 1, 0.5f);
+            animator.SetLayerWeight(1, 0.35f);
+            animator.SetFloat("Float", 1.25f);
+            animator.SetInteger("Int", 7);
+            animator.SetBool("Bool", true);
+            animator.Update(0f);
+            var snapshot = SceneStateSnapshot.Capture(root.transform, null, null);
+            try
+            {
+                animator.Play(Animator.StringToHash("Base Layer.BaseB"), 0, 0.8f);
+                animator.Play(Animator.StringToHash("Upper.UpperB"), 1, 0.9f);
+                animator.SetLayerWeight(1, 0.9f);
+                animator.SetFloat("Float", 9f);
+                animator.SetInteger("Int", 99);
+                animator.SetBool("Bool", false);
+                animator.Update(0f);
+
+                snapshot.Restore();
+
+                Assert.That(animator.GetCurrentAnimatorStateInfo(0).IsName("BaseA"), Is.True);
+                Assert.That(animator.GetCurrentAnimatorStateInfo(1).IsName("UpperA"), Is.True);
+                Assert.That(animator.GetLayerWeight(1), Is.EqualTo(0.35f).Within(Epsilon));
+                Assert.That(animator.GetFloat("Float"), Is.EqualTo(1.25f).Within(Epsilon));
+                Assert.That(animator.GetInteger("Int"), Is.EqualTo(7));
+                Assert.That(animator.GetBool("Bool"), Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                AssetDatabase.DeleteAsset(controllerPath);
             }
         }
 
@@ -382,6 +474,138 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void PreviewProxyOutsideAvatarRoot_RestoresBlendShapeWeights()
+        {
+            var fixture = Fixture.CreateSkinnedRenderers();
+            var proxyObject = new GameObject("External Preview Proxy");
+            var proxy = proxyObject.AddComponent<SkinnedMeshRenderer>();
+            proxy.sharedMesh = fixture.TargetMesh;
+            proxy.SetBlendShapeWeight(0, 33f);
+            var condition = new ClearanceScanCondition { Name = "Proxy Shape" };
+            condition.BlendShapeOverrides.Add(new ClearanceBlendShapeOverride
+            {
+                RendererRole = ClearanceScanRendererRole.Target,
+                BlendShapeName = "Scan",
+                Weight = 80f
+            });
+            var scanSet = NewScanSet(condition);
+            using var operation = new ClearanceScanOperation(
+                scanSet,
+                fixture.Deformer,
+                fixture.Reference,
+                fixture.Root.transform,
+                ClearanceQueryMode.ReferenceNormal,
+                0.005f,
+                0.01f,
+                previewProxyResolver: _ => proxy);
+            try
+            {
+                ClearanceScanResult result = operation.RunToCompletion();
+
+                Assert.That(result.SuccessfulConditionCount, Is.EqualTo(1));
+                Assert.That(proxy.GetBlendShapeWeight(0), Is.EqualTo(33f).Within(Epsilon));
+            }
+            finally
+            {
+                Object.DestroyImmediate(scanSet);
+                Object.DestroyImmediate(proxyObject);
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void AnimationClipBlendShape_IsSynchronizedToPreviewProxyAndRestored()
+        {
+            var fixture = Fixture.CreateSkinnedRenderers();
+            var proxyObject = new GameObject("External Animated Proxy");
+            var proxy = proxyObject.AddComponent<SkinnedMeshRenderer>();
+            proxy.sharedMesh = fixture.TargetMesh;
+            proxy.SetBlendShapeWeight(0, 15f);
+            var clip = new AnimationClip { legacy = true, name = "BlendShape Clip" };
+            clip.SetCurve(
+                "Target",
+                typeof(SkinnedMeshRenderer),
+                "blendShape.Scan",
+                AnimationCurve.Constant(0f, 1f, 100f));
+            var scanSet = NewScanSet(new ClearanceScanCondition
+            {
+                Name = "Animated Proxy Shape",
+                UseAnimationClip = true,
+                AnimationClip = clip,
+                SampleTime = 0.5f
+            });
+            float observedProxyWeight = -1f;
+            using var operation = new ClearanceScanOperation(
+                scanSet,
+                fixture.Deformer,
+                fixture.Reference,
+                fixture.Root.transform,
+                ClearanceQueryMode.ReferenceNormal,
+                0.005f,
+                0.01f,
+                previewProxyResolver: _ => proxy,
+                afterConditionApplied: _ => observedProxyWeight = proxy.GetBlendShapeWeight(0));
+            try
+            {
+                ClearanceScanResult result = operation.RunToCompletion();
+
+                Assert.That(result.SuccessfulConditionCount, Is.EqualTo(1));
+                Assert.That(observedProxyWeight, Is.EqualTo(100f).Within(Epsilon));
+                Assert.That(proxy.GetBlendShapeWeight(0), Is.EqualTo(15f).Within(Epsilon));
+            }
+            finally
+            {
+                Object.DestroyImmediate(scanSet);
+                Object.DestroyImmediate(clip);
+                Object.DestroyImmediate(proxyObject);
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void PreviewProxyMissingExplicitBlendShape_IsConditionError()
+        {
+            var fixture = Fixture.CreateSkinnedRenderers();
+            var proxyObject = new GameObject("Proxy Without Shape");
+            var proxyMesh = new Mesh { name = "Proxy Without Shape Mesh" };
+            proxyMesh.vertices = fixture.TargetMesh.vertices;
+            proxyMesh.triangles = fixture.TargetMesh.triangles;
+            var proxy = proxyObject.AddComponent<SkinnedMeshRenderer>();
+            proxy.sharedMesh = proxyMesh;
+            var condition = new ClearanceScanCondition { Name = "Missing Proxy Shape" };
+            condition.BlendShapeOverrides.Add(new ClearanceBlendShapeOverride
+            {
+                RendererRole = ClearanceScanRendererRole.Target,
+                BlendShapeName = "Scan",
+                Weight = 80f
+            });
+            var scanSet = NewScanSet(condition);
+            using var operation = new ClearanceScanOperation(
+                scanSet,
+                fixture.Deformer,
+                fixture.Reference,
+                fixture.Root.transform,
+                ClearanceQueryMode.ReferenceNormal,
+                0.005f,
+                0.01f,
+                previewProxyResolver: _ => proxy);
+            try
+            {
+                ClearanceScanConditionResult result = operation.RunToCompletion().Conditions.Single();
+
+                Assert.That(result.Status, Is.EqualTo(ClearanceScanConditionStatus.MissingBlendShape));
+                Assert.That(result.ErrorMessage, Does.Contain("Preview proxy"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(scanSet);
+                Object.DestroyImmediate(proxyObject);
+                Object.DestroyImmediate(proxyMesh);
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
         public void ApplyConditionPreview_LeavesStateUntilDisposedThenRestores()
         {
             var fixture = Fixture.CreateMeshRenderers();
@@ -606,6 +830,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 return mesh;
             }
         }
+    }
+
+    public sealed class ClearanceScanAnimationProbe : MonoBehaviour
+    {
+        public float Value;
     }
 }
 #endif

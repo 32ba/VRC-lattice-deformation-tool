@@ -201,6 +201,12 @@ namespace Net._32Ba.LatticeDeformationTool
             Mesh nextSource = GetSharedSourceMesh();
             if (_runtimeMesh != null && ReferenceEquals(_runtimeMesh, nextSource)) return;
 
+            bool meshChanged = !ReferenceEquals(_sourceMesh, nextSource);
+            if (meshChanged)
+            {
+                ReleaseRuntimeMesh();
+            }
+
             _sourceMesh = nextSource;
             if (!ReferenceEquals(_serializedSourceMesh, nextSource))
             {

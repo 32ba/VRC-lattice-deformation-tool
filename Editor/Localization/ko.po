@@ -613,6 +613,12 @@ msgstr "시각화"
 msgid "net.32ba.lattice-deformation-tool.localization.visualization.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.show-wireframe"
+msgstr "와이어프레임 표시"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-wireframe.tooltip"
+msgstr "면의 형태를 확인할 수 있도록 메쉬의 모서리를 표시합니다."
+
 msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices"
 msgstr "영향 버텍스 표시"
 
@@ -754,6 +760,86 @@ msgstr "{0}: 최소 {1:0.###} mm, 위반 {2}, 대상 {3}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-error-format"
 msgstr "{0}: 오류 - {1}"
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction"
+msgstr "맞춤 보정"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-scope"
+msgstr "보정 범위"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-penetration-only"
+msgstr "관통 버텍스만"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-warning-threshold"
+msgstr "경고 임계값 이하"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-target-clearance"
+msgstr "목표 클리어런스 미만"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-move-mm"
+msgstr "최대 이동 거리 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-candidate-vertices"
+msgstr "보정 대상 버텍스"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-planned-move"
+msgstr "최대 예정 이동량"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-unresolved-estimate"
+msgstr "예상 미해결 버텍스"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-fit-correction-layer"
+msgstr "Fit Correction 레이어 만들기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-posed-skinned-blocked"
+msgstr "SkinnedMesh가 포즈 중이거나 BlendShape가 적용되어 보정을 만들 수 없습니다. rest pose로 되돌리세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-stale"
+msgstr "클리어런스 평가가 오래되었습니다. 다시 평가한 후 보정을 만드세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-topology-mismatch"
+msgstr "평가 메시의 토폴로지가 Source Mesh와 일치하지 않습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-no-candidates"
+msgstr "선택한 보정 범위에 해당하는 버텍스가 없습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format"
+msgstr "보정을 만들었습니다. 개선: {0}, 미해결: {1}."
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-constraints"
+msgstr "형상 보호 제약"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-vertex-mask"
+msgstr "활성 레이어 마스크 사용"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-pin-open-boundaries"
+msgstr "열린 경계 고정"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-isolate-components"
+msgstr "연결 요소 분리"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smooth-surface"
+msgstr "표면 기반 스무딩"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-iterations"
+msgstr "스무딩 반복 횟수"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-strength"
+msgstr "스무딩 강도"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preserve-clearance"
+msgstr "해결된 클리어런스 유지"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-symmetry"
+msgstr "대칭 사용"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-axis"
+msgstr "대칭 축"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-tolerance-mm"
+msgstr "대칭 허용 거리 (mm)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preview"
+msgstr "예정된 보정 미리보기"
 
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
@@ -1053,6 +1139,12 @@ msgstr "BlendShape 가져오기"
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-single-frame"
+msgstr "단일 프레임"
+
+msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-all-frames"
+msgstr "모든 프레임"
+
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
 msgstr "(NDMF) Disable Lattice Preview"
@@ -1138,6 +1230,30 @@ msgstr "브러시 변형"
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning"
+msgstr "이 레거시 컴포넌트는 현재 NDMF 파이프라인에서 처리되지 않습니다. 편집을 계속하기 전에 변형 데이터를 Mesh Deformer로 마이그레이션하세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning.tooltip"
+msgstr "마이그레이션 후에도 원본 컴포넌트는 비활성화된 백업으로 유지됩니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush"
+msgstr "Mesh Deformer로 마이그레이션"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush.tooltip"
+msgstr "모든 변위와 메시 재구성 설정을 Mesh Deformer 브러시 레이어로 복사한 뒤 이 레거시 컴포넌트를 비활성화합니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded"
+msgstr "마이그레이션이 완료되었습니다. 레거시 컴포넌트는 비활성화되어 백업으로 유지됩니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded.tooltip"
+msgstr "마이그레이션된 Mesh Deformer에 기존 브러시 변형 데이터가 저장되었습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed"
+msgstr "마이그레이션 실패: {0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed.tooltip"
+msgstr "검증에 실패하면 영구적인 마이그레이션 변경 사항이 유지되지 않습니다."
+
 # Update notification
 msgid "net.32ba.lattice-deformation-tool.localization.update-available"
 msgstr "새 버전을 사용할 수 있습니다"
@@ -1147,3 +1263,59 @@ msgstr "현재: {0}  최신: {1}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
 msgstr "BOOTH 상품 페이지 열기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition"
+msgstr "프레임 합성"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-single"
+msgstr "단일"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-progressive"
+msgstr "단계 누적"
+
+msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade"
+msgstr "크로스페이드"
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
+msgstr "Move를 Rest Space로 저장"
+
+msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
+msgstr "포즈된 Skinned Mesh에서 수행한 Move 편집을 재사용 가능한 rest-space 변위로 변환합니다. Skinning 데이터가 잘못된 경우 기존 local-space 동작으로 안전하게 대체합니다."
+# Deformer Profile
+msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
+msgstr "변형 프로필"
+
+msgid "net.32ba.lattice-deformation-tool.localization.data-source"
+msgstr "데이터 소스"
+
+msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
+msgstr "내장 데이터"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
+msgstr "프로필 참조"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
+msgstr "프로필 만들기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
+msgstr "프로필에 저장"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
+msgstr "인스턴스로 복제"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
+msgstr "데이터 소스로 프로필을 사용할 때는 프로필을 선택하세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
+msgstr "프로필 데이터는 독립된 인스턴스 복사본으로 미리 봅니다. 그룹과 레이어를 편집하려면 컴포넌트로 복제하세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-exact-match"
+msgstr "정확히 일치: 이 프로필은 선택한 소스 메시용으로 저장되었습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs"
+msgstr "호환됨: 토폴로지는 일치하지만 소스 에셋이 다르거나 식별할 수 없습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked"
+msgstr "토폴로지 불일치: 소스 메시와 호환되지 않아 이 프로필을 적용하지 않았습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
+msgstr "레거시 프로필: 호환성 메타데이터가 없습니다. 주의하여 적용할 수 있으며 다시 저장하면 메타데이터가 추가됩니다."
