@@ -374,6 +374,8 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private float _clearanceTargetDistance = 0.01f;
         [SerializeField] private int _clearanceDisplayStride = 1;
         [SerializeField] private float _clearanceUpdateInterval = 0.1f;
+        [SerializeField] private ClearanceScanSet _clearanceScanSet;
+        [SerializeField] private Transform _clearanceScanAvatarRoot;
         [SerializeField, HideInInspector] private bool _hasInitializedFromSource = false;
         [SerializeField, HideInInspector] private Mesh _serializedSourceMesh;
 
@@ -626,6 +628,18 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             get => Mathf.Clamp(_clearanceUpdateInterval, 0.02f, 2f);
             set => _clearanceUpdateInterval = Mathf.Clamp(value, 0.02f, 2f);
+        }
+
+        public ClearanceScanSet ClearanceScanSet
+        {
+            get => _clearanceScanSet;
+            set => _clearanceScanSet = value;
+        }
+
+        public Transform ClearanceScanAvatarRoot
+        {
+            get => _clearanceScanAvatarRoot;
+            set => _clearanceScanAvatarRoot = value;
         }
 
         public bool RecalculateBoneWeights

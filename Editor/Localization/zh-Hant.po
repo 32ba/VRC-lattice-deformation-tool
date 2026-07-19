@@ -722,6 +722,39 @@ msgstr "參考物件是開放網格，已回退至參考法線間隙。"
 msgid "net.32ba.lattice-deformation-tool.localization.clearance-result-age"
 msgstr "結果經過時間"
 
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan"
+msgstr "間隙掃描"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-set"
+msgstr "掃描集"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-avatar-root"
+msgstr "Avatar根節點"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-run"
+msgstr "執行間隙掃描"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-cancel"
+msgstr "取消掃描"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-progress-format"
+msgstr "{0}/{1}  {2}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-summary-format"
+msgstr "成功：{0}/{1}，最差條件索引：{2}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-apply-condition"
+msgstr "將條件套用到場景"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-restore-scene"
+msgstr "還原場景狀態"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-success-format"
+msgstr "{0}：最小 {1:0.###} mm，違規 {2}，目標 {3}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-error-format"
+msgstr "{0}：錯誤 - {1}"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "頂點工具"

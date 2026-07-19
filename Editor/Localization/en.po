@@ -728,6 +728,39 @@ msgstr "The reference is open, so the query fell back to reference-normal cleara
 msgid "net.32ba.lattice-deformation-tool.localization.clearance-result-age"
 msgstr "Result Age"
 
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan"
+msgstr "Clearance Scan"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-set"
+msgstr "Scan Set"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-avatar-root"
+msgstr "Avatar Root"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-run"
+msgstr "Run Clearance Scan"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-cancel"
+msgstr "Cancel Scan"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-progress-format"
+msgstr "{0}/{1}  {2}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-summary-format"
+msgstr "Successful: {0}/{1}, worst condition index: {2}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-apply-condition"
+msgstr "Apply Condition to Scene"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-restore-scene"
+msgstr "Restore Scene State"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-success-format"
+msgstr "{0}: minimum {1:0.###} mm, violations {2}, target {3}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-error-format"
+msgstr "{0}: Error - {1}"
+
 # Vertex Selection Tool
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "Vertex Tool"

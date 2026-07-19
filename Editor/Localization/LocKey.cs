@@ -152,6 +152,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string ClearanceInvalidTarget = "net.32ba.lattice-deformation-tool.localization.clearance-invalid-target";
         internal const string ClearanceSignFallback = "net.32ba.lattice-deformation-tool.localization.clearance-sign-fallback";
         internal const string ClearanceResultAge = "net.32ba.lattice-deformation-tool.localization.clearance-result-age";
+        internal const string ClearanceScan = "net.32ba.lattice-deformation-tool.localization.clearance-scan";
+        internal const string ClearanceScanSet = "net.32ba.lattice-deformation-tool.localization.clearance-scan-set";
+        internal const string ClearanceScanAvatarRoot = "net.32ba.lattice-deformation-tool.localization.clearance-scan-avatar-root";
+        internal const string ClearanceScanRun = "net.32ba.lattice-deformation-tool.localization.clearance-scan-run";
+        internal const string ClearanceScanCancel = "net.32ba.lattice-deformation-tool.localization.clearance-scan-cancel";
+        internal const string ClearanceScanProgressFormat = "net.32ba.lattice-deformation-tool.localization.clearance-scan-progress-format";
+        internal const string ClearanceScanSummaryFormat = "net.32ba.lattice-deformation-tool.localization.clearance-scan-summary-format";
+        internal const string ClearanceScanApplyCondition = "net.32ba.lattice-deformation-tool.localization.clearance-scan-apply-condition";
+        internal const string ClearanceScanRestoreScene = "net.32ba.lattice-deformation-tool.localization.clearance-scan-restore-scene";
+        internal const string ClearanceScanConditionSuccessFormat = "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-success-format";
+        internal const string ClearanceScanConditionErrorFormat = "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-error-format";
 
         // Vertex Selection Tool
         internal const string VertexTool = "net.32ba.lattice-deformation-tool.localization.vertex-tool";
