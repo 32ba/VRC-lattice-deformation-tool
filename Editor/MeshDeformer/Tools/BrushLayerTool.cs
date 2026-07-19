@@ -10,6 +10,77 @@ using Net._32Ba.LatticeDeformationTool;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
+    internal readonly struct PenetrationDetectionCacheKey : IEquatable<PenetrationDetectionCacheKey>
+    {
+        private readonly int _layeredStateHash;
+        private readonly int _settingsRevision;
+        private readonly int _referenceRendererId;
+        private readonly int _referenceMeshId;
+        private readonly int _sourceMeshId;
+        private readonly int _runtimeMeshId;
+        private readonly int _targetVertexCount;
+        private readonly int _referenceVertexCount;
+        private readonly Matrix4x4 _targetLocalToWorld;
+        private readonly Matrix4x4 _referenceWorldToLocal;
+
+        internal PenetrationDetectionCacheKey(
+            int layeredStateHash,
+            int settingsRevision,
+            int referenceRendererId,
+            int referenceMeshId,
+            int sourceMeshId,
+            int runtimeMeshId,
+            int targetVertexCount,
+            int referenceVertexCount,
+            Matrix4x4 targetLocalToWorld,
+            Matrix4x4 referenceWorldToLocal)
+        {
+            _layeredStateHash = layeredStateHash;
+            _settingsRevision = settingsRevision;
+            _referenceRendererId = referenceRendererId;
+            _referenceMeshId = referenceMeshId;
+            _sourceMeshId = sourceMeshId;
+            _runtimeMeshId = runtimeMeshId;
+            _targetVertexCount = targetVertexCount;
+            _referenceVertexCount = referenceVertexCount;
+            _targetLocalToWorld = targetLocalToWorld;
+            _referenceWorldToLocal = referenceWorldToLocal;
+        }
+
+        public bool Equals(PenetrationDetectionCacheKey other)
+        {
+            return _layeredStateHash == other._layeredStateHash &&
+                   _settingsRevision == other._settingsRevision &&
+                   _referenceRendererId == other._referenceRendererId &&
+                   _referenceMeshId == other._referenceMeshId &&
+                   _sourceMeshId == other._sourceMeshId &&
+                   _runtimeMeshId == other._runtimeMeshId &&
+                   _targetVertexCount == other._targetVertexCount &&
+                   _referenceVertexCount == other._referenceVertexCount &&
+                   _targetLocalToWorld.Equals(other._targetLocalToWorld) &&
+                   _referenceWorldToLocal.Equals(other._referenceWorldToLocal);
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is PenetrationDetectionCacheKey other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            int first = HashCode.Combine(
+                _layeredStateHash,
+                _settingsRevision,
+                _referenceRendererId,
+                _referenceMeshId,
+                _sourceMeshId,
+                _runtimeMeshId,
+                _targetVertexCount,
+                _referenceVertexCount);
+            return HashCode.Combine(first, _targetLocalToWorld, _referenceWorldToLocal);
+        }
+    }
+
     [ExcludeFromCodeCoverage]
     internal sealed class BrushToolHandler
     {
@@ -45,6 +116,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_backfaceCulling = true;
         private static bool s_showPenetration = false;
         private static Renderer s_penetrationReference = null;
+        private static int s_penetrationSettingsRevision;
 
         // Overlay foldout states
         private static bool s_showMirrorSection = false;
@@ -60,11 +132,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Vector3[] _worldPositions; // Skinned world-space positions (null for MeshRenderer)
         private List<HashSet<int>> _adjacency;
         private Vector2 _lastMousePosition;
+        private Vector3 _lastMoveBrushLocalDelta;
+        private bool _hasLastMoveBrushLocalDelta;
         private HashSet<int> _connectedVerticesCache;
         private int _connectedCacheStartVertex = -1;
         private Dictionary<int, float> _geodesicDistanceCache;
         private int _geodesicCacheStartVertex = -1;
         private HashSet<int> _penetratingVertices;
+        private Vector3[] _penetrationDeformedVertices;
+        private PenetrationDetectionCacheKey _penetrationCacheKey;
+        private bool _hasPenetrationCacheKey;
+        private bool _isStrokeActive;
+        private int _strokeInitialStateHash;
+        private LatticeDeformer _strokeDeformer;
 
         private static MethodInfo s_intersectRayMeshMethod;
         private static bool s_intersectRayMeshResolved;
@@ -236,6 +316,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (s_showPenetration == value) return;
                 s_showPenetration = value;
+                unchecked
+                {
+                    s_penetrationSettingsRevision++;
+                }
                 SceneView.RepaintAll();
             }
         }
@@ -247,6 +331,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (s_penetrationReference == value) return;
                 s_penetrationReference = value;
+                unchecked
+                {
+                    s_penetrationSettingsRevision++;
+                }
                 SceneView.RepaintAll();
             }
         }
@@ -279,12 +367,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal void Deactivate()
         {
             Undo.undoRedoPerformed -= OnUndoRedo;
+            EndStroke();
             InvalidateCache();
             _activeDeformer = null;
         }
 
         private void OnUndoRedo()
         {
+            ResetStrokeState();
             if (_activeDeformer != null)
             {
                 bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
@@ -294,14 +384,41 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             SceneView.RepaintAll();
         }
 
+        private void BeginStroke(LatticeDeformer deformer)
+        {
+            EndStroke();
+            _isStrokeActive = deformer != null;
+            _strokeDeformer = deformer;
+            _strokeInitialStateHash = deformer != null ? deformer.ComputeLayeredStateHash() : 0;
+        }
+
+        private void EndStroke()
+        {
+            if (_isStrokeActive && _strokeDeformer != null &&
+                _strokeDeformer.ComputeLayeredStateHash() != _strokeInitialStateHash)
+            {
+                LatticePrefabUtility.MarkModified(_strokeDeformer);
+            }
+
+            ResetStrokeState();
+        }
+
+        private void ResetStrokeState()
+        {
+            _isStrokeActive = false;
+            _strokeInitialStateHash = 0;
+            _strokeDeformer = null;
+        }
+
         internal void OnToolGUI(EditorWindow window, LatticeDeformer deformer)
         {
             UnityEngine.Profiling.Profiler.BeginSample("BrushTool.OnToolGUI");
-            if (Event.current != null && Event.current.commandName == "UndoRedoPerformed")
+            try
             {
-                UnityEngine.Profiling.Profiler.EndSample();
-                return;
-            }
+                if (Event.current != null && Event.current.commandName == "UndoRedoPerformed")
+                {
+                    return;
+                }
 
             if (deformer.ActiveLayerType != MeshDeformerLayerType.Brush)
             {
@@ -379,6 +496,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 UpdatePenetrationDetection(deformer);
                 DrawPenetrationHighlight(meshTransform);
             }
+            else
+            {
+                InvalidatePenetrationCache();
+            }
 
             // Raycast to find brush center on mesh surface.
             // For SkinnedMeshRenderer, raycast against the baked (posed) mesh so the hit
@@ -442,38 +563,43 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 // The raycast hit point is where the user sees the mesh (post-skinning),
                 // so we draw there. The radius is in mesh-local space, so scale it to world.
                 var prevMatrix = Handles.matrix;
-                Handles.matrix = Matrix4x4.identity;
-
-                // s_brushRadius is in world-space units — draw directly
-                Color brushColor = GetBrushColor();
-                Handles.color = brushColor;
-                Handles.DrawWireDisc(hit.point, hit.normal, s_brushRadius);
-                Color fillColor = brushColor;
-                fillColor.a = 0.1f;
-                Handles.color = fillColor;
-                Handles.DrawSolidDisc(hit.point, hit.normal, s_brushRadius);
-
-                // Draw affected vertex dots within brush radius
-                if (s_showAffectedVertices && _meshVertices != null)
+                try
                 {
-                    // Update geodesic cache for preview visualization during hover
-                    if (s_useSurfaceDistance)
-                    {
-                        UpdateGeodesicDistanceCache(localHitPoint);
-                    }
+                    Handles.matrix = Matrix4x4.identity;
 
-                    DrawAffectedVertices(deformer, localHitPoint, meshTransform);
+                    // s_brushRadius is in world-space units — draw directly
+                    Color brushColor = GetBrushColor();
+                    Handles.color = brushColor;
+                    Handles.DrawWireDisc(hit.point, hit.normal, s_brushRadius);
+                    Color fillColor = brushColor;
+                    fillColor.a = 0.1f;
+                    Handles.color = fillColor;
+                    Handles.DrawSolidDisc(hit.point, hit.normal, s_brushRadius);
+
+                    // Draw affected vertex dots within brush radius
+                    if (s_showAffectedVertices && _meshVertices != null)
+                    {
+                        // Update geodesic cache for preview visualization during hover
+                        if (s_useSurfaceDistance)
+                        {
+                            UpdateGeodesicDistanceCache(localHitPoint);
+                        }
+
+                        DrawAffectedVertices(deformer, localHitPoint, meshTransform);
+                    }
+                }
+                finally
+                {
+                    Handles.matrix = prevMatrix;
                 }
 
-                Handles.matrix = prevMatrix;
-
                 // Handle brush painting on left mouse drag
-                if (evt.type == EventType.MouseDrag && evt.button == 0)
+                if (evt.type == EventType.MouseDrag && evt.button == 0 && !evt.alt && _isStrokeActive)
                 {
                     ApplyBrush(deformer, meshTransform, localHitPoint, localHitNormal, evt);
                     evt.Use();
                 }
-                else if (evt.type == EventType.MouseDown && evt.button == 0)
+                else if (evt.type == EventType.MouseDown && evt.button == 0 && !evt.alt)
                 {
                     _lastMousePosition = evt.mousePosition;
 
@@ -483,6 +609,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     // Build geodesic distance cache at stroke start
                     UpdateGeodesicDistanceCache(localHitPoint);
 
+                    BeginStroke(deformer);
                     Undo.RecordObject(deformer, GetUndoLabel());
                     deformer.EnsureDisplacementCapacity();
 
@@ -491,9 +618,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
                 else if (evt.type == EventType.MouseUp && evt.button == 0)
                 {
+                    bool hadActiveStroke = _isStrokeActive;
+                    EndStroke();
                     ClearConnectedVerticesCache();
                     ClearGeodesicDistanceCache();
-                    evt.Use();
+                    if (hadActiveStroke)
+                    {
+                        evt.Use();
+                    }
                 }
             }
             else
@@ -501,6 +633,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 // Even without hit, handle mouse up to stop painting
                 if (evt.type == EventType.MouseUp && evt.button == 0)
                 {
+                    EndStroke();
                     ClearConnectedVerticesCache();
                     ClearGeodesicDistanceCache();
                 }
@@ -517,7 +650,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
             }
-            UnityEngine.Profiling.Profiler.EndSample();
+            }
+            finally
+            {
+                UnityEngine.Profiling.Profiler.EndSample();
+            }
         }
 
         private void ApplyBrush(LatticeDeformer deformer, Transform meshTransform, Vector3 localHitPoint, Vector3 localHitNormal, Event evt)
@@ -543,6 +680,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
 
             bool modified = false;
+            _hasLastMoveBrushLocalDelta = false;
 
             switch (s_brushMode)
             {
@@ -667,6 +805,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             // Convert world delta to local space
             var localDelta = meshTransform.InverseTransformVector(worldDelta);
+            _lastMoveBrushLocalDelta = localDelta;
+            _hasLastMoveBrushLocalDelta = true;
 
             // Pre-compute camera forward in local space for backface culling
             Vector3 localCameraForward = Vector3.forward;
@@ -966,6 +1106,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         // Mirror the normal direction for the mirrored side
                         var mirroredNormal = MirrorDirection(normal);
                         var delta = mirroredNormal * (strength * falloff * direction);
+                        float maskValue = GetActiveLayerMaskValue(deformer, i);
+                        if (maskValue < 1e-6f) continue;
+                        delta *= maskValue;
                         deformer.AddDisplacement(i, delta);
                     }
                     break;
@@ -1004,7 +1147,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         averageDisp /= neighbors.Count;
 
                         var currentDisp = currentDisplacements[i];
-                        var targetDisp = Vector3.Lerp(currentDisp, averageDisp, smoothFactor * falloff);
+                        float maskValue = GetActiveLayerMaskValue(deformer, i);
+                        if (maskValue < 1e-6f) continue;
+                        var targetDisp = Vector3.Lerp(currentDisp, averageDisp, smoothFactor * falloff * maskValue);
                         deformer.SetDisplacement(i, targetDisp);
                     }
                     break;
@@ -1012,12 +1157,33 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 case BrushMode.Move:
                 {
-                    // Move mirror is handled implicitly during the primary pass since it affects
-                    // vertices near the mirrored brush center with mirrored direction.
-                    // We do a second pass here for the mirrored region.
-                    // The mouse delta has already been consumed, so we retrieve the last applied local delta.
-                    // For simplicity in mirrored move mode, we skip the mirror pass as the direction would
-                    // need to be re-derived from the event which is already consumed.
+                    if (!_hasLastMoveBrushLocalDelta)
+                    {
+                        break;
+                    }
+
+                    var mirroredDelta = MirrorDirection(_lastMoveBrushLocalDelta);
+                    for (int i = 0; i < vertexCount; i++)
+                    {
+                        if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
+                        {
+                            continue;
+                        }
+
+                        var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
+                        float distSq = (vertex - mirroredCenter).sqrMagnitude;
+                        if (distSq > radiusSq) continue;
+
+                        float dist = Mathf.Sqrt(distSq);
+                        float t = dist / localRadius;
+                        float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+
+                        var delta = mirroredDelta * (strength * falloff * 10f);
+                        float maskValue = GetActiveLayerMaskValue(deformer, i);
+                        if (maskValue < 1e-6f) continue;
+                        delta *= maskValue;
+                        deformer.AddDisplacement(i, delta);
+                    }
                     break;
                 }
 
@@ -1111,16 +1277,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             _cachedMesh = mesh;
+            InvalidatePenetrationCache();
             _meshVertices = mesh.vertices;
-            _meshNormals = mesh.normals;
             _meshTriangles = mesh.triangles;
+            _meshNormals = MeshNormalUtility.GetOrCalculateNormals(
+                mesh,
+                _meshVertices,
+                _meshTriangles);
             _adjacency = null;
-
-            if (_meshNormals == null || _meshNormals.Length != _meshVertices.Length)
-            {
-                mesh.RecalculateNormals();
-                _meshNormals = mesh.normals;
-            }
 
             RefreshWorldPositions(deformer);
         }
@@ -1167,7 +1331,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _meshTriangles = null;
             _worldPositions = null;
             _adjacency = null;
-            _penetratingVertices = null;
+            InvalidatePenetrationCache();
             ClearConnectedVerticesCache();
             ClearGeodesicDistanceCache();
         }
@@ -1175,8 +1339,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static Material s_brushDotMaterial;
         private static Texture2D s_brushCircleTex;
 
-        private static void BeginBatchedDotDraw()
+        private static void BeginBatchedDotDraw(
+            out bool matrixPushed,
+            out bool drawingQuads)
         {
+            matrixPushed = false;
+            drawingQuads = false;
             if (s_brushCircleTex == null)
             {
                 const int size = 32;
@@ -1209,14 +1377,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             s_brushDotMaterial.SetPass(0);
             GL.PushMatrix();
+            matrixPushed = true;
             GL.MultMatrix(Matrix4x4.identity);
             GL.Begin(GL.QUADS);
+            drawingQuads = true;
         }
 
-        private static void EndBatchedDotDraw()
+        private static void EndBatchedDotDraw(bool matrixPushed, bool drawingQuads)
         {
-            GL.End();
-            GL.PopMatrix();
+            try
+            {
+                if (drawingQuads) GL.End();
+            }
+            finally
+            {
+                if (matrixPushed) GL.PopMatrix();
+            }
         }
 
         private static void DrawBatchedDot(Vector3 worldPos, Color col, float radius, Vector3 camRight, Vector3 camUp)
@@ -1245,40 +1421,48 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var camUp = cam.transform.up;
             float baseSize = HandleUtility.GetHandleSize(meshTransform.position) * 0.004f;
 
-            BeginBatchedDotDraw();
-            for (int i = 0; i < vertexCount; i++)
+            bool matrixPushed = false;
+            bool drawingQuads = false;
+            try
             {
-                if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
-                    continue;
-
-                var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
-
-                float falloff;
-                if (s_useSurfaceDistance && _geodesicDistanceCache != null)
+                BeginBatchedDotDraw(out matrixPushed, out drawingQuads);
+                for (int i = 0; i < vertexCount; i++)
                 {
-                    if (!_geodesicDistanceCache.TryGetValue(i, out float geodesicDist))
+                    if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
                         continue;
-                    float t = geodesicDist / localRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
-                else
-                {
-                    float distSq = (vertex - localHitPoint).sqrMagnitude;
-                    if (distSq > radiusSq) continue;
-                    float dist = Mathf.Sqrt(distSq);
-                    float t = dist / localRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
 
-                if (falloff < 0.01f) continue;
+                    var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
 
-                var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
-                Color dotColor = HeatmapColor(falloff);
-                dotColor.a = 0.4f + 0.5f * falloff;
-                float dotSize = Mathf.Lerp(s_vertexDotSize * 0.6f, s_vertexDotSize * 1.4f, falloff);
-                DrawBatchedDot(worldPos, dotColor, baseSize * dotSize, camRight, camUp);
+                    float falloff;
+                    if (s_useSurfaceDistance && _geodesicDistanceCache != null)
+                    {
+                        if (!_geodesicDistanceCache.TryGetValue(i, out float geodesicDist))
+                            continue;
+                        float t = geodesicDist / localRadius;
+                        falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                    }
+                    else
+                    {
+                        float distSq = (vertex - localHitPoint).sqrMagnitude;
+                        if (distSq > radiusSq) continue;
+                        float dist = Mathf.Sqrt(distSq);
+                        float t = dist / localRadius;
+                        falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                    }
+
+                    if (falloff < 0.01f) continue;
+
+                    var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
+                    Color dotColor = HeatmapColor(falloff);
+                    dotColor.a = 0.4f + 0.5f * falloff;
+                    float dotSize = Mathf.Lerp(s_vertexDotSize * 0.6f, s_vertexDotSize * 1.4f, falloff);
+                    DrawBatchedDot(worldPos, dotColor, baseSize * dotSize, camRight, camUp);
+                }
             }
-            EndBatchedDotDraw();
+            finally
+            {
+                EndBatchedDotDraw(matrixPushed, drawingQuads);
+            }
         }
 
         private void DrawDisplacementHeatmap(LatticeDeformer deformer, Transform meshTransform)
@@ -1308,23 +1492,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var camUp = cam.transform.up;
             float baseSize = HandleUtility.GetHandleSize(meshTransform.position) * 0.003f;
 
-            BeginBatchedDotDraw();
-            for (int i = 0; i < vertexCount; i++)
+            bool matrixPushed = false;
+            bool drawingQuads = false;
+            try
             {
-                float mag = displacements[i].magnitude;
-                if (mag < 1e-6f) continue;
+                BeginBatchedDotDraw(out matrixPushed, out drawingQuads);
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    float mag = displacements[i].magnitude;
+                    if (mag < 1e-6f) continue;
 
-                float normalized = Mathf.Clamp01(mag / maxMag);
-                var vertex = _meshVertices[i] + displacements[i];
-                var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
+                    float normalized = Mathf.Clamp01(mag / maxMag);
+                    var vertex = _meshVertices[i] + displacements[i];
+                    var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
 
-                Color heatColor = HeatmapColor(normalized);
-                heatColor.a = 0.3f + 0.6f * normalized;
+                    Color heatColor = HeatmapColor(normalized);
+                    heatColor.a = 0.3f + 0.6f * normalized;
 
-                float dotRadius = baseSize * (1f + normalized * 2f);
-                DrawBatchedDot(worldPos, heatColor, dotRadius, camRight, camUp);
+                    float dotRadius = baseSize * (1f + normalized * 2f);
+                    DrawBatchedDot(worldPos, heatColor, dotRadius, camRight, camUp);
+                }
             }
-            EndBatchedDotDraw();
+            finally
+            {
+                EndBatchedDotDraw(matrixPushed, drawingQuads);
+            }
         }
 
         private static Color HeatmapColor(float t)
@@ -1356,55 +1548,133 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var camUp = cam.transform.up;
             float baseSize = HandleUtility.GetHandleSize(meshTransform.position) * 0.004f;
 
-            BeginBatchedDotDraw();
-            for (int i = 0; i < vertexCount; i++)
+            bool matrixPushed = false;
+            bool drawingQuads = false;
+            try
             {
-                float maskValue = mask[i];
-                if (maskValue > 1f - 1e-6f) continue; // Fully editable, skip
+                BeginBatchedDotDraw(out matrixPushed, out drawingQuads);
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    float maskValue = mask[i];
+                    if (maskValue > 1f - 1e-6f) continue; // Fully editable, skip
 
-                var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
-                var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
+                    var vertex = _meshVertices[i] + deformer.GetDisplacement(i);
+                    var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
 
-                // Red = protected (mask=0), Green = editable (mask=1)
-                float protection = 1f - maskValue;
-                Color dotColor = Color.Lerp(new Color(0.2f, 1f, 0.2f, 0.4f), new Color(1f, 0.2f, 0.2f, 0.8f), protection);
-                float dotRadius = baseSize * (1f + protection * 2f);
-                DrawBatchedDot(worldPos, dotColor, dotRadius, camRight, camUp);
+                    // Red = protected (mask=0), Green = editable (mask=1)
+                    float protection = 1f - maskValue;
+                    Color dotColor = Color.Lerp(new Color(0.2f, 1f, 0.2f, 0.4f), new Color(1f, 0.2f, 0.2f, 0.8f), protection);
+                    float dotRadius = baseSize * (1f + protection * 2f);
+                    DrawBatchedDot(worldPos, dotColor, dotRadius, camRight, camUp);
+                }
             }
-            EndBatchedDotDraw();
+            finally
+            {
+                EndBatchedDotDraw(matrixPushed, drawingQuads);
+            }
         }
 
         private void UpdatePenetrationDetection(LatticeDeformer deformer)
         {
             if (!s_showPenetration || s_penetrationReference == null || _meshVertices == null)
             {
-                _penetratingVertices = null;
+                InvalidatePenetrationCache();
                 return;
             }
 
             var deformerTransform = deformer.MeshTransform;
             if (deformerTransform == null)
             {
-                _penetratingVertices = null;
+                InvalidatePenetrationCache();
                 return;
             }
 
-            // Apply current displacements to get deformed positions
-            var deformedVertices = new Vector3[_meshVertices.Length];
-            for (int i = 0; i < _meshVertices.Length; i++)
+            var refTransform = s_penetrationReference.transform;
+            Mesh refMesh = null;
+            if (s_penetrationReference is SkinnedMeshRenderer skinnedReference)
             {
-                deformedVertices[i] = _meshVertices[i] + deformer.GetDisplacement(i);
+                refMesh = skinnedReference.sharedMesh;
+            }
+            else if (s_penetrationReference is MeshRenderer meshReference)
+            {
+                var filter = meshReference.GetComponent<MeshFilter>();
+                refMesh = filter != null ? filter.sharedMesh : null;
             }
 
-            _penetratingVertices = PenetrationDetector.DetectPenetration(
+            if (refTransform == null || refMesh == null)
+            {
+                InvalidatePenetrationCache();
+                return;
+            }
+
+            var sourceMesh = deformer.SourceMesh;
+            var runtimeMesh = deformer.RuntimeMesh;
+            var nextKey = new PenetrationDetectionCacheKey(
+                deformer.ComputeLayeredStateHash(),
+                s_penetrationSettingsRevision,
+                s_penetrationReference.GetInstanceID(),
+                refMesh.GetInstanceID(),
+                sourceMesh != null ? sourceMesh.GetInstanceID() : 0,
+                runtimeMesh != null ? runtimeMesh.GetInstanceID() : 0,
+                _meshVertices.Length,
+                refMesh.vertexCount,
+                deformerTransform.localToWorldMatrix,
+                refTransform.worldToLocalMatrix);
+
+            // A skinned reference can change pose without changing its shared mesh or transform.
+            // Let ClearanceQueryCache inspect its baked geometry on every update in that case.
+            if (!(s_penetrationReference is SkinnedMeshRenderer) &&
+                _hasPenetrationCacheKey && _penetrationCacheKey.Equals(nextKey))
+            {
+                return;
+            }
+
+            // Penetration is a property of the final stack, not only the active brush
+            // layer. Force evaluation so both detection and highlighting use it.
+            runtimeMesh = deformer.Deform(false);
+            if (runtimeMesh == null || runtimeMesh.vertexCount != _meshVertices.Length)
+            {
+                InvalidatePenetrationCache();
+                return;
+            }
+
+            var deformedVertices = runtimeMesh.vertices;
+            _worldPositions = SkinnedVertexHelper.ComputeWorldPositions(deformer, deformedVertices);
+            nextKey = new PenetrationDetectionCacheKey(
+                deformer.ComputeLayeredStateHash(),
+                s_penetrationSettingsRevision,
+                s_penetrationReference.GetInstanceID(),
+                refMesh.GetInstanceID(),
+                sourceMesh != null ? sourceMesh.GetInstanceID() : 0,
+                runtimeMesh.GetInstanceID(),
+                deformedVertices.Length,
+                refMesh.vertexCount,
+                deformerTransform.localToWorldMatrix,
+                refTransform.worldToLocalMatrix);
+
+            var detected = PenetrationDetector.DetectPenetration(
                 deformedVertices,
                 deformerTransform.localToWorldMatrix,
                 s_penetrationReference);
+            _penetratingVertices = detected;
+            _penetrationDeformedVertices = deformedVertices;
+            _penetrationCacheKey = nextKey;
+            _hasPenetrationCacheKey = true;
+        }
+
+        private void InvalidatePenetrationCache()
+        {
+            _penetratingVertices = null;
+            _penetrationDeformedVertices = null;
+            _penetrationCacheKey = default;
+            _hasPenetrationCacheKey = false;
         }
 
         private void DrawPenetrationHighlight(Transform meshTransform)
         {
-            if (_penetratingVertices == null || _penetratingVertices.Count == 0 || _meshVertices == null)
+            if (_penetratingVertices == null ||
+                _penetratingVertices.Count == 0 ||
+                _penetrationDeformedVertices == null)
             {
                 return;
             }
@@ -1415,9 +1685,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             foreach (int i in _penetratingVertices)
             {
-                if (i < _meshVertices.Length)
+                if (i >= 0 && i < _penetrationDeformedVertices.Length)
                 {
-                    Vector3 worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, _meshVertices[i], matrix);
+                    Vector3 worldPos = SkinnedVertexHelper.LocalToWorld(
+                        i,
+                        _worldPositions,
+                        _penetrationDeformedVertices[i],
+                        matrix);
                     float dotSize = HandleUtility.GetHandleSize(worldPos) * 0.01f;
                     Handles.DotHandleCap(0, worldPos, Quaternion.identity, dotSize, EventType.Repaint);
                 }
@@ -1612,8 +1886,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (deformer == null) return;
             if (deformer.ActiveLayerType != MeshDeformerLayerType.Brush) return;
+            int previousStateHash = deformer.ComputeLayeredStateHash();
             Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ClearAll));
             deformer.ClearDisplacements();
+            if (deformer.ComputeLayeredStateHash() != previousStateHash)
+            {
+                LatticePrefabUtility.MarkModified(deformer);
+            }
             bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
             deformer.Deform(assignToRenderer);
             LatticePreviewUtility.RequestSceneRepaint();
@@ -1623,8 +1902,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (deformer == null) return;
             if (!TryGetActiveLayer(deformer, out var layer)) return;
+            int previousStateHash = deformer.ComputeLayeredStateHash();
             Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ClearMask));
             layer.ClearVertexMask();
+            if (deformer.ComputeLayeredStateHash() != previousStateHash)
+            {
+                LatticePrefabUtility.MarkModified(deformer);
+            }
             bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
             deformer.Deform(assignToRenderer);
             LatticePreviewUtility.RequestSceneRepaint();
@@ -1646,14 +1930,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static void DrawOverlayGUI(LatticeDeformer deformer)
         {
-            // Brush Mode toolbar (icon + text) — Mask mode hidden from UI
+            // Brush Mode toolbar (icon + text)
             var modeContent = new GUIContent[]
             {
                 ToolIcons.Content(ToolIcons.Normal, LocKey.Normal),
                 ToolIcons.Content(ToolIcons.Move, LocKey.Move),
                 ToolIcons.Content(ToolIcons.Smooth, LocKey.Smooth),
+                ToolIcons.Content(ToolIcons.Mask, LocKey.Mask),
             };
-            // Map toolbar index (0-2) to BrushMode enum (Normal=0, Move=1, Smooth=2)
             int currentModeIndex = Mathf.Min((int)BrushToolHandler.CurrentBrushMode, modeContent.Length - 1);
             int modeIndex = GUILayout.Toolbar(currentModeIndex, modeContent);
             modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
@@ -1787,7 +2071,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
                 }
 
-                // Mask mode UI hidden — mask brush mode is disabled in UI
+                if (GUILayout.Button(ToolIcons.Content(ToolIcons.Clear, LocKey.ClearMask)))
+                {
+                    if (deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush)
+                    {
+                        BrushToolHandler.ClearActiveMask(deformer);
+                    }
+                }
             }
 
             GUILayout.Space(2f);

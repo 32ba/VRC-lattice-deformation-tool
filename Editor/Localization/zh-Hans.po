@@ -613,6 +613,12 @@ msgstr "可视化"
 msgid "net.32ba.lattice-deformation-tool.localization.visualization.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.show-wireframe"
+msgstr "显示线框"
+
+msgid "net.32ba.lattice-deformation-tool.localization.show-wireframe.tooltip"
+msgstr "显示网格边缘，以便查看面的形状。"
+
 msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices"
 msgstr "显示受影响顶点"
 
@@ -1026,6 +1032,30 @@ msgstr "笔刷变形"
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning"
+msgstr "当前 NDMF 流程不会处理此旧版组件。继续编辑前，请将变形数据迁移到 Mesh Deformer。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning.tooltip"
+msgstr "迁移后，原组件将被禁用并保留为备份。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush"
+msgstr "迁移到 Mesh Deformer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush.tooltip"
+msgstr "将所有位移和网格重建设置复制到 Mesh Deformer 笔刷图层，然后禁用此旧版组件。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded"
+msgstr "迁移完成。旧版组件已禁用并保留为备份。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded.tooltip"
+msgstr "迁移后的 Mesh Deformer 已包含旧版笔刷变形数据。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed"
+msgstr "迁移失败：{0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed.tooltip"
+msgstr "验证失败时不会保留持久的迁移更改。"
+
 # Update notification
 msgid "net.32ba.lattice-deformation-tool.localization.update-available"
 msgstr "有新版本可用"
@@ -1035,3 +1065,31 @@ msgstr "当前: {0}  最新: {1}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
 msgstr "打开 BOOTH 商品页面"
+
+# Deformer Profile
+msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
+msgstr "变形配置文件"
+
+msgid "net.32ba.lattice-deformation-tool.localization.data-source"
+msgstr "数据源"
+
+msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
+msgstr "内置数据"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
+msgstr "配置文件引用"
+
+msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
+msgstr "创建配置文件"
+
+msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
+msgstr "保存到配置文件"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
+msgstr "复制到实例"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
+msgstr "使用配置文件作为数据源时，请选择一个配置文件。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
+msgstr "配置文件数据会以独立实例副本进行预览。要编辑组和图层，请先复制到组件。"

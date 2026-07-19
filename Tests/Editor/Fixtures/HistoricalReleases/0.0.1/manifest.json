@@ -1,0 +1,72 @@
+{
+    "tag": "0.0.1",
+    "commitSha": "646087621dcd27375946da8178fd1a12cb230181",
+    "packageVersion": "0.0.1",
+    "unityVersion": "2022.3.22f1",
+    "generator": "Tools~/HistoricalFixtures/HistoricalFixtureGenerator.cs",
+    "generatorSha256": "48a4fa7bd9ce776e1a53052c7916f33284d940eeeb134ecc15757cddb9fc1d22",
+    "runner": "Tools~/HistoricalFixtures/Generate-HistoricalFixtures.ps1",
+    "runnerSha256": "d81ea92e5c8d28e28e42aae08cf07d059fc070da8b07a708f60616897ca94539",
+    "metaGuidScheme": "sha256-v1:tag/relative-asset-path",
+    "prefabFileIdScheme": "sha256-v1:tag/relative-prefab/class/ordinal",
+    "generationMode": "unity-batchmode-tag-checkout",
+    "goldenOutputSource": "historical-runtime-deform",
+    "fixtures": [
+        {
+            "kind": "lattice",
+            "prefab": "fixture.prefab",
+            "expected": "expected.json",
+            "source": "source.asset",
+            "goldenOutputSource": "LatticeDeformer.Deform(false)"
+        },
+        {
+            "kind": "lattice-world",
+            "prefab": "fixture-world.prefab",
+            "expected": "expected-world.json",
+            "source": "source.asset",
+            "goldenOutputSource": "LatticeDeformer.Deform(false)"
+        }
+    ],
+    "files": [
+        {
+            "path": "expected-world.json",
+            "sha256": "cbc8f86bb2c2f5e117c2368776738a7c72fce683808a8ec0f4d820422a2f1961"
+        },
+        {
+            "path": "expected-world.json.meta",
+            "sha256": "390dc75abf23fae7b322a6ca766cdad1af18f90ae710d2c4e8525e7c5f4f74c7"
+        },
+        {
+            "path": "expected.json",
+            "sha256": "a11a04a04cf81091249a1340b8db44e5333e8d0acd1002df7b405615c7eff56a"
+        },
+        {
+            "path": "expected.json.meta",
+            "sha256": "f2559961c623348b8e969988eb8d7ae5b9ade4f5d1e3514069d1169c462fe166"
+        },
+        {
+            "path": "fixture-world.prefab",
+            "sha256": "eee68b93ef93f317e3e66c3cff4e32424115d709a60d8e7ae9e4c5c463da543a"
+        },
+        {
+            "path": "fixture-world.prefab.meta",
+            "sha256": "b8c19f587ac7425ff17844b1b6d831556312a52b922815cf8cbd2c6772f3cece"
+        },
+        {
+            "path": "fixture.prefab",
+            "sha256": "7ac392eb5f898964ecd201f5cf03a5e7cc712d9943dbc2cef1e50c9b243cb637"
+        },
+        {
+            "path": "fixture.prefab.meta",
+            "sha256": "f54923a662befa3558adfe98bac2c5d794a4ea3bf6c3a5074564086a290c5a41"
+        },
+        {
+            "path": "source.asset",
+            "sha256": "7c8f4da58f6222fe6a2de9b08c3f2254f95731fbac9bdbc752f5cbcb74ff7643"
+        },
+        {
+            "path": "source.asset.meta",
+            "sha256": "ca7e39e6f58062dfecdf6004684433debe44ada5ce55a642428d161a8aac9528"
+        }
+    ]
+}
