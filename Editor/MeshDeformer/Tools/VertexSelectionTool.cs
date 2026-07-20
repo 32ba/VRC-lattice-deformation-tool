@@ -68,6 +68,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Vector3[] _meshNormals;      // Source mesh normals (for backface culling / normal orientation)
         private Vector3[] _deformedVertices; // Posed/skinned vertices (for display/selection)
         private int[] _meshTriangles;
+        private readonly List<Vector3> _sourceVertexScratch = new List<Vector3>();
+        private readonly List<Vector3> _runtimeVertexScratch = new List<Vector3>();
+        private Mesh _cachedRuntimeMesh;
+        private int _cachedSourceVertexHash;
+        private int _cachedRuntimeVertexHash;
+        private int _cachedDisplacementHash;
+        private int _cachedPoseHash;
+        private bool _snapshotValid;
+        private Renderer _cachedOriginalRenderer;
+        private SkinnedMeshRenderer _cachedSkinnedRenderer;
+        private Transform[] _cachedBones;
+        private int _cachedRendererDirtyCount;
+        private bool _poseRendererResolved;
+        internal int RefreshCountForTests { get; private set; }
+        internal Vector3[] DeformedVerticesForTests => _deformedVertices;
 
         // Drag-selection
         private bool _isDraggingSelection;
@@ -194,12 +209,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ResetTransformGesture();
             _activeDeformer = deformer;
             Undo.undoRedoPerformed += OnUndoRedo;
+            EditorApplication.hierarchyChanged += OnExternalStateChanged;
+            EditorApplication.projectChanged += OnExternalStateChanged;
             SceneView.RepaintAll();
         }
 
         internal void Deactivate()
         {
             Undo.undoRedoPerformed -= OnUndoRedo;
+            EditorApplication.hierarchyChanged -= OnExternalStateChanged;
+            EditorApplication.projectChanged -= OnExternalStateChanged;
             try
             {
                 EndTransform();
@@ -219,10 +238,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ResetTransformGesture();
             if (_activeDeformer != null)
             {
+                _snapshotValid = false;
+                InvalidatePoseRendererCache();
                 bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
                 _activeDeformer.Deform(assignToRenderer);
             }
 
+            SceneView.RepaintAll();
+        }
+
+        private void OnExternalStateChanged()
+        {
+            _snapshotValid = false;
+            InvalidatePoseRendererCache();
             SceneView.RepaintAll();
         }
 
@@ -1243,7 +1271,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private void RebuildCacheIfNeeded(Mesh mesh, LatticeDeformer deformer = null)
+        internal void RebuildCacheIfNeeded(Mesh mesh, LatticeDeformer deformer = null)
         {
             if (mesh == null)
             {
@@ -1251,61 +1279,189 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            if (ReferenceEquals(_cachedMesh, mesh) && _meshVertices != null && _meshNormals != null)
-            {
-                // Still need to refresh deformed vertices each frame
-                RefreshDeformedVertices(deformer);
+            int sourceVertexHash = ComputeMeshStateHash(mesh, 0);
+            var runtimeMesh = deformer != null ? deformer.RuntimeMesh : null;
+            bool hasRuntimeVertices = runtimeMesh != null && runtimeMesh.vertexCount == mesh.vertexCount;
+            int runtimeVertexHash = hasRuntimeVertices
+                ? ComputeMeshStateHash(runtimeMesh, deformer.RuntimeMeshRevision)
+                : 0;
+            int displacementHash = ComputeDeformerStateHash(deformer);
+            int poseHash = GetPoseHash(deformer);
+
+            bool sourceChanged = !ReferenceEquals(_cachedMesh, mesh) ||
+                                 _meshVertices == null ||
+                                 _meshNormals == null ||
+                                 _cachedSourceVertexHash != sourceVertexHash;
+            bool snapshotChanged = !_snapshotValid ||
+                                   sourceChanged ||
+                                   !ReferenceEquals(_cachedRuntimeMesh, runtimeMesh) ||
+                                   _cachedRuntimeVertexHash != runtimeVertexHash ||
+                                   _cachedDisplacementHash != displacementHash ||
+                                   _cachedPoseHash != poseHash;
+            if (!snapshotChanged)
                 return;
+
+            if (sourceChanged)
+            {
+                _cachedMesh = mesh;
+                ReadVertices(mesh, _sourceVertexScratch);
+                CopyVertices(_sourceVertexScratch, ref _meshVertices);
+                _meshTriangles = mesh.triangles;
+                _meshNormals = MeshNormalUtility.GetOrCalculateNormals(
+                    mesh,
+                    _meshVertices,
+                    _meshTriangles);
             }
 
-            _cachedMesh = mesh;
-            _meshVertices = mesh.vertices;
-            _meshTriangles = mesh.triangles;
-            _meshNormals = MeshNormalUtility.GetOrCalculateNormals(
-                mesh,
-                _meshVertices,
-                _meshTriangles);
-            RefreshDeformedVertices(deformer);
+            if (hasRuntimeVertices)
+                ReadVertices(runtimeMesh, _runtimeVertexScratch);
+            RefreshDeformedVertices(deformer, hasRuntimeVertices);
+            _cachedRuntimeMesh = runtimeMesh;
+            _cachedSourceVertexHash = sourceVertexHash;
+            _cachedRuntimeVertexHash = runtimeVertexHash;
+            _cachedDisplacementHash = displacementHash;
+            _cachedPoseHash = poseHash;
+            _snapshotValid = true;
         }
 
         // World-space positions computed via bone skinning (null for MeshRenderer).
         private Vector3[] _worldPositions;
 
-        private void RefreshDeformedVertices(LatticeDeformer deformer)
+        private void RefreshDeformedVertices(LatticeDeformer deformer, bool hasRuntimeVertices)
         {
-            if (deformer == null || _meshVertices == null)
+            Profiler.BeginSample("VertexSelection.RefreshDeformedVertices");
+            try
             {
-                _deformedVertices = _meshVertices;
-                _worldPositions = null;
-                return;
-            }
-
-            // Get deformed local-space vertices (all layers applied)
-            var runtimeMesh = deformer.RuntimeMesh;
-            if (runtimeMesh != null && runtimeMesh.vertexCount == _meshVertices.Length)
-            {
-                _deformedVertices = runtimeMesh.vertices;
-            }
-            else
-            {
-                int count = _meshVertices.Length;
-                if (_deformedVertices == null || _deformedVertices.Length != count)
-                    _deformedVertices = new Vector3[count];
-
-                var displacements = deformer.Displacements;
-                for (int i = 0; i < count; i++)
+                RefreshCountForTests++;
+                if (deformer == null || _meshVertices == null)
                 {
-                    _deformedVertices[i] = _meshVertices[i];
-                    if (displacements != null && i < displacements.Length)
-                        _deformedVertices[i] += displacements[i];
+                    _deformedVertices = _meshVertices;
+                    _worldPositions = null;
+                    return;
                 }
+
+                if (hasRuntimeVertices)
+                {
+                    CopyVertices(_runtimeVertexScratch, ref _deformedVertices);
+                }
+                else
+                {
+                    int count = _meshVertices.Length;
+                    if (_deformedVertices == null || _deformedVertices.Length != count ||
+                        ReferenceEquals(_deformedVertices, _meshVertices))
+                        _deformedVertices = new Vector3[count];
+
+                    var displacements = deformer.Displacements;
+                    for (int i = 0; i < count; i++)
+                    {
+                        _deformedVertices[i] = _meshVertices[i];
+                        if (displacements != null && i < displacements.Length)
+                            _deformedVertices[i] += displacements[i];
+                    }
+                }
+
+                _worldPositions = SkinnedVertexHelper.ComputeWorldPositions(
+                    deformer,
+                    _deformedVertices,
+                    _worldPositions);
+            }
+            finally
+            {
+                Profiler.EndSample();
+            }
+        }
+
+        private int GetPoseHash(LatticeDeformer deformer)
+        {
+            Renderer originalRenderer = deformer != null
+                ? deformer.GetComponent<Renderer>()
+                : null;
+            if (!_poseRendererResolved || !ReferenceEquals(_cachedOriginalRenderer, originalRenderer))
+            {
+                _cachedOriginalRenderer = originalRenderer;
+                Renderer resolvedRenderer = originalRenderer;
+                if (originalRenderer != null &&
+                    NDMFPreviewProxyUtility.TryGetProxyRenderer(originalRenderer, out var proxyRenderer))
+                {
+                    resolvedRenderer = proxyRenderer;
+                }
+
+                _cachedSkinnedRenderer = resolvedRenderer as SkinnedMeshRenderer;
+                _cachedBones = _cachedSkinnedRenderer != null
+                    ? _cachedSkinnedRenderer.bones
+                    : null;
+                _cachedRendererDirtyCount = _cachedSkinnedRenderer != null
+                    ? EditorUtility.GetDirtyCount(_cachedSkinnedRenderer)
+                    : 0;
+                _poseRendererResolved = true;
+                _snapshotValid = false;
             }
 
-            // Compute world-space positions for SkinnedMeshRenderer (null for MeshRenderer)
-            _worldPositions = SkinnedVertexHelper.ComputeWorldPositions(
-                deformer,
-                _deformedVertices,
-                _worldPositions);
+            if (_cachedSkinnedRenderer == null)
+                return 0;
+
+            int rendererDirtyCount = EditorUtility.GetDirtyCount(_cachedSkinnedRenderer);
+            if (_cachedBones == null || rendererDirtyCount != _cachedRendererDirtyCount)
+                _cachedBones = _cachedSkinnedRenderer.bones;
+            _cachedRendererDirtyCount = rendererDirtyCount;
+
+            return SkinnedVertexHelper.ComputePoseStateHash(_cachedSkinnedRenderer, _cachedBones);
+        }
+
+        private void InvalidatePoseRendererCache()
+        {
+            _cachedOriginalRenderer = null;
+            _cachedSkinnedRenderer = null;
+            _cachedBones = null;
+            _cachedRendererDirtyCount = 0;
+            _poseRendererResolved = false;
+        }
+
+        private static void ReadVertices(Mesh mesh, List<Vector3> scratch)
+        {
+            scratch.Clear();
+            mesh.GetVertices(scratch);
+        }
+
+        private static int ComputeMeshStateHash(Mesh mesh, int revision)
+        {
+            if (mesh == null) return 0;
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + mesh.GetInstanceID();
+                hash = hash * 31 + mesh.vertexCount;
+                hash = hash * 31 + mesh.subMeshCount;
+                hash = hash * 31 + mesh.bounds.GetHashCode();
+                hash = hash * 31 + EditorUtility.GetDirtyCount(mesh);
+                hash = hash * 31 + revision;
+                for (int i = 0; i < mesh.subMeshCount; i++)
+                {
+                    hash = hash * 31 + (int)mesh.GetIndexCount(i);
+                    hash = hash * 31 + (int)mesh.GetTopology(i);
+                }
+                return hash;
+            }
+        }
+
+        private static int ComputeDeformerStateHash(LatticeDeformer deformer)
+        {
+            if (deformer == null) return 0;
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + deformer.GetInstanceID();
+                hash = hash * 31 + EditorUtility.GetDirtyCount(deformer);
+                hash = hash * 31 + deformer.RuntimeMeshRevision;
+                return hash;
+            }
+        }
+
+        private static void CopyVertices(List<Vector3> source, ref Vector3[] destination)
+        {
+            if (destination == null || destination.Length != source.Count)
+                destination = new Vector3[source.Count];
+            source.CopyTo(destination);
         }
 
         private void InvalidateCache()
@@ -1315,6 +1471,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _meshNormals = null;
             _deformedVertices = null;
             _meshTriangles = null;
+            _worldPositions = null;
+            _cachedRuntimeMesh = null;
+            InvalidatePoseRendererCache();
+            _snapshotValid = false;
         }
 
         private Quaternion ComputeAverageNormalRotation(Transform meshTransform)

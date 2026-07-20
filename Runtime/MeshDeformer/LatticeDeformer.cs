@@ -769,6 +769,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private List<DeformerGroup> _blockedProfileGroups;
         [NonSerialized] private string _profileFingerprint;
         [NonSerialized] private bool _blendShapeOutputDirty = true;
+        [NonSerialized] private int _runtimeMeshRevision;
         [NonSerialized] private bool _isEnsuringLayerModelReady;
         [NonSerialized] private bool _hasIncompatibleBrushData;
         [NonSerialized] private DeformationDataMigrationStatus _migrationStatus =
@@ -1154,6 +1155,8 @@ namespace Net._32Ba.LatticeDeformationTool
         }
 
         public Mesh RuntimeMesh => _runtimeMesh;
+
+        internal int RuntimeMeshRevision => _runtimeMeshRevision;
 
         public Mesh SourceMesh => _sourceMesh;
 
@@ -2415,6 +2418,11 @@ namespace Net._32Ba.LatticeDeformationTool
 
             if (assignToRenderer)
                 AssignRuntimeMesh(mesh);
+
+            unchecked
+            {
+                _runtimeMeshRevision++;
+            }
 
             UnityEngine.Profiling.Profiler.EndSample();
             return mesh;

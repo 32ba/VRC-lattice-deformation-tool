@@ -117,6 +117,228 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void VertexSelectionCache_UnchangedMeshSkipsRefreshAndInPlaceEditInvalidates()
+        {
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            try
+            {
+                var handler = new VertexSelectionHandler();
+                handler.RebuildCacheIfNeeded(mesh);
+                Assert.That(handler.RefreshCountForTests, Is.EqualTo(1));
+
+                handler.RebuildCacheIfNeeded(mesh);
+                Assert.That(handler.RefreshCountForTests, Is.EqualTo(1));
+
+                var vertices = mesh.vertices;
+                vertices[0] = new Vector3(0.25f, 0.25f, 0f);
+                mesh.vertices = vertices;
+                handler.RebuildCacheIfNeeded(mesh);
+
+                Assert.That(handler.RefreshCountForTests, Is.EqualTo(2));
+                Assert.That(
+                    handler.DeformedVerticesForTests[0],
+                    Is.EqualTo(new Vector3(0.25f, 0.25f, 0f)));
+            }
+            finally
+            {
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void VertexSelectionCache_WarmUnchangedMeshAllocatesZeroBytes()
+        {
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            try
+            {
+                var handler = new VertexSelectionHandler();
+                handler.RebuildCacheIfNeeded(mesh);
+                handler.RebuildCacheIfNeeded(mesh);
+
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                handler.RebuildCacheIfNeeded(mesh);
+                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+
+                Assert.That(allocated, Is.Zero);
+                Assert.That(handler.RefreshCountForTests, Is.EqualTo(1));
+            }
+            finally
+            {
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void VertexSelectionCache_WarmMeshRendererWithDeformerAllocatesZeroBytes()
+        {
+            var rendererObject = new GameObject("Renderer");
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            try
+            {
+                rendererObject.AddComponent<MeshRenderer>();
+                rendererObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var deformer = rendererObject.AddComponent<LatticeDeformer>();
+                var handler = new VertexSelectionHandler();
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+
+                Assert.That(allocated, Is.Zero);
+                Assert.That(handler.RefreshCountForTests, Is.EqualTo(1));
+            }
+            finally
+            {
+                Object.DestroyImmediate(rendererObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void VertexSelectionCache_WarmHundredThousandVerticesAllocatesZeroBytes()
+        {
+            const int vertexCount = 100000;
+            const int iterations = 20;
+            var vertices = new Vector3[vertexCount];
+            for (int i = 0; i < vertexCount; i++)
+                vertices[i] = new Vector3(i * 0.001f, i % 17, i % 31);
+
+            var mesh = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+            mesh.vertices = vertices;
+            try
+            {
+                var handler = new VertexSelectionHandler();
+                handler.RebuildCacheIfNeeded(mesh);
+                handler.RebuildCacheIfNeeded(mesh);
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                for (int i = 0; i < iterations; i++)
+                    handler.RebuildCacheIfNeeded(mesh);
+                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+                stopwatch.Stop();
+
+                double averageMilliseconds = stopwatch.Elapsed.TotalMilliseconds / iterations;
+                TestContext.WriteLine(
+                    $"100k warm snapshot: {averageMilliseconds:F3} ms/call, {allocated} B/{iterations} calls");
+                Assert.That(allocated, Is.Zero);
+                Assert.That(handler.RefreshCountForTests, Is.EqualTo(1));
+            }
+            finally
+            {
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void SkinnedPoseStateHash_TracksBoneTransformAndBlendShapeWeight()
+        {
+            var rendererObject = new GameObject("Renderer");
+            var boneObject = new GameObject("Bone");
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            mesh.AddBlendShapeFrame(
+                "Pose",
+                100f,
+                new[] { Vector3.forward, Vector3.zero, Vector3.zero },
+                new Vector3[3],
+                new Vector3[3]);
+            try
+            {
+                var renderer = rendererObject.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = mesh;
+                renderer.bones = new[] { boneObject.transform };
+                var bones = renderer.bones;
+
+                int initial = SkinnedVertexHelper.ComputePoseStateHash(renderer, bones);
+                boneObject.transform.position = Vector3.right;
+                int afterBoneMove = SkinnedVertexHelper.ComputePoseStateHash(renderer, bones);
+                renderer.SetBlendShapeWeight(0, 50f);
+                int afterBlendShape = SkinnedVertexHelper.ComputePoseStateHash(renderer, bones);
+                var vertices = mesh.vertices;
+                vertices[0] = Vector3.forward;
+                mesh.vertices = vertices;
+                int afterMeshEdit = SkinnedVertexHelper.ComputePoseStateHash(renderer, bones);
+
+                Assert.That(afterBoneMove, Is.Not.EqualTo(initial));
+                Assert.That(afterBlendShape, Is.Not.EqualTo(afterBoneMove));
+                Assert.That(afterMeshEdit, Is.Not.EqualTo(afterBlendShape));
+            }
+            finally
+            {
+                Object.DestroyImmediate(rendererObject);
+                Object.DestroyImmediate(boneObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void VertexSelectionCache_UnchangedSkinnedPoseBakesOnceAndPoseChangeRebakes()
+        {
+            var rendererObject = new GameObject("Renderer");
+            var boneObject = new GameObject("Bone");
+            var replacementBoneObject = new GameObject("Replacement Bone");
+            var mesh = CreateSingleBoneTriangleMesh();
+            try
+            {
+                boneObject.transform.SetParent(rendererObject.transform, false);
+                var skinned = rendererObject.AddComponent<SkinnedMeshRenderer>();
+                skinned.sharedMesh = mesh;
+                skinned.rootBone = boneObject.transform;
+                skinned.bones = new[] { boneObject.transform };
+                var deformer = rendererObject.AddComponent<LatticeDeformer>();
+                var handler = new VertexSelectionHandler();
+                SkinnedVertexHelper.WorldPositionBakeCountForTests = 0;
+
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                Assert.That(SkinnedVertexHelper.WorldPositionBakeCountForTests, Is.EqualTo(1));
+
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+                Assert.That(allocated, Is.Zero);
+
+                boneObject.transform.localPosition = Vector3.right;
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                Assert.That(SkinnedVertexHelper.WorldPositionBakeCountForTests, Is.EqualTo(2));
+
+                replacementBoneObject.transform.SetParent(rendererObject.transform, false);
+                skinned.bones = new[] { replacementBoneObject.transform };
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                Assert.That(SkinnedVertexHelper.WorldPositionBakeCountForTests, Is.EqualTo(3));
+
+                replacementBoneObject.transform.localPosition = Vector3.up;
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                Assert.That(SkinnedVertexHelper.WorldPositionBakeCountForTests, Is.EqualTo(4));
+            }
+            finally
+            {
+                SkinnedVertexHelper.WorldPositionBakeCountForTests = 0;
+                Object.DestroyImmediate(rendererObject);
+                Object.DestroyImmediate(boneObject);
+                Object.DestroyImmediate(replacementBoneObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
         public void BrushTool_IntersectRayMeshDelegate_HitsKnownTriangle()
         {
             var mesh = new Mesh
