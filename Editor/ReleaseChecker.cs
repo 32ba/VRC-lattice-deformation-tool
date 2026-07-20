@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
@@ -246,9 +247,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     [ExcludeFromCodeCoverage]
     internal sealed class EditorCoroutine
     {
-        private readonly IEnumerator _routine;
-        private IEnumerator _nested;
+        private readonly Stack<IEnumerator> _routines = new Stack<IEnumerator>();
         private readonly Action<Exception> _onException;
+        private object _yielded;
 
         internal static EditorCoroutine Start(IEnumerator routine, Action<Exception> onException = null)
         {
@@ -259,7 +260,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private EditorCoroutine(IEnumerator routine, Action<Exception> onException)
         {
-            _routine = routine;
+            if (routine == null) throw new ArgumentNullException(nameof(routine));
+            _routines.Push(routine);
             _onException = onException;
         }
 
@@ -267,26 +269,41 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             try
             {
-                if (_nested != null)
+                if (!IsYieldComplete(_yielded))
                 {
-                    if (_nested.MoveNext())
+                    return;
+                }
+                _yielded = null;
+
+                while (_routines.Count > 0)
+                {
+                    IEnumerator routine = _routines.Peek();
+                    if (!routine.MoveNext())
                     {
+                        _routines.Pop();
+                        continue;
+                    }
+
+                    object yielded = routine.Current;
+                    if (yielded is AsyncOperation || yielded is CustomYieldInstruction)
+                    {
+                        _yielded = yielded;
                         return;
                     }
 
-                    _nested = null;
-                }
+                    if (yielded is IEnumerator nestedRoutine)
+                    {
+                        _routines.Push(nestedRoutine);
+                        continue;
+                    }
 
-                if (!_routine.MoveNext())
-                {
-                    EditorApplication.update -= Update;
+                    // null and ordinary YieldInstruction values resume on the next
+                    // editor update, matching Unity coroutine frame semantics.
+                    _yielded = yielded;
                     return;
                 }
 
-                if (_routine.Current is IEnumerator nestedRoutine)
-                {
-                    _nested = nestedRoutine;
-                }
+                EditorApplication.update -= Update;
             }
             catch (Exception ex)
             {
@@ -300,6 +317,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     Debug.LogException(callbackException);
                 }
             }
+        }
+
+        internal static bool IsYieldComplete(object yielded)
+        {
+            if (yielded is AsyncOperation asyncOperation)
+            {
+                return asyncOperation.isDone;
+            }
+
+            if (yielded is CustomYieldInstruction customYieldInstruction)
+            {
+                return !customYieldInstruction.keepWaiting;
+            }
+
+            return true;
         }
     }
 }
