@@ -1023,6 +1023,9 @@ msgstr "笔刷变形"
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr ""
 
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-deprecated-warning"
+msgstr "Brush Deformer 是已弃用的旧组件，当前无法继续编辑。请移除此组件，并改为添加 32ba/Mesh Deformer。如果其中包含已有的变形数据，请在移除前保存备份。"
+
 # Update notification
 msgid "net.32ba.lattice-deformation-tool.localization.update-available"
 msgstr "有新版本可用"

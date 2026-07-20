@@ -1026,6 +1026,9 @@ msgstr "Brush Deformation"
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr "Section for brush-based vertex deformation settings."
 
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-deprecated-warning"
+msgstr "Brush Deformer is deprecated and can no longer be edited. Remove it and add 32ba/Mesh Deformer instead. If it contains existing deformation data, keep a backup before removing it."
+
 # Update notification
 msgid "net.32ba.lattice-deformation-tool.localization.update-available"
 msgstr "A new version is available"

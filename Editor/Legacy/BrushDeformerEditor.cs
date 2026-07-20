@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using nadena.dev.ndmf.preview;
 using UnityEditor;
-using UnityEditor.EditorTools;
 using UnityEngine;
 using Net._32Ba.LatticeDeformationTool;
 
@@ -49,6 +48,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             AutoAssignLocalRendererReferences();
             serializedObject.Update();
+
+            EditorGUILayout.HelpBox(
+                LatticeLocalization.Tr(LocKey.LegacyBrushDeprecatedWarning),
+                MessageType.Warning);
+            EditorGUILayout.Space();
 
             bool hasSkinnedAssigned = _skinnedRendererProp != null && !_skinnedRendererProp.hasMultipleDifferentValues && _skinnedRendererProp.objectReferenceValue != null;
             bool hasMeshAssigned = _meshFilterProp != null && !_meshFilterProp.hasMultipleDifferentValues && _meshFilterProp.objectReferenceValue != null;
@@ -135,12 +139,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 LatticePreviewUtility.RequestSceneRepaint();
             }
 
-            EditorGUILayout.Space();
-            if (GUILayout.Button(LatticeLocalization.Tr(LocKey.OpenBrushEditor)))
-            {
-                ToolManager.SetActiveTool<MeshDeformerTool>();
-                LatticePreviewUtility.RequestSceneRepaint();
-            }
         }
 
         private void AutoAssignLocalRendererReferences()

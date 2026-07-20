@@ -1026,6 +1026,9 @@ msgstr "ブラシ変形"
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
 msgstr "ブラシベースの頂点変形設定セクションです。"
 
+msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-deprecated-warning"
+msgstr "Brush Deformer は廃止された旧コンポーネントのため、現在は編集できません。このコンポーネントを削除し、代わりに 32ba/Mesh Deformer を追加してください。既存の変形データが含まれている場合は、削除前にバックアップを保存してください。"
+
 # Update notification
 msgid "net.32ba.lattice-deformation-tool.localization.update-available"
 msgstr "新しいバージョンがあります"

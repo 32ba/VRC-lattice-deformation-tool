@@ -18,6 +18,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
     [DisallowMultipleComponent]
     [ExecuteAlways]
+    [AddComponentMenu("")]
     public class BrushDeformer : MonoBehaviour
     {
         public static bool SuppressRestoreOnDisable { get; set; } = false;
