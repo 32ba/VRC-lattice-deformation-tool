@@ -6,6 +6,7 @@ using System.Reflection;
 using Unity.Collections;
 using UnityEditor;
 using UnityEngine;
+using Unity.Profiling;
 using Object = UnityEngine.Object;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
@@ -67,12 +68,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     /// </summary>
     internal static class MeshDeformerValidator
     {
+        private static readonly ProfilerMarker s_validateMarker =
+            new ProfilerMarker("Validator.Validate");
+        internal static int ValidateCount { get; set; }
         private static readonly FieldInfo s_groupsField = typeof(LatticeDeformer)
             .GetField("_groups", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo s_layersField = typeof(DeformerGroup)
             .GetField("_layers", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo s_settingsField = typeof(LatticeLayer)
             .GetField("_settings", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo s_activeGroupIndexField = typeof(LatticeDeformer)
+            .GetField("_activeGroupIndex", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo s_profileGroupsField = typeof(MeshDeformerProfile)
+            .GetField("_groups", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo s_profileActiveGroupIndexField = typeof(MeshDeformerProfile)
+            .GetField("_activeGroupIndex", BindingFlags.Instance | BindingFlags.NonPublic);
         internal const string MissingRenderer = "MDV001";
         internal const string MissingSourceMesh = "MDV002";
         internal const string SourceMeshChanged = "MDV003";
@@ -97,6 +107,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             LatticeDeformer deformer,
             Mesh evaluationTargetMesh = null)
         {
+            using var validateScope = s_validateMarker.Auto();
+            ValidateCount++;
             var results = new List<MeshDeformerDiagnostic>();
             if (deformer == null || !deformer.enabled) return results;
 
@@ -156,6 +168,67 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal static bool HasErrors(IReadOnlyList<MeshDeformerDiagnostic> diagnostics)
         {
             return diagnostics != null && diagnostics.Any(d => d.Severity == MeshDeformerDiagnosticSeverity.Error);
+        }
+
+        internal static int ComputeInspectorStructureHash(LatticeDeformer deformer)
+        {
+            if (deformer == null) return 0;
+            unchecked
+            {
+                bool useProfile = deformer.DataSource == DeformerDataSource.Profile &&
+                                  deformer.Profile != null;
+                List<DeformerGroup> groups = useProfile
+                    ? s_profileGroupsField?.GetValue(deformer.Profile) as List<DeformerGroup>
+                    : s_groupsField?.GetValue(deformer) as List<DeformerGroup>;
+                int activeGroupIndex = useProfile
+                    ? (int)(s_profileActiveGroupIndexField?.GetValue(deformer.Profile) ?? 0)
+                    : (int)(s_activeGroupIndexField?.GetValue(deformer) ?? 0);
+                int hash = 17;
+                hash = hash * 31 + (int)deformer.DataSource;
+                hash = hash * 31 + activeGroupIndex;
+                int groupCount = groups?.Count ?? -1;
+                hash = hash * 31 + groupCount;
+                if (groups == null) return hash;
+
+                for (int groupIndex = 0; groupIndex < groups.Count; groupIndex++)
+                {
+                    DeformerGroup group = groups[groupIndex];
+                    hash = hash * 31 + (group != null ? group.GetHashCode() : 0);
+                    if (group == null) continue;
+                    hash = hash * 31 + group.Enabled.GetHashCode();
+                    hash = hash * 31 + group.SerializedActiveLayerIndex;
+                    hash = hash * 31 + (int)group.BlendShapeOutput;
+                    hash = hash * 31 + (int)group.BlendShapeComposition;
+                    hash = hash * 31 + StringComparer.Ordinal.GetHashCode(group.BlendShapeName ?? "");
+                    List<LatticeLayer> layers = group.SerializedLayers;
+                    int layerCount = layers?.Count ?? -1;
+                    hash = hash * 31 + layerCount;
+                    if (layers == null) continue;
+
+                    for (int layerIndex = 0; layerIndex < layers.Count; layerIndex++)
+                    {
+                        LatticeLayer layer = layers[layerIndex];
+                        hash = hash * 31 + (layer != null ? layer.GetHashCode() : 0);
+                        if (layer == null) continue;
+                        hash = hash * 31 + layer.Enabled.GetHashCode();
+                        hash = hash * 31 + (int)layer.Type;
+                        hash = hash * 31 + layer.SerializedBrushDisplacementCount;
+                        hash = hash * 31 + layer.SerializedVertexMaskCount;
+                        hash = hash * 31 + (int)layer.BlendShapeOutput;
+                        hash = hash * 31 + StringComparer.Ordinal.GetHashCode(layer.BlendShapeName ?? "");
+                        if (layer.Type == MeshDeformerLayerType.Brush) continue;
+
+                        LatticeAsset settings = layer.SerializedSettings;
+                        hash = hash * 31 + (settings != null ? settings.GetHashCode() : 0);
+                        if (settings == null) continue;
+                        hash = hash * 31 + settings.GridSize.GetHashCode();
+                        hash = hash * 31 + settings.ControlPointsLocal.Length;
+                        hash = hash * 31 + settings.LocalBounds.center.GetHashCode();
+                        hash = hash * 31 + settings.LocalBounds.size.GetHashCode();
+                    }
+                }
+                return hash;
+            }
         }
 
         internal static void Log(IReadOnlyList<MeshDeformerDiagnostic> diagnostics)

@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using UnityEngine;
+using Unity.Profiling;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
@@ -102,6 +103,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
     internal static class ClearanceHeatmapEvaluator
     {
+        private static readonly ProfilerMarker s_captureMarker =
+            new ProfilerMarker("ClearanceHeatmap.Capture");
+        private static readonly ProfilerMarker s_evaluateMarker =
+            new ProfilerMarker("ClearanceHeatmap.Evaluate");
+        internal static int EvaluationCount { get; set; }
+
         internal static ClearanceHeatmapRawEvaluation Evaluate(
             Renderer targetRenderer,
             Renderer referenceRenderer,
@@ -113,19 +120,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     null, null, ClearanceEvaluationStatus.InvalidReference);
             }
 
-            if (!IsUsableRenderer(targetRenderer) ||
-                !ClearanceQueryCache.TryGetRendererStateHash(targetRenderer, out int targetStateHash) ||
-                !ClearanceQueryCache.TryGetWorldVertices(targetRenderer, out Vector3[] worldPositions))
+            Vector3[] worldPositions;
+            int targetStateHash;
+            using (s_captureMarker.Auto())
             {
-                return new ClearanceHeatmapRawEvaluation(
-                    null, null, ClearanceEvaluationStatus.InvalidTarget);
+                if (!IsUsableRenderer(targetRenderer) ||
+                    !ClearanceQueryCache.TryGetWorldVerticesAndStateHash(
+                        targetRenderer,
+                        out worldPositions,
+                        out targetStateHash))
+                {
+                    return new ClearanceHeatmapRawEvaluation(
+                        null, null, ClearanceEvaluationStatus.InvalidTarget);
+                }
             }
 
-            ClearanceQueryResult[] results = ClearanceQueryCache.QueryPoints(
-                referenceRenderer,
-                worldPositions,
-                Matrix4x4.identity,
-                signMode);
+            ClearanceQueryResult[] results;
+            using (s_evaluateMarker.Auto())
+            {
+                EvaluationCount++;
+                results = ClearanceQueryCache.QueryPoints(
+                    referenceRenderer,
+                    worldPositions,
+                    Matrix4x4.identity,
+                    signMode);
+            }
             ClearanceQueryCache.TryGetRendererStateHash(referenceRenderer, out int referenceStateHash);
             return new ClearanceHeatmapRawEvaluation(
                 worldPositions,
@@ -149,11 +168,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return new ClearanceHeatmapRawEvaluation(
                     null, null, ClearanceEvaluationStatus.InvalidReference);
             }
-            ClearanceQueryResult[] results = ClearanceQueryCache.QueryPoints(
-                referenceRenderer,
-                worldPositions,
-                Matrix4x4.identity,
-                signMode);
+            ClearanceQueryResult[] results;
+            using (s_evaluateMarker.Auto())
+            {
+                EvaluationCount++;
+                results = ClearanceQueryCache.QueryPoints(
+                    referenceRenderer,
+                    worldPositions,
+                    Matrix4x4.identity,
+                    signMode);
+            }
             return new ClearanceHeatmapRawEvaluation(
                 (Vector3[])worldPositions.Clone(),
                 results,
