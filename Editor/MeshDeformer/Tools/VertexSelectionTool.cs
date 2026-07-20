@@ -318,7 +318,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             // Handle selection input
             // Draw vertex dots
-            DrawVertices(meshTransform);
+            if (ShouldDrawVertices(evt.type))
+            {
+                DrawVertices(meshTransform);
+            }
 
             // Draw and handle transform BEFORE selection input so handles get priority
             if (s_selectedVertices.Count > 0)
@@ -573,6 +576,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 Profiler.EndSample();
             }
+        }
+
+        internal static bool ShouldDrawVertices(EventType eventType)
+        {
+            return eventType == EventType.Repaint;
         }
 
         private void DrawVertexDots(
@@ -1294,7 +1302,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             // Compute world-space positions for SkinnedMeshRenderer (null for MeshRenderer)
-            _worldPositions = SkinnedVertexHelper.ComputeWorldPositions(deformer, _deformedVertices);
+            _worldPositions = SkinnedVertexHelper.ComputeWorldPositions(
+                deformer,
+                _deformedVertices,
+                _worldPositions);
         }
 
         private void InvalidateCache()

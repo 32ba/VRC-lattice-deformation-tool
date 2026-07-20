@@ -11,6 +11,142 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     public sealed class MeshUtilityCoreTests
     {
         [Test]
+        public void WireframeRenderer_BuildLineIndices_PreservesTriangleEdgeMultiplicity()
+        {
+            int[] indices = WireframeRenderer.BuildLineIndices(
+                new[]
+                {
+                    0, 1, 2,
+                    2, 1, 3
+                },
+                4);
+
+            Assert.That(indices, Is.EqualTo(new[]
+            {
+                0, 1,
+                1, 2,
+                2, 0,
+                2, 1,
+                1, 3,
+                3, 2
+            }));
+        }
+
+        [Test]
+        public void WireframeRenderer_BuildLineIndices_SkipsInvalidTriangles()
+        {
+            int[] indices = WireframeRenderer.BuildLineIndices(
+                new[]
+                {
+                    0, 0, 1,
+                    1, 2, 9
+                },
+                3);
+
+            Assert.That(indices, Is.EqualTo(new[]
+            {
+                0, 0,
+                0, 1,
+                1, 0
+            }));
+        }
+
+        [Test]
+        public void WireframeRenderer_TriangleContentsMatch_DetectsInPlaceMutation()
+        {
+            var triangles = new[] { 0, 1, 2 };
+            var cached = (int[])triangles.Clone();
+
+            Assert.That(WireframeRenderer.TriangleContentsMatch(triangles, cached), Is.True);
+
+            triangles[2] = 3;
+
+            Assert.That(WireframeRenderer.TriangleContentsMatch(triangles, cached), Is.False);
+        }
+
+        [Test]
+        public void WireframeRenderer_RecreatedMesh_ResetsTopologyCache()
+        {
+            var type = typeof(WireframeRenderer);
+            var lineMeshField = type.GetField("s_lineMesh", BindingFlags.Static | BindingFlags.NonPublic);
+            var triangleField = type.GetField(
+                "s_cachedTriangleContents",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            var vertexCountField = type.GetField(
+                "s_cachedVertexCount",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            var ensureMethod = type.GetMethod("EnsureLineMesh", BindingFlags.Static | BindingFlags.NonPublic);
+            var originalLineMesh = (Mesh)lineMeshField.GetValue(null);
+            var originalTriangles = (int[])triangleField.GetValue(null);
+            var originalVertexCount = (int)vertexCountField.GetValue(null);
+            var destroyedMesh = new Mesh();
+            Mesh recreatedMesh = null;
+            try
+            {
+                lineMeshField.SetValue(null, destroyedMesh);
+                triangleField.SetValue(null, new[] { 0, 1, 2 });
+                vertexCountField.SetValue(null, 3);
+                Object.DestroyImmediate(destroyedMesh);
+
+                var arguments = new object[] { false };
+                recreatedMesh = (Mesh)ensureMethod.Invoke(null, arguments);
+
+                Assert.That((bool)arguments[0], Is.True);
+                Assert.That(recreatedMesh, Is.Not.Null);
+                Assert.That(triangleField.GetValue(null), Is.Null);
+                Assert.That(vertexCountField.GetValue(null), Is.EqualTo(-1));
+            }
+            finally
+            {
+                if (recreatedMesh != null) Object.DestroyImmediate(recreatedMesh);
+                lineMeshField.SetValue(null, originalLineMesh);
+                triangleField.SetValue(null, originalTriangles);
+                vertexCountField.SetValue(null, originalVertexCount);
+            }
+        }
+
+        [TestCase(EventType.Layout, false)]
+        [TestCase(EventType.MouseDown, false)]
+        [TestCase(EventType.MouseDrag, false)]
+        [TestCase(EventType.Repaint, true)]
+        public void VertexSelection_ShouldDrawVertices_OnlyDuringRepaint(
+            EventType eventType,
+            bool expected)
+        {
+            Assert.That(VertexSelectionHandler.ShouldDrawVertices(eventType), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void BrushTool_IntersectRayMeshDelegate_HitsKnownTriangle()
+        {
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            try
+            {
+                var method = typeof(BrushToolHandler).GetMethod(
+                    "IntersectRayMesh",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                var arguments = new object[]
+                {
+                    new Ray(new Vector3(0.25f, 0.25f, 1f), Vector3.back),
+                    mesh,
+                    Matrix4x4.identity,
+                    null
+                };
+
+                Assert.That((bool)method.Invoke(null, arguments), Is.True);
+                Assert.That(((RaycastHit)arguments[3]).triangleIndex, Is.EqualTo(0));
+            }
+            finally
+            {
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
         public void PenetrationDetector_HandlesNullAndEmptyInputs()
         {
             Assert.That(PenetrationDetector.DetectPenetration(null, null, Matrix4x4.identity), Is.Empty);
@@ -478,6 +614,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(world[0].x, Is.EqualTo(1f).Within(1e-4f));
                 Assert.That(world[0].y, Is.EqualTo(2f).Within(1e-4f));
                 Assert.That(world[0].z, Is.EqualTo(3f).Within(1e-4f));
+
+                var reused = SkinnedVertexHelper.ComputeWorldPositions(
+                    deformer,
+                    new[] { Vector3.zero, Vector3.right, Vector3.up },
+                    world);
+                Assert.That(reused, Is.SameAs(world));
+                Assert.That(reused[0].x, Is.EqualTo(1f).Within(1e-4f));
+                Assert.That(reused[0].y, Is.EqualTo(2f).Within(1e-4f));
+                Assert.That(reused[0].z, Is.EqualTo(3f).Within(1e-4f));
                 Assert.That(SkinnedVertexHelper.TryGetBakedMeshForRaycast(deformer, out var baked, out var matrix), Is.True);
                 Assert.That(baked.vertexCount, Is.EqualTo(3));
                 Assert.That(matrix, Is.EqualTo(go.transform.localToWorldMatrix));

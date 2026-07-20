@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using UnityEngine;
 
@@ -12,6 +13,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     internal static class SkinnedVertexHelper
     {
         private static Mesh s_bakeMesh;
+        private static readonly List<Vector3> s_bakedVertices = new List<Vector3>();
         internal static bool StoreMovesInRestSpace { get; set; }
 
         /// <summary>
@@ -20,7 +22,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         /// or null for MeshRenderer (caller should use localToWorldMatrix).
         /// </summary>
         [ExcludeFromCodeCoverage]
-        public static Vector3[] ComputeWorldPositions(LatticeDeformer deformer, Vector3[] localVertices)
+        public static Vector3[] ComputeWorldPositions(
+            LatticeDeformer deformer,
+            Vector3[] localVertices,
+            Vector3[] reusableResult = null)
         {
             if (deformer == null || localVertices == null || localVertices.Length == 0)
                 return null;
@@ -42,15 +47,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             // BakeMesh returns vertices in the SMR's local space (without scale).
             // Convert to world space using the proxy's transform.
-            var bakedVerts = s_bakeMesh.vertices;
+            s_bakedVertices.Clear();
+            s_bakeMesh.GetVertices(s_bakedVertices);
             var proxyTransform = proxySMR.transform;
             var matrix = proxyTransform.localToWorldMatrix;
-            int count = bakedVerts.Length;
-            var result = new Vector3[count];
+            int count = s_bakedVertices.Count;
+            var result = reusableResult != null && reusableResult.Length == count
+                ? reusableResult
+                : new Vector3[count];
 
             for (int i = 0; i < count; i++)
             {
-                result[i] = matrix.MultiplyPoint3x4(bakedVerts[i]);
+                result[i] = matrix.MultiplyPoint3x4(s_bakedVertices[i]);
             }
 
             return result;

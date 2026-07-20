@@ -130,6 +130,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Vector3[] _meshNormals;
         private int[] _meshTriangles;
         private Vector3[] _worldPositions; // Skinned world-space positions (null for MeshRenderer)
+        private Vector3[] _wireframeVertices;
         private List<HashSet<int>> _adjacency;
         private Vector2 _lastMousePosition;
         private Vector3 _lastMoveBrushLocalDelta;
@@ -146,7 +147,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int _strokeInitialStateHash;
         private LatticeDeformer _strokeDeformer;
 
-        private static MethodInfo s_intersectRayMeshMethod;
+        private delegate bool IntersectRayMeshDelegate(
+            Ray ray,
+            Mesh mesh,
+            Matrix4x4 matrix,
+            out RaycastHit hit);
+
+        private static IntersectRayMeshDelegate s_intersectRayMesh;
         private static bool s_intersectRayMeshResolved;
 
         private static readonly Color k_NormalBrushColor = new Color(0.3f, 0.5f, 1f, 0.8f);
@@ -470,12 +477,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             // Draw mesh wireframe
-            if (s_showWireframe && _meshTriangles != null && _meshVertices != null)
+            if (evt.type == EventType.Repaint && s_showWireframe &&
+                _meshTriangles != null && _meshVertices != null)
             {
-                var deformedLocal = new Vector3[_meshVertices.Length];
-                for (int i = 0; i < deformedLocal.Length; i++)
-                    deformedLocal[i] = _meshVertices[i] + deformer.GetDisplacement(i);
-                WireframeRenderer.Draw(_meshTriangles, _worldPositions, deformedLocal, meshTransform.localToWorldMatrix);
+                Vector3[] deformedLocal = null;
+                if (_worldPositions == null)
+                {
+                    if (_wireframeVertices == null || _wireframeVertices.Length != _meshVertices.Length)
+                        _wireframeVertices = new Vector3[_meshVertices.Length];
+                    for (int i = 0; i < _wireframeVertices.Length; i++)
+                        _wireframeVertices[i] = _meshVertices[i] + deformer.GetDisplacement(i);
+                    deformedLocal = _wireframeVertices;
+                }
+
+                WireframeRenderer.Draw(
+                    _meshTriangles,
+                    _worldPositions,
+                    deformedLocal,
+                    meshTransform.localToWorldMatrix);
             }
 
             // Draw displacement heatmap (always visible when enabled)
@@ -1318,25 +1337,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            // Use RuntimeMesh (all layers applied) if available, else source + active layer
-            var runtimeMesh = deformer.RuntimeMesh;
-            Vector3[] localDeformed;
-            if (runtimeMesh != null && runtimeMesh.vertexCount == _meshVertices.Length)
-            {
-                localDeformed = runtimeMesh.vertices;
-            }
-            else
-            {
-                int count = _meshVertices.Length;
-                localDeformed = new Vector3[count];
-                for (int i = 0; i < count; i++)
-                {
-                    localDeformed[i] = _meshVertices[i] + deformer.GetDisplacement(i);
-                }
-            }
-
-            // Compute skinned world positions (null for MeshRenderer)
-            _worldPositions = SkinnedVertexHelper.ComputeWorldPositions(deformer, localDeformed);
+            // The helper uses this array only to validate the baked vertex count. The
+            // proxy renderer already contains the complete layered deformation, so no
+            // intermediate deformed-vertex array is required here.
+            _worldPositions = SkinnedVertexHelper.ComputeWorldPositions(
+                deformer,
+                _meshVertices,
+                _worldPositions);
         }
 
         private Vector3 VertexToWorld(int index, Vector3 localVertex, Matrix4x4 localToWorld)
@@ -1724,24 +1731,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (!s_intersectRayMeshResolved)
             {
                 s_intersectRayMeshResolved = true;
-                s_intersectRayMeshMethod = typeof(HandleUtility).GetMethod(
+                var method = typeof(HandleUtility).GetMethod(
                     "IntersectRayMesh",
                     BindingFlags.Static | BindingFlags.NonPublic,
                     null,
                     new[] { typeof(Ray), typeof(Mesh), typeof(Matrix4x4), typeof(RaycastHit).MakeByRefType() },
                     null);
+                if (method != null)
+                {
+                    s_intersectRayMesh = (IntersectRayMeshDelegate)Delegate.CreateDelegate(
+                        typeof(IntersectRayMeshDelegate),
+                        method);
+                }
             }
 
             hit = default;
-            if (s_intersectRayMeshMethod == null) return false;
-
-            var args = new object[] { ray, mesh, matrix, null };
-            var result = (bool)s_intersectRayMeshMethod.Invoke(null, args);
-            if (result)
-            {
-                hit = (RaycastHit)args[3];
-            }
-            return result;
+            return s_intersectRayMesh != null &&
+                   s_intersectRayMesh(ray, mesh, matrix, out hit);
         }
 
         private void EnsureAdjacencyBuilt()
