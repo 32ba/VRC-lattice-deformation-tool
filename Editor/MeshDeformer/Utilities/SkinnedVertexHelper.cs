@@ -76,6 +76,71 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
 
         /// <summary>
+        /// Captures the posed mesh once and shares it between brush world-position
+        /// visualization and raycasting for the current Scene GUI event.
+        /// </summary>
+        [ExcludeFromCodeCoverage]
+        internal static bool TryCaptureBrushSnapshot(
+            LatticeDeformer deformer,
+            Vector3[] localVertices,
+            Vector3[] reusableWorldPositions,
+            out Vector3[] worldPositions,
+            out Mesh bakedMesh,
+            out Matrix4x4 bakedMeshMatrix)
+        {
+            worldPositions = null;
+            bakedMesh = null;
+            bakedMeshMatrix = Matrix4x4.identity;
+            if (deformer == null || !TryGetSkinnedRendererReference(deformer, out var renderer))
+                return false;
+
+            return TryCaptureBrushSnapshot(
+                renderer,
+                localVertices,
+                reusableWorldPositions,
+                out worldPositions,
+                out bakedMesh,
+                out bakedMeshMatrix);
+        }
+
+        [ExcludeFromCodeCoverage]
+        internal static bool TryCaptureBrushSnapshot(
+            SkinnedMeshRenderer renderer,
+            Vector3[] localVertices,
+            Vector3[] reusableWorldPositions,
+            out Vector3[] worldPositions,
+            out Mesh bakedMesh,
+            out Matrix4x4 bakedMeshMatrix)
+        {
+            worldPositions = null;
+            bakedMesh = null;
+            bakedMeshMatrix = Matrix4x4.identity;
+            if (renderer == null || localVertices == null || localVertices.Length == 0)
+                return false;
+
+            if (s_bakeMesh == null)
+            {
+                s_bakeMesh = new Mesh { hideFlags = HideFlags.HideAndDontSave };
+            }
+
+            WorldPositionBakeCountForTests++;
+            renderer.BakeMesh(s_bakeMesh);
+            if (s_bakeMesh.vertexCount != localVertices.Length) return false;
+
+            s_bakedVertices.Clear();
+            s_bakeMesh.GetVertices(s_bakedVertices);
+            int count = s_bakedVertices.Count;
+            worldPositions = reusableWorldPositions != null && reusableWorldPositions.Length == count
+                ? reusableWorldPositions
+                : new Vector3[count];
+            bakedMeshMatrix = renderer.transform.localToWorldMatrix;
+            for (int i = 0; i < count; i++)
+                worldPositions[i] = bakedMeshMatrix.MultiplyPoint3x4(s_bakedVertices[i]);
+            bakedMesh = s_bakeMesh;
+            return true;
+        }
+
+        /// <summary>
         /// Returns the baked mesh and its transform for raycasting against the posed mesh.
         /// For SkinnedMeshRenderer, bakes the proxy (or original) SMR.
         /// Returns false for MeshRenderer (caller should raycast against source mesh + localToWorldMatrix).
@@ -267,6 +332,86 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
                 totalWeight += weight;
                 return true;
+            }
+        }
+
+        internal sealed class RestSpaceDeltaConverterCache
+        {
+            private LatticeDeformer _deformer;
+            private SkinnedMeshRenderer _renderer;
+            private Mesh _mesh;
+            private int _meshDirtyCount;
+            private int _rendererDirtyCount;
+            private Matrix4x4 _rendererWorldToLocal;
+            private Transform[] _bones;
+            private Matrix4x4[] _boneMatrices;
+            private RestSpaceDeltaConverter _converter;
+            private int _proxyMappingRevision = -1;
+
+            internal RestSpaceDeltaConverter Get(LatticeDeformer deformer)
+            {
+                if (IsCurrent(deformer)) return _converter;
+                Rebuild(deformer);
+                return _converter;
+            }
+
+            internal void Clear()
+            {
+                _deformer = null;
+                _renderer = null;
+                _mesh = null;
+                _bones = null;
+                _boneMatrices = null;
+                _converter = null;
+                _proxyMappingRevision = -1;
+            }
+
+            private bool IsCurrent(LatticeDeformer deformer)
+            {
+                if (_converter == null || deformer == null || deformer != _deformer ||
+                    _renderer == null || _mesh == null ||
+                    _proxyMappingRevision != LatticePreviewUtility.ProxyMappingRevision ||
+                    !ReferenceEquals(
+                        deformer.SourceMesh != null ? deformer.SourceMesh : _renderer.sharedMesh,
+                        _mesh) ||
+                    EditorUtility.GetDirtyCount(_mesh) != _meshDirtyCount ||
+                    EditorUtility.GetDirtyCount(_renderer) != _rendererDirtyCount ||
+                    _renderer.transform.worldToLocalMatrix != _rendererWorldToLocal ||
+                    _bones == null || _boneMatrices == null || _bones.Length != _boneMatrices.Length)
+                    return false;
+
+                for (int i = 0; i < _bones.Length; i++)
+                {
+                    Matrix4x4 matrix = _bones[i] != null
+                        ? _bones[i].localToWorldMatrix
+                        : default;
+                    if (matrix != _boneMatrices[i]) return false;
+                }
+                return true;
+            }
+
+            private void Rebuild(LatticeDeformer deformer)
+            {
+                Clear();
+                if (deformer == null || !TryGetSkinnedRenderer(deformer, out var renderer)) return;
+                Mesh mesh = deformer.SourceMesh != null ? deformer.SourceMesh : renderer.sharedMesh;
+                if (mesh == null) return;
+
+                var converter = CreateRestSpaceDeltaConverter(deformer);
+                if (converter == null) return;
+                var bones = renderer.bones;
+                _deformer = deformer;
+                _renderer = renderer;
+                _mesh = mesh;
+                _meshDirtyCount = EditorUtility.GetDirtyCount(mesh);
+                _rendererDirtyCount = EditorUtility.GetDirtyCount(renderer);
+                _rendererWorldToLocal = renderer.transform.worldToLocalMatrix;
+                _proxyMappingRevision = LatticePreviewUtility.ProxyMappingRevision;
+                _bones = bones;
+                _boneMatrices = new Matrix4x4[bones.Length];
+                for (int i = 0; i < bones.Length; i++)
+                    _boneMatrices[i] = bones[i] != null ? bones[i].localToWorldMatrix : default;
+                _converter = converter;
             }
         }
 

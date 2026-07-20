@@ -61,6 +61,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Renderer _cachedSourceRenderer;
         private Renderer _cachedProxyRenderer;
         private bool _proxyResolved;
+        private int _cachedProxyMappingRevision = -1;
         private bool _proxySnapshotValid;
         private int _proxySnapshotHash;
         private Bounds _cachedProxyMeshBounds;
@@ -695,16 +696,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         }
 
-        private Renderer ResolveProxyRenderer(Renderer sourceRenderer)
+        internal Renderer ResolveProxyRenderer(Renderer sourceRenderer)
         {
-            if (_proxyResolved && ReferenceEquals(_cachedSourceRenderer, sourceRenderer))
+            int mappingRevision = LatticePreviewUtility.ProxyMappingRevision;
+            if (_proxyResolved && ReferenceEquals(_cachedSourceRenderer, sourceRenderer) &&
+                _cachedProxyMappingRevision == mappingRevision)
                 return _cachedProxyRenderer;
 
             _cachedSourceRenderer = sourceRenderer;
             _cachedProxyRenderer = null;
             if (sourceRenderer != null)
-                NDMFPreviewProxyUtility.TryGetProxyRenderer(sourceRenderer, out _cachedProxyRenderer);
+                LatticePreviewUtility.TryGetPreviewProxy(sourceRenderer, out _cachedProxyRenderer);
             _proxyResolved = true;
+            _cachedProxyMappingRevision = mappingRevision;
             _proxySnapshotValid = false;
             return _cachedProxyRenderer;
         }
@@ -867,6 +871,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             _cachedSourceRenderer = null;
             _cachedProxyRenderer = null;
+            _cachedProxyMappingRevision = -1;
             _proxyResolved = false;
             _proxySnapshotValid = false;
             _cachedPoseRenderer = null;
