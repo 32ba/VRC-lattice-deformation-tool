@@ -4385,7 +4385,10 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             _settings = CloneSettings(GetPrimaryLayerSettings());
-            _hasInitializedFromSource = true;
+            // Keep automatic initialization pending when only the coarse serialized
+            // bounds were available. A later mesh reimport with Read/Write enabled can
+            // then rebuild referenced-vertex and active-BlendShape bounds.
+            _hasInitializedFromSource = _sourceMesh.isReadable;
             InvalidateCache();
 
 #if UNITY_EDITOR
@@ -4728,7 +4731,10 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private void TryAutoConfigureSettings()
         {
-            if (_sourceMesh == null)
+            // Reset performs the one safe coarse-bounds initialization for an unreadable
+            // mesh. Do not repeat it from accessors/validation while Read/Write is disabled;
+            // keep the pending flag so a later readable reimport can perform the full pass.
+            if (_sourceMesh == null || !_sourceMesh.isReadable)
             {
                 return;
             }

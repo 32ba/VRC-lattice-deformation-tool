@@ -37,10 +37,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         {
             var gameObject = new GameObject("Non-readable Source");
             var mesh = CreateMesh("Non-readable Mesh");
+            var readableMesh = CreateMesh("Readable Retry Mesh");
             mesh.UploadMeshData(true);
             try
             {
-                gameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var filter = gameObject.AddComponent<MeshFilter>();
+                filter.sharedMesh = mesh;
                 gameObject.AddComponent<MeshRenderer>();
                 var deformer = gameObject.AddComponent<LatticeDeformer>();
 
@@ -54,6 +56,53 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     Is.True);
                 Assert.That(LatticeDeformerBakePass.ValidateBeforeBake(deformer), Is.False);
                 Assert.DoesNotThrow(() => Assert.That(deformer.Deform(false), Is.Null));
+
+                var initializedField = typeof(LatticeDeformer).GetField(
+                    "_hasInitializedFromSource", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(initializedField, Is.Not.Null);
+                Assert.That(initializedField.GetValue(deformer), Is.False,
+                    "Initialization must remain pending until readable vertex data is available.");
+
+                var pendingSettings = deformer.EditingSettings;
+                Vector3 customizedPoint = pendingSettings.GetControlPointLocal(0) + Vector3.right;
+                pendingSettings.SetControlPointLocal(0, customizedPoint);
+                InvokePrivate(deformer, "TryAutoConfigureSettings");
+                InvokePrivate(deformer, "TryAutoConfigureSettings");
+                Assert.That(pendingSettings.GetControlPointLocal(0), Is.EqualTo(customizedPoint),
+                    "Pending auto-configuration must not repeatedly reset unreadable mesh payloads.");
+                Assert.That(initializedField.GetValue(deformer), Is.False);
+
+                filter.sharedMesh = readableMesh;
+                InvokePrivate(deformer, "CacheSourceMesh");
+                InvokePrivate(deformer, "TryAutoConfigureSettings");
+                Assert.That(initializedField.GetValue(deformer), Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(gameObject);
+                Object.DestroyImmediate(mesh);
+                Object.DestroyImmediate(readableMesh);
+            }
+        }
+
+        [Test]
+        public void NonReadableSkinnedMesh_RestSpaceValidationReturnsMdv020WithoutThrowing()
+        {
+            var gameObject = new GameObject("Non-readable Skinned Source");
+            var mesh = CreateMesh("Non-readable Skinned Mesh");
+            mesh.UploadMeshData(true);
+            try
+            {
+                gameObject.AddComponent<SkinnedMeshRenderer>().sharedMesh = mesh;
+                var deformer = gameObject.AddComponent<LatticeDeformer>();
+                SkinnedVertexHelper.StoreMovesInRestSpace = true;
+
+                Assert.DoesNotThrow(deformer.Reset);
+                IReadOnlyList<MeshDeformerDiagnostic> diagnostics = null;
+                Assert.DoesNotThrow(() => diagnostics = MeshDeformerValidator.Validate(deformer));
+                Assert.That(diagnostics.Any(d => d.Code == MeshDeformerValidator.SourceMeshNotReadable), Is.True);
+                Assert.That(diagnostics.Any(d => d.Code == MeshDeformerValidator.RestSpaceConversionUnsafe), Is.False);
+                Assert.That(LatticeDeformerBakePass.ValidateBeforeBake(deformer), Is.False);
             }
             finally
             {
@@ -511,6 +560,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             serialized.FindProperty("_profile").objectReferenceValue = profile;
             serialized.FindProperty("_dataSource").enumValueIndex = (int)DeformerDataSource.Profile;
             serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static object InvokePrivate(object target, string methodName)
+        {
+            var method = target.GetType().GetMethod(
+                methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null);
+            return method.Invoke(target, null);
         }
 
         private static Fixture CreateFixture(string name, bool addSourceBlendShape = false)

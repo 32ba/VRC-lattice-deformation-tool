@@ -169,7 +169,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ValidateGroups(deformer, currentMesh, results);
             ValidateProfile(deformer, results);
             ValidateClearance(deformer, renderer, results);
-            ValidateRestSpace(deformer, renderer, results);
+            // Rest-space conversion reads bone weights and bind poses through CPU-only
+            // Mesh array getters. MDV020 is already the fail-closed result here.
+            if (currentMesh.isReadable)
+            {
+                ValidateRestSpace(deformer, renderer, results);
+            }
             return results;
         }
 
