@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System;
 using System.Diagnostics.CodeAnalysis;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -13,6 +14,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     internal static class WireframeRenderer
     {
         private static Material s_material;
+        private static Mesh s_lineMesh;
+        private static int[] s_cachedTriangleContents;
+        private static int s_cachedVertexCount = -1;
+        private static Color32[] s_vertexColors;
         private static readonly Color k_wireColor = new Color(1f, 1f, 1f, 0.15f);
 
         private static Material EnsureMaterial()
@@ -42,60 +47,117 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (triangles == null || triangles.Length < 3) return;
             if (worldPositions == null && localVertices == null) return;
 
+            Vector3[] positions = worldPositions ?? localVertices;
+            if (positions == null || positions.Length == 0) return;
+
             var mat = EnsureMaterial();
             mat.SetPass(0);
 
-            bool matrixPushed = false;
-            bool drawingLines = false;
-            try
+            Mesh lineMesh = EnsureLineMesh(out bool meshCreated);
+            bool topologyChanged = meshCreated ||
+                                   s_cachedVertexCount != positions.Length ||
+                                   !TriangleContentsMatch(triangles, s_cachedTriangleContents);
+            if (topologyChanged)
             {
-                GL.PushMatrix();
-                matrixPushed = true;
-                GL.MultMatrix(Matrix4x4.identity);
-                GL.Begin(GL.LINES);
-                drawingLines = true;
-                GL.Color(k_wireColor);
-
-                int triCount = triangles.Length / 3;
-                for (int t = 0; t < triCount; t++)
-                {
-                    int i0 = triangles[t * 3];
-                    int i1 = triangles[t * 3 + 1];
-                    int i2 = triangles[t * 3 + 2];
-
-                    Vector3 p0 = GetWorldPos(i0, worldPositions, localVertices, localToWorld);
-                    Vector3 p1 = GetWorldPos(i1, worldPositions, localVertices, localToWorld);
-                    Vector3 p2 = GetWorldPos(i2, worldPositions, localVertices, localToWorld);
-
-                    // Edge 0-1
-                    GL.Vertex(p0); GL.Vertex(p1);
-                    // Edge 1-2
-                    GL.Vertex(p1); GL.Vertex(p2);
-                    // Edge 2-0
-                    GL.Vertex(p2); GL.Vertex(p0);
-                }
+                lineMesh.Clear(false);
+                lineMesh.indexFormat = positions.Length > ushort.MaxValue
+                    ? IndexFormat.UInt32
+                    : IndexFormat.UInt16;
             }
-            finally
+
+            lineMesh.SetVertices(positions);
+            if (topologyChanged)
             {
-                try
+                if (s_vertexColors == null || s_vertexColors.Length != positions.Length)
                 {
-                    if (drawingLines) GL.End();
+                    s_vertexColors = new Color32[positions.Length];
+                    Color32 color = k_wireColor;
+                    for (int index = 0; index < s_vertexColors.Length; index++)
+                        s_vertexColors[index] = color;
                 }
-                finally
+                lineMesh.SetColors(s_vertexColors);
+                lineMesh.SetIndices(
+                    BuildLineIndices(triangles, positions.Length),
+                    MeshTopology.Lines,
+                    0,
+                    true);
+                if (s_cachedTriangleContents == null ||
+                    s_cachedTriangleContents.Length != triangles.Length)
                 {
-                    if (matrixPushed) GL.PopMatrix();
+                    s_cachedTriangleContents = new int[triangles.Length];
                 }
+                Array.Copy(triangles, s_cachedTriangleContents, triangles.Length);
+                s_cachedVertexCount = positions.Length;
             }
+
+            Graphics.DrawMeshNow(lineMesh, worldPositions != null ? Matrix4x4.identity : localToWorld);
         }
 
-        private static Vector3 GetWorldPos(int index, Vector3[] worldPositions, Vector3[] localVertices, Matrix4x4 localToWorld)
+        internal static int[] BuildLineIndices(int[] triangles, int vertexCount)
         {
-            if (worldPositions != null && index >= 0 && index < worldPositions.Length)
-                return worldPositions[index];
-            if (localVertices != null && index >= 0 && index < localVertices.Length)
-                return localToWorld.MultiplyPoint3x4(localVertices[index]);
-            return Vector3.zero;
+            if (triangles == null || triangles.Length < 3 || vertexCount <= 0)
+                return Array.Empty<int>();
+
+            int triangleCount = triangles.Length / 3;
+            var indices = new int[triangleCount * 6];
+            int writeIndex = 0;
+            for (int triangle = 0; triangle < triangleCount; triangle++)
+            {
+                int offset = triangle * 3;
+                int first = triangles[offset];
+                int second = triangles[offset + 1];
+                int third = triangles[offset + 2];
+                if ((uint)first >= (uint)vertexCount ||
+                    (uint)second >= (uint)vertexCount ||
+                    (uint)third >= (uint)vertexCount)
+                {
+                    continue;
+                }
+
+                indices[writeIndex++] = first;
+                indices[writeIndex++] = second;
+                indices[writeIndex++] = second;
+                indices[writeIndex++] = third;
+                indices[writeIndex++] = third;
+                indices[writeIndex++] = first;
+            }
+
+            if (writeIndex != indices.Length)
+                Array.Resize(ref indices, writeIndex);
+            return indices;
         }
+
+        internal static bool TriangleContentsMatch(int[] triangles, int[] cachedTriangles)
+        {
+            if (triangles == null || cachedTriangles == null ||
+                triangles.Length != cachedTriangles.Length)
+            {
+                return false;
+            }
+
+            for (int index = 0; index < triangles.Length; index++)
+            {
+                if (triangles[index] != cachedTriangles[index])
+                    return false;
+            }
+            return true;
+        }
+
+        private static Mesh EnsureLineMesh(out bool created)
+        {
+            created = s_lineMesh == null;
+            if (!created) return s_lineMesh;
+            s_lineMesh = new Mesh
+            {
+                name = "Lattice Deformer Wireframe",
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            s_lineMesh.MarkDynamic();
+            s_cachedTriangleContents = null;
+            s_cachedVertexCount = -1;
+            return s_lineMesh;
+        }
+
     }
 }
 #endif
