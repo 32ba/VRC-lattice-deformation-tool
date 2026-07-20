@@ -114,9 +114,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private ActiveHandler DetermineHandler(LatticeDeformer deformer)
         {
-            if (deformer.Layers.Count == 0)
+            if (!deformer.TryGetActiveLayerFast(out var layer))
                 return ActiveHandler.None;
-            if (deformer.ActiveLayerType == MeshDeformerLayerType.Lattice)
+            if (layer.Type == MeshDeformerLayerType.Lattice)
                 return ActiveHandler.Lattice;
             return s_brushSubMode == BrushSubMode.VertexSelection
                 ? ActiveHandler.VertexSelection
@@ -194,7 +194,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 // Layer selector
                 DrawLayerSelector(selectedDeformer);
 
-                if (selectedDeformer.Layers.Count == 0)
+                var layers = selectedDeformer.GetActiveLayersFast();
+                if (layers.Count == 0 ||
+                    !selectedDeformer.TryGetActiveLayerFast(out var activeLayer))
                 {
                     EditorGUILayout.HelpBox(
                         LatticeLocalization.Tr(LocKey.NoDeformationLayers),
@@ -205,7 +207,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 GUILayout.Space(4f);
 
                 // Sub-mode selector for brush layers
-                if (selectedDeformer.ActiveLayerType == MeshDeformerLayerType.Brush)
+                if (activeLayer.Type == MeshDeformerLayerType.Brush)
                 {
                     var subModeLabels = new GUIContent[]
                     {
@@ -220,7 +222,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
 
                 // Delegate to handler-specific GUI
-                if (selectedDeformer.ActiveLayerType == MeshDeformerLayerType.Lattice)
+                if (activeLayer.Type == MeshDeformerLayerType.Lattice)
                 {
                     LatticeToolHandler.DrawOverlayGUI(selectedDeformer);
                 }
@@ -247,7 +249,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static void DrawLayerSelector(LatticeDeformer deformer)
         {
-            var layers = deformer.Layers;
+            var layers = deformer.GetActiveLayersFast();
             if (layers.Count == 0) return;
 
             var names = new string[layers.Count];
@@ -257,7 +259,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 names[i] = layers[i].Name + typeSuffix;
             }
 
-            int current = deformer.ActiveLayerIndex;
+            int current = deformer.GetActiveLayerIndexFast();
             int next = EditorGUILayout.Popup(
                 LatticeLocalization.Content(LocKey.ActiveLayer), current, names);
             if (next != current && next >= 0 && next < layers.Count)

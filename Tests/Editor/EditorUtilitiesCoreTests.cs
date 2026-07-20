@@ -643,6 +643,75 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(allocated, Is.Zero);
         }
 
+        [TestCase(0, 1)]
+        [TestCase(1, 1)]
+        [TestCase(4096, 1)]
+        [TestCase(4097, 2)]
+        [TestCase(70225, 18)]
+        public void BrushVisualizationSampleStride_CapsAffectedVertexDots(
+            int candidateCount,
+            int expectedStride)
+        {
+            int stride = BrushToolHandler.GetVisualizationSampleStride(candidateCount);
+
+            Assert.That(stride, Is.EqualTo(expectedStride));
+            int sampledCount = candidateCount == 0 ? 0 : (candidateCount + stride - 1) / stride;
+            Assert.That(sampledCount, Is.LessThanOrEqualTo(BrushToolHandler.MaxAffectedVertexDots));
+        }
+
+        [TestCase(EventType.Repaint, true)]
+        [TestCase(EventType.MouseMove, true)]
+        [TestCase(EventType.MouseDown, true)]
+        [TestCase(EventType.MouseDrag, true)]
+        [TestCase(EventType.Layout, false)]
+        [TestCase(EventType.MouseUp, false)]
+        [TestCase(EventType.ScrollWheel, false)]
+        [TestCase(EventType.KeyDown, false)]
+        public void BrushSurfaceQuery_IsLimitedToEventsThatUseTheHit(
+            EventType eventType,
+            bool expected)
+        {
+            Assert.That(BrushToolHandler.RequiresSurfaceQuery(eventType), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void BrushHandler_ActiveBrushLayerSwitch_ReResolvesCurrentLayer()
+        {
+            var go = new GameObject("brush-layer-switch");
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 },
+            };
+            var handler = new BrushToolHandler();
+            try
+            {
+                var filter = go.AddComponent<MeshFilter>();
+                filter.sharedMesh = mesh;
+                go.AddComponent<MeshRenderer>();
+                var deformer = go.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                int firstIndex = deformer.AddLayer("Brush A", MeshDeformerLayerType.Brush);
+                int secondIndex = deformer.AddLayer("Brush B", MeshDeformerLayerType.Brush);
+
+                deformer.ActiveLayerIndex = firstIndex;
+                handler.Activate(deformer);
+                Assert.That(handler.TryGetBrushLayerFast(deformer, out var first), Is.True);
+                Assert.That(first.Name, Is.EqualTo("Brush A"));
+
+                deformer.ActiveLayerIndex = secondIndex;
+                Assert.That(handler.TryGetBrushLayerFast(deformer, out var second), Is.True);
+                Assert.That(second.Name, Is.EqualTo("Brush B"));
+                Assert.That(second, Is.Not.SameAs(first));
+            }
+            finally
+            {
+                handler.Deactivate();
+                UnityEngine.Object.DestroyImmediate(go);
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
         [Test]
         public void ToolIcons_Content_FallsBackToTextWhenIconIsMissing()
         {

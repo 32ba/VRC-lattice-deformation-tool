@@ -164,6 +164,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static readonly ProfilerMarker s_restSpaceMarker = new ProfilerMarker("Brush.RestSpaceConverter");
         private static readonly ProfilerMarker s_visualizationMarker = new ProfilerMarker("Brush.Visualization");
         private static readonly ProfilerMarker s_deformMarker = new ProfilerMarker("Brush.Deform");
+        internal const int MaxAffectedVertexDots = 4096;
         private HashSet<int> _penetratingVertices;
         private Vector3[] _penetrationDeformedVertices;
         private Vector3[] _smoothDisplacements;
@@ -397,6 +398,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal void Activate(LatticeDeformer deformer)
         {
             _activeDeformer = deformer;
+            deformer?.EnsureDisplacementCapacity();
             TryGetActiveLayer(deformer, out _cachedActiveBrushLayer);
             Undo.undoRedoPerformed += OnUndoRedo;
             SceneView.RepaintAll();
@@ -459,7 +461,51 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     return;
                 }
 
-            if (!TryGetActiveLayer(deformer, out var activeBrushLayer) ||
+                var evt = Event.current;
+                if (evt == null) return;
+
+                // Layout only registers control ownership. Baking a posed mesh and
+                // raycasting here duplicates the following Repaint event in the same
+                // Scene GUI frame without producing any visible or editable result.
+                if (evt.type == EventType.Layout)
+                {
+                    HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
+                    return;
+                }
+
+                // Radius/strength shortcuts do not depend on a surface hit.
+                if (evt.type == EventType.ScrollWheel)
+                {
+                    if (evt.shift)
+                    {
+                        BrushStrength = s_brushStrength - evt.delta.y * 0.01f;
+                        evt.Use();
+                    }
+                    else if (evt.alt)
+                    {
+                        BrushRadius = s_brushRadius - evt.delta.y * 0.005f;
+                        evt.Use();
+                    }
+                    return;
+                }
+
+                // Ending a stroke does not require another posed-mesh bake/raycast.
+                if (evt.type == EventType.MouseUp && evt.button == 0)
+                {
+                    bool hadActiveStroke = _isStrokeActive;
+                    EndStroke();
+                    ClearConnectedVerticesCache();
+                    ClearGeodesicDistanceCache();
+                    if (hadActiveStroke) evt.Use();
+                    return;
+                }
+
+                if (!RequiresSurfaceQuery(evt.type))
+                {
+                    return;
+                }
+
+            if (!TryGetBrushLayerFast(deformer, out var activeBrushLayer) ||
                 activeBrushLayer.Type != MeshDeformerLayerType.Brush)
             {
                 Handles.Label(deformer.transform.position, LatticeLocalization.Tr(LocKey.ActiveLayerNotBrush));
@@ -486,32 +532,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             RebuildCacheIfNeeded(sourceMesh, deformer);
             _cachedActiveBrushLayer = activeBrushLayer;
-            deformer.EnsureDisplacementCapacity();
             if (!TryGetBrushBuffers(
                     deformer, out _, out var activeDisplacements, out _)) return;
 
             HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
-
-            var evt = Event.current;
-
-            // Handle scroll wheel for radius/strength adjustment
-            if (evt.type == EventType.ScrollWheel)
-            {
-                if (evt.shift)
-                {
-                    float delta = -evt.delta.y * 0.01f;
-                    BrushStrength = s_brushStrength + delta;
-                    evt.Use();
-                    return;
-                }
-                else if (evt.alt)
-                {
-                    float delta = -evt.delta.y * 0.005f;
-                    BrushRadius = s_brushRadius + delta;
-                    evt.Use();
-                    return;
-                }
-            }
 
             // Draw mesh wireframe
             if (evt.type == EventType.Repaint && s_showWireframe &&
@@ -644,13 +668,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     // Draw affected vertex dots within brush radius
                     if (s_showAffectedVertices && _meshVertices != null)
                     {
-                        // Update geodesic cache for preview visualization during hover
-                        if (s_useSurfaceDistance)
+                        using (s_visualizationMarker.Auto())
                         {
-                            UpdateGeodesicDistanceCache(localHitPoint);
-                        }
+                            // Update geodesic cache for preview visualization during hover
+                            if (s_useSurfaceDistance)
+                            {
+                                UpdateGeodesicDistanceCache(localHitPoint);
+                            }
 
-                        DrawAffectedVertices(deformer, localHitPoint, meshTransform);
+                            DrawAffectedVertices(deformer, localHitPoint, meshTransform);
+                        }
                     }
                 }
                 finally
@@ -681,27 +708,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     ApplyBrush(deformer, meshTransform, localHitPoint, localHitNormal, evt);
                     evt.Use();
                 }
-                else if (evt.type == EventType.MouseUp && evt.button == 0)
-                {
-                    bool hadActiveStroke = _isStrokeActive;
-                    EndStroke();
-                    ClearConnectedVerticesCache();
-                    ClearGeodesicDistanceCache();
-                    if (hadActiveStroke)
-                    {
-                        evt.Use();
-                    }
-                }
-            }
-            else
-            {
-                // Even without hit, handle mouse up to stop painting
-                if (evt.type == EventType.MouseUp && evt.button == 0)
-                {
-                    EndStroke();
-                    ClearConnectedVerticesCache();
-                    ClearGeodesicDistanceCache();
-                }
             }
 
             // Force repaint so brush disc follows cursor
@@ -710,11 +716,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 SceneView.RepaintAll();
             }
 
-            // Prevent scene view from deselecting on click
-            if (evt.type == EventType.Layout)
-            {
-                HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
-            }
             }
             finally
             {
@@ -1149,14 +1150,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return false;
             }
 
-            var layers = deformer.Layers;
-            int index = deformer.ActiveLayerIndex;
-            if (index < 0 || index >= layers.Count)
-            {
-                return false;
-            }
-
-            layer = layers[index];
+            if (!deformer.TryGetActiveLayerFast(out layer)) return false;
             return layer != null && layer.Type == MeshDeformerLayerType.Brush;
         }
 
@@ -1167,14 +1161,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 : 1f;
         }
 
-        private bool TryGetBrushLayerFast(LatticeDeformer deformer, out LatticeLayer layer)
+        internal bool TryGetBrushLayerFast(LatticeDeformer deformer, out LatticeLayer layer)
         {
-            if (ReferenceEquals(deformer, _activeDeformer) && _cachedActiveBrushLayer != null)
+            if (deformer == null || !deformer.TryGetActiveLayerFast(out layer) ||
+                layer.Type != MeshDeformerLayerType.Brush)
             {
-                layer = _cachedActiveBrushLayer;
-                return layer.Type == MeshDeformerLayerType.Brush;
+                layer = null;
+                return false;
             }
-            return TryGetActiveLayer(deformer, out layer);
+
+            if (ReferenceEquals(deformer, _activeDeformer))
+                _cachedActiveBrushLayer = layer;
+            return true;
         }
 
         private bool TryGetBrushBuffers(
@@ -1617,14 +1615,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 BeginBatchedDotDraw(out matrixPushed, out drawingQuads);
                 bool useGeodesicCandidates = s_useSurfaceDistance && _hasGeodesicDistanceCache;
-                int iterationCount = useGeodesicCandidates
+                int candidateCount = useGeodesicCandidates
                     ? _geodesicWorkspace.VisitedCount
                     : vertexCount;
+                int sampleStride = GetVisualizationSampleStride(candidateCount);
+                int iterationCount = (candidateCount + sampleStride - 1) / sampleStride;
                 for (int iteration = 0; iteration < iterationCount; iteration++)
                 {
+                    int candidateIndex = iteration * sampleStride;
                     int i = useGeodesicCandidates
-                        ? _geodesicWorkspace.GetVisitedVertex(iteration)
-                        : iteration;
+                        ? _geodesicWorkspace.GetVisitedVertex(candidateIndex)
+                        : candidateIndex;
                     if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
                         continue;
 
@@ -1660,6 +1661,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 EndBatchedDotDraw(matrixPushed, drawingQuads);
             }
+        }
+
+        internal static int GetVisualizationSampleStride(int candidateCount)
+        {
+            return candidateCount <= MaxAffectedVertexDots
+                ? 1
+                : (candidateCount + MaxAffectedVertexDots - 1) / MaxAffectedVertexDots;
+        }
+
+        internal static bool RequiresSurfaceQuery(EventType eventType)
+        {
+            return eventType == EventType.Repaint ||
+                   eventType == EventType.MouseMove ||
+                   eventType == EventType.MouseDown ||
+                   eventType == EventType.MouseDrag;
         }
 
         private void DrawDisplacementHeatmap(LatticeDeformer deformer, Transform meshTransform)
