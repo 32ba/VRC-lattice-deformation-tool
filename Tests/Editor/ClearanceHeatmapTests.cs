@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
@@ -16,6 +17,390 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         public void SetUp()
         {
             ClearanceQueryCache.Clear();
+            ClearanceHeatmapEvaluator.EvaluationCount = 0;
+            FitCorrectionGenerator.AnalyzeCount = 0;
+            MeshDeformerValidator.ValidateCount = 0;
+        }
+
+        [Test]
+        public void EditorEvaluation_UnchangedStateReusesRawCaptureAndQuery()
+        {
+            var targetMesh = CreatePointMesh(0.01f);
+            var referenceMesh = CreatePlane(0f);
+            var target = CreateRenderer("Cached Target", targetMesh);
+            var reference = CreateRenderer("Cached Reference", referenceMesh);
+            var deformer = target.gameObject.AddComponent<LatticeDeformer>();
+            var serialized = new SerializedObject(deformer);
+            serialized.FindProperty("_meshFilter").objectReferenceValue = target.GetComponent<MeshFilter>();
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            var editor = (LatticeDeformerEditor)UnityEditor.Editor.CreateEditor(
+                deformer,
+                typeof(LatticeDeformerEditor));
+            try
+            {
+                var first = editor.GetClearanceEvaluation(
+                    deformer, reference, ClearanceQueryMode.ReferenceNormal, 0.005f, 0.01f, 0.02f);
+                int captures = ClearanceQueryCache.CaptureCount;
+                int stateHashes = ClearanceQueryCache.StateHashCount;
+                var warm = editor.GetClearanceEvaluation(
+                    deformer, reference, ClearanceQueryMode.ReferenceNormal, 0.005f, 0.01f, 0.02f);
+
+                Assert.That(first.Status, Is.EqualTo(ClearanceEvaluationStatus.Valid));
+                Assert.That(warm, Is.SameAs(first));
+                Assert.That(warm.QueryResults, Is.SameAs(first.QueryResults));
+                Assert.That(ClearanceHeatmapEvaluator.EvaluationCount, Is.EqualTo(1));
+                Assert.That(ClearanceQueryCache.CaptureCount, Is.EqualTo(captures));
+                Assert.That(ClearanceQueryCache.StateHashCount, Is.EqualTo(stateHashes));
+
+                target.transform.localPosition = Vector3.forward * 0.02f;
+                typeof(LatticeDeformerEditor).GetField(
+                        "_lastClearanceEvaluationTime",
+                        BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(editor, double.NegativeInfinity);
+                editor.GetClearanceEvaluation(
+                    deformer, reference, ClearanceQueryMode.ReferenceNormal, 0.005f, 0.01f, 0.02f);
+                Assert.That(ClearanceHeatmapEvaluator.EvaluationCount, Is.EqualTo(2));
+            }
+            finally
+            {
+                Object.DestroyImmediate(editor);
+                DestroyRenderer(reference, referenceMesh);
+                DestroyRenderer(target, targetMesh);
+            }
+        }
+
+        [Test]
+        public void InspectorValidation_UnchangedStateRunsOnceAndDirtyStateRefreshes()
+        {
+            var mesh = CreatePointMesh(0.01f, 0.02f);
+            var renderer = CreateRenderer("Validation Target", mesh);
+            var deformer = renderer.gameObject.AddComponent<LatticeDeformer>();
+            var serialized = new SerializedObject(deformer);
+            serialized.FindProperty("_meshFilter").objectReferenceValue = renderer.GetComponent<MeshFilter>();
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            deformer.Reset();
+            int layerIndex = deformer.AddLayer("Validation Brush", MeshDeformerLayerType.Brush);
+            var brushLayer = deformer.Layers[layerIndex];
+            brushLayer.EnsureBrushDisplacementCapacity(mesh.vertexCount);
+            var editor = (LatticeDeformerEditor)UnityEditor.Editor.CreateEditor(
+                deformer,
+                typeof(LatticeDeformerEditor));
+            try
+            {
+                var first = editor.GetCachedValidationDiagnostics(deformer);
+                var warm = editor.GetCachedValidationDiagnostics(deformer);
+                Assert.That(warm, Is.SameAs(first));
+                Assert.That(MeshDeformerValidator.ValidateCount, Is.EqualTo(1));
+
+                brushLayer.BrushDisplacements = new Vector3[1];
+                var refreshed = editor.GetCachedValidationDiagnostics(deformer);
+                Assert.That(MeshDeformerValidator.ValidateCount, Is.EqualTo(2));
+                Assert.That(refreshed.Any(d => d.Code == MeshDeformerValidator.BrushLengthMismatch), Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(editor);
+                DestroyRenderer(renderer, mesh);
+            }
+        }
+
+        [Test]
+        public void FitCorrectionPlan_UnchangedInputsRunAnalyzeOnce()
+        {
+            var mesh = CreatePointMesh(0.01f);
+            var renderer = CreateRenderer("Fit Target", mesh);
+            var referenceMesh = CreatePlane(0f);
+            var reference = CreateRenderer("Fit Reference", referenceMesh);
+            var deformer = renderer.gameObject.AddComponent<LatticeDeformer>();
+            var editor = (LatticeDeformerEditor)UnityEditor.Editor.CreateEditor(
+                deformer,
+                typeof(LatticeDeformerEditor));
+            var raw = ClearanceHeatmapEvaluator.Evaluate(
+                renderer,
+                reference,
+                ClearanceSignMode.ReferenceNormal);
+            var constraints = new FitCorrectionConstraintOptions(
+                false, false, false, false, 0, 0f, false, false, 0, 0.001f);
+            try
+            {
+                var first = editor.GetCachedFitCorrectionPlan(
+                    deformer, raw, reference, ClearanceQueryMode.ReferenceNormal,
+                    FitCorrectionScope.TargetClearance, 0.005f, 0.01f, 0.02f, constraints);
+                var warm = editor.GetCachedFitCorrectionPlan(
+                    deformer, raw, reference, ClearanceQueryMode.ReferenceNormal,
+                    FitCorrectionScope.TargetClearance, 0.005f, 0.01f, 0.02f, constraints);
+                Assert.That(warm, Is.SameAs(first));
+                Assert.That(FitCorrectionGenerator.AnalyzeCount, Is.EqualTo(1));
+
+                editor.GetCachedFitCorrectionPlan(
+                    deformer, raw, reference, ClearanceQueryMode.ReferenceNormal,
+                    FitCorrectionScope.TargetClearance, 0.005f, 0.01f, 0.03f, constraints);
+                Assert.That(FitCorrectionGenerator.AnalyzeCount, Is.EqualTo(2));
+            }
+            finally
+            {
+                Object.DestroyImmediate(editor);
+                DestroyRenderer(reference, referenceMesh);
+                DestroyRenderer(renderer, mesh);
+            }
+        }
+
+        [Test]
+        public void FitCorrectionRawEvaluation_DoesNotReusePreviewProxyTarget()
+        {
+            var originalMesh = CreatePointMesh(0.01f);
+            var proxyMesh = CreatePointMesh(0.02f);
+            var referenceMesh = CreatePlane(0f);
+            var original = CreateRenderer("Fit Original", originalMesh);
+            var proxy = CreateRenderer("Fit Proxy", proxyMesh);
+            var reference = CreateRenderer("Fit Reference", referenceMesh);
+            var deformer = original.gameObject.AddComponent<LatticeDeformer>();
+            var serialized = new SerializedObject(deformer);
+            serialized.FindProperty("_meshFilter").objectReferenceValue = original.GetComponent<MeshFilter>();
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            var editor = (LatticeDeformerEditor)UnityEditor.Editor.CreateEditor(
+                deformer,
+                typeof(LatticeDeformerEditor));
+            try
+            {
+                var proxyRaw = ClearanceHeatmapEvaluator.Evaluate(
+                    proxy, reference, ClearanceSignMode.ReferenceNormal);
+                typeof(LatticeDeformerEditor).GetField(
+                        "_clearanceRawEvaluation",
+                        BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(editor, proxyRaw);
+
+                var fitRaw = editor.GetFitCorrectionRawEvaluation(
+                    deformer, reference, ClearanceQueryMode.ReferenceNormal, 0.1f);
+
+                Assert.That(fitRaw.TargetRenderer, Is.SameAs(original));
+                Assert.That(fitRaw.TargetRenderer, Is.Not.SameAs(proxy));
+            }
+            finally
+            {
+                Object.DestroyImmediate(editor);
+                DestroyRenderer(reference, referenceMesh);
+                DestroyRenderer(proxy, proxyMesh);
+                DestroyRenderer(original, originalMesh);
+            }
+        }
+
+        [Test]
+        public void FitCorrectionRawEvaluation_ThrottlesAnimatedSkinnedPose()
+        {
+            var root = new GameObject("Fit Skinned Target");
+            var bone = new GameObject("Bone");
+            bone.transform.SetParent(root.transform, false);
+            var targetMesh = CreatePointMesh(0.01f);
+            targetMesh.boneWeights = new[] { new BoneWeight { boneIndex0 = 0, weight0 = 1f } };
+            targetMesh.bindposes = new[] { bone.transform.worldToLocalMatrix * root.transform.localToWorldMatrix };
+            var target = root.AddComponent<SkinnedMeshRenderer>();
+            target.sharedMesh = targetMesh;
+            target.rootBone = bone.transform;
+            target.bones = new[] { bone.transform };
+            var referenceMesh = CreatePlane(0f);
+            var reference = CreateRenderer("Fit Throttle Reference", referenceMesh);
+            var deformer = root.AddComponent<LatticeDeformer>();
+            var serialized = new SerializedObject(deformer);
+            serialized.FindProperty("_skinnedMeshRenderer").objectReferenceValue = target;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            var editor = (LatticeDeformerEditor)UnityEditor.Editor.CreateEditor(
+                deformer,
+                typeof(LatticeDeformerEditor));
+            try
+            {
+                var first = editor.GetFitCorrectionRawEvaluation(
+                    deformer, reference, ClearanceQueryMode.ReferenceNormal, 2f);
+                int evaluationCount = ClearanceHeatmapEvaluator.EvaluationCount;
+                int bakeCount = ClearanceQueryCache.BakeCount;
+
+                bone.transform.localPosition = Vector3.forward * 0.02f;
+                var throttled = editor.GetFitCorrectionRawEvaluation(
+                    deformer, reference, ClearanceQueryMode.ReferenceNormal, 2f);
+
+                Assert.That(throttled, Is.SameAs(first));
+                Assert.That(ClearanceHeatmapEvaluator.EvaluationCount, Is.EqualTo(evaluationCount));
+                Assert.That(ClearanceQueryCache.BakeCount, Is.EqualTo(bakeCount));
+                Assert.That((bool)typeof(LatticeDeformerEditor).GetField(
+                        "_fitCorrectionRawIsThrottledStale",
+                        BindingFlags.Instance | BindingFlags.NonPublic)
+                    .GetValue(editor), Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(editor);
+                DestroyRenderer(reference, referenceMesh);
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(targetMesh);
+            }
+        }
+
+        [Test]
+        public void AdaptiveHeatmapStride_EnforcesDrawPointBudget()
+        {
+            int stride = LatticeDeformerEditor.CalculateAdaptiveHeatmapStride(70225, 1, 4096);
+
+            Assert.That(stride, Is.EqualTo(18));
+            Assert.That(Mathf.CeilToInt(70225f / stride), Is.LessThanOrEqualTo(4096));
+            Assert.That(LatticeDeformerEditor.CalculateAdaptiveHeatmapStride(100, 8, 4096), Is.EqualTo(8));
+        }
+
+        [Test]
+        public void SkinnedTargetCapture_UnchangedPoseAvoidsBakeHashAndAllocation()
+        {
+            var root = new GameObject("Skinned Cache Target");
+            var bone = new GameObject("Bone");
+            bone.transform.SetParent(root.transform, false);
+            var mesh = CreatePointMesh(0.01f);
+            mesh.boneWeights = new[] { new BoneWeight { boneIndex0 = 0, weight0 = 1f } };
+            mesh.bindposes = new[] { bone.transform.worldToLocalMatrix * root.transform.localToWorldMatrix };
+            var renderer = root.AddComponent<SkinnedMeshRenderer>();
+            renderer.sharedMesh = mesh;
+            renderer.rootBone = bone.transform;
+            renderer.bones = new[] { bone.transform };
+            try
+            {
+                Assert.That(ClearanceQueryCache.TryGetWorldVerticesAndStateHash(
+                    renderer, out Vector3[] first, out int firstHash), Is.True);
+                int bakeCount = ClearanceQueryCache.BakeCount;
+                int captureCount = ClearanceQueryCache.CaptureCount;
+                int stateHashCount = ClearanceQueryCache.StateHashCount;
+
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                bool warmSucceeded = ClearanceQueryCache.TryGetWorldVerticesAndStateHash(
+                    renderer, out Vector3[] warm, out int warmHash);
+                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+
+                Assert.That(warmSucceeded, Is.True);
+                Assert.That(warm, Is.SameAs(first));
+                Assert.That(warmHash, Is.EqualTo(firstHash));
+                Assert.That(ClearanceQueryCache.BakeCount, Is.EqualTo(bakeCount));
+                Assert.That(ClearanceQueryCache.CaptureCount, Is.EqualTo(captureCount));
+                Assert.That(ClearanceQueryCache.StateHashCount, Is.EqualTo(stateHashCount));
+                Assert.That(allocated, Is.Zero);
+
+                bone.transform.localPosition = Vector3.forward * 0.02f;
+                Assert.That(ClearanceQueryCache.TryGetWorldVerticesAndStateHash(
+                    renderer, out Vector3[] posed, out int posedHash), Is.True);
+                Assert.That(posed, Is.Not.SameAs(first));
+                Assert.That(posedHash, Is.Not.EqualTo(firstHash));
+                Assert.That(ClearanceQueryCache.BakeCount, Is.EqualTo(bakeCount + 1));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void LightweightStateHash_TracksInPlaceStaticMeshChanges()
+        {
+            var mesh = CreatePointMesh(0.01f);
+            var renderer = CreateRenderer("Static Signature", mesh);
+            try
+            {
+                Assert.That(ClearanceQueryCache.TryGetRendererLightweightStateHash(
+                    renderer, out int before), Is.True);
+                var vertices = mesh.vertices;
+                vertices[0] += Vector3.forward * 0.02f;
+                mesh.vertices = vertices;
+                Assert.That(ClearanceQueryCache.TryGetRendererLightweightStateHash(
+                    renderer, out int after), Is.True);
+
+                Assert.That(after, Is.Not.EqualTo(before));
+            }
+            finally
+            {
+                DestroyRenderer(renderer, mesh);
+            }
+        }
+
+        [Test]
+        public void LightweightStateHash_TracksRendererAvailability()
+        {
+            var mesh = CreatePointMesh(0.01f);
+            var renderer = CreateRenderer("Availability Signature", mesh);
+            try
+            {
+                Assert.That(ClearanceQueryCache.TryGetRendererLightweightStateHash(
+                    renderer, out int enabledHash), Is.True);
+                renderer.enabled = false;
+                Assert.That(ClearanceQueryCache.TryGetRendererLightweightStateHash(
+                    renderer, out int disabledHash), Is.True);
+                renderer.enabled = true;
+                renderer.gameObject.SetActive(false);
+                Assert.That(ClearanceQueryCache.TryGetRendererLightweightStateHash(
+                    renderer, out int inactiveHash), Is.True);
+
+                Assert.That(disabledHash, Is.Not.EqualTo(enabledHash));
+                Assert.That(inactiveHash, Is.Not.EqualTo(enabledHash));
+            }
+            finally
+            {
+                DestroyRenderer(renderer, mesh);
+            }
+        }
+
+        [Test]
+        public void FitCorrectionPlanKey_TracksCurrentGeometryDuringHeatmapThrottle()
+        {
+            var targetMesh = CreatePointMesh(0.01f);
+            var referenceMesh = CreatePlane(0f);
+            var target = CreateRenderer("Throttle Target", targetMesh);
+            var reference = CreateRenderer("Throttle Reference", referenceMesh);
+            var deformer = target.gameObject.AddComponent<LatticeDeformer>();
+            var raw = ClearanceHeatmapEvaluator.Evaluate(
+                target, reference, ClearanceSignMode.ReferenceNormal);
+            var constraints = new FitCorrectionConstraintOptions(
+                false, false, false, false, 0, 0f, false, false, 0, 0.001f);
+            try
+            {
+                int before = LatticeDeformerEditor.ComputeFitCorrectionPlanKey(
+                    deformer, raw, reference, ClearanceQueryMode.ReferenceNormal,
+                    FitCorrectionScope.TargetClearance, 0.005f, 0.01f, 0.02f, constraints);
+                target.transform.localPosition = Vector3.forward * 0.02f;
+                int after = LatticeDeformerEditor.ComputeFitCorrectionPlanKey(
+                    deformer, raw, reference, ClearanceQueryMode.ReferenceNormal,
+                    FitCorrectionScope.TargetClearance, 0.005f, 0.01f, 0.02f, constraints);
+
+                Assert.That(after, Is.Not.EqualTo(before));
+            }
+            finally
+            {
+                DestroyRenderer(reference, referenceMesh);
+                DestroyRenderer(target, targetMesh);
+            }
+        }
+
+        [Test]
+        public void FitCorrectionPlanKey_TracksDirectVertexMaskMutation()
+        {
+            var mesh = CreatePointMesh(0.01f);
+            var renderer = CreateRenderer("Mask Target", mesh);
+            var deformer = renderer.gameObject.AddComponent<LatticeDeformer>();
+            deformer.Reset();
+            int layerIndex = deformer.AddLayer("Mask", MeshDeformerLayerType.Brush);
+            var layer = deformer.Layers[layerIndex];
+            layer.EnsureVertexMaskCapacity(mesh.vertexCount);
+            var constraints = new FitCorrectionConstraintOptions(
+                true, false, false, false, 0, 0f, false, false, 0, 0.001f);
+            try
+            {
+                int before = LatticeDeformerEditor.ComputeFitCorrectionPlanKey(
+                    deformer, null, null, ClearanceQueryMode.ReferenceNormal,
+                    FitCorrectionScope.TargetClearance, 0.005f, 0.01f, 0.02f, constraints);
+                layer.SetVertexMask(0, 0f);
+                int after = LatticeDeformerEditor.ComputeFitCorrectionPlanKey(
+                    deformer, null, null, ClearanceQueryMode.ReferenceNormal,
+                    FitCorrectionScope.TargetClearance, 0.005f, 0.01f, 0.02f, constraints);
+
+                Assert.That(after, Is.Not.EqualTo(before));
+            }
+            finally
+            {
+                DestroyRenderer(renderer, mesh);
+            }
         }
 
         [Test]

@@ -698,9 +698,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private sealed class CacheEntry
         {
             internal WeakReference<Renderer> Renderer;
+            internal int LightweightStateHash;
+            internal int RendererDirtyCount;
+            internal Transform[] SkinnedBones;
             internal int StateHash;
             internal ClearanceQuery Query;
             internal Mesh BakedMesh;
+            internal Vector3[] WorldVertices;
         }
 
         private static readonly Dictionary<int, CacheEntry> Entries = new Dictionary<int, CacheEntry>();
@@ -711,6 +715,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             new ProfilerMarker("Clearance.Capture.BakeMesh");
 
         internal static int BuildCount { get; private set; }
+        internal static int CaptureCount { get; private set; }
+        internal static int StateHashCount { get; private set; }
+        internal static int BakeCount { get; private set; }
         internal static int EntryCount => Entries.Count;
 
         static ClearanceQueryCache()
@@ -735,6 +742,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             ClearEntries();
             BuildCount = 0;
+            CaptureCount = 0;
+            StateHashCount = 0;
+            BakeCount = 0;
         }
 
         private static void ClearEntries()
@@ -781,6 +791,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             bool sameRenderer = existing != null &&
                                 existing.Renderer.TryGetTarget(out Renderer cachedRenderer) &&
                                 ReferenceEquals(cachedRenderer, renderer);
+            if (!TryComputeLightweightStateHash(
+                    renderer,
+                    sameRenderer ? existing : null,
+                    out int lightweightStateHash,
+                    out int rendererDirtyCount,
+                    out Transform[] skinnedBones))
+                return false;
+            if (sameRenderer &&
+                existing.LightweightStateHash == lightweightStateHash &&
+                existing.Query != null)
+            {
+                query = existing.Query;
+                return true;
+            }
             Mesh reusableBakedMesh = sameRenderer ? existing.BakedMesh : null;
             if (!TryCaptureMesh(
                     renderer,
@@ -798,6 +822,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     existing.StateHash == stateHash &&
                     existing.Query != null)
                 {
+                    existing.LightweightStateHash = lightweightStateHash;
+                    existing.RendererDirtyCount = rendererDirtyCount;
+                    existing.SkinnedBones = skinnedBones;
                     query = existing.Query;
                     return true;
                 }
@@ -806,9 +833,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var replacement = new CacheEntry
                 {
                     Renderer = new WeakReference<Renderer>(renderer),
+                    LightweightStateHash = lightweightStateHash,
+                    RendererDirtyCount = rendererDirtyCount,
+                    SkinnedBones = skinnedBones,
                     StateHash = stateHash,
                     Query = query,
-                    BakedMesh = renderer is SkinnedMeshRenderer ? mesh : null
+                    BakedMesh = renderer is SkinnedMeshRenderer ? mesh : null,
+                    WorldVertices = sameRenderer && existing.StateHash == stateHash
+                        ? existing.WorldVertices
+                        : null
                 };
                 if (existing != null && !ReferenceEquals(existing.BakedMesh, replacement.BakedMesh))
                     DisposeEntry(existing);
@@ -859,6 +892,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal static bool TryGetRendererStateHash(Renderer renderer, out int stateHash)
         {
             stateHash = 0;
+            if (renderer == null) return false;
+            int rendererId = renderer.GetInstanceID();
+            Entries.TryGetValue(rendererId, out CacheEntry existing);
+            bool sameRenderer = existing != null &&
+                                existing.Renderer.TryGetTarget(out Renderer cachedRenderer) &&
+                                ReferenceEquals(cachedRenderer, renderer);
+            if (sameRenderer &&
+                TryComputeLightweightStateHash(
+                    renderer,
+                    existing,
+                    out int lightweightStateHash,
+                    out _,
+                    out _) &&
+                existing.LightweightStateHash == lightweightStateHash &&
+                existing.StateHash != 0)
+            {
+                stateHash = existing.StateHash;
+                return true;
+            }
             if (!TryCaptureMesh(renderer, out Mesh mesh, out Matrix4x4 localToWorld, out bool ownsMesh))
                 return false;
             try
@@ -883,11 +935,52 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static bool TryGetWorldVertices(Renderer renderer, out Vector3[] worldVertices)
         {
+            return TryGetWorldVerticesAndStateHash(renderer, out worldVertices, out _);
+        }
+
+        internal static bool TryGetWorldVerticesAndStateHash(
+            Renderer renderer,
+            out Vector3[] worldVertices,
+            out int stateHash)
+        {
             worldVertices = Array.Empty<Vector3>();
-            if (!TryCaptureMesh(renderer, out Mesh mesh, out Matrix4x4 localToWorld, out bool ownsMesh))
+            stateHash = 0;
+            if (renderer == null) return false;
+            PruneDeadEntries();
+            int rendererId = renderer.GetInstanceID();
+            Entries.TryGetValue(rendererId, out CacheEntry existing);
+            bool sameRenderer = existing != null &&
+                                existing.Renderer.TryGetTarget(out Renderer cachedRenderer) &&
+                                ReferenceEquals(cachedRenderer, renderer);
+            if (!TryComputeLightweightStateHash(
+                    renderer,
+                    sameRenderer ? existing : null,
+                    out int lightweightStateHash,
+                    out int rendererDirtyCount,
+                    out Transform[] skinnedBones))
                 return false;
+            if (sameRenderer &&
+                existing.LightweightStateHash == lightweightStateHash &&
+                existing.WorldVertices != null &&
+                existing.StateHash != 0)
+            {
+                worldVertices = existing.WorldVertices;
+                stateHash = existing.StateHash;
+                return true;
+            }
+
+            Mesh reusableBakedMesh = sameRenderer ? existing.BakedMesh : null;
+            if (!TryCaptureMesh(
+                    renderer,
+                    reusableBakedMesh,
+                    out Mesh mesh,
+                    out Matrix4x4 localToWorld,
+                    out bool ownsMesh))
+                return false;
+            bool transferredMeshOwnership = false;
             try
             {
+                if (!TryComputeStateHash(mesh, localToWorld, out stateHash)) return false;
                 Vector3[] vertices;
                 try
                 {
@@ -901,12 +994,47 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 worldVertices = new Vector3[vertices.Length];
                 for (int i = 0; i < vertices.Length; i++)
                     worldVertices[i] = localToWorld.MultiplyPoint3x4(vertices[i]);
+
+                var replacement = new CacheEntry
+                {
+                    Renderer = new WeakReference<Renderer>(renderer),
+                    LightweightStateHash = lightweightStateHash,
+                    RendererDirtyCount = rendererDirtyCount,
+                    SkinnedBones = skinnedBones,
+                    StateHash = stateHash,
+                    Query = sameRenderer && existing.StateHash == stateHash
+                        ? existing.Query
+                        : null,
+                    BakedMesh = renderer is SkinnedMeshRenderer ? mesh : null,
+                    WorldVertices = worldVertices
+                };
+                if (existing != null && !ReferenceEquals(existing.BakedMesh, replacement.BakedMesh))
+                    DisposeEntry(existing);
+                Entries[rendererId] = replacement;
+                transferredMeshOwnership = ownsMesh && replacement.BakedMesh != null;
                 return true;
             }
             finally
             {
-                if (ownsMesh && mesh != null) UnityEngine.Object.DestroyImmediate(mesh);
+                if (ownsMesh && !transferredMeshOwnership && mesh != null)
+                    UnityEngine.Object.DestroyImmediate(mesh);
             }
+        }
+
+        internal static bool TryGetRendererLightweightStateHash(Renderer renderer, out int stateHash)
+        {
+            stateHash = 0;
+            if (renderer == null) return false;
+            Entries.TryGetValue(renderer.GetInstanceID(), out CacheEntry existing);
+            bool sameRenderer = existing != null &&
+                                existing.Renderer.TryGetTarget(out Renderer cachedRenderer) &&
+                                ReferenceEquals(cachedRenderer, renderer);
+            return TryComputeLightweightStateHash(
+                renderer,
+                sameRenderer ? existing : null,
+                out stateHash,
+                out _,
+                out _);
         }
 
         private static bool TryCaptureMesh(
@@ -920,6 +1048,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             localToWorld = Matrix4x4.identity;
             ownsMesh = false;
             if (renderer == null) return false;
+            CaptureCount++;
 
             localToWorld = renderer.transform.localToWorldMatrix;
             if (renderer is SkinnedMeshRenderer skinned)
@@ -935,6 +1064,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     using (s_bakeMeshMarker.Auto())
                     {
+                        BakeCount++;
                         skinned.BakeMesh(mesh);
                     }
                     return mesh.vertexCount > 0;
@@ -983,6 +1113,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool TryComputeStateHash(Mesh mesh, Matrix4x4 matrix, out int hash)
         {
             using var stateHashScope = s_stateHashMarker.Auto();
+            StateHashCount++;
             hash = 17;
             try
             {
@@ -1017,6 +1148,90 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             catch (Exception)
             {
                 hash = 0;
+                return false;
+            }
+        }
+
+        private static bool TryComputeLightweightStateHash(
+            Renderer renderer,
+            CacheEntry existing,
+            out int hash,
+            out int rendererDirtyCount,
+            out Transform[] skinnedBones)
+        {
+            hash = 0;
+            rendererDirtyCount = 0;
+            skinnedBones = null;
+            if (renderer == null) return false;
+            try
+            {
+                unchecked
+                {
+                    rendererDirtyCount = EditorUtility.GetDirtyCount(renderer);
+                    hash = 17;
+                    hash = hash * 31 + renderer.GetInstanceID();
+                    hash = hash * 31 + rendererDirtyCount;
+                    hash = hash * 31 + renderer.enabled.GetHashCode();
+                    hash = hash * 31 + renderer.gameObject.activeInHierarchy.GetHashCode();
+                    Matrix4x4 matrix = renderer.transform.localToWorldMatrix;
+                    for (int i = 0; i < 16; i++) hash = hash * 31 + matrix[i].GetHashCode();
+
+                    Mesh mesh;
+                    if (renderer is SkinnedMeshRenderer skinned)
+                    {
+                        mesh = skinned.sharedMesh;
+                        skinnedBones = existing != null &&
+                                       existing.RendererDirtyCount == rendererDirtyCount
+                            ? existing.SkinnedBones
+                            : skinned.bones;
+                        hash = hash * 31 + (skinned.rootBone != null
+                            ? skinned.rootBone.GetInstanceID()
+                            : 0);
+                        if (skinned.rootBone != null)
+                        {
+                            Matrix4x4 rootBoneMatrix = skinned.rootBone.localToWorldMatrix;
+                            for (int i = 0; i < 16; i++)
+                                hash = hash * 31 + rootBoneMatrix[i].GetHashCode();
+                        }
+                        int blendShapeCount = mesh != null ? mesh.blendShapeCount : 0;
+                        hash = hash * 31 + blendShapeCount;
+                        for (int i = 0; i < blendShapeCount; i++)
+                            hash = hash * 31 + skinned.GetBlendShapeWeight(i).GetHashCode();
+                        int boneCount = skinnedBones?.Length ?? 0;
+                        hash = hash * 31 + boneCount;
+                        for (int boneIndex = 0; boneIndex < boneCount; boneIndex++)
+                        {
+                            Transform bone = skinnedBones[boneIndex];
+                            hash = hash * 31 + (bone != null ? bone.GetInstanceID() : 0);
+                            if (bone == null) continue;
+                            Matrix4x4 boneMatrix = bone.localToWorldMatrix;
+                            for (int i = 0; i < 16; i++)
+                                hash = hash * 31 + boneMatrix[i].GetHashCode();
+                        }
+                    }
+                    else if (renderer is MeshRenderer)
+                    {
+                        MeshFilter filter = renderer.GetComponent<MeshFilter>();
+                        mesh = filter != null ? filter.sharedMesh : null;
+                        hash = hash * 31 + (filter != null ? EditorUtility.GetDirtyCount(filter) : 0);
+                    }
+                    else
+                    {
+                        return false;
+                    }
+
+                    hash = hash * 31 + (mesh != null ? mesh.GetInstanceID() : 0);
+                    hash = hash * 31 + (mesh != null ? EditorUtility.GetDirtyCount(mesh) : 0);
+                    hash = hash * 31 + (mesh != null ? mesh.vertexCount : 0);
+                    hash = hash * 31 + (mesh != null ? mesh.subMeshCount : 0);
+                    return mesh != null;
+                }
+            }
+            catch (Exception)
+            {
+                hash = 0;
+                rendererDirtyCount = 0;
+                skinnedBones = null;
                 return false;
             }
         }

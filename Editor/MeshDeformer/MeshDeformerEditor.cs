@@ -8,6 +8,7 @@ using nadena.dev.ndmf.preview;
 using UnityEditor;
 using UnityEditor.EditorTools;
 using UnityEngine;
+using Unity.Profiling;
 using UnityEditor.UIElements;
 using UnityEngine.UIElements;
 using Net._32Ba.LatticeDeformationTool;
@@ -103,15 +104,37 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int _lastClearanceTargetId;
         private int _lastClearanceReferenceId;
         private bool _lastClearanceUsedPreviewProxy;
+        private int _lastClearanceLightweightStateHash;
+        private ClearanceSignMode _lastClearanceSignMode;
+        private bool _lastClearanceHadTargetState;
+        private bool _lastClearanceHadReferenceState;
+        private ClearanceHeatmapEvaluation _cachedClearanceEvaluation;
+        private ClearanceHeatmapRawEvaluation _classifiedClearanceRawEvaluation;
+        private float _classifiedWarningDistance;
+        private float _classifiedTargetDistance;
         private ClearanceScanOperation _clearanceScanOperation;
         private ClearanceScanResult _clearanceScanResult;
         private ClearanceScanPreviewState _clearanceScanPreviewState;
         private ClearanceHeatmapRawEvaluation _fitCorrectionRawEvaluation;
-        private double _lastFitCorrectionEvaluationTime = double.NegativeInfinity;
+        private int _lastFitCorrectionLightweightStateHash;
         private int _lastFitCorrectionTargetId;
         private int _lastFitCorrectionReferenceId;
+        private ClearanceSignMode _lastFitCorrectionSignMode;
+        private double _lastFitCorrectionEvaluationTime = double.NegativeInfinity;
+        private bool _fitCorrectionRawIsThrottledStale;
+        private readonly FitCorrectionPlan _throttledStaleFitCorrectionPlan =
+            new FitCorrectionPlan(FitCorrectionStatus.StaleEvaluation);
         private FitCorrectionReport _lastFitCorrectionReport;
         private FitCorrectionPlan _fitCorrectionPreviewPlan;
+        private FitCorrectionPlan _cachedFitCorrectionPlan;
+        private int _cachedFitCorrectionPlanKey;
+        private bool _hasCachedFitCorrectionPlan;
+        private IReadOnlyList<MeshDeformerDiagnostic> _cachedValidationDiagnostics;
+        private int _cachedValidationStateHash;
+        private bool _hasCachedValidationState;
+        private const int HeatmapDrawPointBudget = 4096;
+        private static readonly ProfilerMarker s_heatmapDrawMarker =
+            new ProfilerMarker("ClearanceHeatmap.Draw");
 
         private void OnEnable()
         {
@@ -892,7 +915,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void DrawValidationDiagnostics()
         {
             if (targets.Length != 1 || target is not LatticeDeformer deformer) return;
-            var diagnostics = MeshDeformerValidator.Validate(deformer);
+            var diagnostics = GetCachedValidationDiagnostics(deformer);
             if (diagnostics.Count == 0) return;
 
             EditorGUILayout.Space();
@@ -914,6 +937,64 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     NotifyPropertyChanges();
                     GUIUtility.ExitGUI();
                 }
+            }
+        }
+
+        internal IReadOnlyList<MeshDeformerDiagnostic> GetCachedValidationDiagnostics(
+            LatticeDeformer deformer)
+        {
+            int validationStateHash = ComputeValidationStateHash(deformer);
+            if (!_hasCachedValidationState ||
+                validationStateHash != _cachedValidationStateHash ||
+                _cachedValidationDiagnostics == null)
+            {
+                _cachedValidationDiagnostics = MeshDeformerValidator.Validate(deformer);
+                _cachedValidationStateHash = validationStateHash;
+                _hasCachedValidationState = true;
+            }
+            return _cachedValidationDiagnostics;
+        }
+
+        internal static int ComputeValidationStateHash(LatticeDeformer deformer)
+        {
+            if (deformer == null) return 0;
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + deformer.GetInstanceID();
+                hash = hash * 31 + EditorUtility.GetDirtyCount(deformer);
+                hash = hash * 31 + MeshDeformerValidator.ComputeInspectorStructureHash(deformer);
+                hash = hash * 31 + deformer.enabled.GetHashCode();
+                Mesh source = deformer.SourceMesh;
+                hash = hash * 31 + (source != null ? source.GetInstanceID() : 0);
+                hash = hash * 31 + (source != null ? EditorUtility.GetDirtyCount(source) : 0);
+                MeshDeformerProfile profile = deformer.Profile;
+                hash = hash * 31 + (profile != null ? profile.GetInstanceID() : 0);
+                hash = hash * 31 + (profile != null ? EditorUtility.GetDirtyCount(profile) : 0);
+                MeshCompatibilityMetadata compatibility = profile?.Compatibility;
+                if (compatibility != null)
+                {
+                    hash = hash * 31 + compatibility.VertexCount;
+                    hash = hash * 31 + compatibility.IndexCount.GetHashCode();
+                    hash = hash * 31 + compatibility.TriangleCount.GetHashCode();
+                    hash = hash * 31 + compatibility.SubMeshCount;
+                    hash = hash * 31 + compatibility.BindPoseCount;
+                    hash = hash * 31 + StringComparer.Ordinal.GetHashCode(
+                        compatibility.BlendShapeSignature);
+                    hash = hash * 31 + StringComparer.Ordinal.GetHashCode(
+                        compatibility.TopologyHash);
+                    hash = hash * 31 + StringComparer.Ordinal.GetHashCode(
+                        compatibility.SourceAssetGuid);
+                    hash = hash * 31 + compatibility.SourceAssetLocalId.GetHashCode();
+                }
+                hash = hash * 31 + SkinnedVertexHelper.StoreMovesInRestSpace.GetHashCode();
+                Renderer targetRenderer = deformer.TargetRenderer;
+                if (ClearanceQueryCache.TryGetRendererLightweightStateHash(targetRenderer, out int targetHash))
+                    hash = hash * 31 + targetHash;
+                Renderer reference = deformer.ClearanceReferenceRenderer;
+                if (ClearanceQueryCache.TryGetRendererLightweightStateHash(reference, out int referenceHash))
+                    hash = hash * 31 + referenceHash;
+                return hash;
             }
         }
 
@@ -1023,8 +1104,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         reference,
                         (ClearanceQueryMode)_clearanceQueryModeProp.enumValueIndex,
                         _clearanceWarningDistanceProp.floatValue,
-                        _clearanceTargetDistanceProp.floatValue,
-                        _clearanceUpdateIntervalProp.floatValue);
+                        _clearanceTargetDistanceProp.floatValue);
                 }
             }
             EditorGUILayout.EndFoldoutHeaderGroup();
@@ -1259,8 +1339,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Renderer reference,
             ClearanceQueryMode queryMode,
             float warningDistance,
-            float targetDistance,
-            float updateInterval)
+            float targetDistance)
         {
             EditorGUILayout.Space();
             EditorGUILayout.LabelField(
@@ -1336,36 +1415,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             FitCorrectionConstraintOptions constraints = GetFitCorrectionConstraints();
 
-            Renderer targetRenderer = deformer.TargetRenderer;
-            double now = EditorApplication.timeSinceStartup;
-            int targetId = targetRenderer != null ? targetRenderer.GetInstanceID() : 0;
-            int referenceId = reference != null ? reference.GetInstanceID() : 0;
-            if (_fitCorrectionRawEvaluation == null ||
-                targetId != _lastFitCorrectionTargetId ||
-                referenceId != _lastFitCorrectionReferenceId ||
-                now - _lastFitCorrectionEvaluationTime >= Mathf.Clamp(updateInterval, 0.02f, 2f))
-            {
-                _fitCorrectionRawEvaluation = ClearanceHeatmapEvaluator.Evaluate(
-                    targetRenderer,
-                    reference,
-                    queryMode == ClearanceQueryMode.ClosedMesh
-                        ? ClearanceSignMode.ClosedMesh
-                        : ClearanceSignMode.ReferenceNormal);
-                _lastFitCorrectionEvaluationTime = now;
-                _lastFitCorrectionTargetId = targetId;
-                _lastFitCorrectionReferenceId = referenceId;
-            }
-
-            var plan = FitCorrectionGenerator.Analyze(
+            ClearanceHeatmapRawEvaluation rawEvaluation = GetFitCorrectionRawEvaluation(
                 deformer,
-                _fitCorrectionRawEvaluation,
                 reference,
                 queryMode,
-                (FitCorrectionScope)_fitCorrectionScopeProp.enumValueIndex,
-                warningDistance,
-                targetDistance,
-                _fitCorrectionMaximumMoveProp.floatValue,
-                constraints);
+                _clearanceUpdateIntervalProp.floatValue);
+
+            FitCorrectionScope scope = (FitCorrectionScope)_fitCorrectionScopeProp.enumValueIndex;
+            var plan = _fitCorrectionRawIsThrottledStale
+                ? _throttledStaleFitCorrectionPlan
+                : GetCachedFitCorrectionPlan(
+                    deformer,
+                    rawEvaluation,
+                    reference,
+                    queryMode,
+                    scope,
+                    warningDistance,
+                    targetDistance,
+                    _fitCorrectionMaximumMoveProp.floatValue,
+                    constraints);
             _fitCorrectionPreviewPlan = _fitCorrectionPreviewProp.boolValue && plan.CanGenerate
                 ? plan
                 : null;
@@ -1396,6 +1464,170 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         _lastFitCorrectionReport.ImprovedVertexCount,
                         _lastFitCorrectionReport.UnresolvedVertexCount),
                     MessageType.Info);
+            }
+        }
+
+        internal ClearanceHeatmapRawEvaluation GetFitCorrectionRawEvaluation(
+            LatticeDeformer deformer,
+            Renderer reference,
+            ClearanceQueryMode queryMode,
+            float updateInterval)
+        {
+            Renderer targetRenderer = deformer != null ? deformer.TargetRenderer : null;
+            int targetId = targetRenderer != null ? targetRenderer.GetInstanceID() : 0;
+            int referenceId = reference != null ? reference.GetInstanceID() : 0;
+            ClearanceSignMode signMode = queryMode == ClearanceQueryMode.ClosedMesh
+                ? ClearanceSignMode.ClosedMesh
+                : ClearanceSignMode.ReferenceNormal;
+            ClearanceQueryCache.TryGetRendererLightweightStateHash(targetRenderer, out int targetState);
+            ClearanceQueryCache.TryGetRendererLightweightStateHash(reference, out int referenceState);
+            int lightweightStateHash = HashCode.Combine(targetState, referenceState);
+            double now = EditorApplication.timeSinceStartup;
+            bool identityChanged = targetId != _lastFitCorrectionTargetId ||
+                                   referenceId != _lastFitCorrectionReferenceId;
+            bool signModeChanged = signMode != _lastFitCorrectionSignMode;
+            bool stateChanged = lightweightStateHash != _lastFitCorrectionLightweightStateHash;
+            bool intervalElapsed = now - _lastFitCorrectionEvaluationTime >=
+                                   Mathf.Clamp(updateInterval, 0.02f, 2f);
+
+            if (_clearanceRawEvaluation != null &&
+                ReferenceEquals(_clearanceRawEvaluation.TargetRenderer, targetRenderer) &&
+                ReferenceEquals(_clearanceRawEvaluation.ReferenceRenderer, reference) &&
+                signMode == _lastClearanceSignMode &&
+                lightweightStateHash == _lastClearanceLightweightStateHash)
+            {
+                _fitCorrectionRawEvaluation = _clearanceRawEvaluation;
+                _lastFitCorrectionEvaluationTime = _lastClearanceEvaluationTime;
+                _fitCorrectionRawIsThrottledStale = false;
+            }
+            else if (_fitCorrectionRawEvaluation == null || identityChanged || signModeChanged ||
+                     (stateChanged && intervalElapsed))
+            {
+                _fitCorrectionRawEvaluation = ClearanceHeatmapEvaluator.Evaluate(
+                    targetRenderer,
+                    reference,
+                    signMode);
+                _lastFitCorrectionEvaluationTime = now;
+                _fitCorrectionRawIsThrottledStale = false;
+            }
+            else
+            {
+                _fitCorrectionRawIsThrottledStale = stateChanged;
+            }
+
+            if (!_fitCorrectionRawIsThrottledStale)
+            {
+                _lastFitCorrectionTargetId = targetId;
+                _lastFitCorrectionReferenceId = referenceId;
+                _lastFitCorrectionSignMode = signMode;
+                _lastFitCorrectionLightweightStateHash = lightweightStateHash;
+            }
+            return _fitCorrectionRawEvaluation;
+        }
+
+        internal FitCorrectionPlan GetCachedFitCorrectionPlan(
+            LatticeDeformer deformer,
+            ClearanceHeatmapRawEvaluation rawEvaluation,
+            Renderer reference,
+            ClearanceQueryMode queryMode,
+            FitCorrectionScope scope,
+            float warningDistance,
+            float targetDistance,
+            float maximumMove,
+            FitCorrectionConstraintOptions constraints)
+        {
+            int planKey = ComputeFitCorrectionPlanKey(
+                deformer,
+                rawEvaluation,
+                reference,
+                queryMode,
+                scope,
+                warningDistance,
+                targetDistance,
+                maximumMove,
+                constraints);
+            if (!_hasCachedFitCorrectionPlan ||
+                planKey != _cachedFitCorrectionPlanKey ||
+                _cachedFitCorrectionPlan == null)
+            {
+                _cachedFitCorrectionPlan = FitCorrectionGenerator.Analyze(
+                    deformer,
+                    rawEvaluation,
+                    reference,
+                    queryMode,
+                    scope,
+                    warningDistance,
+                    targetDistance,
+                    maximumMove,
+                    constraints);
+                _cachedFitCorrectionPlanKey = planKey;
+                _hasCachedFitCorrectionPlan = true;
+            }
+            return _cachedFitCorrectionPlan;
+        }
+
+        internal static int ComputeFitCorrectionPlanKey(
+            LatticeDeformer deformer,
+            ClearanceHeatmapRawEvaluation rawEvaluation,
+            Renderer reference,
+            ClearanceQueryMode queryMode,
+            FitCorrectionScope scope,
+            float warningDistance,
+            float targetDistance,
+            float maximumMove,
+            FitCorrectionConstraintOptions constraints)
+        {
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + (deformer != null ? deformer.GetInstanceID() : 0);
+                hash = hash * 31 + (deformer != null ? EditorUtility.GetDirtyCount(deformer) : 0);
+                Renderer currentTarget = deformer != null ? deformer.TargetRenderer : null;
+                ClearanceQueryCache.TryGetRendererLightweightStateHash(
+                    currentTarget,
+                    out int currentTargetState);
+                ClearanceQueryCache.TryGetRendererLightweightStateHash(
+                    reference,
+                    out int currentReferenceState);
+                hash = hash * 31 + currentTargetState;
+                hash = hash * 31 + currentReferenceState;
+                Mesh source = deformer != null ? deformer.SourceMesh : null;
+                hash = hash * 31 + (source != null ? source.GetInstanceID() : 0);
+                hash = hash * 31 + (source != null ? EditorUtility.GetDirtyCount(source) : 0);
+                hash = hash * 31 + (rawEvaluation != null ? rawEvaluation.TargetStateHash : 0);
+                hash = hash * 31 + (rawEvaluation != null ? rawEvaluation.ReferenceStateHash : 0);
+                hash = hash * 31 + (reference != null ? reference.GetInstanceID() : 0);
+                hash = hash * 31 + (int)queryMode;
+                hash = hash * 31 + (int)scope;
+                hash = hash * 31 + warningDistance.GetHashCode();
+                hash = hash * 31 + targetDistance.GetHashCode();
+                hash = hash * 31 + maximumMove.GetHashCode();
+                hash = hash * 31 + constraints.UseVertexMask.GetHashCode();
+                hash = hash * 31 + constraints.PinOpenBoundaries.GetHashCode();
+                hash = hash * 31 + constraints.IsolateConnectedComponents.GetHashCode();
+                hash = hash * 31 + constraints.SmoothSurface.GetHashCode();
+                hash = hash * 31 + constraints.SmoothingIterations;
+                hash = hash * 31 + constraints.SmoothingStrength.GetHashCode();
+                hash = hash * 31 + constraints.PreserveSolvedClearance.GetHashCode();
+                hash = hash * 31 + constraints.UseSymmetry.GetHashCode();
+                hash = hash * 31 + constraints.SymmetryAxis;
+                hash = hash * 31 + constraints.SymmetryTolerance.GetHashCode();
+                if (constraints.UseVertexMask && deformer != null)
+                {
+                    IReadOnlyList<LatticeLayer> layers = deformer.Layers;
+                    int activeLayerIndex = deformer.ActiveLayerIndex;
+                    LatticeLayer activeLayer = activeLayerIndex >= 0 &&
+                                               activeLayerIndex < layers.Count
+                        ? layers[activeLayerIndex]
+                        : null;
+                    hash = hash * 31 + (activeLayer != null ? activeLayer.GetHashCode() : 0);
+                    float[] mask = activeLayer?.VertexMask;
+                    int maskLength = mask?.Length ?? 0;
+                    hash = hash * 31 + maskLength;
+                    for (int i = 0; i < maskLength; i++)
+                        hash = hash * 31 + mask[i].GetHashCode();
+                }
+                return hash;
             }
         }
 
@@ -1589,24 +1821,43 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 deformer.ClearanceUpdateInterval);
             if (evaluation == null || evaluation.Status != ClearanceEvaluationStatus.Valid) return;
 
-            int stride = deformer.ClearanceDisplayStride;
-            for (int i = 0; i < evaluation.WorldPositions.Length; i += stride)
+            int stride = CalculateAdaptiveHeatmapStride(
+                evaluation.WorldPositions.Length,
+                deformer.ClearanceDisplayStride,
+                HeatmapDrawPointBudget);
+            using (s_heatmapDrawMarker.Auto())
             {
-                ClearanceClassification classification = evaluation.Classifications[i];
-                if (!ClearanceHeatmapEvaluator.ShouldDisplay(
-                        classification,
-                        deformer.ClearanceHeatmapDisplayMode))
+                for (int i = 0; i < evaluation.WorldPositions.Length; i += stride)
                 {
-                    continue;
-                }
+                    ClearanceClassification classification = evaluation.Classifications[i];
+                    if (!ClearanceHeatmapEvaluator.ShouldDisplay(
+                            classification,
+                            deformer.ClearanceHeatmapDisplayMode))
+                    {
+                        continue;
+                    }
 
-                Vector3 position = evaluation.WorldPositions[i];
-                Handles.color = ClearanceHeatmapEvaluator.ColorFor(classification);
-                float size = HandleUtility.GetHandleSize(position) * 0.012f;
-                Handles.DotHandleCap(0, position, Quaternion.identity, size, EventType.Repaint);
+                    Vector3 position = evaluation.WorldPositions[i];
+                    Handles.color = ClearanceHeatmapEvaluator.ColorFor(classification);
+                    float size = HandleUtility.GetHandleSize(position) * 0.012f;
+                    Handles.DotHandleCap(0, position, Quaternion.identity, size, EventType.Repaint);
+                }
             }
 
             DrawFitCorrectionPreview();
+        }
+
+        internal static int CalculateAdaptiveHeatmapStride(
+            int vertexCount,
+            int requestedStride,
+            int pointBudget = HeatmapDrawPointBudget)
+        {
+            requestedStride = Mathf.Max(1, requestedStride);
+            pointBudget = Mathf.Max(1, pointBudget);
+            int budgetStride = vertexCount > pointBudget
+                ? Mathf.CeilToInt(vertexCount / (float)pointBudget)
+                : 1;
+            return Mathf.Max(requestedStride, budgetStride);
         }
 
         private void DrawFitCorrectionPreview()
@@ -1628,7 +1879,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private ClearanceHeatmapEvaluation GetClearanceEvaluation(
+        internal ClearanceHeatmapEvaluation GetClearanceEvaluation(
             LatticeDeformer deformer,
             Renderer reference,
             ClearanceQueryMode queryMode,
@@ -1643,25 +1894,57 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             bool identityChanged = targetId != _lastClearanceTargetId ||
                                    referenceId != _lastClearanceReferenceId ||
                                    usedPreviewProxy != _lastClearanceUsedPreviewProxy;
-            if (_clearanceRawEvaluation == null || identityChanged ||
-                now - _lastClearanceEvaluationTime >= Mathf.Clamp(updateInterval, 0.02f, 2f))
+            bool hasTargetState = ClearanceQueryCache.TryGetRendererLightweightStateHash(
+                targetRenderer,
+                out int targetState);
+            bool hasReferenceState = ClearanceQueryCache.TryGetRendererLightweightStateHash(
+                reference,
+                out int referenceState);
+            int lightweightStateHash = HashCode.Combine(targetState, referenceState);
+            ClearanceSignMode signMode = queryMode == ClearanceQueryMode.ClosedMesh
+                ? ClearanceSignMode.ClosedMesh
+                : ClearanceSignMode.ReferenceNormal;
+            bool stateChanged = hasTargetState != _lastClearanceHadTargetState ||
+                                hasReferenceState != _lastClearanceHadReferenceState ||
+                                ((hasTargetState || hasReferenceState) &&
+                                 lightweightStateHash != _lastClearanceLightweightStateHash);
+            bool signModeChanged = signMode != _lastClearanceSignMode;
+            bool intervalElapsed = now - _lastClearanceEvaluationTime >=
+                                   Mathf.Clamp(updateInterval, 0.02f, 2f);
+            bool fallbackExpired = (!hasTargetState || !hasReferenceState) &&
+                                   intervalElapsed;
+            if (_clearanceRawEvaluation == null || identityChanged || signModeChanged ||
+                (stateChanged && intervalElapsed) || fallbackExpired)
             {
                 _clearanceRawEvaluation = ClearanceHeatmapEvaluator.Evaluate(
                     targetRenderer,
                     reference,
-                    queryMode == ClearanceQueryMode.ClosedMesh
-                        ? ClearanceSignMode.ClosedMesh
-                        : ClearanceSignMode.ReferenceNormal);
+                    signMode);
                 _lastClearanceEvaluationTime = now;
                 _lastClearanceTargetId = targetId;
                 _lastClearanceReferenceId = referenceId;
                 _lastClearanceUsedPreviewProxy = usedPreviewProxy;
+                _lastClearanceLightweightStateHash = lightweightStateHash;
+                _lastClearanceSignMode = signMode;
+                _lastClearanceHadTargetState = hasTargetState;
+                _lastClearanceHadReferenceState = hasReferenceState;
+                _hasCachedFitCorrectionPlan = false;
             }
 
-            return ClearanceHeatmapEvaluator.Classify(
-                _clearanceRawEvaluation,
-                warningDistance,
-                targetDistance);
+            if (_cachedClearanceEvaluation == null ||
+                !ReferenceEquals(_classifiedClearanceRawEvaluation, _clearanceRawEvaluation) ||
+                _classifiedWarningDistance != warningDistance ||
+                _classifiedTargetDistance != targetDistance)
+            {
+                _cachedClearanceEvaluation = ClearanceHeatmapEvaluator.Classify(
+                    _clearanceRawEvaluation,
+                    warningDistance,
+                    targetDistance);
+                _classifiedClearanceRawEvaluation = _clearanceRawEvaluation;
+                _classifiedWarningDistance = warningDistance;
+                _classifiedTargetDistance = targetDistance;
+            }
+            return _cachedClearanceEvaluation;
         }
 
         private static Renderer ResolveClearanceTargetRenderer(
@@ -1704,11 +1987,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _lastClearanceTargetId = 0;
             _lastClearanceReferenceId = 0;
             _lastClearanceUsedPreviewProxy = false;
+            _lastClearanceLightweightStateHash = 0;
+            _lastClearanceSignMode = default;
+            _lastClearanceHadTargetState = false;
+            _lastClearanceHadReferenceState = false;
+            _cachedClearanceEvaluation = null;
+            _classifiedClearanceRawEvaluation = null;
             _fitCorrectionRawEvaluation = null;
-            _lastFitCorrectionEvaluationTime = double.NegativeInfinity;
+            _lastFitCorrectionLightweightStateHash = 0;
             _lastFitCorrectionTargetId = 0;
             _lastFitCorrectionReferenceId = 0;
+            _lastFitCorrectionSignMode = default;
+            _lastFitCorrectionEvaluationTime = double.NegativeInfinity;
+            _fitCorrectionRawIsThrottledStale = false;
             _fitCorrectionPreviewPlan = null;
+            _cachedFitCorrectionPlan = null;
+            _hasCachedFitCorrectionPlan = false;
+            _cachedValidationDiagnostics = null;
+            _hasCachedValidationState = false;
         }
 
         private void ReapplyBlendShapeTestWeight(LatticeDeformer deformer)

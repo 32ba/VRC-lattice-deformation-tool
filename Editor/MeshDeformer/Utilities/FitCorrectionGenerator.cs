@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Unity.Profiling;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
@@ -131,6 +132,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
     internal static class FitCorrectionGenerator
     {
+        private static readonly ProfilerMarker s_analyzeMarker =
+            new ProfilerMarker("FitCorrection.Analyze");
+        internal static int AnalyzeCount { get; set; }
         private const float PoseToleranceSq = 1e-10f;
 
         internal static FitCorrectionPlan Analyze(
@@ -144,6 +148,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             float maximumMove,
             FitCorrectionConstraintOptions constraints = default)
         {
+            using var analyzeScope = s_analyzeMarker.Auto();
+            AnalyzeCount++;
             if (!AreSettingsValid(queryMode, scope, warningDistance, targetDistance, maximumMove) ||
                 !AreConstraintsValid(constraints))
             {
