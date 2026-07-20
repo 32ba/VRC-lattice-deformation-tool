@@ -1154,6 +1154,64 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
+        /// <summary>
+        /// Returns the already-validated embedded active layer without repeating the
+        /// release-migration payload preflight. Editor tools call this once per GUI
+        /// event after OnEnable/activation has validated the component. Unknown,
+        /// migrated, invalid, and Profile-backed states retain the full fail-closed
+        /// public accessor path.
+        /// </summary>
+        internal bool TryGetActiveLayerFast(out LatticeLayer layer)
+        {
+            layer = null;
+            if (!TryGetValidatedEmbeddedActiveGroup(out var group))
+            {
+                return TryGetActiveLayer(out layer);
+            }
+
+            var layers = group.SerializedLayers;
+            int index = group.SerializedActiveLayerIndex;
+            if (layers == null || index < 0 || index >= layers.Count)
+            {
+                return false;
+            }
+
+            layer = layers[index];
+            return layer != null;
+        }
+
+        internal IReadOnlyList<LatticeLayer> GetActiveLayersFast()
+        {
+            return TryGetValidatedEmbeddedActiveGroup(out var group)
+                ? group.SerializedLayers
+                : Layers;
+        }
+
+        internal int GetActiveLayerIndexFast()
+        {
+            return TryGetValidatedEmbeddedActiveGroup(out var group)
+                ? group.SerializedActiveLayerIndex
+                : ActiveLayerIndex;
+        }
+
+        private bool TryGetValidatedEmbeddedActiveGroup(out DeformerGroup group)
+        {
+            group = null;
+            if (_migrationStatus != DeformationDataMigrationStatus.Ready ||
+                _deformationDataVersion != DeformationDataVersion.CurrentDevelopment ||
+                _layerModelVersion != k_CurrentLayerModelVersion ||
+                _dataSource != DeformerDataSource.Embedded ||
+                _groups == null ||
+                _activeGroupIndex < 0 ||
+                _activeGroupIndex >= _groups.Count)
+            {
+                return false;
+            }
+
+            group = _groups[_activeGroupIndex];
+            return group != null;
+        }
+
         public Mesh RuntimeMesh => _runtimeMesh;
 
         internal int RuntimeMeshRevision => _runtimeMeshRevision;

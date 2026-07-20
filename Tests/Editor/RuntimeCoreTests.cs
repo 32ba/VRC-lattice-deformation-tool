@@ -14,6 +14,62 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     public sealed class RuntimeCoreTests
     {
         [Test]
+        public void ValidatedActiveLayerFastPath_SeventyThousandVerticesAllocatesZeroBytes()
+        {
+            const int vertexCount = 70000;
+            var go = new GameObject("validated-active-layer-fast-path");
+            var mesh = new Mesh
+            {
+                name = "ValidatedActiveLayerFastPathMesh",
+                indexFormat = UnityEngine.Rendering.IndexFormat.UInt32,
+            };
+            try
+            {
+                var vertices = new Vector3[vertexCount];
+                for (int i = 0; i < vertices.Length; i++)
+                    vertices[i] = new Vector3(i * 0.001f, i % 2, i % 3);
+                mesh.vertices = vertices;
+                mesh.RecalculateBounds();
+
+                var renderer = go.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = mesh;
+                var deformer = go.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                int brushIndex = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushIndex;
+                deformer.EnsureDisplacementCapacity();
+
+                Assert.That(deformer.MigrationStatus, Is.EqualTo(DeformationDataMigrationStatus.Ready));
+                Assert.That(deformer.TryGetActiveLayerFast(out var expectedLayer), Is.True);
+                Assert.That(expectedLayer.Type, Is.EqualTo(MeshDeformerLayerType.Brush));
+
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                bool allMatched = true;
+                for (int i = 0; i < 100; i++)
+                {
+                    allMatched &= deformer.TryGetActiveLayerFast(out var layer) &&
+                                  ReferenceEquals(layer, expectedLayer);
+                    var layers = deformer.GetActiveLayersFast();
+                    allMatched &= ReferenceEquals(
+                        layers[deformer.GetActiveLayerIndexFast()], expectedLayer);
+                }
+                long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+                watch.Stop();
+
+                TestContext.WriteLine(
+                    $"70k validated active-layer fast path: {watch.Elapsed.TotalMilliseconds / 100.0:F4} ms/call, {allocated} B");
+                Assert.That(allMatched, Is.True);
+                Assert.That(allocated, Is.Zero);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
         public void BrushCapacity_InvalidMaskDoesNotAllocateDisplacements()
         {
             var layer = new LatticeLayer();
