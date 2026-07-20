@@ -830,21 +830,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Matrix4x4 targetLocalToWorld,
             ClearanceSignMode signMode)
         {
-            if (targetVertices == null)
+            if (targetVertices == null || !TryGet(referenceRenderer, out ClearanceQuery query))
                 return Array.Empty<ClearanceQueryResult>();
 
             // This array is the owned output snapshot. Traversal/state-hash scratch is
             // allocation-free after warm-up and can also be used with a caller-owned
             // result buffer through TryQueryPoints below.
             var results = new ClearanceQueryResult[targetVertices.Length];
-            return TryQueryPoints(
-                referenceRenderer,
-                targetVertices,
-                targetLocalToWorld,
-                signMode,
-                results)
-                ? results
-                : Array.Empty<ClearanceQueryResult>();
+            query.QueryPoints(targetVertices, targetLocalToWorld, signMode, results);
+            return results;
         }
 
         internal static bool TryQueryPoints(
@@ -947,7 +941,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
                 catch (Exception)
                 {
-                    UnityEngine.Object.DestroyImmediate(mesh);
+                    DisposeCapturedMeshAfterFailure(mesh, ownsMesh);
                     mesh = null;
                     ownsMesh = false;
                     return false;
@@ -962,6 +956,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             return false;
+        }
+
+        internal static void DisposeCapturedMeshAfterFailure(Mesh mesh, bool ownsMesh)
+        {
+            // A cache-owned mesh must survive a transient BakeMesh failure so the
+            // next query can retry without entering a permanent allocate/discard loop.
+            if (ownsMesh && mesh != null)
+                UnityEngine.Object.DestroyImmediate(mesh);
         }
 
         private static bool TryCaptureMesh(
