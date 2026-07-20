@@ -842,6 +842,104 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeToolProxySnapshot_WarmPathIsZeroAllocAndTracksPoseChanges()
+        {
+            var go = new GameObject("Proxy");
+            var bone = new GameObject("Bone");
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 },
+                boneWeights = new[]
+                {
+                    new BoneWeight { boneIndex0 = 0, weight0 = 1f },
+                    new BoneWeight { boneIndex0 = 0, weight0 = 1f },
+                    new BoneWeight { boneIndex0 = 0, weight0 = 1f }
+                },
+                bindposes = new[] { Matrix4x4.identity }
+            };
+            mesh.AddBlendShapeFrame(
+                "Expand",
+                100f,
+                new[] { Vector3.left, Vector3.right, Vector3.up },
+                new Vector3[3],
+                new Vector3[3]);
+            try
+            {
+                bone.transform.SetParent(go.transform, false);
+                var renderer = go.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = mesh;
+                renderer.rootBone = bone.transform;
+                renderer.bones = new[] { bone.transform };
+                var deformer = go.AddComponent<LatticeDeformer>();
+                var handler = new LatticeToolHandler();
+                Bounds sourceBounds = mesh.bounds;
+
+                handler.UpdateSkinningSnapshotIfNeeded(
+                    deformer, renderer, sourceBounds, Matrix4x4.identity, Matrix4x4.identity);
+                handler.UpdateSkinningSnapshotIfNeeded(
+                    deformer, renderer, sourceBounds, Matrix4x4.identity, Matrix4x4.identity);
+                int warmSkinningCount = handler.SkinningRefreshCountForTests;
+                long skinningBefore = System.GC.GetAllocatedBytesForCurrentThread();
+                handler.UpdateSkinningSnapshotIfNeeded(
+                    deformer, renderer, sourceBounds, Matrix4x4.identity, Matrix4x4.identity);
+                long skinningAllocated = System.GC.GetAllocatedBytesForCurrentThread() - skinningBefore;
+                Assert.That(skinningAllocated, Is.Zero);
+                Assert.That(handler.SkinningRefreshCountForTests, Is.EqualTo(warmSkinningCount));
+
+                handler.UpdateProxySnapshotIfNeeded(
+                    deformer, renderer, sourceBounds, Matrix4x4.identity, Matrix4x4.identity);
+                handler.UpdateProxySnapshotIfNeeded(
+                    deformer, renderer, sourceBounds, Matrix4x4.identity, Matrix4x4.identity);
+                int warmRefreshCount = handler.ProxyBoundsRefreshCountForTests;
+
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                handler.UpdateProxySnapshotIfNeeded(
+                    deformer, renderer, sourceBounds, Matrix4x4.identity, Matrix4x4.identity);
+                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+                Assert.That(allocated, Is.Zero);
+                Assert.That(handler.ProxyBoundsRefreshCountForTests, Is.EqualTo(warmRefreshCount));
+
+                Bounds initial = handler.ProxyMeshBoundsForTests;
+                renderer.SetBlendShapeWeight(0, 100f);
+                handler.UpdateProxySnapshotIfNeeded(
+                    deformer, renderer, sourceBounds, Matrix4x4.identity, Matrix4x4.identity);
+                Assert.That(handler.ProxyBoundsRefreshCountForTests, Is.EqualTo(warmRefreshCount + 1));
+                Assert.That(handler.ProxyMeshBoundsForTests, Is.Not.EqualTo(initial));
+
+                bone.transform.localPosition = Vector3.forward;
+                handler.UpdateSkinningSnapshotIfNeeded(
+                    deformer, renderer, sourceBounds, Matrix4x4.identity, Matrix4x4.identity);
+                handler.UpdateProxySnapshotIfNeeded(
+                    deformer, renderer, sourceBounds, Matrix4x4.identity, Matrix4x4.identity);
+                Assert.That(handler.ProxyBoundsRefreshCountForTests, Is.EqualTo(warmRefreshCount + 2));
+                Assert.That(handler.SkinningRefreshCountForTests, Is.EqualTo(warmSkinningCount + 1));
+
+                var vertices = mesh.vertices;
+                vertices[0] = new Vector3(0.25f, 0.25f, 0f);
+                mesh.vertices = vertices;
+                handler.UpdateProxySnapshotIfNeeded(
+                    deformer, renderer, sourceBounds, Matrix4x4.identity, Matrix4x4.identity);
+                Assert.That(handler.ProxyBoundsRefreshCountForTests, Is.EqualTo(warmRefreshCount + 3));
+
+                int beforeNullRoundTrip = handler.SkinningRefreshCountForTests;
+                handler.UpdateSkinningSnapshotIfNeeded(
+                    deformer, null, sourceBounds, Matrix4x4.identity, Matrix4x4.identity);
+                handler.UpdateSkinningSnapshotIfNeeded(
+                    deformer, renderer, sourceBounds, Matrix4x4.identity, Matrix4x4.identity);
+                Assert.That(
+                    handler.SkinningRefreshCountForTests,
+                    Is.EqualTo(beforeNullRoundTrip + 1));
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+                Object.DestroyImmediate(bone);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
         public void LatticePreviewUtility_GetEditingBounds_FallsBackWithoutProxy()
         {
             var original = new GameObject("editing-bounds");
