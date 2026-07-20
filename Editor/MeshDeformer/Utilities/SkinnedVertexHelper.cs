@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using UnityEditor;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
@@ -15,6 +16,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static Mesh s_bakeMesh;
         private static readonly List<Vector3> s_bakedVertices = new List<Vector3>();
         internal static bool StoreMovesInRestSpace { get; set; }
+        internal static int WorldPositionBakeCountForTests { get; set; }
 
         /// <summary>
         /// Computes world-space positions matching the rendered output.
@@ -40,7 +42,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 s_bakeMesh.hideFlags = HideFlags.HideAndDontSave;
             }
 
-            proxySMR.BakeMesh(s_bakeMesh);
+            UnityEngine.Profiling.Profiler.BeginSample("VertexSelection.BakeMesh");
+            try
+            {
+                WorldPositionBakeCountForTests++;
+                proxySMR.BakeMesh(s_bakeMesh);
+            }
+            finally
+            {
+                UnityEngine.Profiling.Profiler.EndSample();
+            }
 
             if (s_bakeMesh.vertexCount != localVertices.Length)
                 return null;
@@ -263,6 +274,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             LatticeDeformer deformer,
             out SkinnedMeshRenderer skinnedRenderer)
         {
+            return TryGetSkinnedRendererReference(deformer, out skinnedRenderer) &&
+                   skinnedRenderer.bones != null &&
+                   skinnedRenderer.bones.Length > 0;
+        }
+
+        private static bool TryGetSkinnedRendererReference(
+            LatticeDeformer deformer,
+            out SkinnedMeshRenderer skinnedRenderer)
+        {
             skinnedRenderer = null;
             if (deformer == null) return false;
 
@@ -273,9 +293,51 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 skinnedRenderer = proxyRenderer as SkinnedMeshRenderer;
             if (skinnedRenderer == null)
                 skinnedRenderer = originalRenderer as SkinnedMeshRenderer;
-            return skinnedRenderer != null &&
-                   skinnedRenderer.bones != null &&
-                   skinnedRenderer.bones.Length > 0;
+            return skinnedRenderer != null;
+        }
+
+        internal static int ComputePoseStateHash(
+            SkinnedMeshRenderer renderer,
+            Transform[] bones)
+        {
+            if (renderer == null) return 0;
+
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + renderer.GetInstanceID();
+                hash = hash * 31 + renderer.transform.localToWorldMatrix.GetHashCode();
+                hash = hash * 31 + (renderer.sharedMesh != null
+                    ? renderer.sharedMesh.GetInstanceID()
+                    : 0);
+                hash = hash * 31 + (renderer.sharedMesh != null
+                    ? EditorUtility.GetDirtyCount(renderer.sharedMesh)
+                    : 0);
+                hash = hash * 31 + (renderer.sharedMesh != null
+                    ? renderer.sharedMesh.bounds.GetHashCode()
+                    : 0);
+                hash = hash * 31 + (renderer.rootBone != null
+                    ? renderer.rootBone.localToWorldMatrix.GetHashCode()
+                    : 0);
+
+                int boneCount = bones?.Length ?? 0;
+                hash = hash * 31 + boneCount;
+                for (int i = 0; i < boneCount; i++)
+                {
+                    Transform bone = bones[i];
+                    hash = hash * 31 + (bone != null
+                        ? bone.localToWorldMatrix.GetHashCode()
+                        : 0);
+                }
+
+                int blendShapeCount = renderer.sharedMesh != null
+                    ? renderer.sharedMesh.blendShapeCount
+                    : 0;
+                hash = hash * 31 + blendShapeCount;
+                for (int i = 0; i < blendShapeCount; i++)
+                    hash = hash * 31 + renderer.GetBlendShapeWeight(i).GetHashCode();
+                return hash;
+            }
         }
 
         private static bool IsFinite(float value)
