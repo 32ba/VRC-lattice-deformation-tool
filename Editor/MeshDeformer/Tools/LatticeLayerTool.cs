@@ -1075,22 +1075,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (bones == null || bones.Length == 0 || bindposes == null || bindposes.Length == 0)
                 return null;
 
-            // Find rootBone index in bones array; fallback to bone 0
-            int boneIdx = 0;
+            // The correction is only meaningful when rootBone has an explicit bind
+            // pose. Falling back to bone 0 shifts the cage on rigs whose rootBone is
+            // null or is intentionally outside the skinning set.
+            int boneIdx = -1;
             var rootBone = skinnedRenderer.rootBone;
-            if (rootBone != null)
+            if (rootBone == null)
+                return null;
+            for (int i = 0; i < bones.Length; i++)
             {
-                for (int i = 0; i < bones.Length; i++)
+                if (bones[i] == rootBone)
                 {
-                    if (bones[i] == rootBone)
-                    {
-                        boneIdx = i;
-                        break;
-                    }
+                    boneIdx = i;
+                    break;
                 }
             }
 
-            if (boneIdx >= bindposes.Length || bones[boneIdx] == null)
+            if (boneIdx < 0 || boneIdx >= bindposes.Length || bones[boneIdx] == null)
                 return null;
 
             var meshToWorldViaBone = bones[boneIdx].localToWorldMatrix * bindposes[boneIdx];

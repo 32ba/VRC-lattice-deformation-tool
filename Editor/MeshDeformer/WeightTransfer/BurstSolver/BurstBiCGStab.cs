@@ -20,7 +20,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
     /// Burst-compatible BiCGStab (Bi-Conjugate Gradient Stabilized) iterative solver.
     /// Solves Ax = b for sparse matrices.
     /// </summary>
-    [ExcludeFromCodeCoverage]
     public static class BurstBiCGStab
     {
         /// <summary>

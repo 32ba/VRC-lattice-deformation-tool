@@ -102,6 +102,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string RestSpaceConversionUnsafe = "MDV017";
         internal const string PreviewBakeTargetMismatch = "MDV018";
         internal const string NullGroupOrLayer = "MDV019";
+        internal const string SourceMeshNotReadable = "MDV020";
 
         internal static IReadOnlyList<MeshDeformerDiagnostic> Validate(
             LatticeDeformer deformer,
@@ -128,6 +129,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Add(results, MissingSourceMesh, MeshDeformerDiagnosticSeverity.Error, deformer,
                     "The target renderer has no source mesh.", property: "sharedMesh");
                 return results;
+            }
+
+            if (!currentMesh.isReadable)
+            {
+                Add(results, SourceMeshNotReadable, MeshDeformerDiagnosticSeverity.Error, deformer,
+                    "The source mesh has Read/Write disabled. Enable Read/Write so deformation can read its vertex and BlendShape data.",
+                    property: "sharedMesh");
             }
 
             var serializedSource = serialized.FindProperty("_serializedSourceMesh")?.objectReferenceValue as Mesh;
