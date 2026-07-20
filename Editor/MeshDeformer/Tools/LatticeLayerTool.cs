@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Profiling;
 using UnityEngine.Rendering;
 using Net._32Ba.LatticeDeformationTool;
 
@@ -57,6 +58,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_showSymmetrySection = false;
 
         private LatticeDeformer _activeDeformer;
+        private Renderer _cachedSourceRenderer;
+        private Renderer _cachedProxyRenderer;
+        private bool _proxyResolved;
+        private bool _proxySnapshotValid;
+        private int _proxySnapshotHash;
+        private Bounds _cachedProxyMeshBounds;
+        private Bounds _cachedProxyRendererBounds;
+        private Matrix4x4? _cachedSkinningCorrection;
+        private bool _skinningSnapshotValid;
+        private int _skinningSnapshotHash;
+        private SkinnedMeshRenderer _cachedSkinningRenderer;
+        private Transform[] _cachedSkinningBones;
+        private int _cachedSkinningRendererDirtyCount;
+        private SkinnedMeshRenderer _cachedPoseRenderer;
+        private Transform[] _cachedPoseBones;
+        private int _cachedPoseRendererDirtyCount;
+        internal int ProxyBoundsRefreshCountForTests { get; private set; }
+        internal int SkinningRefreshCountForTests { get; private set; }
+        internal Bounds ProxyMeshBoundsForTests => _cachedProxyMeshBounds;
 
         static LatticeToolHandler()
         {
@@ -188,12 +208,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             s_previousPivotRotation = Tools.pivotRotation;
             Tools.pivotRotation = PivotRotation.Local;
             Undo.undoRedoPerformed += OnUndoRedo;
+            EditorApplication.hierarchyChanged += InvalidateProxyCache;
+            EditorApplication.projectChanged += InvalidateProxyCache;
             SceneView.RepaintAll();
         }
 
         internal void Deactivate()
         {
             Undo.undoRedoPerformed -= OnUndoRedo;
+            EditorApplication.hierarchyChanged -= InvalidateProxyCache;
+            EditorApplication.projectChanged -= InvalidateProxyCache;
+            InvalidateProxyCache();
             ClearSelection();
             if (s_previousPivotRotation.HasValue)
             {
@@ -236,18 +261,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Prevent selection from switching away from the current lattice while editing.
             HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
 
-            DrawControlHandles(deformer, settings, controlCount);
+            Profiler.BeginSample("LatticeTool.DrawHandles");
+            try
+            {
+                DrawControlHandles(deformer, settings, controlCount);
+            }
+            finally
+            {
+                Profiler.EndSample();
+            }
         }
 
         private void DrawControlHandles(LatticeDeformer deformer, LatticeAsset settings, int controlCount)
         {
             var sourceTransform = deformer.MeshTransform;
-            Renderer proxyRenderer = null;
             deformer.TryGetComponent<Renderer>(out var srcRenderer);
+            Renderer proxyRenderer = ResolveProxyRenderer(srcRenderer);
 
             var useProxy = LatticePreviewUtility.UsePreviewAlignedCage &&
                            srcRenderer != null &&
-                           NDMFPreviewProxyUtility.TryGetProxyRenderer(srcRenderer, out proxyRenderer) &&
                            proxyRenderer != null;
 
             var proxyTransform = useProxy ? proxyRenderer.transform : sourceTransform;
@@ -260,8 +292,27 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var proxyToSource = worldToSource * proxyToWorld;
 
             var sourceBounds = settings.LocalBounds;
-            var proxyBoundsMesh = useProxy ? LatticePreviewUtility.GetMeshLocalBounds(proxyRenderer) : sourceBounds;
-            var proxyBoundsRenderer = useProxy ? LatticePreviewUtility.GetRendererLocalBounds(proxyRenderer) : sourceBounds;
+            var skinningTarget = (useProxy ? proxyRenderer as SkinnedMeshRenderer : null) ??
+                                 srcRenderer as SkinnedMeshRenderer;
+            UpdateSkinningSnapshotIfNeeded(
+                deformer,
+                skinningTarget,
+                sourceBounds,
+                sourceToWorld,
+                worldToSource);
+            Bounds proxyBoundsMesh = sourceBounds;
+            Bounds proxyBoundsRenderer = sourceBounds;
+            if (useProxy)
+            {
+                UpdateProxySnapshotIfNeeded(
+                    deformer,
+                    proxyRenderer,
+                    sourceBounds,
+                    sourceToWorld,
+                    worldToSource);
+                proxyBoundsMesh = _cachedProxyMeshBounds;
+                proxyBoundsRenderer = _cachedProxyRendererBounds;
+            }
             // Both helpers already return proxy-local bounds. Dividing by lossyScale here
             // would apply the transform scale a second time and shrink/enlarge the cage.
             var proxyBoundsLocal = useProxy ? ChooseLargerBounds(proxyBoundsMesh, proxyBoundsRenderer) : sourceBounds;
@@ -337,21 +388,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Matrix4x4 skinningLocal = Matrix4x4.identity;
             Matrix4x4 skinningLocalInv = Matrix4x4.identity;
             bool hasSkinningCorrection = false;
+            if (_cachedSkinningCorrection.HasValue)
             {
-                var skinningTarget = (useProxy && proxyRenderer is SkinnedMeshRenderer proxySkinned2)
-                    ? proxySkinned2
-                    : (srcRenderer as SkinnedMeshRenderer);
-                if (skinningTarget != null)
-                {
-                    var m = ComputeSkinningCorrectionMatrix(
-                        skinningTarget, sourceBounds, sourceToWorld, worldToSource);
-                    if (m.HasValue)
-                    {
-                        skinningLocal = m.Value;
-                        skinningLocalInv = m.Value.inverse;
-                        hasSkinningCorrection = true;
-                    }
-                }
+                skinningLocal = _cachedSkinningCorrection.Value;
+                skinningLocalInv = skinningLocal.inverse;
+                hasSkinningCorrection = true;
             }
 
             // When skinning correction is active, disable bounds remap (Mode3) to avoid
@@ -654,8 +695,193 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         }
 
+        private Renderer ResolveProxyRenderer(Renderer sourceRenderer)
+        {
+            if (_proxyResolved && ReferenceEquals(_cachedSourceRenderer, sourceRenderer))
+                return _cachedProxyRenderer;
+
+            _cachedSourceRenderer = sourceRenderer;
+            _cachedProxyRenderer = null;
+            if (sourceRenderer != null)
+                NDMFPreviewProxyUtility.TryGetProxyRenderer(sourceRenderer, out _cachedProxyRenderer);
+            _proxyResolved = true;
+            _proxySnapshotValid = false;
+            return _cachedProxyRenderer;
+        }
+
+        internal void UpdateProxySnapshotIfNeeded(
+            LatticeDeformer deformer,
+            Renderer renderer,
+            Bounds sourceBounds,
+            Matrix4x4 sourceToWorld,
+            Matrix4x4 worldToSource)
+        {
+            int stateHash = ComputeProxySnapshotHash(
+                deformer,
+                renderer,
+                sourceBounds,
+                sourceToWorld,
+                worldToSource);
+            if (_proxySnapshotValid && _proxySnapshotHash == stateHash)
+                return;
+
+            Profiler.BeginSample("LatticeTool.ProxyBounds");
+            try
+            {
+                ProxyBoundsRefreshCountForTests++;
+                _cachedProxyMeshBounds = LatticePreviewUtility.GetMeshLocalBounds(renderer);
+                _cachedProxyRendererBounds = LatticePreviewUtility.GetRendererLocalBounds(renderer);
+                _proxySnapshotHash = stateHash;
+                _proxySnapshotValid = true;
+            }
+            finally
+            {
+                Profiler.EndSample();
+            }
+        }
+
+        internal void UpdateSkinningSnapshotIfNeeded(
+            LatticeDeformer deformer,
+            SkinnedMeshRenderer renderer,
+            Bounds sourceBounds,
+            Matrix4x4 sourceToWorld,
+            Matrix4x4 worldToSource)
+        {
+            if (renderer == null)
+            {
+                _cachedSkinningCorrection = null;
+                _cachedSkinningRenderer = null;
+                _cachedSkinningBones = null;
+                _cachedSkinningRendererDirtyCount = 0;
+                _skinningSnapshotValid = false;
+                return;
+            }
+
+            int rendererDirtyCount = EditorUtility.GetDirtyCount(renderer);
+            if (!ReferenceEquals(_cachedSkinningRenderer, renderer) ||
+                _cachedSkinningBones == null ||
+                _cachedSkinningRendererDirtyCount != rendererDirtyCount)
+            {
+                _cachedSkinningRenderer = renderer;
+                _cachedSkinningBones = renderer.bones;
+                _cachedSkinningRendererDirtyCount = rendererDirtyCount;
+                _skinningSnapshotValid = false;
+            }
+
+            Mesh mesh = renderer.sharedMesh;
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + renderer.GetInstanceID();
+                hash = hash * 31 + rendererDirtyCount;
+                hash = hash * 31 + renderer.transform.localToWorldMatrix.GetHashCode();
+                hash = hash * 31 + (mesh != null ? mesh.GetInstanceID() : 0);
+                hash = hash * 31 + (mesh != null ? EditorUtility.GetDirtyCount(mesh) : 0);
+                hash = hash * 31 + sourceBounds.GetHashCode();
+                hash = hash * 31 + sourceToWorld.GetHashCode();
+                hash = hash * 31 + worldToSource.GetHashCode();
+                hash = hash * 31 + (deformer != null ? EditorUtility.GetDirtyCount(deformer) : 0);
+                int boneCount = _cachedSkinningBones?.Length ?? 0;
+                hash = hash * 31 + boneCount;
+                for (int i = 0; i < boneCount; i++)
+                {
+                    Transform bone = _cachedSkinningBones[i];
+                    hash = hash * 31 + (bone != null
+                        ? bone.localToWorldMatrix.GetHashCode()
+                        : 0);
+                }
+
+                if (_skinningSnapshotValid && _skinningSnapshotHash == hash)
+                    return;
+                SkinningRefreshCountForTests++;
+                _cachedSkinningCorrection = ComputeSkinningCorrectionMatrix(
+                    renderer,
+                    sourceBounds,
+                    sourceToWorld,
+                    worldToSource);
+                _skinningSnapshotHash = hash;
+                _skinningSnapshotValid = true;
+            }
+        }
+
+        private int ComputeProxySnapshotHash(
+            LatticeDeformer deformer,
+            Renderer renderer,
+            Bounds sourceBounds,
+            Matrix4x4 sourceToWorld,
+            Matrix4x4 worldToSource)
+        {
+            Mesh mesh = GetRendererMesh(renderer);
+            int rendererDirtyCount = EditorUtility.GetDirtyCount(renderer);
+            if (renderer is SkinnedMeshRenderer poseRenderer)
+            {
+                if (!ReferenceEquals(_cachedPoseRenderer, poseRenderer) ||
+                    _cachedPoseBones == null ||
+                    _cachedPoseRendererDirtyCount != rendererDirtyCount)
+                {
+                    _cachedPoseRenderer = poseRenderer;
+                    _cachedPoseBones = poseRenderer.bones;
+                    _cachedPoseRendererDirtyCount = rendererDirtyCount;
+                }
+            }
+            else
+            {
+                _cachedPoseRenderer = null;
+                _cachedPoseBones = null;
+                _cachedPoseRendererDirtyCount = 0;
+            }
+
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + renderer.GetInstanceID();
+                hash = hash * 31 + rendererDirtyCount;
+                hash = hash * 31 + renderer.transform.localToWorldMatrix.GetHashCode();
+                hash = hash * 31 + renderer.bounds.GetHashCode();
+                hash = hash * 31 + (mesh != null ? mesh.GetInstanceID() : 0);
+                hash = hash * 31 + (mesh != null ? EditorUtility.GetDirtyCount(mesh) : 0);
+                hash = hash * 31 + (mesh != null ? mesh.bounds.GetHashCode() : 0);
+                hash = hash * 31 + sourceBounds.GetHashCode();
+                hash = hash * 31 + sourceToWorld.GetHashCode();
+                hash = hash * 31 + worldToSource.GetHashCode();
+                hash = hash * 31 + EditorUtility.GetDirtyCount(deformer);
+                if (_cachedPoseRenderer != null && mesh != null)
+                {
+                    for (int i = 0; i < mesh.blendShapeCount; i++)
+                        hash = hash * 31 + _cachedPoseRenderer.GetBlendShapeWeight(i).GetHashCode();
+                    int boneCount = _cachedPoseBones?.Length ?? 0;
+                    hash = hash * 31 + boneCount;
+                    for (int i = 0; i < boneCount; i++)
+                    {
+                        Transform bone = _cachedPoseBones[i];
+                        hash = hash * 31 + (bone != null
+                            ? bone.localToWorldMatrix.GetHashCode()
+                            : 0);
+                    }
+                }
+                return hash;
+            }
+        }
+
+        private void InvalidateProxyCache()
+        {
+            _cachedSourceRenderer = null;
+            _cachedProxyRenderer = null;
+            _proxyResolved = false;
+            _proxySnapshotValid = false;
+            _cachedPoseRenderer = null;
+            _cachedPoseBones = null;
+            _cachedPoseRendererDirtyCount = 0;
+            _cachedSkinningRenderer = null;
+            _cachedSkinningBones = null;
+            _cachedSkinningRendererDirtyCount = 0;
+            _skinningSnapshotValid = false;
+            _cachedSkinningCorrection = null;
+        }
+
         private void OnUndoRedo()
         {
+            InvalidateProxyCache();
             if (_activeDeformer == null)
             {
                 return;

@@ -351,25 +351,33 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static Bounds GetMeshLocalBounds(Renderer renderer)
         {
-            if (renderer == null)
+            UnityEngine.Profiling.Profiler.BeginSample("LatticeTool.CaptureMesh");
+            try
             {
-                return new Bounds(Vector3.zero, Vector3.zero);
-            }
+                if (renderer == null)
+                {
+                    return new Bounds(Vector3.zero, Vector3.zero);
+                }
 
-            switch (renderer)
+                switch (renderer)
+                {
+                    case SkinnedMeshRenderer skinned:
+                        return CalculateSkinnedMeshLocalBounds(skinned);
+                    case MeshRenderer meshRenderer:
+                        var mf = meshRenderer.GetComponent<MeshFilter>();
+                        if (mf != null && mf.sharedMesh != null)
+                        {
+                            return CalculateReferencedMeshBounds(mf.sharedMesh, mf.sharedMesh.vertices, mf.sharedMesh.bounds);
+                        }
+                        break;
+                }
+
+                return renderer.bounds;
+            }
+            finally
             {
-                case SkinnedMeshRenderer skinned:
-                    return CalculateSkinnedMeshLocalBounds(skinned);
-                case MeshRenderer meshRenderer:
-                    var mf = meshRenderer.GetComponent<MeshFilter>();
-                    if (mf != null && mf.sharedMesh != null)
-                    {
-                        return CalculateReferencedMeshBounds(mf.sharedMesh, mf.sharedMesh.vertices, mf.sharedMesh.bounds);
-                    }
-                    break;
+                UnityEngine.Profiling.Profiler.EndSample();
             }
-
-            return renderer.bounds;
         }
 
         private static Bounds CalculateSkinnedMeshLocalBounds(SkinnedMeshRenderer skinned)
@@ -388,25 +396,33 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (mesh.blendShapeCount > 0)
             {
-                int shapeCount = mesh.blendShapeCount;
-                for (int shape = 0; shape < shapeCount; shape++)
+                UnityEngine.Profiling.Profiler.BeginSample("LatticeTool.CaptureBlendShapes");
+                try
                 {
-                    float weight = skinned.GetBlendShapeWeight(shape);
-                    if (Mathf.Abs(weight) <= 1e-5f)
+                    int shapeCount = mesh.blendShapeCount;
+                    for (int shape = 0; shape < shapeCount; shape++)
                     {
-                        continue;
-                    }
+                        float weight = skinned.GetBlendShapeWeight(shape);
+                        if (Mathf.Abs(weight) <= 1e-5f)
+                        {
+                            continue;
+                        }
 
-                    var delta = EvaluateBlendShapeVertexDelta(mesh, shape, weight);
-                    if (delta == null || delta.Length != vertices.Length)
-                    {
-                        continue;
-                    }
+                        var delta = EvaluateBlendShapeVertexDelta(mesh, shape, weight);
+                        if (delta == null || delta.Length != vertices.Length)
+                        {
+                            continue;
+                        }
 
-                    for (int i = 0; i < vertices.Length; i++)
-                    {
-                        vertices[i] += delta[i];
+                        for (int i = 0; i < vertices.Length; i++)
+                        {
+                            vertices[i] += delta[i];
+                        }
                     }
+                }
+                finally
+                {
+                    UnityEngine.Profiling.Profiler.EndSample();
                 }
             }
 
