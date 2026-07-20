@@ -359,6 +359,343 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void BvhQuery_TraversalStackScalesWithTreeDepthRatherThanNodeCount()
+        {
+            var mesh = CreateGrid(60, 12f);
+            try
+            {
+                Assert.That(ClearanceQuery.TryCreate(mesh, Matrix4x4.identity, out var query), Is.True);
+
+                Assert.That(query.NodeCount, Is.GreaterThan(1000));
+                Assert.That(query.TraversalStackSize, Is.LessThan(query.NodeCount / 10));
+            }
+            finally
+            {
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void QueryPoint_WarmQueriesDoNotAllocateManagedScratch()
+        {
+            var mesh = CreateGrid(60, 12f);
+            try
+            {
+                Assert.That(ClearanceQuery.TryCreate(mesh, Matrix4x4.identity, out var query), Is.True);
+                query.QueryPoint(new Vector3(-5.8f, -5.8f, 0.25f));
+
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                for (int i = 0; i < 128; i++)
+                {
+                    float offset = i * 0.0001f;
+                    query.QueryPoint(new Vector3(-5.8f + offset, -5.8f, 0.25f));
+                }
+                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+
+                Assert.That(allocated, Is.Zero,
+                    "Warm nearest-point queries must reuse the BVH traversal workspace.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void ClosedMeshQuery_WarmQueriesDoNotAllocateManagedScratch()
+        {
+            var mesh = CreateCube();
+            try
+            {
+                Assert.That(ClearanceQuery.TryCreate(mesh, Matrix4x4.identity, out var query), Is.True);
+                query.QueryPoint(Vector3.zero, ClearanceSignMode.ClosedMesh);
+                query.QueryPoint(Vector3.right * 3f, ClearanceSignMode.ClosedMesh);
+
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                for (int i = 0; i < 128; i++)
+                {
+                    Vector3 point = (i & 1) == 0 ? Vector3.zero : Vector3.right * 3f;
+                    query.QueryPoint(point, ClearanceSignMode.ClosedMesh);
+                }
+                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+
+                Assert.That(allocated, Is.Zero,
+                    "Warm closed-mesh queries must reuse both traversal and ray-hit buffers.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void BatchQuery_WithCallerOwnedResultsHasZeroWarmScratchAllocation()
+        {
+            var mesh = CreateGrid(60, 12f);
+            var targets = new Vector3[256];
+            var results = new ClearanceQueryResult[targets.Length];
+            for (int i = 0; i < targets.Length; i++)
+            {
+                float coordinate = -5.8f + i * 0.001f;
+                targets[i] = new Vector3(coordinate, -5.8f, 0.25f);
+            }
+
+            try
+            {
+                Assert.That(ClearanceQuery.TryCreate(mesh, Matrix4x4.identity, out var query), Is.True);
+                query.QueryPoints(
+                    targets,
+                    Matrix4x4.identity,
+                    ClearanceSignMode.ReferenceNormal,
+                    results);
+
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                for (int i = 0; i < 8; i++)
+                {
+                    query.QueryPoints(
+                        targets,
+                        Matrix4x4.identity,
+                        ClearanceSignMode.ReferenceNormal,
+                        results);
+                }
+                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+
+                Assert.That(allocated, Is.Zero,
+                    "A caller-owned result buffer must make repeated batch queries allocation-free.");
+                Assert.That(results[0].IsValid, Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void CachedBatch_WithCallerOwnedResultsHasZeroWarmManagedAllocation()
+        {
+            var mesh = CreateGrid(60, 12f);
+            var renderer = CreateMeshRenderer("Dense Reference", mesh);
+            var targets = new Vector3[256];
+            var results = new ClearanceQueryResult[targets.Length];
+            for (int i = 0; i < targets.Length; i++)
+                targets[i] = new Vector3(-5.8f + i * 0.001f, -5.8f, 0.25f);
+
+            try
+            {
+                Assert.That(ClearanceQueryCache.TryQueryPoints(
+                    renderer,
+                    targets,
+                    Matrix4x4.identity,
+                    ClearanceSignMode.ReferenceNormal,
+                    results), Is.True);
+
+                bool allSucceeded = true;
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                for (int i = 0; i < 8; i++)
+                {
+                    allSucceeded &= ClearanceQueryCache.TryQueryPoints(
+                        renderer,
+                        targets,
+                        Matrix4x4.identity,
+                        ClearanceSignMode.ReferenceNormal,
+                        results);
+                }
+                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+
+                Assert.That(allSucceeded, Is.True);
+                Assert.That(allocated, Is.Zero,
+                    "The production cache/hash/query path must be allocation-free with caller-owned output.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(renderer.gameObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void SkinnedCachedBatch_ReusesBakedMeshWithZeroWarmManagedAllocation()
+        {
+            var mesh = CreatePlane(false);
+            var root = new GameObject("Skinned Cached Reference");
+            var bone = new GameObject("Cached Bone");
+            bone.transform.SetParent(root.transform, false);
+            var renderer = root.AddComponent<SkinnedMeshRenderer>();
+            ConfigureSingleBoneSkin(mesh, root.transform, bone.transform);
+            renderer.sharedMesh = mesh;
+            renderer.bones = new[] { bone.transform };
+            renderer.rootBone = bone.transform;
+            var targets = new Vector3[256];
+            var results = new ClearanceQueryResult[targets.Length];
+            for (int i = 0; i < targets.Length; i++)
+                targets[i] = new Vector3((i % 16) * 0.01f, (i / 16) * 0.01f, 0.25f);
+
+            try
+            {
+                Assert.That(ClearanceQueryCache.TryQueryPoints(
+                    renderer,
+                    targets,
+                    Matrix4x4.identity,
+                    ClearanceSignMode.ReferenceNormal,
+                    results), Is.True);
+
+                bool allSucceeded = true;
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                for (int i = 0; i < 8; i++)
+                {
+                    allSucceeded &= ClearanceQueryCache.TryQueryPoints(
+                        renderer,
+                        targets,
+                        Matrix4x4.identity,
+                        ClearanceSignMode.ReferenceNormal,
+                        results);
+                }
+                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+
+                Assert.That(allSucceeded, Is.True);
+                Assert.That(allocated, Is.Zero,
+                    "A stable skinned reference must reuse its cache-owned BakeMesh.");
+                Assert.That(ClearanceQueryCache.BuildCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void AllocatingBatch_OutputAllocationDoesNotGrowWithReferenceDensity()
+        {
+            var coarseMesh = CreateGrid(1, 12f);
+            var denseMesh = CreateGrid(60, 12f);
+            var coarse = CreateMeshRenderer("Coarse Reference", coarseMesh);
+            var dense = CreateMeshRenderer("Dense Reference", denseMesh);
+            var targets = new Vector3[256];
+            for (int i = 0; i < targets.Length; i++)
+                targets[i] = new Vector3(-5.8f + i * 0.001f, -5.8f, 0.25f);
+
+            try
+            {
+                ClearanceQueryCache.QueryPoints(
+                    coarse, targets, Matrix4x4.identity, ClearanceSignMode.ReferenceNormal);
+                ClearanceQueryCache.QueryPoints(
+                    dense, targets, Matrix4x4.identity, ClearanceSignMode.ReferenceNormal);
+
+                long beforeCoarse = System.GC.GetAllocatedBytesForCurrentThread();
+                ClearanceQueryResult[] coarseResults = ClearanceQueryCache.QueryPoints(
+                    coarse, targets, Matrix4x4.identity, ClearanceSignMode.ReferenceNormal);
+                long coarseAllocation = System.GC.GetAllocatedBytesForCurrentThread() - beforeCoarse;
+
+                long beforeDense = System.GC.GetAllocatedBytesForCurrentThread();
+                ClearanceQueryResult[] denseResults = ClearanceQueryCache.QueryPoints(
+                    dense, targets, Matrix4x4.identity, ClearanceSignMode.ReferenceNormal);
+                long denseAllocation = System.GC.GetAllocatedBytesForCurrentThread() - beforeDense;
+
+                Assert.That(coarseResults.Length, Is.EqualTo(targets.Length));
+                Assert.That(denseResults.Length, Is.EqualTo(targets.Length));
+                Assert.That(denseAllocation, Is.EqualTo(coarseAllocation),
+                    "Only the owned result snapshot may allocate; reference BVH density must not affect GC.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(dense.gameObject);
+                Object.DestroyImmediate(coarse.gameObject);
+                Object.DestroyImmediate(denseMesh);
+                Object.DestroyImmediate(coarseMesh);
+            }
+        }
+
+        [Test]
+        public void BatchQuery_MatchesScalarResultsForTransformAndClosedSign()
+        {
+            var mesh = CreateCube();
+            var points = new[]
+            {
+                Vector3.zero,
+                Vector3.right * 3f,
+                new Vector3(0.25f, -0.4f, 0.6f)
+            };
+            var results = new ClearanceQueryResult[points.Length];
+            Matrix4x4 transform = Matrix4x4.TRS(
+                new Vector3(0.1f, -0.2f, 0.3f),
+                Quaternion.Euler(10f, 20f, 30f),
+                Vector3.one);
+            try
+            {
+                Assert.That(ClearanceQuery.TryCreate(mesh, Matrix4x4.identity, out var query), Is.True);
+                query.QueryPoints(points, transform, ClearanceSignMode.ClosedMesh, results);
+
+                for (int i = 0; i < points.Length; i++)
+                {
+                    ClearanceQueryResult scalar = query.QueryPoint(
+                        transform.MultiplyPoint3x4(points[i]),
+                        ClearanceSignMode.ClosedMesh);
+                    Assert.That(results[i].IsValid, Is.EqualTo(scalar.IsValid));
+                    Assert.That(results[i].TriangleIndex, Is.EqualTo(scalar.TriangleIndex));
+                    AssertVector(results[i].ClosestPointWorld, scalar.ClosestPointWorld);
+                    AssertVector(results[i].BarycentricCoordinate, scalar.BarycentricCoordinate);
+                    AssertVector(results[i].NormalWorld, scalar.NormalWorld);
+                    Assert.That(results[i].Distance, Is.EqualTo(scalar.Distance).Within(Epsilon));
+                    Assert.That(results[i].SignedClearance,
+                        Is.EqualTo(scalar.SignedClearance).Within(Epsilon));
+                    Assert.That(results[i].IsInside, Is.EqualTo(scalar.IsInside));
+                    Assert.That(results[i].IsClosedSurface, Is.EqualTo(scalar.IsClosedSurface));
+                    Assert.That(results[i].SignMode, Is.EqualTo(scalar.SignMode));
+                    Assert.That(results[i].VisitedTriangleCount,
+                        Is.EqualTo(scalar.VisitedTriangleCount));
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void RendererCache_PrunesDestroyedRendererAndItsQuery()
+        {
+            var mesh = CreatePlane(false);
+            var renderer = CreateMeshRenderer("Temporary Reference", mesh);
+            try
+            {
+                Assert.That(ClearanceQueryCache.TryGet(renderer, out _), Is.True);
+                Assert.That(ClearanceQueryCache.EntryCount, Is.EqualTo(1));
+
+                Object.DestroyImmediate(renderer.gameObject);
+                ClearanceQueryCache.PruneDeadEntries();
+
+                Assert.That(ClearanceQueryCache.EntryCount, Is.Zero);
+            }
+            finally
+            {
+                if (renderer != null) Object.DestroyImmediate(renderer.gameObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void RendererCache_SceneCloseHandlerClearsQueries()
+        {
+            var mesh = CreatePlane(false);
+            var renderer = CreateMeshRenderer("Scene Reference", mesh);
+            try
+            {
+                Assert.That(ClearanceQueryCache.TryGet(renderer, out _), Is.True);
+                Assert.That(ClearanceQueryCache.EntryCount, Is.EqualTo(1));
+
+                ClearanceQueryCache.HandleSceneClosed(default);
+
+                Assert.That(ClearanceQueryCache.EntryCount, Is.Zero);
+            }
+            finally
+            {
+                if (renderer != null) Object.DestroyImmediate(renderer.gameObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
         public void InvalidMeshesReturnExplicitInvalidStateWithoutThrowing()
         {
             Assert.That(ClearanceQuery.TryCreate(null, Matrix4x4.identity, out _), Is.False);
