@@ -617,13 +617,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static bool TryGet(Renderer renderer, out ClearanceQuery query)
         {
+            return TryGet(renderer, out query, out _);
+        }
+
+        internal static bool TryGet(Renderer renderer, out ClearanceQuery query, out int stateHash)
+        {
             query = null;
+            stateHash = 0;
             if (!TryCaptureMesh(renderer, out Mesh mesh, out Matrix4x4 localToWorld, out bool ownsMesh))
                 return false;
 
             try
             {
-                if (!TryComputeStateHash(mesh, localToWorld, out int stateHash)) return false;
+                if (!TryComputeStateHash(mesh, localToWorld, out stateHash)) return false;
                 int rendererId = renderer.GetInstanceID();
                 if (Entries.TryGetValue(rendererId, out CacheEntry existing) &&
                     existing.Renderer == renderer &&
@@ -656,7 +662,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Matrix4x4 targetLocalToWorld,
             ClearanceSignMode signMode)
         {
-            if (targetVertices == null || !TryGet(referenceRenderer, out ClearanceQuery query))
+            return QueryPoints(
+                referenceRenderer,
+                targetVertices,
+                targetLocalToWorld,
+                signMode,
+                out _);
+        }
+
+        internal static ClearanceQueryResult[] QueryPoints(
+            Renderer referenceRenderer,
+            Vector3[] targetVertices,
+            Matrix4x4 targetLocalToWorld,
+            ClearanceSignMode signMode,
+            out int referenceStateHash)
+        {
+            referenceStateHash = 0;
+            if (targetVertices == null ||
+                !TryGet(referenceRenderer, out ClearanceQuery query, out referenceStateHash))
                 return Array.Empty<ClearanceQueryResult>();
 
             var results = new ClearanceQueryResult[targetVertices.Length];
@@ -695,19 +718,48 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static bool TryGetWorldVertices(Renderer renderer, out Vector3[] worldVertices)
         {
+            return TryGetWorldVertices(renderer, out worldVertices, out _, false);
+        }
+
+        internal static bool TryGetWorldVertices(
+            Renderer renderer,
+            out Vector3[] worldVertices,
+            out int stateHash)
+        {
+            return TryGetWorldVertices(renderer, out worldVertices, out stateHash, true);
+        }
+
+        private static bool TryGetWorldVertices(
+            Renderer renderer,
+            out Vector3[] worldVertices,
+            out int stateHash,
+            bool computeStateHash)
+        {
             worldVertices = Array.Empty<Vector3>();
+            stateHash = 0;
             if (!TryCaptureMesh(renderer, out Mesh mesh, out Matrix4x4 localToWorld, out bool ownsMesh))
                 return false;
             try
             {
                 Vector3[] vertices;
-                try
+                if (computeStateHash)
                 {
-                    vertices = mesh.vertices;
+                    if (!TryComputeStateHash(
+                            mesh,
+                            localToWorld,
+                            out stateHash,
+                            out vertices)) return false;
                 }
-                catch (Exception)
+                else
                 {
-                    return false;
+                    try
+                    {
+                        vertices = mesh.vertices;
+                    }
+                    catch (Exception)
+                    {
+                        return false;
+                    }
                 }
 
                 worldVertices = new Vector3[vertices.Length];
@@ -764,12 +816,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static bool TryComputeStateHash(Mesh mesh, Matrix4x4 matrix, out int hash)
         {
+            return TryComputeStateHash(mesh, matrix, out hash, out _);
+        }
+
+        private static bool TryComputeStateHash(
+            Mesh mesh,
+            Matrix4x4 matrix,
+            out int hash,
+            out Vector3[] vertices)
+        {
             hash = 17;
+            vertices = Array.Empty<Vector3>();
             try
             {
                 unchecked
                 {
-                    Vector3[] vertices = mesh.vertices;
+                    vertices = mesh.vertices;
                     Vector3[] normals = mesh.normals;
                     int[] triangles = mesh.triangles;
                     hash = hash * 31 + vertices.Length;
@@ -785,6 +847,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             catch (Exception)
             {
                 hash = 0;
+                vertices = Array.Empty<Vector3>();
                 return false;
             }
         }

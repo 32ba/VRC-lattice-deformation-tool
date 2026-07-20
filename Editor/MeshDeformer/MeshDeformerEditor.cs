@@ -99,10 +99,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int _cachedLayerCount = -1;
         private int _cachedActiveIndex = -1;
         private ClearanceHeatmapRawEvaluation _clearanceRawEvaluation;
+        private readonly ClearanceHeatmapClassificationCache _clearanceClassificationCache = new();
         private double _lastClearanceEvaluationTime = double.NegativeInfinity;
         private int _lastClearanceTargetId;
         private int _lastClearanceReferenceId;
         private bool _lastClearanceUsedPreviewProxy;
+        private ClearanceQueryMode _lastClearanceQueryMode;
         private ClearanceScanOperation _clearanceScanOperation;
         private ClearanceScanResult _clearanceScanResult;
         private ClearanceScanPreviewState _clearanceScanPreviewState;
@@ -1642,7 +1644,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             double now = EditorApplication.timeSinceStartup;
             bool identityChanged = targetId != _lastClearanceTargetId ||
                                    referenceId != _lastClearanceReferenceId ||
-                                   usedPreviewProxy != _lastClearanceUsedPreviewProxy;
+                                   usedPreviewProxy != _lastClearanceUsedPreviewProxy ||
+                                   queryMode != _lastClearanceQueryMode;
             if (_clearanceRawEvaluation == null || identityChanged ||
                 now - _lastClearanceEvaluationTime >= Mathf.Clamp(updateInterval, 0.02f, 2f))
             {
@@ -1656,9 +1659,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _lastClearanceTargetId = targetId;
                 _lastClearanceReferenceId = referenceId;
                 _lastClearanceUsedPreviewProxy = usedPreviewProxy;
+                _lastClearanceQueryMode = queryMode;
+                _clearanceClassificationCache.Clear();
             }
 
-            return ClearanceHeatmapEvaluator.Classify(
+            return _clearanceClassificationCache.Get(
                 _clearanceRawEvaluation,
                 warningDistance,
                 targetDistance);
@@ -1704,6 +1709,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _lastClearanceTargetId = 0;
             _lastClearanceReferenceId = 0;
             _lastClearanceUsedPreviewProxy = false;
+            _lastClearanceQueryMode = default;
+            _clearanceClassificationCache.Clear();
             _fitCorrectionRawEvaluation = null;
             _lastFitCorrectionEvaluationTime = double.NegativeInfinity;
             _lastFitCorrectionTargetId = 0;

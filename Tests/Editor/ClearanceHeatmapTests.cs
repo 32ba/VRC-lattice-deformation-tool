@@ -63,6 +63,40 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(narrow.QueryResults, Is.SameAs(wide.QueryResults));
         }
 
+        [Test]
+        public void ClassificationCache_ReusesSameRawSnapshotAndEffectiveThresholds()
+        {
+            var raw = CreateRawEvaluation(0.004f, 0.008f, 0.012f);
+            var cache = new ClearanceHeatmapClassificationCache();
+
+            ClearanceHeatmapEvaluation first = cache.Get(raw, -0.001f, 0.01f);
+            ClearanceHeatmapEvaluation reused = cache.Get(raw, 0f, 0.01f);
+
+            Assert.That(reused, Is.SameAs(first));
+            Assert.That(reused.Classifications, Is.EqualTo(new[]
+            {
+                ClearanceClassification.BelowTarget,
+                ClearanceClassification.BelowTarget,
+                ClearanceClassification.Clear
+            }));
+        }
+
+        [Test]
+        public void ClassificationCache_InvalidatesForThresholdOrRawSnapshotChange()
+        {
+            var firstRaw = CreateRawEvaluation(0.004f, 0.008f);
+            var secondRaw = CreateRawEvaluation(0.004f, 0.008f);
+            var cache = new ClearanceHeatmapClassificationCache();
+
+            ClearanceHeatmapEvaluation first = cache.Get(firstRaw, 0.003f, 0.006f);
+            ClearanceHeatmapEvaluation changedThreshold = cache.Get(firstRaw, 0.005f, 0.01f);
+            ClearanceHeatmapEvaluation changedRaw = cache.Get(secondRaw, 0.005f, 0.01f);
+
+            Assert.That(changedThreshold, Is.Not.SameAs(first));
+            Assert.That(changedRaw, Is.Not.SameAs(changedThreshold));
+            Assert.That(changedRaw.QueryResults, Is.SameAs(secondRaw.QueryResults));
+        }
+
         [TestCase(float.NaN, 0.01f)]
         [TestCase(float.PositiveInfinity, 0.01f)]
         [TestCase(0.005f, float.NaN)]
@@ -270,6 +304,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(moved.WorldPositions[0].z - neutral.WorldPositions[0].z,
                     Is.EqualTo(0.02f).Within(Epsilon));
                 Assert.That(posed.QueryResults[0].Distance, Is.EqualTo(0.04f).Within(Epsilon));
+                Assert.That(moved.TargetStateHash, Is.Not.EqualTo(neutral.TargetStateHash));
+                Assert.That(posed.TargetStateHash, Is.Not.EqualTo(moved.TargetStateHash));
+                Assert.That(moved.ReferenceStateHash, Is.EqualTo(neutral.ReferenceStateHash));
             }
             finally
             {
@@ -348,6 +385,64 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Object.DestroyImmediate(editor);
                 DestroyRenderer(target, targetMesh);
                 Undo.ClearAll();
+            }
+        }
+
+        [Test]
+        public void QueryModeChange_InvalidatesEditorRawAndClassificationCachesImmediately()
+        {
+            var targetMesh = CreatePointMesh(0.01f);
+            var target = CreateRenderer("Mode Target", targetMesh);
+            var referenceMesh = CreatePlane(0f);
+            var reference = CreateRenderer("Mode Reference", referenceMesh);
+            var deformer = target.gameObject.AddComponent<LatticeDeformer>();
+            var serializedDeformer = new SerializedObject(deformer);
+            serializedDeformer.FindProperty("_meshFilter").objectReferenceValue =
+                target.GetComponent<MeshFilter>();
+            serializedDeformer.ApplyModifiedPropertiesWithoutUndo();
+            UnityEditor.Editor editor = UnityEditor.Editor.CreateEditor(
+                deformer,
+                typeof(LatticeDeformerEditor));
+            MethodInfo getEvaluation = typeof(LatticeDeformerEditor).GetMethod(
+                "GetClearanceEvaluation",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var rawField = typeof(LatticeDeformerEditor).GetField(
+                "_clearanceRawEvaluation",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            try
+            {
+                Assert.That(getEvaluation, Is.Not.Null);
+                Assert.That(rawField, Is.Not.Null);
+                getEvaluation.Invoke(editor, new object[]
+                {
+                    deformer,
+                    reference,
+                    ClearanceQueryMode.ReferenceNormal,
+                    0.005f,
+                    0.01f,
+                    2f
+                });
+                object firstRaw = rawField.GetValue(editor);
+
+                getEvaluation.Invoke(editor, new object[]
+                {
+                    deformer,
+                    reference,
+                    ClearanceQueryMode.ClosedMesh,
+                    0.005f,
+                    0.01f,
+                    2f
+                });
+                object secondRaw = rawField.GetValue(editor);
+
+                Assert.That(firstRaw, Is.Not.Null);
+                Assert.That(secondRaw, Is.Not.SameAs(firstRaw));
+            }
+            finally
+            {
+                Object.DestroyImmediate(editor);
+                DestroyRenderer(reference, referenceMesh);
+                DestroyRenderer(target, targetMesh);
             }
         }
 

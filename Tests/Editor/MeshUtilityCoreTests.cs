@@ -147,6 +147,57 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void BrushTool_SmoothSnapshot_ReusesBufferAndRefreshesAllValues()
+        {
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            var gameObject = new GameObject("smooth-snapshot");
+            var handler = new BrushToolHandler();
+            try
+            {
+                gameObject.AddComponent<MeshRenderer>();
+                gameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var deformer = gameObject.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                deformer.ActiveLayerIndex = deformer.AddLayer(
+                    "Brush",
+                    MeshDeformerLayerType.Brush);
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, Vector3.right);
+                deformer.SetDisplacement(1, Vector3.up);
+
+                var snapshotMethod = typeof(BrushToolHandler).GetMethod(
+                    "SnapshotDisplacements",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(snapshotMethod, Is.Not.Null);
+
+                var first = (Vector3[])snapshotMethod.Invoke(
+                    handler,
+                    new object[] { deformer, mesh.vertexCount });
+                Assert.That(first, Is.EqualTo(new[] { Vector3.right, Vector3.up, Vector3.zero }));
+
+                deformer.SetDisplacement(0, Vector3.forward);
+                deformer.SetDisplacement(1, Vector3.zero);
+                deformer.SetDisplacement(2, Vector3.one);
+                var second = (Vector3[])snapshotMethod.Invoke(
+                    handler,
+                    new object[] { deformer, mesh.vertexCount });
+
+                Assert.That(second, Is.SameAs(first));
+                Assert.That(second, Is.EqualTo(new[] { Vector3.forward, Vector3.zero, Vector3.one }));
+            }
+            finally
+            {
+                handler.Deactivate();
+                Object.DestroyImmediate(gameObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
         public void PenetrationDetector_HandlesNullAndEmptyInputs()
         {
             Assert.That(PenetrationDetector.DetectPenetration(null, null, Matrix4x4.identity), Is.Empty);

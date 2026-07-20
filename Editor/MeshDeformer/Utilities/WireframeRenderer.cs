@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Diagnostics.CodeAnalysis;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -19,6 +20,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static int s_cachedVertexCount = -1;
         private static Color32[] s_vertexColors;
         private static readonly Color k_wireColor = new Color(1f, 1f, 1f, 0.15f);
+        private static readonly ProfilerMarker s_updateVerticesMarker =
+            new ProfilerMarker("WireframeRenderer.UpdateVertices");
+        private static readonly ProfilerMarker s_updateTopologyMarker =
+            new ProfilerMarker("WireframeRenderer.UpdateTopology");
+        private static readonly ProfilerMarker s_drawMarker =
+            new ProfilerMarker("WireframeRenderer.DrawMeshNow");
 
         private static Material EnsureMaterial()
         {
@@ -65,9 +72,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     : IndexFormat.UInt16;
             }
 
-            lineMesh.SetVertices(positions);
+            using (s_updateVerticesMarker.Auto())
+                lineMesh.SetVertices(positions);
             if (topologyChanged)
             {
+                using (s_updateTopologyMarker.Auto())
+                {
                 if (s_vertexColors == null || s_vertexColors.Length != positions.Length)
                 {
                     s_vertexColors = new Color32[positions.Length];
@@ -88,9 +98,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
                 Array.Copy(triangles, s_cachedTriangleContents, triangles.Length);
                 s_cachedVertexCount = positions.Length;
+                }
             }
 
-            Graphics.DrawMeshNow(lineMesh, worldPositions != null ? Matrix4x4.identity : localToWorld);
+            using (s_drawMarker.Auto())
+                Graphics.DrawMeshNow(lineMesh, worldPositions != null ? Matrix4x4.identity : localToWorld);
         }
 
         internal static int[] BuildLineIndices(int[] triangles, int vertexCount)

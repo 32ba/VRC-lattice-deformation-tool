@@ -114,8 +114,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             if (!IsUsableRenderer(targetRenderer) ||
-                !ClearanceQueryCache.TryGetRendererStateHash(targetRenderer, out int targetStateHash) ||
-                !ClearanceQueryCache.TryGetWorldVertices(targetRenderer, out Vector3[] worldPositions))
+                !ClearanceQueryCache.TryGetWorldVertices(
+                    targetRenderer,
+                    out Vector3[] worldPositions,
+                    out int targetStateHash))
             {
                 return new ClearanceHeatmapRawEvaluation(
                     null, null, ClearanceEvaluationStatus.InvalidTarget);
@@ -125,8 +127,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 referenceRenderer,
                 worldPositions,
                 Matrix4x4.identity,
-                signMode);
-            ClearanceQueryCache.TryGetRendererStateHash(referenceRenderer, out int referenceStateHash);
+                signMode,
+                out int referenceStateHash);
             return new ClearanceHeatmapRawEvaluation(
                 worldPositions,
                 results,
@@ -289,6 +291,70 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool IsUsableRenderer(Renderer renderer)
         {
             return renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy;
+        }
+
+        private static bool IsFinite(float value)
+        {
+            return !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+    }
+
+    /// <summary>
+    /// Per-consumer cache for the classification pass. Raw evaluations are immutable snapshots
+    /// for the editor heatmap, so reference identity plus the normalized thresholds completely
+    /// identifies the classification result. Display mode and stride are intentionally excluded:
+    /// they only filter/draw an already classified result.
+    /// </summary>
+    internal sealed class ClearanceHeatmapClassificationCache
+    {
+        private ClearanceHeatmapRawEvaluation _raw;
+        private float _warningDistance;
+        private float _targetDistance;
+        private ClearanceHeatmapEvaluation _evaluation;
+
+        internal ClearanceHeatmapEvaluation Get(
+            ClearanceHeatmapRawEvaluation raw,
+            float warningDistance,
+            float targetDistance)
+        {
+            float normalizedWarning = NormalizeWarning(warningDistance);
+            float normalizedTarget = NormalizeTarget(targetDistance, normalizedWarning);
+            if (_evaluation != null &&
+                ReferenceEquals(_raw, raw) &&
+                SameFloat(_warningDistance, normalizedWarning) &&
+                SameFloat(_targetDistance, normalizedTarget))
+            {
+                return _evaluation;
+            }
+
+            _raw = raw;
+            _warningDistance = normalizedWarning;
+            _targetDistance = normalizedTarget;
+            _evaluation = ClearanceHeatmapEvaluator.Classify(raw, warningDistance, targetDistance);
+            return _evaluation;
+        }
+
+        internal void Clear()
+        {
+            _raw = null;
+            _evaluation = null;
+        }
+
+        private static float NormalizeWarning(float value)
+        {
+            return IsFinite(value) ? Mathf.Max(0f, value) : value;
+        }
+
+        private static float NormalizeTarget(float value, float warningDistance)
+        {
+            return IsFinite(value) && IsFinite(warningDistance)
+                ? Mathf.Max(warningDistance, value)
+                : value;
+        }
+
+        private static bool SameFloat(float left, float right)
+        {
+            return left.Equals(right);
         }
 
         private static bool IsFinite(float value)

@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
@@ -14,6 +15,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         private static Mesh s_bakeMesh;
         private static readonly List<Vector3> s_bakedVertices = new List<Vector3>();
+        private static readonly ProfilerMarker s_worldPositionBakeMarker =
+            new ProfilerMarker("SkinnedVertexHelper.WorldPositions.BakeMesh");
+        private static readonly ProfilerMarker s_raycastBakeMarker =
+            new ProfilerMarker("SkinnedVertexHelper.Raycast.BakeMesh");
         internal static bool StoreMovesInRestSpace { get; set; }
 
         /// <summary>
@@ -40,7 +45,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 s_bakeMesh.hideFlags = HideFlags.HideAndDontSave;
             }
 
-            proxySMR.BakeMesh(s_bakeMesh);
+            using (s_worldPositionBakeMarker.Auto())
+            {
+                proxySMR.BakeMesh(s_bakeMesh);
+            }
 
             if (s_bakeMesh.vertexCount != localVertices.Length)
                 return null;
@@ -88,7 +96,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 s_bakeMesh.hideFlags = HideFlags.HideAndDontSave;
             }
 
-            targetSMR.BakeMesh(s_bakeMesh);
+            using (s_raycastBakeMarker.Auto())
+            {
+                targetSMR.BakeMesh(s_bakeMesh);
+            }
             bakedMesh = s_bakeMesh;
             bakedMeshMatrix = targetSMR.transform.localToWorldMatrix;
             return true;

@@ -80,6 +80,44 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Vector3[] _preTransformDisplacements;
         private Vector3[] _preTransformPositions;
 
+        // Proportional influence depends only on the source positions, selection,
+        // radius/scale and falloff. Keep it across repaints so drawing influenced
+        // vertices does not repeat the O(vertex count * selection count) search.
+        private float[] _proportionalInfluences;
+        private Vector3[] _proportionalPositionSnapshot;
+        private readonly HashSet<int> _proportionalSelectionSnapshot = new HashSet<int>();
+        private float _proportionalLocalRadius = float.NaN;
+        private FalloffType _proportionalFalloffSnapshot;
+        private bool _hasProportionalInfluenceCache;
+        private int _proportionalInfluenceCacheBuildCount;
+        private SelectedPoint[] _proportionalSelectedPoints;
+        private int _proportionalSelectedPointCount;
+        private int _proportionalDistanceEvaluationCount;
+
+        private struct SelectedPoint
+        {
+            internal Vector3 Position;
+        }
+
+        private sealed class SelectedPointComparer : IComparer<SelectedPoint>
+        {
+            internal static readonly SelectedPointComparer X = new SelectedPointComparer(0);
+            internal static readonly SelectedPointComparer Y = new SelectedPointComparer(1);
+            internal static readonly SelectedPointComparer Z = new SelectedPointComparer(2);
+
+            private readonly int _axis;
+
+            private SelectedPointComparer(int axis)
+            {
+                _axis = axis;
+            }
+
+            public int Compare(SelectedPoint left, SelectedPoint right)
+            {
+                return left.Position[_axis].CompareTo(right.Position[_axis]);
+            }
+        }
+
         private static readonly Color k_UnselectedVertexColor = new Color(0.2f, 0.8f, 1f, 0.6f);
         private static readonly Color k_SelectedVertexColor = new Color(1f, 1f, 0f, 1f);
         private static readonly Color k_ProportionalRadiusColor = new Color(0.5f, 1f, 0.5f, 0.4f);
@@ -591,6 +629,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             float baseRadius,
             bool showInfluence)
         {
+            if (showInfluence)
+            {
+                EnsureProportionalInfluenceCache();
+            }
+
             bool matrixPushed = false;
             bool drawingQuads = false;
             try
@@ -615,7 +658,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
                     else if (showInfluence)
                     {
-                        float influence = ComputeProportionalInfluence(i);
+                        float influence = GetProportionalInfluence(i);
                         if (influence > 0f)
                         {
                             color = InfluenceToColor(influence);
@@ -974,12 +1017,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (_meshVertices == null) return;
 
+            EnsureProportionalInfluenceCache();
+
             int vertexCount = _meshVertices.Length;
             for (int i = 0; i < vertexCount; i++)
             {
                 if (s_selectedVertices.Contains(i)) continue;
 
-                float influence = ComputeProportionalInfluence(i);
+                float influence = GetProportionalInfluence(i);
                 if (influence <= 0f) continue;
 
                 var storedDelta = restSpaceConverter != null
@@ -993,6 +1038,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (_meshVertices == null || _deformedVertices == null) return;
 
+            EnsureProportionalInfluenceCache();
+
             var matrix = meshTransform.localToWorldMatrix;
             var invMatrix = meshTransform.worldToLocalMatrix;
             int vertexCount = _meshVertices.Length;
@@ -1001,7 +1048,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (s_selectedVertices.Contains(i)) continue;
 
-                float influence = ComputeProportionalInfluence(i);
+                float influence = GetProportionalInfluence(i);
                 if (influence <= 0f) continue;
 
                 var worldPos = DeformedToWorld(i, matrix);
@@ -1016,6 +1063,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (_meshVertices == null || _deformedVertices == null) return;
 
+            EnsureProportionalInfluenceCache();
+
             var matrix = meshTransform.localToWorldMatrix;
             var invMatrix = meshTransform.worldToLocalMatrix;
             var rotation = meshTransform.rotation;
@@ -1026,7 +1075,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (s_selectedVertices.Contains(i)) continue;
 
-                float influence = ComputeProportionalInfluence(i);
+                float influence = GetProportionalInfluence(i);
                 if (influence <= 0f) continue;
 
                 var blendedScale = Vector3.Lerp(Vector3.one, relativeScale, influence);
@@ -1041,37 +1090,230 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private float ComputeProportionalInfluence(int vertexIndex)
+        private void EnsureProportionalInfluenceCache()
         {
-            if (_meshVertices == null || vertexIndex < 0 || vertexIndex >= _meshVertices.Length)
+            var positions = _preTransformPositions ?? _meshVertices;
+            float localRadius = WorldToLocalRadius(s_proportionalRadius);
+            if (ProportionalInfluenceCacheMatches(positions, localRadius))
             {
-                return 0f;
+                return;
             }
 
-            var vertexPos = _preTransformPositions != null ? _preTransformPositions[vertexIndex] : _meshVertices[vertexIndex];
-            float minDist = float.MaxValue;
-
-            foreach (int sel in s_selectedVertices)
+            int vertexCount = positions?.Length ?? 0;
+            if (_proportionalInfluences == null || _proportionalInfluences.Length != vertexCount)
             {
-                if (sel < 0 || sel >= _meshVertices.Length) continue;
+                _proportionalInfluences = new float[vertexCount];
+            }
+            else
+            {
+                Array.Clear(_proportionalInfluences, 0, vertexCount);
+            }
 
-                var selPos = _preTransformPositions != null ? _preTransformPositions[sel] : _meshVertices[sel];
-                float dist = (vertexPos - selPos).magnitude;
-                if (dist < minDist)
+            if (_proportionalPositionSnapshot == null || _proportionalPositionSnapshot.Length != vertexCount)
+            {
+                _proportionalPositionSnapshot = new Vector3[vertexCount];
+            }
+
+            if (vertexCount > 0)
+            {
+                Array.Copy(positions, _proportionalPositionSnapshot, vertexCount);
+            }
+
+            _proportionalSelectionSnapshot.Clear();
+            _proportionalSelectionSnapshot.UnionWith(s_selectedVertices);
+            _proportionalLocalRadius = localRadius;
+            _proportionalFalloffSnapshot = s_proportionalFalloff;
+            _hasProportionalInfluenceCache = true;
+            _proportionalInfluenceCacheBuildCount++;
+            _proportionalDistanceEvaluationCount = 0;
+
+            if (vertexCount == 0 || localRadius <= 0f || s_selectedVertices.Count == 0)
+            {
+                return;
+            }
+
+            CollectProportionalSelectedPoints(positions);
+            if (_proportionalSelectedPointCount == 0)
+            {
+                return;
+            }
+
+            if (_proportionalSelectedPointCount == vertexCount)
+            {
+                for (int i = 0; i < vertexCount; i++)
                 {
-                    minDist = dist;
+                    _proportionalInfluences[i] = 1f;
+                }
+                return;
+            }
+
+            BuildProportionalSelectionTree(0, _proportionalSelectedPointCount, 0);
+
+            float radiusSquared = localRadius * localRadius;
+            for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
+            {
+                if (s_selectedVertices.Contains(vertexIndex))
+                {
+                    _proportionalInfluences[vertexIndex] = 1f;
+                    continue;
+                }
+
+                Vector3 vertexPos = positions[vertexIndex];
+                if (!IsFinite(vertexPos))
+                {
+                    continue;
+                }
+
+                float minDistanceSquared = FindNearestSelectedDistanceSquared(
+                    vertexPos,
+                    0,
+                    _proportionalSelectedPointCount,
+                    0,
+                    radiusSquared);
+                if (minDistanceSquared < radiusSquared)
+                {
+                    float t = Mathf.Sqrt(minDistanceSquared) / localRadius;
+                    _proportionalInfluences[vertexIndex] = EvaluateFalloff(t);
+                }
+            }
+        }
+
+        private void CollectProportionalSelectedPoints(Vector3[] positions)
+        {
+            int capacity = s_selectedVertices.Count;
+            if (_proportionalSelectedPoints == null || _proportionalSelectedPoints.Length < capacity)
+            {
+                _proportionalSelectedPoints = new SelectedPoint[capacity];
+            }
+
+            _proportionalSelectedPointCount = 0;
+            foreach (int selectedIndex in s_selectedVertices)
+            {
+                if (selectedIndex < 0 || selectedIndex >= positions.Length) continue;
+                Vector3 position = positions[selectedIndex];
+                if (!IsFinite(position)) continue;
+
+                _proportionalSelectedPoints[_proportionalSelectedPointCount++] = new SelectedPoint
+                {
+                    Position = position
+                };
+            }
+        }
+
+        private void BuildProportionalSelectionTree(int start, int end, int depth)
+        {
+            int length = end - start;
+            if (length <= 1) return;
+
+            int axis = depth % 3;
+            var comparer = axis == 0
+                ? SelectedPointComparer.X
+                : axis == 1
+                    ? SelectedPointComparer.Y
+                    : SelectedPointComparer.Z;
+            Array.Sort(_proportionalSelectedPoints, start, length, comparer);
+
+            int median = start + length / 2;
+            BuildProportionalSelectionTree(start, median, depth + 1);
+            BuildProportionalSelectionTree(median + 1, end, depth + 1);
+        }
+
+        private float FindNearestSelectedDistanceSquared(
+            Vector3 target,
+            int start,
+            int end,
+            int depth,
+            float bestDistanceSquared)
+        {
+            if (start >= end) return bestDistanceSquared;
+
+            int median = start + (end - start) / 2;
+            Vector3 point = _proportionalSelectedPoints[median].Position;
+            _proportionalDistanceEvaluationCount++;
+            float distanceSquared = (target - point).sqrMagnitude;
+            if (distanceSquared < bestDistanceSquared)
+            {
+                bestDistanceSquared = distanceSquared;
+            }
+
+            int axis = depth % 3;
+            float axisDelta = target[axis] - point[axis];
+            int nearStart;
+            int nearEnd;
+            int farStart;
+            int farEnd;
+            if (axisDelta < 0f)
+            {
+                nearStart = start;
+                nearEnd = median;
+                farStart = median + 1;
+                farEnd = end;
+            }
+            else
+            {
+                nearStart = median + 1;
+                nearEnd = end;
+                farStart = start;
+                farEnd = median;
+            }
+
+            bestDistanceSquared = FindNearestSelectedDistanceSquared(
+                target,
+                nearStart,
+                nearEnd,
+                depth + 1,
+                bestDistanceSquared);
+            if (axisDelta * axisDelta < bestDistanceSquared)
+            {
+                bestDistanceSquared = FindNearestSelectedDistanceSquared(
+                    target,
+                    farStart,
+                    farEnd,
+                    depth + 1,
+                    bestDistanceSquared);
+            }
+
+            return bestDistanceSquared;
+        }
+
+        private static bool IsFinite(Vector3 value)
+        {
+            return !float.IsNaN(value.x) && !float.IsInfinity(value.x)
+                && !float.IsNaN(value.y) && !float.IsInfinity(value.y)
+                && !float.IsNaN(value.z) && !float.IsInfinity(value.z);
+        }
+
+        private bool ProportionalInfluenceCacheMatches(Vector3[] positions, float localRadius)
+        {
+            if (!_hasProportionalInfluenceCache
+                || _proportionalFalloffSnapshot != s_proportionalFalloff
+                || _proportionalLocalRadius != localRadius
+                || positions == null
+                || _proportionalPositionSnapshot == null
+                || positions.Length != _proportionalPositionSnapshot.Length
+                || !_proportionalSelectionSnapshot.SetEquals(s_selectedVertices))
+            {
+                return false;
+            }
+
+            for (int i = 0; i < positions.Length; i++)
+            {
+                if (positions[i] != _proportionalPositionSnapshot[i])
+                {
+                    return false;
                 }
             }
 
-            // Convert world-space radius to mesh-local for distance comparison
-            float localPropRadius = WorldToLocalRadius(s_proportionalRadius);
-            if (minDist >= localPropRadius)
-            {
-                return 0f;
-            }
+            return true;
+        }
 
-            float t = minDist / localPropRadius;
-            return EvaluateFalloff(t);
+        private float GetProportionalInfluence(int vertexIndex)
+        {
+            return _proportionalInfluences != null
+                && vertexIndex >= 0
+                && vertexIndex < _proportionalInfluences.Length
+                    ? _proportionalInfluences[vertexIndex]
+                    : 0f;
         }
 
         private static float EvaluateFalloff(float t)
@@ -1315,6 +1557,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _meshNormals = null;
             _deformedVertices = null;
             _meshTriangles = null;
+            _hasProportionalInfluenceCache = false;
         }
 
         private Quaternion ComputeAverageNormalRotation(Transform meshTransform)

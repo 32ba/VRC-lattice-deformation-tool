@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using UnityEditor;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 using Net._32Ba.LatticeDeformationTool;
@@ -131,6 +132,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int[] _meshTriangles;
         private Vector3[] _worldPositions; // Skinned world-space positions (null for MeshRenderer)
         private Vector3[] _wireframeVertices;
+        private Vector3[] _smoothDisplacementSnapshot;
         private List<HashSet<int>> _adjacency;
         private Vector2 _lastMousePosition;
         private Vector3 _lastMoveBrushLocalDelta;
@@ -160,6 +162,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static readonly Color k_SmoothBrushColor = new Color(0.3f, 1f, 0.5f, 0.8f);
         private static readonly Color k_MoveBrushColor = new Color(1f, 0.6f, 0.2f, 0.8f);
         private static readonly Color k_MaskBrushColor = new Color(1f, 0.3f, 0.3f, 0.8f);
+        private static readonly ProfilerMarker s_smoothBrushMarker =
+            new ProfilerMarker("BrushTool.ApplySmooth");
+        private static readonly ProfilerMarker s_smoothSnapshotMarker =
+            new ProfilerMarker("BrushTool.ApplySmooth.Snapshot");
+        private static readonly ProfilerMarker s_smoothLoopMarker =
+            new ProfilerMarker("BrushTool.ApplySmooth.Loop");
+        private static readonly ProfilerMarker s_mirrorSmoothMarker =
+            new ProfilerMarker("BrushTool.ApplySmooth.Mirror");
+        private static readonly ProfilerMarker s_adjacencyMarker =
+            new ProfilerMarker("BrushTool.BuildAdjacency");
 
         static BrushToolHandler()
         {
@@ -476,6 +488,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
+            // Layout only needs to claim Scene view input. Mesh baking, raycasts,
+            // and visualization here would duplicate the following Repaint event.
+            if (evt.type == EventType.Layout)
+            {
+                return;
+            }
+
+            if (evt.type == EventType.Repaint)
+            {
+                RefreshWorldPositions(deformer);
+            }
+
             // Draw mesh wireframe
             if (evt.type == EventType.Repaint && s_showWireframe &&
                 _meshTriangles != null && _meshVertices != null)
@@ -498,13 +522,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             // Draw displacement heatmap (always visible when enabled)
-            if (s_showDisplacementHeatmap && deformer.HasDisplacements())
+            if (evt.type == EventType.Repaint &&
+                s_showDisplacementHeatmap && deformer.HasDisplacements())
             {
                 DrawDisplacementHeatmap(deformer, meshTransform);
             }
 
             // Draw vertex mask visualization when in Mask mode
-            if (s_brushMode == BrushMode.Mask)
+            if (evt.type == EventType.Repaint && s_brushMode == BrushMode.Mask)
             {
                 DrawVertexMaskVisualization(deformer, meshTransform);
             }
@@ -512,8 +537,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Penetration detection
             if (s_showPenetration)
             {
-                UpdatePenetrationDetection(deformer);
-                DrawPenetrationHighlight(meshTransform);
+                if (evt.type == EventType.Repaint)
+                {
+                    UpdatePenetrationDetection(deformer);
+                    DrawPenetrationHighlight(meshTransform);
+                }
             }
             else
             {
@@ -581,35 +609,38 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 // Draw brush disc at the visual hit position in world space.
                 // The raycast hit point is where the user sees the mesh (post-skinning),
                 // so we draw there. The radius is in mesh-local space, so scale it to world.
-                var prevMatrix = Handles.matrix;
-                try
+                if (evt.type == EventType.Repaint)
                 {
-                    Handles.matrix = Matrix4x4.identity;
-
-                    // s_brushRadius is in world-space units — draw directly
-                    Color brushColor = GetBrushColor();
-                    Handles.color = brushColor;
-                    Handles.DrawWireDisc(hit.point, hit.normal, s_brushRadius);
-                    Color fillColor = brushColor;
-                    fillColor.a = 0.1f;
-                    Handles.color = fillColor;
-                    Handles.DrawSolidDisc(hit.point, hit.normal, s_brushRadius);
-
-                    // Draw affected vertex dots within brush radius
-                    if (s_showAffectedVertices && _meshVertices != null)
+                    var prevMatrix = Handles.matrix;
+                    try
                     {
-                        // Update geodesic cache for preview visualization during hover
-                        if (s_useSurfaceDistance)
-                        {
-                            UpdateGeodesicDistanceCache(localHitPoint);
-                        }
+                        Handles.matrix = Matrix4x4.identity;
 
-                        DrawAffectedVertices(deformer, localHitPoint, meshTransform);
+                        // s_brushRadius is in world-space units — draw directly
+                        Color brushColor = GetBrushColor();
+                        Handles.color = brushColor;
+                        Handles.DrawWireDisc(hit.point, hit.normal, s_brushRadius);
+                        Color fillColor = brushColor;
+                        fillColor.a = 0.1f;
+                        Handles.color = fillColor;
+                        Handles.DrawSolidDisc(hit.point, hit.normal, s_brushRadius);
+
+                        // Draw affected vertex dots within brush radius
+                        if (s_showAffectedVertices && _meshVertices != null)
+                        {
+                            // Update geodesic cache for preview visualization during hover
+                            if (s_useSurfaceDistance)
+                            {
+                                UpdateGeodesicDistanceCache(localHitPoint);
+                            }
+
+                            DrawAffectedVertices(deformer, localHitPoint, meshTransform);
+                        }
                     }
-                }
-                finally
-                {
-                    Handles.matrix = prevMatrix;
+                    finally
+                    {
+                        Handles.matrix = prevMatrix;
+                    }
                 }
 
                 // Handle brush painting on left mouse drag
@@ -905,6 +936,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private bool ApplySmoothBrush(LatticeDeformer deformer, Vector3 localHitPoint, float localRadius, float strength)
         {
+            using var smoothScope = s_smoothBrushMarker.Auto();
             float radiusSq = localRadius * localRadius;
             EnsureAdjacencyBuilt();
 
@@ -927,11 +959,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             // Snapshot current displacements for reading during averaging
-            var currentDisplacements = new Vector3[vertexCount];
-            Array.Copy(deformer.Displacements, currentDisplacements, vertexCount);
+            Vector3[] currentDisplacements;
+            using (s_smoothSnapshotMarker.Auto())
+            {
+                currentDisplacements = SnapshotDisplacements(deformer, vertexCount);
+            }
 
             float smoothFactor = Mathf.Clamp01(strength * 10f);
 
+            using (s_smoothLoopMarker.Auto())
             for (int i = 0; i < vertexCount; i++)
             {
                 if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
@@ -1160,11 +1196,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 case BrushMode.Smooth:
                 {
+                    using var mirrorSmoothScope = s_mirrorSmoothMarker.Auto();
                     EnsureAdjacencyBuilt();
-                    var currentDisplacements = new Vector3[vertexCount];
-                    Array.Copy(deformer.Displacements, currentDisplacements, vertexCount);
+                    Vector3[] currentDisplacements;
+                    using (s_smoothSnapshotMarker.Auto())
+                    {
+                        currentDisplacements = SnapshotDisplacements(deformer, vertexCount);
+                    }
                     float smoothFactor = Mathf.Clamp01(strength * 10f);
 
+                    using (s_smoothLoopMarker.Auto())
                     for (int i = 0; i < vertexCount; i++)
                     {
                         if (!mirrorMap.TryGetPartner(i, out _)) continue;
@@ -1311,8 +1352,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (ReferenceEquals(_cachedMesh, mesh) && _meshVertices != null)
             {
-                // Refresh skinned positions each frame
-                RefreshWorldPositions(deformer);
                 return;
             }
 
@@ -1326,7 +1365,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _meshTriangles);
             _adjacency = null;
 
-            RefreshWorldPositions(deformer);
         }
 
         private void RefreshWorldPositions(LatticeDeformer deformer)
@@ -1346,6 +1384,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _worldPositions);
         }
 
+        private Vector3[] SnapshotDisplacements(LatticeDeformer deformer, int vertexCount)
+        {
+            if (_smoothDisplacementSnapshot == null ||
+                _smoothDisplacementSnapshot.Length != vertexCount)
+            {
+                _smoothDisplacementSnapshot = new Vector3[vertexCount];
+            }
+
+            Array.Copy(deformer.Displacements, _smoothDisplacementSnapshot, vertexCount);
+            return _smoothDisplacementSnapshot;
+        }
+
         private Vector3 VertexToWorld(int index, Vector3 localVertex, Matrix4x4 localToWorld)
         {
             return SkinnedVertexHelper.LocalToWorld(index, _worldPositions, null, localToWorld);
@@ -1358,6 +1408,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _meshNormals = null;
             _meshTriangles = null;
             _worldPositions = null;
+            _smoothDisplacementSnapshot = null;
             _adjacency = null;
             InvalidatePenetrationCache();
             ClearConnectedVerticesCache();
@@ -1754,6 +1805,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (_adjacency != null) return;
             if (_meshVertices == null || _meshTriangles == null) return;
+
+            using var adjacencyScope = s_adjacencyMarker.Auto();
 
             int vertexCount = _meshVertices.Length;
             _adjacency = new List<HashSet<int>>(vertexCount);
