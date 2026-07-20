@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEditor;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
@@ -106,6 +107,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
     internal sealed class ClearanceScanOperation : IDisposable
     {
+        private static readonly ProfilerMarker s_restoreMarker =
+            new ProfilerMarker("ClearanceScan.Restore");
+        private static readonly ProfilerMarker s_topologyHashMarker =
+            new ProfilerMarker("ClearanceScan.TopologyHash");
+        internal static int RestoreCount { get; set; }
+        internal static int TopologyHashCount { get; set; }
         private readonly ClearanceScanSet _scanSet;
         private readonly LatticeDeformer _deformer;
         private readonly Renderer _referenceRenderer;
@@ -123,6 +130,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private bool _undoRedoObserved;
         private bool _preserveExternalEdits;
         private int _baselineUndoGroup;
+        private bool _snapshotRestored = true;
+        private int _lastTopologyMeshId;
+        private int _lastTopologyMeshDirtyCount;
+        private string _lastTopologyHash = "";
 
         internal ClearanceScanResult Result { get; }
         internal int NextConditionIndex { get; private set; }
@@ -174,8 +185,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 ? initialPreviewProxy
                 : originalTarget;
             _expectedEvaluationMesh = GetRendererMesh(initialEvaluationTarget);
-            _expectedTopologyHash = ClearanceQaReportBuilder.ComputeTopology(
-                _expectedEvaluationMesh).topologyHash;
+            _expectedTopologyHash = GetTopologyHash(_expectedEvaluationMesh);
             _snapshot = SceneStateSnapshot.Capture(
                 _avatarRoot,
                 originalTarget,
@@ -224,10 +234,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 IsCompleted = true;
                 return;
             }
-            if (NextConditionIndex > 0) _snapshot.Restore();
+            if (NextConditionIndex > 0) RestoreSnapshotIfNeeded(force: true);
             int conditionIndex = NextConditionIndex++;
             ClearanceScanCondition condition = _scanSet.Conditions[conditionIndex];
             ClearanceScanConditionResult conditionResult;
+            _snapshotRestored = false;
             try
             {
                 conditionResult = EvaluateCondition(conditionIndex, condition);
@@ -252,7 +263,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Result.Conditions.Add(conditionResult);
             if (conditionResult.IsSuccess) AccumulateWorst(conditionResult);
             if (_restoreOnComplete && NextConditionIndex < _scanSet.Conditions.Count)
-                _snapshot.Restore();
+                RestoreSnapshotIfNeeded();
             _baselineUndoGroup = Undo.GetCurrentGroup();
             if (NextConditionIndex >= _scanSet.Conditions.Count) Complete();
         }
@@ -283,7 +294,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (_disposed) return;
             _disposed = true;
             if (_restoreOnComplete) Undo.undoRedoPerformed -= OnUndoRedoPerformed;
-            if (!_preserveExternalEdits) _snapshot.Restore();
+            if (!_preserveExternalEdits) RestoreSnapshotIfNeeded(force: true);
         }
 
         private ClearanceScanConditionResult EvaluateCondition(
@@ -398,8 +409,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _afterConditionApplied?.Invoke(conditionIndex);
 
             Mesh currentEvaluationMesh = GetRendererMesh(evaluationTarget);
-            string currentTopologyHash = ClearanceQaReportBuilder.ComputeTopology(
-                currentEvaluationMesh).topologyHash;
+            string currentTopologyHash = GetTopologyHash(currentEvaluationMesh);
             if (string.IsNullOrEmpty(_expectedTopologyHash) ||
                 (!usedPreviewProxy && !ReferenceEquals(currentEvaluationMesh, _expectedEvaluationMesh)) ||
                 !string.Equals(currentTopologyHash, _expectedTopologyHash, StringComparison.Ordinal))
@@ -479,7 +489,35 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (IsCompleted) return;
             IsCompleted = true;
-            if (_restoreOnComplete) _snapshot.Restore();
+            if (_restoreOnComplete) RestoreSnapshotIfNeeded();
+        }
+
+        private void RestoreSnapshotIfNeeded(bool force = false)
+        {
+            if (_snapshotRestored || _preserveExternalEdits || (!force && !_restoreOnComplete)) return;
+            using (s_restoreMarker.Auto())
+                _snapshot.Restore();
+            _snapshotRestored = true;
+            RestoreCount++;
+        }
+
+        private string GetTopologyHash(Mesh mesh)
+        {
+            int meshId = mesh != null ? mesh.GetInstanceID() : 0;
+            int dirtyCount = mesh != null ? EditorUtility.GetDirtyCount(mesh) : 0;
+            if (meshId == _lastTopologyMeshId &&
+                dirtyCount == _lastTopologyMeshDirtyCount &&
+                !string.IsNullOrEmpty(_lastTopologyHash))
+            {
+                return _lastTopologyHash;
+            }
+
+            using (s_topologyHashMarker.Auto())
+                _lastTopologyHash = ClearanceQaReportBuilder.ComputeTopology(mesh).topologyHash;
+            _lastTopologyMeshId = meshId;
+            _lastTopologyMeshDirtyCount = dirtyCount;
+            TopologyHashCount++;
+            return _lastTopologyHash;
         }
 
         private void OnUndoRedoPerformed()

@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using nadena.dev.ndmf.preview;
 using UnityEditor;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
@@ -14,6 +15,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     [ExcludeFromCodeCoverage]
     internal sealed class LatticeDeformerPreviewFilter : IRenderFilter
     {
+        private static readonly ProfilerMarker s_updateMeshMarker =
+            new ProfilerMarker("Preview.UpdateMesh");
+        private static readonly ProfilerMarker s_copyBlendShapesMarker =
+            new ProfilerMarker("Preview.CopyBlendShapes");
+        private static readonly ProfilerMarker s_deformMarker =
+            new ProfilerMarker("Preview.Deform");
+        private static readonly ProfilerMarker s_bakeBlendShapeSurfaceMarker =
+            new ProfilerMarker("Preview.BakeBlendShapeSurfaceDeltas");
+        internal static int BlendShapeCopyCount { get; set; }
         private readonly Dictionary<Renderer, LatticeDeformer> _rendererToDeformer = new Dictionary<Renderer, LatticeDeformer>();
 
         private static readonly TogglablePreviewNode s_previewToggle = TogglablePreviewNode.Create(
@@ -258,13 +268,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             private readonly LatticeDeformer _deformer;
             private readonly List<Target> _targets = new List<Target>();
             private readonly Mesh _previewMesh;
+            private readonly List<Vector3> _vertexBuffer = new List<Vector3>();
+            private readonly List<Vector3> _normalBuffer = new List<Vector3>();
+            private readonly List<Vector4> _tangentBuffer = new List<Vector4>();
+            private readonly BlendShapeCopyBuffers _blendShapeBuffers = new BlendShapeCopyBuffers();
             private int _lastBlendShapeWeightStateHash;
+            private readonly int _sourceBlendShapeCount;
+            private bool _suppressProxySourceBlendShapeWeights;
 
             public PreviewNode(LatticeDeformer deformer, IEnumerable<(Renderer original, Renderer proxy)> proxyPairs, Mesh previewMesh)
             {
                 _deformer = deformer;
                 _previewMesh = previewMesh;
                 _previewMesh.MarkDynamic();
+                _sourceBlendShapeCount = _deformer != null && _deformer.SourceMesh != null
+                    ? _deformer.SourceMesh.blendShapeCount
+                    : 0;
                 _lastBlendShapeWeightStateHash = ComputeBlendShapeWeightStateHash(
                     _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
                     _deformer != null ? _deformer.SourceMesh : null);
@@ -287,6 +306,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         OriginalRenderer = original,
                         ProxyRenderer = proxy,
                         PreviousProxyMesh = restorationMesh,
+                        PreviousProxyBlendShapeWeights = CaptureBlendShapeWeights(proxy),
                         RegistrationGeneration = registrationGeneration,
                     };
 
@@ -310,6 +330,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     _deformer != null ? _deformer.SourceMesh : null);
                 if (currentHash == _lastBlendShapeWeightStateHash)
                 {
+                    if (_suppressProxySourceBlendShapeWeights)
+                        SuppressProxySourceBlendShapeWeights();
                     return;
                 }
 
@@ -325,11 +347,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 foreach (var target in _targets)
                 {
+                    bool restoreWeights = LatticePreviewUtility.IsCurrentProxyRegistration(
+                        target.OriginalRenderer,
+                        target.ProxyRenderer,
+                        target.RegistrationGeneration);
                     RestoreProxyMesh(
                         target.OriginalRenderer,
                         target.ProxyRenderer,
                         target.PreviousProxyMesh,
                         target.RegistrationGeneration);
+                    if (restoreWeights)
+                        RestoreProxyBlendShapeWeights(
+                            target.ProxyRenderer,
+                            target.PreviousProxyBlendShapeWeights,
+                            _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
+                            _deformer != null ? _deformer.SourceMesh : null);
                 }
 
                 if (_previewMesh != null)
@@ -350,6 +382,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
 
                 AssignRendererMesh(target.ProxyRenderer, _previewMesh);
+                if (_suppressProxySourceBlendShapeWeights)
+                    SuppressProxySourceBlendShapeWeights(target.ProxyRenderer);
             }
 
             private bool UpdatePreviewMesh()
@@ -359,40 +393,99 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     return false;
                 }
 
-                var runtimeMesh = _deformer.Deform(false);
+                Mesh runtimeMesh;
+                using (s_deformMarker.Auto())
+                    runtimeMesh = _deformer.Deform(false);
                 if (runtimeMesh == null)
                 {
                     return false;
                 }
 
-                var vertices = runtimeMesh.vertices;
-                if (vertices != null && vertices.Length > 0)
+                using (s_updateMeshMarker.Auto())
                 {
-                    _previewMesh.vertices = vertices;
-                }
+                    runtimeMesh.GetVertices(_vertexBuffer);
+                    if (_vertexBuffer.Count > 0)
+                        _previewMesh.SetVertices(_vertexBuffer);
 
-                var normals = runtimeMesh.normals;
-                if (normals != null && normals.Length == _previewMesh.vertexCount)
-                {
-                    _previewMesh.normals = normals;
-                }
+                    runtimeMesh.GetNormals(_normalBuffer);
+                    if (_normalBuffer.Count == _previewMesh.vertexCount)
+                        _previewMesh.SetNormals(_normalBuffer);
 
-                var tangents = runtimeMesh.tangents;
-                if (tangents != null && tangents.Length == _previewMesh.vertexCount)
-                {
-                    _previewMesh.tangents = tangents;
-                }
+                    runtimeMesh.GetTangents(_tangentBuffer);
+                    if (_tangentBuffer.Count == _previewMesh.vertexCount)
+                        _previewMesh.SetTangents(_tangentBuffer);
 
-                CopyBlendShapes(runtimeMesh, _previewMesh);
-                _previewMesh.bounds = runtimeMesh.bounds;
-                _previewMesh.UploadMeshData(false);
+                    if (HasSourceOnlyBlendShapeLayout(runtimeMesh))
+                    {
+                        BakeCurrentSourceBlendShapeSurfaceDeltas(
+                            _deformer.SourceMesh,
+                            _deformer.GetComponent<SkinnedMeshRenderer>(),
+                            _normalBuffer,
+                            _tangentBuffer,
+                            _blendShapeBuffers);
+                        if (_normalBuffer.Count == _previewMesh.vertexCount)
+                            _previewMesh.SetNormals(_normalBuffer);
+                        if (_tangentBuffer.Count == _previewMesh.vertexCount)
+                            _previewMesh.SetTangents(_tangentBuffer);
+                        _suppressProxySourceBlendShapeWeights = true;
+                    }
+                    else
+                    {
+                        CopyBlendShapes(runtimeMesh, _previewMesh, _blendShapeBuffers);
+                        _suppressProxySourceBlendShapeWeights = false;
+                    }
+                    _previewMesh.bounds = runtimeMesh.bounds;
+                    _previewMesh.UploadMeshData(false);
+                }
 
                 foreach (var target in _targets)
                 {
                     ApplyPreviewMesh(target);
                 }
+                if (!_suppressProxySourceBlendShapeWeights)
+                    SynchronizeProxySourceBlendShapeWeights();
 
                 return true;
+            }
+
+            private bool HasSourceOnlyBlendShapeLayout(Mesh runtimeMesh)
+            {
+                Mesh sourceMesh = _deformer != null ? _deformer.SourceMesh : null;
+                return runtimeMesh != null && sourceMesh != null &&
+                       runtimeMesh.blendShapeCount == _sourceBlendShapeCount;
+            }
+
+            private void SuppressProxySourceBlendShapeWeights()
+            {
+                for (int targetIndex = 0; targetIndex < _targets.Count; targetIndex++)
+                    SuppressProxySourceBlendShapeWeights(_targets[targetIndex]?.ProxyRenderer);
+            }
+
+            private void SuppressProxySourceBlendShapeWeights(Renderer renderer)
+            {
+                if (renderer is not SkinnedMeshRenderer skinned || skinned.sharedMesh == null) return;
+                int count = Mathf.Min(_sourceBlendShapeCount, skinned.sharedMesh.blendShapeCount);
+                for (int shape = 0; shape < count; shape++)
+                    skinned.SetBlendShapeWeight(shape, 0f);
+            }
+
+            private void SynchronizeProxySourceBlendShapeWeights()
+            {
+                var original = _deformer != null
+                    ? _deformer.GetComponent<SkinnedMeshRenderer>()
+                    : null;
+                if (original == null) return;
+                for (int targetIndex = 0; targetIndex < _targets.Count; targetIndex++)
+                {
+                    if (_targets[targetIndex]?.ProxyRenderer is not SkinnedMeshRenderer proxy ||
+                        proxy.sharedMesh == null)
+                        continue;
+                    int count = Mathf.Min(
+                        _sourceBlendShapeCount,
+                        proxy.sharedMesh.blendShapeCount);
+                    for (int shape = 0; shape < count; shape++)
+                        proxy.SetBlendShapeWeight(shape, original.GetBlendShapeWeight(shape));
+                }
             }
 
             private Target EnsureTarget(Renderer original, Renderer proxy)
@@ -419,6 +512,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     OriginalRenderer = original,
                     ProxyRenderer = proxy,
                     PreviousProxyMesh = restorationMesh,
+                    PreviousProxyBlendShapeWeights = CaptureBlendShapeWeights(proxy),
                     RegistrationGeneration = registrationGeneration,
                 };
 
@@ -433,6 +527,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             public Renderer OriginalRenderer;
             public Renderer ProxyRenderer;
             public Mesh PreviousProxyMesh;
+            public float[] PreviousProxyBlendShapeWeights;
             public long RegistrationGeneration;
         }
 
@@ -466,17 +561,172 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return MeshDeformerValidator.Validate(deformer, evaluationTarget);
         }
 
-        private static void CopyBlendShapes(Mesh source, Mesh destination)
+        internal sealed class BlendShapeCopyBuffers
+        {
+            internal Vector3[] DeltaVertices = Array.Empty<Vector3>();
+            internal Vector3[] DeltaNormals = Array.Empty<Vector3>();
+            internal Vector3[] DeltaTangents = Array.Empty<Vector3>();
+            internal Vector3[] UpperVertices = Array.Empty<Vector3>();
+            internal Vector3[] UpperNormals = Array.Empty<Vector3>();
+            internal Vector3[] UpperTangents = Array.Empty<Vector3>();
+
+            internal void EnsureCapacity(int vertexCount)
+            {
+                if (DeltaVertices.Length == vertexCount) return;
+                DeltaVertices = new Vector3[vertexCount];
+                DeltaNormals = new Vector3[vertexCount];
+                DeltaTangents = new Vector3[vertexCount];
+                UpperVertices = new Vector3[vertexCount];
+                UpperNormals = new Vector3[vertexCount];
+                UpperTangents = new Vector3[vertexCount];
+            }
+        }
+
+        private static float[] CaptureBlendShapeWeights(Renderer renderer)
+        {
+            if (renderer is not SkinnedMeshRenderer skinned || skinned.sharedMesh == null)
+                return Array.Empty<float>();
+            int count = skinned.sharedMesh.blendShapeCount;
+            var weights = new float[count];
+            for (int shape = 0; shape < count; shape++)
+                weights[shape] = skinned.GetBlendShapeWeight(shape);
+            return weights;
+        }
+
+        private static void RestoreProxyBlendShapeWeights(
+            Renderer renderer,
+            float[] capturedWeights,
+            SkinnedMeshRenderer original,
+            Mesh sourceMesh)
+        {
+            if (renderer is not SkinnedMeshRenderer skinned || skinned.sharedMesh == null ||
+                capturedWeights == null)
+                return;
+            int count = Mathf.Min(capturedWeights.Length, skinned.sharedMesh.blendShapeCount);
+            for (int shape = 0; shape < count; shape++)
+                skinned.SetBlendShapeWeight(shape, capturedWeights[shape]);
+
+            if (original == null || sourceMesh == null) return;
+            for (int sourceShape = 0; sourceShape < sourceMesh.blendShapeCount; sourceShape++)
+            {
+                string shapeName = sourceMesh.GetBlendShapeName(sourceShape);
+                int restoredShape = skinned.sharedMesh.GetBlendShapeIndex(shapeName);
+                if (restoredShape < 0) continue;
+                skinned.SetBlendShapeWeight(
+                    restoredShape,
+                    original.GetBlendShapeWeight(sourceShape));
+            }
+        }
+
+        internal static void BakeCurrentSourceBlendShapeSurfaceDeltas(
+            Mesh source,
+            SkinnedMeshRenderer renderer,
+            List<Vector3> normals,
+            List<Vector4> tangents,
+            BlendShapeCopyBuffers buffers)
+        {
+            if (source == null || renderer == null || buffers == null) return;
+            int vertexCount = source.vertexCount;
+            bool bakeNormals = normals != null && normals.Count == vertexCount;
+            bool bakeTangents = tangents != null && tangents.Count == vertexCount;
+            if (!bakeNormals && !bakeTangents) return;
+
+            buffers.EnsureCapacity(vertexCount);
+            using var bakeScope = s_bakeBlendShapeSurfaceMarker.Auto();
+            int shapeCount = Mathf.Min(source.blendShapeCount, renderer.sharedMesh != null
+                ? renderer.sharedMesh.blendShapeCount
+                : 0);
+            for (int shape = 0; shape < shapeCount; shape++)
+            {
+                float weight = renderer.GetBlendShapeWeight(shape);
+                if (Mathf.Abs(weight) <= 1e-5f) continue;
+                int frameCount = source.GetBlendShapeFrameCount(shape);
+                if (frameCount <= 0) continue;
+
+                int lowerFrame = 0;
+                int upperFrame = 0;
+                float scale = 0f;
+                float firstWeight = source.GetBlendShapeFrameWeight(shape, 0);
+                if (frameCount == 1 || weight <= firstWeight)
+                {
+                    scale = Mathf.Abs(firstWeight) > Mathf.Epsilon ? weight / firstWeight : 0f;
+                }
+                else
+                {
+                    lowerFrame = frameCount - 1;
+                    upperFrame = lowerFrame;
+                    scale = 1f;
+                    for (int frame = 1; frame < frameCount; frame++)
+                    {
+                        float upperWeight = source.GetBlendShapeFrameWeight(shape, frame);
+                        if (weight > upperWeight) continue;
+                        lowerFrame = frame - 1;
+                        upperFrame = frame;
+                        float lowerWeight = source.GetBlendShapeFrameWeight(shape, lowerFrame);
+                        scale = Mathf.Abs(upperWeight - lowerWeight) > Mathf.Epsilon
+                            ? Mathf.InverseLerp(lowerWeight, upperWeight, weight)
+                            : 0f;
+                        break;
+                    }
+                }
+
+                source.GetBlendShapeFrameVertices(
+                    shape,
+                    lowerFrame,
+                    buffers.DeltaVertices,
+                    buffers.DeltaNormals,
+                    buffers.DeltaTangents);
+                if (upperFrame != lowerFrame)
+                {
+                    source.GetBlendShapeFrameVertices(
+                        shape,
+                        upperFrame,
+                        buffers.UpperVertices,
+                        buffers.UpperNormals,
+                        buffers.UpperTangents);
+                }
+
+                for (int vertex = 0; vertex < vertexCount; vertex++)
+                {
+                    Vector3 normalDelta = upperFrame == lowerFrame
+                        ? buffers.DeltaNormals[vertex] * scale
+                        : Vector3.LerpUnclamped(
+                            buffers.DeltaNormals[vertex], buffers.UpperNormals[vertex], scale);
+                    Vector3 tangentDelta = upperFrame == lowerFrame
+                        ? buffers.DeltaTangents[vertex] * scale
+                        : Vector3.LerpUnclamped(
+                            buffers.DeltaTangents[vertex], buffers.UpperTangents[vertex], scale);
+                    if (bakeNormals) normals[vertex] += normalDelta;
+                    if (bakeTangents)
+                    {
+                        Vector4 tangent = tangents[vertex];
+                        tangent.x += tangentDelta.x;
+                        tangent.y += tangentDelta.y;
+                        tangent.z += tangentDelta.z;
+                        tangents[vertex] = tangent;
+                    }
+                }
+            }
+        }
+
+        private static void CopyBlendShapes(
+            Mesh source,
+            Mesh destination,
+            BlendShapeCopyBuffers buffers)
         {
             if (source == null || destination == null || source.vertexCount != destination.vertexCount)
             {
                 return;
             }
 
+            using var copyScope = s_copyBlendShapesMarker.Auto();
+            BlendShapeCopyCount++;
             destination.ClearBlendShapes();
 
             int shapeCount = source.blendShapeCount;
             int vertexCount = source.vertexCount;
+            buffers ??= new BlendShapeCopyBuffers();
+            buffers.EnsureCapacity(vertexCount);
             for (int shape = 0; shape < shapeCount; shape++)
             {
                 string shapeName = source.GetBlendShapeName(shape);
@@ -484,11 +734,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 for (int frame = 0; frame < frameCount; frame++)
                 {
                     float frameWeight = source.GetBlendShapeFrameWeight(shape, frame);
-                    var deltaVertices = new Vector3[vertexCount];
-                    var deltaNormals = new Vector3[vertexCount];
-                    var deltaTangents = new Vector3[vertexCount];
-                    source.GetBlendShapeFrameVertices(shape, frame, deltaVertices, deltaNormals, deltaTangents);
-                    destination.AddBlendShapeFrame(shapeName, frameWeight, deltaVertices, deltaNormals, deltaTangents);
+                    source.GetBlendShapeFrameVertices(
+                        shape,
+                        frame,
+                        buffers.DeltaVertices,
+                        buffers.DeltaNormals,
+                        buffers.DeltaTangents);
+                    destination.AddBlendShapeFrame(
+                        shapeName,
+                        frameWeight,
+                        buffers.DeltaVertices,
+                        buffers.DeltaNormals,
+                        buffers.DeltaTangents);
                 }
             }
         }
