@@ -696,6 +696,58 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void AllocatingBatch_InvalidReferenceDoesNotAllocateTargetSizedResults()
+        {
+            var referenceObject = new GameObject("Invalid Reference");
+            var reference = referenceObject.AddComponent<MeshRenderer>();
+            var targets = new Vector3[4096];
+            try
+            {
+                Assert.That(ClearanceQueryCache.QueryPoints(
+                    reference,
+                    targets,
+                    Matrix4x4.identity,
+                    ClearanceSignMode.ReferenceNormal), Is.Empty);
+
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                ClearanceQueryResult[] results = ClearanceQueryCache.QueryPoints(
+                    reference,
+                    targets,
+                    Matrix4x4.identity,
+                    ClearanceSignMode.ReferenceNormal);
+                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+
+                Assert.That(results, Is.Empty);
+                Assert.That(allocated, Is.Zero,
+                    "An invalid reference must be rejected before allocating the target-sized snapshot.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(referenceObject);
+            }
+        }
+
+        [Test]
+        public void FailedCaptureDisposal_PreservesCacheOwnedMeshAndDestroysTemporaryMesh()
+        {
+            var cacheOwned = new Mesh { name = "Cache Owned Bake Mesh" };
+            var temporary = new Mesh { name = "Temporary Bake Mesh" };
+            try
+            {
+                ClearanceQueryCache.DisposeCapturedMeshAfterFailure(cacheOwned, false);
+                ClearanceQueryCache.DisposeCapturedMeshAfterFailure(temporary, true);
+
+                Assert.That(cacheOwned == null, Is.False);
+                Assert.That(temporary == null, Is.True);
+            }
+            finally
+            {
+                if (cacheOwned != null) Object.DestroyImmediate(cacheOwned);
+                if (temporary != null) Object.DestroyImmediate(temporary);
+            }
+        }
+
+        [Test]
         public void InvalidMeshesReturnExplicitInvalidStateWithoutThrowing()
         {
             Assert.That(ClearanceQuery.TryCreate(null, Matrix4x4.identity, out _), Is.False);
