@@ -4,7 +4,8 @@
     "net.32ba.lattice-deformation-tool",
     "net.32ba.lattice-deformation-tool.editor",
     "nadena.dev.ndmf",
-    "Unity.Mathematics"
+    "Unity.Mathematics",
+    "Unity.Collections"
   ],
   "includePlatforms": [
     "Editor"

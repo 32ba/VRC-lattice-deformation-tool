@@ -45,10 +45,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var deformer = gameObject.AddComponent<LatticeDeformer>();
 
                 Assert.DoesNotThrow(deformer.Reset);
+                Assert.That(deformer.EditingSettings.LocalBounds, Is.EqualTo(mesh.bounds));
                 IReadOnlyList<MeshDeformerDiagnostic> diagnostics = null;
                 Assert.DoesNotThrow(() => diagnostics = MeshDeformerValidator.Validate(deformer));
                 Assert.That(diagnostics.Any(d => d.Code == MeshDeformerValidator.SourceMeshChanged),
                     Is.False);
+                Assert.That(diagnostics.Any(d => d.Code == MeshDeformerValidator.SourceMeshNotReadable),
+                    Is.True);
+                Assert.That(LatticeDeformerBakePass.ValidateBeforeBake(deformer), Is.False);
+                Assert.DoesNotThrow(() => Assert.That(deformer.Deform(false), Is.Null));
             }
             finally
             {

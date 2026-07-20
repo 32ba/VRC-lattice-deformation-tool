@@ -2247,7 +2247,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 return null;
             }
 
-            if (_sourceMesh == null)
+            if (_sourceMesh == null || !_sourceMesh.isReadable)
             {
                 UnityEngine.Profiling.Profiler.EndSample();
                 return null;
@@ -4202,7 +4202,7 @@ namespace Net._32Ba.LatticeDeformationTool
             bakedBlendShapeWeights = null;
             bakedBlendShapeHash = 0;
 
-            if (_sourceMesh == null)
+            if (_sourceMesh == null || !_sourceMesh.isReadable)
             {
                 return null;
             }
@@ -4347,7 +4347,13 @@ namespace Net._32Ba.LatticeDeformationTool
             EnsureSettings();
             if (_sourceMesh == null) return;
 
-            var sourceVertices = BuildCurrentSourceVertices(out _, out _, out _);
+            // Adding/enabling the component must remain safe for imported meshes whose
+            // Read/Write flag is disabled. Deformation fails closed until it is enabled;
+            // initialization can use the serialized Mesh bounds without touching CPU
+            // vertex/index buffers.
+            var sourceVertices = _sourceMesh.isReadable
+                ? BuildCurrentSourceVertices(out _, out _, out _)
+                : null;
             var meshBounds = CalculateReferencedBounds(_sourceMesh, sourceVertices, _sourceMesh.bounds);
             foreach (var group in GetGroupStorage())
             {
