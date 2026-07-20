@@ -923,6 +923,49 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void EditorCoroutine_WaitsForNestedYieldInstructionBeforeResuming()
+        {
+            var wait = new ManualYieldInstruction();
+            bool entered = false;
+            bool completed = false;
+            var coroutine = EditorCoroutine.Start(OuterRoutine());
+            try
+            {
+                Assert.That(InvokeRegisteredEditorCoroutineUpdate(coroutine), Is.True);
+                Assert.That(entered, Is.True);
+                Assert.That(completed, Is.False);
+
+                Assert.That(InvokeRegisteredEditorCoroutineUpdate(coroutine), Is.True);
+                Assert.That(completed, Is.False);
+                Assert.That(IsEditorCoroutineRegistered(coroutine), Is.True);
+
+                wait.Release();
+                Assert.That(InvokeRegisteredEditorCoroutineUpdate(coroutine), Is.True);
+                Assert.That(completed, Is.True);
+                Assert.That(IsEditorCoroutineRegistered(coroutine), Is.False);
+            }
+            finally
+            {
+                if (IsEditorCoroutineRegistered(coroutine))
+                {
+                    EditorApplication.update -= GetEditorCoroutineUpdate(coroutine);
+                }
+            }
+
+            System.Collections.IEnumerator OuterRoutine()
+            {
+                yield return InnerRoutine();
+                completed = true;
+            }
+
+            System.Collections.IEnumerator InnerRoutine()
+            {
+                entered = true;
+                yield return wait;
+            }
+        }
+
+        [Test]
         public void ReleaseChecker_PrivateShouldCheckForUpdates_UsesEditorPrefsValue()
         {
             var key = ReleaseChecker.GetLastCheckKey();
@@ -1030,6 +1073,18 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
         private static bool InvokeRegisteredEditorCoroutineUpdate(EditorCoroutine coroutine)
         {
+            var callback = GetEditorCoroutineUpdate(coroutine);
+            if (callback == null)
+            {
+                return false;
+            }
+
+            callback();
+            return true;
+        }
+
+        private static EditorApplication.CallbackFunction GetEditorCoroutineUpdate(EditorCoroutine coroutine)
+        {
             var field = typeof(EditorApplication).GetField(
                 "update",
                 BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
@@ -1038,13 +1093,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var callbacks = field.GetValue(null) as Delegate;
             var callback = callbacks?.GetInvocationList()
                 .FirstOrDefault(item => ReferenceEquals(item.Target, coroutine));
-            if (callback == null)
-            {
-                return false;
-            }
-
-            callback.DynamicInvoke();
-            return true;
+            return callback as EditorApplication.CallbackFunction;
         }
 
         private static bool IsEditorCoroutineRegistered(EditorCoroutine coroutine)
@@ -1063,6 +1112,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         {
             yield return null;
             throw new InvalidOperationException("routine failed");
+        }
+
+        private sealed class ManualYieldInstruction : CustomYieldInstruction
+        {
+            private bool _keepWaiting = true;
+            public override bool keepWaiting => _keepWaiting;
+            internal void Release() => _keepWaiting = false;
         }
 
         private static T InvokeReleaseCheckerPrivate<T>(string methodName, params object[] args)
