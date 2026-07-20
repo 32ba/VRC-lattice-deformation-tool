@@ -469,6 +469,197 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
+        [TestCase(1, 1)]
+        [TestCase(50, 1)]
+        [TestCase(1, 4)]
+        public void LatticeDeformerPreviewFilter_AnimatedSourceWeightsAvoidReregistrationAndRestoreProxyState(
+            int shapeCount,
+            int framesPerShape)
+        {
+            var original = new GameObject("animated-source-original");
+            var proxy = new GameObject("animated-source-proxy");
+            var source = CreateBlendShapeMesh(shapeCount, framesPerShape);
+            IRenderFilterNode node = null;
+            try
+            {
+                var originalRenderer = original.AddComponent<SkinnedMeshRenderer>();
+                originalRenderer.sharedMesh = source;
+                var deformer = original.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+
+                var proxyRenderer = proxy.AddComponent<SkinnedMeshRenderer>();
+                proxyRenderer.sharedMesh = source;
+                for (int shape = 0; shape < shapeCount; shape++)
+                    proxyRenderer.SetBlendShapeWeight(shape, 25f);
+
+                var generate = typeof(LatticeDeformerPreviewFilter).GetMethod(
+                    "GeneratePreviewMesh",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                Assert.That(generate, Is.Not.Null);
+                var previewMesh = (Mesh)generate.Invoke(null, new object[] { deformer });
+                Assert.That(previewMesh, Is.Not.Null);
+
+                node = CreateLatticePreviewNode(
+                    deformer,
+                    new[] { ((Renderer)originalRenderer, (Renderer)proxyRenderer) },
+                    previewMesh);
+                LatticeDeformerPreviewFilter.BlendShapeCopyCount = 0;
+
+                for (int shape = 0; shape < shapeCount; shape++)
+                {
+                    originalRenderer.SetBlendShapeWeight(shape, 50f);
+                    proxyRenderer.SetBlendShapeWeight(shape, 50f);
+                }
+                node.OnFrameGroup();
+
+                Assert.That(LatticeDeformerPreviewFilter.BlendShapeCopyCount, Is.Zero);
+                Assert.That(proxyRenderer.sharedMesh, Is.SameAs(previewMesh));
+                for (int shape = 0; shape < shapeCount; shape++)
+                    Assert.That(proxyRenderer.GetBlendShapeWeight(shape), Is.Zero);
+
+                // The animation system can write the proxy weight again even when the
+                // original weight hash is unchanged. The fast path must suppress it too.
+                for (int shape = 0; shape < shapeCount; shape++)
+                    proxyRenderer.SetBlendShapeWeight(shape, 50f);
+                node.OnFrameGroup();
+                for (int shape = 0; shape < shapeCount; shape++)
+                    Assert.That(proxyRenderer.GetBlendShapeWeight(shape), Is.Zero);
+
+                node.Dispose();
+                node = null;
+                Assert.That(proxyRenderer.sharedMesh, Is.SameAs(source));
+                for (int shape = 0; shape < shapeCount; shape++)
+                    Assert.That(proxyRenderer.GetBlendShapeWeight(shape), Is.EqualTo(50f));
+            }
+            finally
+            {
+                node?.Dispose();
+                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(proxy);
+                Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
+        public void LatticeDeformerPreviewFilter_SourceWeightBakesNormalAndTangentDeltas()
+        {
+            var original = new GameObject("surface-delta-original");
+            var proxy = new GameObject("surface-delta-proxy");
+            var source = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                normals = new[] { Vector3.forward, Vector3.forward, Vector3.forward },
+                tangents = new[]
+                {
+                    new Vector4(1f, 0f, 0f, 1f),
+                    new Vector4(1f, 0f, 0f, 1f),
+                    new Vector4(1f, 0f, 0f, 1f),
+                },
+                triangles = new[] { 0, 1, 2 },
+            };
+            source.AddBlendShapeFrame(
+                "Surface",
+                100f,
+                new[] { Vector3.right, Vector3.zero, Vector3.zero },
+                new[] { Vector3.up, Vector3.zero, Vector3.zero },
+                new[] { Vector3.forward, Vector3.zero, Vector3.zero });
+            IRenderFilterNode node = null;
+            try
+            {
+                var originalRenderer = original.AddComponent<SkinnedMeshRenderer>();
+                originalRenderer.sharedMesh = source;
+                var deformer = original.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                var proxyRenderer = proxy.AddComponent<SkinnedMeshRenderer>();
+                proxyRenderer.sharedMesh = source;
+
+                var generate = typeof(LatticeDeformerPreviewFilter).GetMethod(
+                    "GeneratePreviewMesh",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                var previewMesh = (Mesh)generate.Invoke(null, new object[] { deformer });
+                node = CreateLatticePreviewNode(
+                    deformer,
+                    new[] { ((Renderer)originalRenderer, (Renderer)proxyRenderer) },
+                    previewMesh);
+
+                originalRenderer.SetBlendShapeWeight(0, 50f);
+                proxyRenderer.SetBlendShapeWeight(0, 50f);
+                node.OnFrameGroup();
+
+                Assert.That(previewMesh.normals[0], Is.EqualTo(Vector3.forward + Vector3.up * 0.5f));
+                var tangent = previewMesh.tangents[0];
+                Assert.That(new Vector3(tangent.x, tangent.y, tangent.z),
+                    Is.EqualTo(Vector3.right + Vector3.forward * 0.5f));
+                Assert.That(tangent.w, Is.EqualTo(1f));
+            }
+            finally
+            {
+                node?.Dispose();
+                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(proxy);
+                Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
+        public void LatticeDeformerPreviewFilter_DisposeMapsLatestSourceWeightWithoutOverwritingUpstreamShapes()
+        {
+            var original = new GameObject("mapped-restore-original");
+            var proxy = new GameObject("mapped-restore-proxy");
+            var source = CreateBlendShapeMesh(1);
+            var upstream = new Mesh
+            {
+                vertices = source.vertices,
+                triangles = source.triangles,
+            };
+            upstream.AddBlendShapeFrame(
+                "AddedUpstream", 100f, new Vector3[source.vertexCount], null, null);
+            var sourceDeltas = new Vector3[source.vertexCount];
+            source.GetBlendShapeFrameVertices(
+                0, 0, sourceDeltas, new Vector3[source.vertexCount], new Vector3[source.vertexCount]);
+            upstream.AddBlendShapeFrame("Shape0", 100f, sourceDeltas, null, null);
+            IRenderFilterNode node = null;
+            try
+            {
+                var originalRenderer = original.AddComponent<SkinnedMeshRenderer>();
+                originalRenderer.sharedMesh = source;
+                var deformer = original.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                var proxyRenderer = proxy.AddComponent<SkinnedMeshRenderer>();
+                proxyRenderer.sharedMesh = upstream;
+                proxyRenderer.SetBlendShapeWeight(0, 12f);
+                proxyRenderer.SetBlendShapeWeight(1, 25f);
+
+                var generate = typeof(LatticeDeformerPreviewFilter).GetMethod(
+                    "GeneratePreviewMesh",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                var previewMesh = (Mesh)generate.Invoke(null, new object[] { deformer });
+                node = CreateLatticePreviewNode(
+                    deformer,
+                    new[] { ((Renderer)originalRenderer, (Renderer)proxyRenderer) },
+                    previewMesh);
+
+                originalRenderer.SetBlendShapeWeight(0, 50f);
+                node.Dispose();
+                node = null;
+
+                Assert.That(proxyRenderer.sharedMesh, Is.SameAs(upstream));
+                Assert.That(proxyRenderer.GetBlendShapeWeight(0), Is.EqualTo(12f));
+                Assert.That(proxyRenderer.GetBlendShapeWeight(1), Is.EqualTo(50f));
+            }
+            finally
+            {
+                node?.Dispose();
+                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(proxy);
+                Object.DestroyImmediate(source);
+                Object.DestroyImmediate(upstream);
+            }
+        }
+
         [Test]
         public void LatticeDeformerPreviewFilter_CubicBernsteinPreviewMatchesBakeInput()
         {
@@ -1156,7 +1347,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
-        private static Mesh CreateBlendShapeMesh(int blendShapeCount)
+        private static Mesh CreateBlendShapeMesh(int blendShapeCount, int framesPerShape = 1)
         {
             var mesh = new Mesh
             {
@@ -1166,14 +1357,18 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
             for (int shape = 0; shape < blendShapeCount; shape++)
             {
-                var deltas = new Vector3[mesh.vertexCount];
-                deltas[shape % deltas.Length] = Vector3.forward * (shape + 1) * 0.1f;
-                mesh.AddBlendShapeFrame(
-                    $"Shape{shape}",
-                    100f,
-                    deltas,
-                    new Vector3[mesh.vertexCount],
-                    new Vector3[mesh.vertexCount]);
+                for (int frame = 0; frame < framesPerShape; frame++)
+                {
+                    var deltas = new Vector3[mesh.vertexCount];
+                    deltas[shape % deltas.Length] =
+                        Vector3.forward * (shape + 1) * (frame + 1) * 0.1f;
+                    mesh.AddBlendShapeFrame(
+                        $"Shape{shape}",
+                        (frame + 1f) * 100f / framesPerShape,
+                        deltas,
+                        new Vector3[mesh.vertexCount],
+                        new Vector3[mesh.vertexCount]);
+                }
             }
 
             return mesh;
@@ -1319,6 +1514,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             IEnumerable<(Renderer original, Renderer proxy)> proxyPairs,
             Mesh previewMesh)
         {
+            return CreateLatticePreviewNode(null, proxyPairs, previewMesh);
+        }
+
+        private static IRenderFilterNode CreateLatticePreviewNode(
+            LatticeDeformer deformer,
+            IEnumerable<(Renderer original, Renderer proxy)> proxyPairs,
+            Mesh previewMesh)
+        {
             var nodeType = typeof(LatticeDeformerPreviewFilter).GetNestedType(
                 "PreviewNode",
                 BindingFlags.NonPublic);
@@ -1327,7 +1530,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .Single();
             return (IRenderFilterNode)constructor.Invoke(
-                new object[] { null, proxyPairs, previewMesh });
+                new object[] { deformer, proxyPairs, previewMesh });
         }
     }
 }

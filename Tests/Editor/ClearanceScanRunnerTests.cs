@@ -18,6 +18,83 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         public void SetUp()
         {
             ClearanceQueryCache.Clear();
+            ClearanceScanOperation.RestoreCount = 0;
+            ClearanceScanOperation.TopologyHashCount = 0;
+        }
+
+        [Test]
+        public void Restore_IsPerformedOncePerAppliedConditionAndNotRepeatedByDispose()
+        {
+            var fixture = Fixture.CreateMeshRenderers();
+            var scanSet = NewScanSet(
+                PoseCondition("First", -0.01f),
+                PoseCondition("Second", 0.02f));
+            var operation = NewOperation(fixture, scanSet);
+            try
+            {
+                operation.RunToCompletion();
+                Assert.That(ClearanceScanOperation.RestoreCount, Is.EqualTo(2));
+
+                operation.Dispose();
+                Assert.That(ClearanceScanOperation.RestoreCount, Is.EqualTo(2));
+            }
+            finally
+            {
+                operation.Dispose();
+                Object.DestroyImmediate(scanSet);
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void Dispose_RestoresExactlyOnceWhenAutomaticRestoreIsDisabled()
+        {
+            var fixture = Fixture.CreateMeshRenderers();
+            var scanSet = NewScanSet(PoseCondition("Preview", -0.01f));
+            var operation = new ClearanceScanOperation(
+                scanSet,
+                fixture.Deformer,
+                fixture.Reference,
+                fixture.Root.transform,
+                ClearanceQueryMode.ReferenceNormal,
+                0.005f,
+                0.01f,
+                restoreOnComplete: false);
+            try
+            {
+                operation.RunToCompletion();
+                Assert.That(ClearanceScanOperation.RestoreCount, Is.Zero);
+
+                operation.Dispose();
+                Assert.That(ClearanceScanOperation.RestoreCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                operation.Dispose();
+                Object.DestroyImmediate(scanSet);
+                fixture.Dispose();
+            }
+        }
+
+        [Test]
+        public void StaticEvaluationMesh_ReusesTopologyHashAcrossConditions()
+        {
+            var fixture = Fixture.CreateMeshRenderers();
+            var scanSet = NewScanSet(
+                PoseCondition("First", -0.01f),
+                PoseCondition("Second", 0.02f));
+            try
+            {
+                using var operation = NewOperation(fixture, scanSet);
+                operation.RunToCompletion();
+
+                Assert.That(ClearanceScanOperation.TopologyHashCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                Object.DestroyImmediate(scanSet);
+                fixture.Dispose();
+            }
         }
 
         [Test]
@@ -291,6 +368,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(result.Conditions[0].ErrorMessage, Does.Contain("Injected failure"));
                 Assert.That(result.Conditions[1].Status, Is.EqualTo(ClearanceScanConditionStatus.Success));
                 Assert.That(fixture.Target.transform.localPosition, Is.EqualTo(initial));
+                Assert.That(ClearanceScanOperation.RestoreCount, Is.EqualTo(2));
             }
             finally
             {
@@ -405,6 +483,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(operation.Result.WasCancelled, Is.True);
                 Assert.That(operation.Result.Conditions.Count, Is.EqualTo(1));
                 Assert.That(fixture.Target.transform.localPosition, Is.EqualTo(initial));
+                Assert.That(ClearanceScanOperation.RestoreCount, Is.EqualTo(1));
             }
             finally
             {
