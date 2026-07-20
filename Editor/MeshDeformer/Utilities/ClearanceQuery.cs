@@ -1,6 +1,9 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using Unity.Profiling;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
@@ -64,19 +67,33 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly TriangleData[] _triangles;
         private readonly int[] _triangleOrder;
         private readonly BvhNode[] _nodes;
+        private readonly QueryWorkspace _workspace;
+
+        private static readonly ProfilerMarker s_buildBvhMarker =
+            new ProfilerMarker("Clearance.BuildBVH");
+        private static readonly ProfilerMarker s_queryBatchMarker =
+            new ProfilerMarker("Clearance.QueryBatch");
+        private static readonly ProfilerMarker s_nearestPointMarker =
+            new ProfilerMarker("Clearance.QueryPoint.Nearest");
+        private static readonly ProfilerMarker s_closedPointMarker =
+            new ProfilerMarker("Clearance.QueryPoint.ClosedSign");
 
         internal int TriangleCount => _triangles.Length;
+        internal int TraversalStackSize => _workspace.TraversalStack.Length;
+        internal int NodeCount => _nodes.Length;
         internal bool IsClosedSurface { get; }
 
         private ClearanceQuery(
             TriangleData[] triangles,
             int[] triangleOrder,
             BvhNode[] nodes,
-            bool isClosedSurface)
+            bool isClosedSurface,
+            int traversalStackSize)
         {
             _triangles = triangles;
             _triangleOrder = triangleOrder;
             _nodes = nodes;
+            _workspace = new QueryWorkspace(traversalStackSize);
             IsClosedSurface = isClosedSurface;
         }
 
@@ -164,14 +181,61 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var order = new int[triangleArray.Length];
             for (int i = 0; i < order.Length; i++) order[i] = i;
             var nodes = new List<BvhNode>(triangleArray.Length * 2);
-            BuildNode(triangleArray, order, nodes, 0, order.Length);
-            query = new ClearanceQuery(triangleArray, order, nodes.ToArray(), isClosed);
+            int maxDepth = 0;
+            using (s_buildBvhMarker.Auto())
+            {
+                BuildNode(triangleArray, order, nodes, 0, order.Length, 0, ref maxDepth);
+            }
+            query = new ClearanceQuery(
+                triangleArray,
+                order,
+                nodes.ToArray(),
+                isClosed,
+                maxDepth + 2);
             return true;
         }
 
         internal ClearanceQueryResult QueryPoint(
             Vector3 pointWorld,
             ClearanceSignMode signMode = ClearanceSignMode.ReferenceNormal)
+        {
+            lock (_workspace)
+            {
+                return QueryPoint(pointWorld, signMode, _workspace, true);
+            }
+        }
+
+        internal void QueryPoints(
+            Vector3[] targetVertices,
+            Matrix4x4 targetLocalToWorld,
+            ClearanceSignMode signMode,
+            ClearanceQueryResult[] results)
+        {
+            if (targetVertices == null)
+                throw new ArgumentNullException(nameof(targetVertices));
+            if (results == null)
+                throw new ArgumentNullException(nameof(results));
+            if (results.Length < targetVertices.Length)
+                throw new ArgumentException("The result buffer is smaller than the target vertex buffer.", nameof(results));
+
+            lock (_workspace)
+            {
+                using (s_queryBatchMarker.Auto())
+                {
+                    for (int i = 0; i < targetVertices.Length; i++)
+                    {
+                        Vector3 worldPoint = targetLocalToWorld.MultiplyPoint3x4(targetVertices[i]);
+                        results[i] = QueryPoint(worldPoint, signMode, _workspace, false);
+                    }
+                }
+            }
+        }
+
+        private ClearanceQueryResult QueryPoint(
+            Vector3 pointWorld,
+            ClearanceSignMode signMode,
+            QueryWorkspace workspace,
+            bool profilePoint)
         {
             if (!IsFinite(pointWorld) || _nodes.Length == 0) return ClearanceQueryResult.Invalid;
 
@@ -181,54 +245,62 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Vector3 bestBarycentric = default;
             int triangleTests = 0;
 
-            var stack = new int[_nodes.Length];
+            int[] stack = workspace.TraversalStack;
             int stackCount = 0;
             stack[stackCount++] = 0;
-            while (stackCount > 0)
+            if (profilePoint) s_nearestPointMarker.Begin();
+            try
             {
-                int nodeIndex = stack[--stackCount];
-                BvhNode node = _nodes[nodeIndex];
-                if (DistanceToBoundsSquared(pointWorld, node.Min, node.Max) > bestDistanceSq)
-                    continue;
-
-                if (node.Count > 0)
+                while (stackCount > 0)
                 {
-                    for (int i = node.Start; i < node.Start + node.Count; i++)
+                    int nodeIndex = stack[--stackCount];
+                    BvhNode node = _nodes[nodeIndex];
+                    if (DistanceToBoundsSquared(pointWorld, node.Min, node.Max) > bestDistanceSq)
+                        continue;
+
+                    if (node.Count > 0)
                     {
-                        TriangleData triangle = _triangles[_triangleOrder[i]];
-                        triangleTests++;
-                        Vector3 closest = ClosestPointOnTriangle(
-                            pointWorld,
-                            triangle.A,
-                            triangle.B,
-                            triangle.C,
-                            out Vector3 barycentric);
-                        float distanceSq = (pointWorld - closest).sqrMagnitude;
-                        if (distanceSq < bestDistanceSq)
+                        for (int i = node.Start; i < node.Start + node.Count; i++)
                         {
-                            bestDistanceSq = distanceSq;
-                            bestTriangle = _triangleOrder[i];
-                            bestPoint = closest;
-                            bestBarycentric = barycentric;
+                            TriangleData triangle = _triangles[_triangleOrder[i]];
+                            triangleTests++;
+                            Vector3 closest = ClosestPointOnTriangle(
+                                pointWorld,
+                                triangle.A,
+                                triangle.B,
+                                triangle.C,
+                                out Vector3 barycentric);
+                            float distanceSq = (pointWorld - closest).sqrMagnitude;
+                            if (distanceSq < bestDistanceSq)
+                            {
+                                bestDistanceSq = distanceSq;
+                                bestTriangle = _triangleOrder[i];
+                                bestPoint = closest;
+                                bestBarycentric = barycentric;
+                            }
                         }
+                        continue;
                     }
-                    continue;
-                }
 
-                float leftDistance = DistanceToBoundsSquared(
-                    pointWorld, _nodes[node.Left].Min, _nodes[node.Left].Max);
-                float rightDistance = DistanceToBoundsSquared(
-                    pointWorld, _nodes[node.Right].Min, _nodes[node.Right].Max);
-                if (leftDistance < rightDistance)
-                {
-                    stack[stackCount++] = node.Right;
-                    stack[stackCount++] = node.Left;
+                    float leftDistance = DistanceToBoundsSquared(
+                        pointWorld, _nodes[node.Left].Min, _nodes[node.Left].Max);
+                    float rightDistance = DistanceToBoundsSquared(
+                        pointWorld, _nodes[node.Right].Min, _nodes[node.Right].Max);
+                    if (leftDistance < rightDistance)
+                    {
+                        stack[stackCount++] = node.Right;
+                        stack[stackCount++] = node.Left;
+                    }
+                    else
+                    {
+                        stack[stackCount++] = node.Left;
+                        stack[stackCount++] = node.Right;
+                    }
                 }
-                else
-                {
-                    stack[stackCount++] = node.Left;
-                    stack[stackCount++] = node.Right;
-                }
+            }
+            finally
+            {
+                if (profilePoint) s_nearestPointMarker.End();
             }
 
             if (bestTriangle < 0 || float.IsInfinity(bestDistanceSq))
@@ -253,8 +325,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
             else if (useClosedSign)
             {
-                inside = IsPointInside(pointWorld, out int insideTriangleTests);
-                triangleTests += insideTriangleTests;
+                if (profilePoint) s_closedPointMarker.Begin();
+                try
+                {
+                    inside = IsPointInside(pointWorld, workspace, out int insideTriangleTests);
+                    triangleTests += insideTriangleTests;
+                }
+                finally
+                {
+                    if (profilePoint) s_closedPointMarker.End();
+                }
                 signedClearance = inside ? -distance : distance;
             }
             else
@@ -275,12 +355,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 triangleTests);
         }
 
-        private bool IsPointInside(Vector3 point, out int triangleTests)
+        private bool IsPointInside(Vector3 point, QueryWorkspace workspace, out int triangleTests)
         {
             triangleTests = 0;
             var direction = new Vector3(1f, 0.37139067f, 0.5291327f).normalized;
-            var hits = new List<float>();
-            var stack = new int[_nodes.Length];
+            List<float> hits = workspace.RayHits;
+            hits.Clear();
+            int[] stack = workspace.TraversalStack;
             int stackCount = 0;
             stack[stackCount++] = 0;
             while (stackCount > 0)
@@ -323,8 +404,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             int[] order,
             List<BvhNode> nodes,
             int start,
-            int count)
+            int count,
+            int depth,
+            ref int maxDepth)
         {
+            maxDepth = Math.Max(maxDepth, depth);
             Vector3 min = new Vector3(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
             Vector3 max = new Vector3(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
             Vector3 centroidMin = min;
@@ -357,8 +441,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Comparer<int>.Create((left, right) =>
                     Axis(triangles[left].Centroid, axis).CompareTo(Axis(triangles[right].Centroid, axis))));
             int leftCount = count / 2;
-            int leftNode = BuildNode(triangles, order, nodes, start, leftCount);
-            int rightNode = BuildNode(triangles, order, nodes, start + leftCount, count - leftCount);
+            int leftNode = BuildNode(
+                triangles, order, nodes, start, leftCount, depth + 1, ref maxDepth);
+            int rightNode = BuildNode(
+                triangles, order, nodes, start + leftCount, count - leftCount, depth + 1, ref maxDepth);
             nodes[nodeIndex] = BvhNode.Branch(min, max, leftNode, rightNode);
             return nodeIndex;
         }
@@ -591,6 +677,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             internal static BvhNode Branch(Vector3 min, Vector3 max, int left, int right)
                 => new BvhNode(min, max, left, right, 0, 0);
         }
+
+        private sealed class QueryWorkspace
+        {
+            internal readonly int[] TraversalStack;
+            internal readonly List<float> RayHits = new List<float>();
+
+            internal QueryWorkspace(int traversalStackSize)
+            {
+                TraversalStack = new int[Math.Max(2, traversalStackSize)];
+            }
+        }
     }
 
     /// <summary>
@@ -600,33 +697,104 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         private sealed class CacheEntry
         {
-            internal Renderer Renderer;
+            internal WeakReference<Renderer> Renderer;
             internal int StateHash;
             internal ClearanceQuery Query;
+            internal Mesh BakedMesh;
         }
 
         private static readonly Dictionary<int, CacheEntry> Entries = new Dictionary<int, CacheEntry>();
+        private static readonly List<int> DeadEntryIds = new List<int>();
+        private static readonly ProfilerMarker s_stateHashMarker =
+            new ProfilerMarker("Clearance.StateHash");
+        private static readonly ProfilerMarker s_bakeMeshMarker =
+            new ProfilerMarker("Clearance.Capture.BakeMesh");
 
         internal static int BuildCount { get; private set; }
+        internal static int EntryCount => Entries.Count;
+
+        static ClearanceQueryCache()
+        {
+            AssemblyReloadEvents.beforeAssemblyReload += ClearEntries;
+            EditorSceneManager.sceneClosed += HandleSceneClosed;
+            EditorApplication.playModeStateChanged += HandlePlayModeStateChanged;
+            EditorApplication.hierarchyChanged += PruneDeadEntries;
+        }
+
+        internal static void HandleSceneClosed(UnityEngine.SceneManagement.Scene _)
+        {
+            ClearEntries();
+        }
+
+        internal static void HandlePlayModeStateChanged(PlayModeStateChange _)
+        {
+            ClearEntries();
+        }
 
         internal static void Clear()
         {
-            Entries.Clear();
+            ClearEntries();
             BuildCount = 0;
+        }
+
+        private static void ClearEntries()
+        {
+            foreach (CacheEntry entry in Entries.Values)
+                DisposeEntry(entry);
+            Entries.Clear();
+            DeadEntryIds.Clear();
+        }
+
+        private static void DisposeEntry(CacheEntry entry)
+        {
+            if (entry?.BakedMesh != null)
+                UnityEngine.Object.DestroyImmediate(entry.BakedMesh);
+        }
+
+        internal static void PruneDeadEntries()
+        {
+            DeadEntryIds.Clear();
+            foreach (KeyValuePair<int, CacheEntry> pair in Entries)
+            {
+                if (!pair.Value.Renderer.TryGetTarget(out Renderer renderer) || renderer == null)
+                    DeadEntryIds.Add(pair.Key);
+            }
+
+            for (int i = 0; i < DeadEntryIds.Count; i++)
+            {
+                int rendererId = DeadEntryIds[i];
+                if (Entries.TryGetValue(rendererId, out CacheEntry entry))
+                    DisposeEntry(entry);
+                Entries.Remove(rendererId);
+            }
+            DeadEntryIds.Clear();
         }
 
         internal static bool TryGet(Renderer renderer, out ClearanceQuery query)
         {
             query = null;
-            if (!TryCaptureMesh(renderer, out Mesh mesh, out Matrix4x4 localToWorld, out bool ownsMesh))
+            PruneDeadEntries();
+            if (renderer == null) return false;
+
+            int rendererId = renderer.GetInstanceID();
+            Entries.TryGetValue(rendererId, out CacheEntry existing);
+            bool sameRenderer = existing != null &&
+                                existing.Renderer.TryGetTarget(out Renderer cachedRenderer) &&
+                                ReferenceEquals(cachedRenderer, renderer);
+            Mesh reusableBakedMesh = sameRenderer ? existing.BakedMesh : null;
+            if (!TryCaptureMesh(
+                    renderer,
+                    reusableBakedMesh,
+                    out Mesh mesh,
+                    out Matrix4x4 localToWorld,
+                    out bool ownsMesh))
                 return false;
 
+            bool transferredMeshOwnership = false;
             try
             {
                 if (!TryComputeStateHash(mesh, localToWorld, out int stateHash)) return false;
-                int rendererId = renderer.GetInstanceID();
-                if (Entries.TryGetValue(rendererId, out CacheEntry existing) &&
-                    existing.Renderer == renderer &&
+                if (sameRenderer &&
                     existing.StateHash == stateHash &&
                     existing.Query != null)
                 {
@@ -635,18 +803,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
 
                 if (!ClearanceQuery.TryCreate(mesh, localToWorld, out query)) return false;
-                Entries[rendererId] = new CacheEntry
+                var replacement = new CacheEntry
                 {
-                    Renderer = renderer,
+                    Renderer = new WeakReference<Renderer>(renderer),
                     StateHash = stateHash,
-                    Query = query
+                    Query = query,
+                    BakedMesh = renderer is SkinnedMeshRenderer ? mesh : null
                 };
+                if (existing != null && !ReferenceEquals(existing.BakedMesh, replacement.BakedMesh))
+                    DisposeEntry(existing);
+                Entries[rendererId] = replacement;
+                transferredMeshOwnership = ownsMesh && replacement.BakedMesh != null;
                 BuildCount++;
                 return true;
             }
             finally
             {
-                if (ownsMesh && mesh != null) UnityEngine.Object.DestroyImmediate(mesh);
+                if (ownsMesh && !transferredMeshOwnership && mesh != null)
+                    UnityEngine.Object.DestroyImmediate(mesh);
             }
         }
 
@@ -656,16 +830,36 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Matrix4x4 targetLocalToWorld,
             ClearanceSignMode signMode)
         {
-            if (targetVertices == null || !TryGet(referenceRenderer, out ClearanceQuery query))
+            if (targetVertices == null)
                 return Array.Empty<ClearanceQueryResult>();
 
+            // This array is the owned output snapshot. Traversal/state-hash scratch is
+            // allocation-free after warm-up and can also be used with a caller-owned
+            // result buffer through TryQueryPoints below.
             var results = new ClearanceQueryResult[targetVertices.Length];
-            for (int i = 0; i < targetVertices.Length; i++)
-            {
-                Vector3 worldPoint = targetLocalToWorld.MultiplyPoint3x4(targetVertices[i]);
-                results[i] = query.QueryPoint(worldPoint, signMode);
-            }
-            return results;
+            return TryQueryPoints(
+                referenceRenderer,
+                targetVertices,
+                targetLocalToWorld,
+                signMode,
+                results)
+                ? results
+                : Array.Empty<ClearanceQueryResult>();
+        }
+
+        internal static bool TryQueryPoints(
+            Renderer referenceRenderer,
+            Vector3[] targetVertices,
+            Matrix4x4 targetLocalToWorld,
+            ClearanceSignMode signMode,
+            ClearanceQueryResult[] results)
+        {
+            if (targetVertices == null || results == null || results.Length < targetVertices.Length ||
+                !TryGet(referenceRenderer, out ClearanceQuery query))
+                return false;
+
+            query.QueryPoints(targetVertices, targetLocalToWorld, signMode, results);
+            return true;
         }
 
         internal static bool TryGetRendererStateHash(Renderer renderer, out int stateHash)
@@ -723,6 +917,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static bool TryCaptureMesh(
             Renderer renderer,
+            Mesh reusableBakedMesh,
             out Mesh mesh,
             out Matrix4x4 localToWorld,
             out bool ownsMesh)
@@ -736,11 +931,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (renderer is SkinnedMeshRenderer skinned)
             {
                 if (skinned.sharedMesh == null) return false;
-                mesh = new Mesh { name = "Clearance Query Baked Mesh" };
-                ownsMesh = true;
+                mesh = reusableBakedMesh;
+                if (mesh == null)
+                {
+                    mesh = new Mesh { name = "Clearance Query Baked Mesh" };
+                    ownsMesh = true;
+                }
                 try
                 {
-                    skinned.BakeMesh(mesh);
+                    using (s_bakeMeshMarker.Auto())
+                    {
+                        skinned.BakeMesh(mesh);
+                    }
                     return mesh.vertexCount > 0;
                 }
                 catch (Exception)
@@ -762,22 +964,50 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return false;
         }
 
+        private static bool TryCaptureMesh(
+            Renderer renderer,
+            out Mesh mesh,
+            out Matrix4x4 localToWorld,
+            out bool ownsMesh)
+        {
+            return TryCaptureMesh(
+                renderer,
+                null,
+                out mesh,
+                out localToWorld,
+                out ownsMesh);
+        }
+
         private static bool TryComputeStateHash(Mesh mesh, Matrix4x4 matrix, out int hash)
         {
+            using var stateHashScope = s_stateHashMarker.Auto();
             hash = 17;
             try
             {
                 unchecked
                 {
-                    Vector3[] vertices = mesh.vertices;
-                    Vector3[] normals = mesh.normals;
-                    int[] triangles = mesh.triangles;
-                    hash = hash * 31 + vertices.Length;
-                    for (int i = 0; i < vertices.Length; i++) hash = hash * 31 + vertices[i].GetHashCode();
-                    hash = hash * 31 + normals.Length;
-                    for (int i = 0; i < normals.Length; i++) hash = hash * 31 + normals[i].GetHashCode();
-                    hash = hash * 31 + triangles.Length;
-                    for (int i = 0; i < triangles.Length; i++) hash = hash * 31 + triangles[i];
+                    using Mesh.MeshDataArray meshDataArray = Mesh.AcquireReadOnlyMeshData(mesh);
+                    if (meshDataArray.Length != 1) return false;
+
+                    Mesh.MeshData meshData = meshDataArray[0];
+                    hash = hash * 31 + meshData.vertexCount;
+                    hash = hash * 31 + meshData.vertexBufferCount;
+                    for (int stream = 0; stream < meshData.vertexBufferCount; stream++)
+                    {
+                        var vertexBytes = meshData.GetVertexData<byte>(stream);
+                        hash = hash * 31 + vertexBytes.Length;
+                        for (int i = 0; i < vertexBytes.Length; i++)
+                            hash = hash * 31 + vertexBytes[i];
+                    }
+
+                    var indexBytes = meshData.GetIndexData<byte>();
+                    hash = hash * 31 + indexBytes.Length;
+                    for (int i = 0; i < indexBytes.Length; i++)
+                        hash = hash * 31 + indexBytes[i];
+
+                    hash = hash * 31 + meshData.subMeshCount;
+                    for (int subMesh = 0; subMesh < meshData.subMeshCount; subMesh++)
+                        hash = hash * 31 + meshData.GetSubMesh(subMesh).GetHashCode();
                     for (int i = 0; i < 16; i++) hash = hash * 31 + matrix[i].GetHashCode();
                 }
                 return true;

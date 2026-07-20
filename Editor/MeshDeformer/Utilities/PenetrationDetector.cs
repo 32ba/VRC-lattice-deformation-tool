@@ -35,12 +35,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return penetrating;
             }
 
-            for (int i = 0; i < deformedVertices.Length; i++)
+            var results = new ClearanceQueryResult[deformedVertices.Length];
+            query.QueryPoints(
+                deformedVertices,
+                deformedToReference,
+                ClearanceSignMode.ReferenceNormal,
+                results);
+            for (int i = 0; i < results.Length; i++)
             {
-                Vector3 pointInRefSpace = deformedToReference.MultiplyPoint3x4(deformedVertices[i]);
-                ClearanceQueryResult result = query.QueryPoint(
-                    pointInRefSpace,
-                    ClearanceSignMode.ReferenceNormal);
+                ClearanceQueryResult result = results[i];
                 if (result.IsValid && result.SignedClearance < -0.0001f)
                 {
                     penetrating.Add(i);
