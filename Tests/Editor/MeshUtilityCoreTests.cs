@@ -339,6 +339,268 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void BrushCache_CapturesWorldPositionsAndRaycastMeshWithOneBake()
+        {
+            var rendererObject = new GameObject("Renderer");
+            var boneObject = new GameObject("Bone");
+            var mesh = CreateSingleBoneTriangleMesh();
+            try
+            {
+                boneObject.transform.SetParent(rendererObject.transform, false);
+                var renderer = rendererObject.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = mesh;
+                renderer.rootBone = boneObject.transform;
+                renderer.bones = new[] { boneObject.transform };
+                var deformer = rendererObject.AddComponent<LatticeDeformer>();
+                var handler = new BrushToolHandler();
+                SkinnedVertexHelper.WorldPositionBakeCountForTests = 0;
+
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+
+                Assert.That(SkinnedVertexHelper.WorldPositionBakeCountForTests, Is.EqualTo(1));
+                Assert.That(typeof(BrushToolHandler).GetField(
+                    "_worldPositions", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(handler),
+                    Is.Not.Null);
+                Assert.That(typeof(BrushToolHandler).GetField(
+                    "_raycastMesh", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(handler),
+                    Is.Not.Null);
+            }
+            finally
+            {
+                SkinnedVertexHelper.WorldPositionBakeCountForTests = 0;
+                Object.DestroyImmediate(rendererObject);
+                Object.DestroyImmediate(boneObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void BrushCache_WarmMeshRendererAllocatesZeroBytes()
+        {
+            var rendererObject = new GameObject("Renderer");
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            try
+            {
+                rendererObject.AddComponent<MeshRenderer>();
+                rendererObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var deformer = rendererObject.AddComponent<LatticeDeformer>();
+                var handler = new BrushToolHandler();
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+
+                Assert.That(allocated, Is.Zero);
+            }
+            finally
+            {
+                Object.DestroyImmediate(rendererObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void BrushCache_InPlaceMeshEditInvalidatesSnapshot()
+        {
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            try
+            {
+                var handler = new BrushToolHandler();
+                handler.RebuildCacheIfNeeded(mesh);
+                var before = (Vector3[])typeof(BrushToolHandler).GetField(
+                    "_meshVertices", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(handler);
+
+                var vertices = mesh.vertices;
+                vertices[0] = new Vector3(0.25f, 0.25f, 0f);
+                mesh.vertices = vertices;
+                handler.RebuildCacheIfNeeded(mesh);
+                var after = (Vector3[])typeof(BrushToolHandler).GetField(
+                    "_meshVertices", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(handler);
+
+                Assert.That(before[0], Is.EqualTo(Vector3.zero));
+                Assert.That(after[0], Is.EqualTo(new Vector3(0.25f, 0.25f, 0f)));
+            }
+            finally
+            {
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void BrushHotLoops_MismatchedDisplacementPayloadFailsClosed()
+        {
+            var rendererObject = new GameObject("Renderer");
+            BrushToolHandler handler = null;
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            mesh.RecalculateNormals();
+            try
+            {
+                rendererObject.AddComponent<MeshRenderer>();
+                rendererObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var deformer = rendererObject.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                int layerIndex = deformer.AddLayer("Malformed brush", MeshDeformerLayerType.Brush);
+                var layer = deformer.Layers[layerIndex];
+                var malformed = new[] { new Vector3(1f, 2f, 3f) };
+                layer.BrushDisplacements = malformed;
+
+                handler = new BrushToolHandler();
+                handler.Activate(deformer);
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+
+                var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+                Assert.That(
+                    typeof(BrushToolHandler).GetMethod("ApplyNormalBrush", flags).Invoke(
+                        handler, new object[] { deformer, Vector3.zero, 1f, 1f, 1f }),
+                    Is.False);
+                Assert.That(
+                    typeof(BrushToolHandler).GetMethod("ApplyMoveBrushLocalDelta", flags).Invoke(
+                        handler,
+                        new object[] { deformer, Vector3.zero, 1f, 1f, Vector3.right, Vector3.forward }),
+                    Is.False);
+                Assert.That(
+                    typeof(BrushToolHandler).GetMethod("ApplySmoothBrush", flags).Invoke(
+                        handler, new object[] { deformer, Vector3.zero, 1f, 1f }),
+                    Is.False);
+                Assert.DoesNotThrow(() =>
+                    typeof(BrushToolHandler).GetMethod("ApplyMirror", flags).Invoke(
+                        handler, new object[] { deformer, Vector3.zero, 1f, 1f, 1f }));
+                Assert.That(layer.BrushDisplacements, Is.SameAs(malformed));
+                Assert.That(layer.BrushDisplacements[0], Is.EqualTo(new Vector3(1f, 2f, 3f)));
+            }
+            finally
+            {
+                handler?.Deactivate();
+                Object.DestroyImmediate(rendererObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void BrushCache_WarmSkinnedRendererAllocatesZeroBytes()
+        {
+            var rendererObject = new GameObject("Renderer");
+            var boneObject = new GameObject("Bone");
+            var mesh = CreateSingleBoneTriangleMesh();
+            try
+            {
+                boneObject.transform.SetParent(rendererObject.transform, false);
+                var renderer = rendererObject.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = mesh;
+                renderer.rootBone = boneObject.transform;
+                renderer.bones = new[] { boneObject.transform };
+                var deformer = rendererObject.AddComponent<LatticeDeformer>();
+                var handler = new BrushToolHandler();
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+
+                Assert.That(allocated, Is.Zero);
+            }
+            finally
+            {
+                Object.DestroyImmediate(rendererObject);
+                Object.DestroyImmediate(boneObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void RestSpaceConverterCache_ReusesWarmConverterAndTracksPose()
+        {
+            var rendererObject = new GameObject("Renderer");
+            var boneObject = new GameObject("Bone");
+            var mesh = CreateSingleBoneTriangleMesh();
+            try
+            {
+                boneObject.transform.SetParent(rendererObject.transform, false);
+                var renderer = rendererObject.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = mesh;
+                renderer.rootBone = boneObject.transform;
+                renderer.bones = new[] { boneObject.transform };
+                var deformer = rendererObject.AddComponent<LatticeDeformer>();
+                var cache = new SkinnedVertexHelper.RestSpaceDeltaConverterCache();
+                var first = cache.Get(deformer);
+                Assert.That(first, Is.Not.Null);
+
+                long before = System.GC.GetAllocatedBytesForCurrentThread();
+                var warm = cache.Get(deformer);
+                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+                Assert.That(warm, Is.SameAs(first));
+                Assert.That(allocated, Is.Zero);
+
+                boneObject.transform.localPosition = Vector3.right;
+                Assert.That(cache.Get(deformer), Is.Not.SameAs(first));
+            }
+            finally
+            {
+                Object.DestroyImmediate(rendererObject);
+                Object.DestroyImmediate(boneObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void RestSpaceConverterCache_TracksSourceMeshAndProxyReplacement()
+        {
+            var rendererObject = new GameObject("Renderer");
+            var proxyObject = new GameObject("Proxy");
+            var boneObject = new GameObject("Bone");
+            var mesh = CreateSingleBoneTriangleMesh();
+            var replacementMesh = CreateSingleBoneTriangleMesh();
+            try
+            {
+                boneObject.transform.SetParent(rendererObject.transform, false);
+                var renderer = rendererObject.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = mesh;
+                renderer.rootBone = boneObject.transform;
+                renderer.bones = new[] { boneObject.transform };
+                var deformer = rendererObject.AddComponent<LatticeDeformer>();
+                var cache = new SkinnedVertexHelper.RestSpaceDeltaConverterCache();
+                var first = cache.Get(deformer);
+
+                typeof(LatticeDeformer).GetField(
+                    "_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(deformer, replacementMesh);
+                var replacement = cache.Get(deformer);
+                Assert.That(replacement, Is.Not.SameAs(first));
+
+                var proxyRenderer = proxyObject.AddComponent<SkinnedMeshRenderer>();
+                proxyRenderer.sharedMesh = replacementMesh;
+                proxyRenderer.rootBone = boneObject.transform;
+                proxyRenderer.bones = new[] { boneObject.transform };
+                LatticePreviewUtility.RegisterProxy(renderer, proxyRenderer);
+                Assert.That(cache.Get(deformer), Is.Not.SameAs(replacement));
+            }
+            finally
+            {
+                LatticePreviewUtility.ClearProxy(rendererObject.GetComponent<Renderer>());
+                Object.DestroyImmediate(rendererObject);
+                Object.DestroyImmediate(proxyObject);
+                Object.DestroyImmediate(boneObject);
+                Object.DestroyImmediate(mesh);
+                Object.DestroyImmediate(replacementMesh);
+            }
+        }
+
+        [Test]
         public void BrushTool_IntersectRayMeshDelegate_HitsKnownTriangle()
         {
             var mesh = new Mesh

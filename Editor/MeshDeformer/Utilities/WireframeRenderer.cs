@@ -17,6 +17,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static Mesh s_lineMesh;
         private static int[] s_cachedTriangleContents;
         private static int s_cachedVertexCount = -1;
+        private static int s_cachedTopologyRevision = int.MinValue;
         private static Color32[] s_vertexColors;
         private static readonly Color k_wireColor = new Color(1f, 1f, 1f, 0.15f);
 
@@ -42,7 +43,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         /// <param name="worldPositions">Pre-computed world-space vertex positions (for SkinnedMeshRenderer), or null</param>
         /// <param name="localVertices">Deformed local-space vertices (with displacements applied)</param>
         /// <param name="localToWorld">Transform matrix for local-to-world conversion (used when worldPositions is null)</param>
-        public static void Draw(int[] triangles, Vector3[] worldPositions, Vector3[] localVertices, Matrix4x4 localToWorld)
+        public static void Draw(
+            int[] triangles,
+            Vector3[] worldPositions,
+            Vector3[] localVertices,
+            Matrix4x4 localToWorld,
+            int topologyRevision = int.MinValue)
         {
             if (triangles == null || triangles.Length < 3) return;
             if (worldPositions == null && localVertices == null) return;
@@ -54,9 +60,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             mat.SetPass(0);
 
             Mesh lineMesh = EnsureLineMesh(out bool meshCreated);
+            bool hasRevision = topologyRevision != int.MinValue;
             bool topologyChanged = meshCreated ||
                                    s_cachedVertexCount != positions.Length ||
-                                   !TriangleContentsMatch(triangles, s_cachedTriangleContents);
+                                   (hasRevision
+                                       ? topologyRevision != s_cachedTopologyRevision
+                                       : !TriangleContentsMatch(triangles, s_cachedTriangleContents));
             if (topologyChanged)
             {
                 lineMesh.Clear(false);
@@ -88,6 +97,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
                 Array.Copy(triangles, s_cachedTriangleContents, triangles.Length);
                 s_cachedVertexCount = positions.Length;
+                s_cachedTopologyRevision = topologyRevision;
             }
 
             Graphics.DrawMeshNow(lineMesh, worldPositions != null ? Matrix4x4.identity : localToWorld);
@@ -155,6 +165,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             s_lineMesh.MarkDynamic();
             s_cachedTriangleContents = null;
             s_cachedVertexCount = -1;
+            s_cachedTopologyRevision = int.MinValue;
             return s_lineMesh;
         }
 

@@ -565,6 +565,85 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void MeshAdjacency_UsesFlatArraysAndPreservesUniqueNeighbors()
+        {
+            var adjacency = MeshAdjacency.Build(4, new[]
+            {
+                0, 1, 2,
+                2, 1, 3
+            });
+
+            Assert.That(adjacency.VertexCount, Is.EqualTo(4));
+            Assert.That(adjacency.NeighborCount, Is.EqualTo(10));
+            Assert.That(
+                typeof(MeshAdjacency).GetFields(
+                    System.Reflection.BindingFlags.Instance |
+                    System.Reflection.BindingFlags.NonPublic),
+                Has.All.Matches<System.Reflection.FieldInfo>(field => field.FieldType == typeof(int[])));
+            Assert.That(adjacency.GetNeighborEnd(1) - adjacency.GetNeighborStart(1), Is.EqualTo(3));
+        }
+
+        [Test]
+        public void GeodesicWorkspace_WarmRecomputeAllocatesZeroBytes()
+        {
+            var vertices = new[]
+            {
+                Vector3.zero,
+                Vector3.right,
+                Vector3.right * 2f,
+                Vector3.right * 3f
+            };
+            var adjacency = MeshAdjacency.Build(4, new[] { 0, 1, 2, 1, 2, 3 });
+            var workspace = new GeodesicDistanceCalculator.Workspace();
+            Assert.That(GeodesicDistanceCalculator.ComputeDistances(
+                0, 4f, adjacency, vertices, workspace), Is.True);
+
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            Assert.That(GeodesicDistanceCalculator.ComputeDistances(
+                0, 4f, adjacency, vertices, workspace), Is.True);
+            long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.That(allocated, Is.Zero);
+            Assert.That(workspace.TryGetDistance(3, out float distance), Is.True);
+            Assert.That(distance, Is.EqualTo(3f).Within(1e-5f));
+        }
+
+        [Test]
+        public void GeodesicWorkspace_SeventyThousandVertexWarmHoverAllocatesZeroBytes()
+        {
+            const int vertexCount = 70000;
+            var vertices = new Vector3[vertexCount];
+            var triangles = new int[(vertexCount - 2) * 3];
+            for (int i = 0; i < vertexCount; i++)
+                vertices[i] = new Vector3(i * 0.001f, 0f, 0f);
+            for (int i = 0; i < vertexCount - 2; i++)
+            {
+                triangles[i * 3] = i;
+                triangles[i * 3 + 1] = i + 1;
+                triangles[i * 3 + 2] = i + 2;
+            }
+
+            var buildWatch = System.Diagnostics.Stopwatch.StartNew();
+            var adjacency = MeshAdjacency.Build(vertexCount, triangles);
+            buildWatch.Stop();
+            var workspace = new GeodesicDistanceCalculator.Workspace();
+            Assert.That(GeodesicDistanceCalculator.ComputeDistances(
+                vertexCount / 2, 0.05f, adjacency, vertices, workspace), Is.True);
+
+            var hoverWatch = System.Diagnostics.Stopwatch.StartNew();
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            Assert.That(GeodesicDistanceCalculator.ComputeDistances(
+                vertexCount / 2, 0.05f, adjacency, vertices, workspace), Is.True);
+            long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+            hoverWatch.Stop();
+
+            TestContext.WriteLine(
+                $"70k adjacency: {buildWatch.Elapsed.TotalMilliseconds:F3} ms; " +
+                $"warm geodesic: {hoverWatch.Elapsed.TotalMilliseconds:F3} ms, {allocated} B");
+            Assert.That(allocated, Is.Zero);
+        }
+
+        [Test]
         public void ToolIcons_Content_FallsBackToTextWhenIconIsMissing()
         {
             var key = "__missing_loc_key__" + Guid.NewGuid().ToString("N");

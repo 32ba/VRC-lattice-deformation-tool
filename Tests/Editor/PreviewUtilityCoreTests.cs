@@ -563,6 +563,41 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeToolProxyCache_RevalidatesWhenPreviewRegistrationChanges()
+        {
+            var original = new GameObject("proxy-cache-original");
+            var firstProxy = new GameObject("proxy-cache-first");
+            var secondProxy = new GameObject("proxy-cache-second");
+            try
+            {
+                var originalRenderer = original.AddComponent<MeshRenderer>();
+                var firstRenderer = firstProxy.AddComponent<MeshRenderer>();
+                var secondRenderer = secondProxy.AddComponent<MeshRenderer>();
+                var handler = new LatticeToolHandler();
+
+                Assert.That(handler.ResolveProxyRenderer(originalRenderer), Is.Null);
+                long firstGeneration = LatticePreviewUtility.RegisterProxy(
+                    originalRenderer, firstRenderer);
+                Assert.That(handler.ResolveProxyRenderer(originalRenderer), Is.SameAs(firstRenderer));
+
+                LatticePreviewUtility.RegisterProxy(originalRenderer, secondRenderer);
+                Assert.That(handler.ResolveProxyRenderer(originalRenderer), Is.SameAs(secondRenderer));
+                Assert.That(LatticePreviewUtility.ClearProxy(
+                    originalRenderer, firstRenderer, firstGeneration), Is.False);
+
+                LatticePreviewUtility.ClearProxy(originalRenderer);
+                Assert.That(handler.ResolveProxyRenderer(originalRenderer), Is.Null);
+            }
+            finally
+            {
+                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(firstProxy);
+                Object.DestroyImmediate(secondProxy);
+            }
+        }
+
+        [Test]
         public void LatticeDeformerPreviewFilter_StaleNodeCannotClearOrOverwriteReplacementProxy()
         {
             var original = new GameObject("proxy-generation-original");

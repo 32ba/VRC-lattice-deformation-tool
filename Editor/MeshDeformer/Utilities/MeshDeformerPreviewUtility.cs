@@ -15,6 +15,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private const string k_DebugAlignKey = "Net32Ba.LatticeDeformer.DebugAlignLogs";
         private static readonly Dictionary<Renderer, ProxyRegistration> s_latestProxyMap = new();
         private static long s_nextProxyRegistrationGeneration;
+        private static int s_proxyMappingRevision;
 
         private readonly struct ProxyRegistration
         {
@@ -254,6 +255,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             s_latestProxyMap[original] = new ProxyRegistration(proxy, generation, restorationMesh);
+            unchecked { s_proxyMappingRevision++; }
             return generation;
         }
 
@@ -266,7 +268,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            s_latestProxyMap.Remove(original);
+            if (s_latestProxyMap.Remove(original))
+                unchecked { s_proxyMappingRevision++; }
         }
 
         /// <summary>
@@ -284,7 +287,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return false;
             }
 
-            return s_latestProxyMap.Remove(original);
+            bool removed = s_latestProxyMap.Remove(original);
+            if (removed) unchecked { s_proxyMappingRevision++; }
+            return removed;
         }
 
         internal static bool IsCurrentProxyRegistration(
@@ -329,7 +334,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             // Do not retain entries whose proxy was destroyed without a normal node
             // disposal callback.
-            s_latestProxyMap.Remove(original);
+            if (s_latestProxyMap.Remove(original))
+                unchecked { s_proxyMappingRevision++; }
             proxy = null;
             return false;
         }
@@ -338,6 +344,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             return !object.ReferenceEquals(original, null) && s_latestProxyMap.ContainsKey(original);
         }
+
+        internal static int ProxyMappingRevision => s_proxyMappingRevision;
 
         internal static bool TryGetPreviewProxy(Renderer original, out Renderer proxy)
         {
