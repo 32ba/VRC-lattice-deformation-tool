@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
@@ -16,6 +17,35 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         public void TearDown()
         {
             AssetDatabase.DeleteAsset(k_TemporaryAssetPath);
+        }
+
+        [Test]
+        public void PublicCollectionViews_DoNotExposeSerializedBackingLists()
+        {
+            var mesh = CreateMesh();
+            var deformer = CreateDeformer("ReadOnlyViews", mesh);
+            var profile = ScriptableObject.CreateInstance<MeshDeformerProfile>();
+            try
+            {
+                var firstGroupsView = deformer.Groups;
+                Assert.That(firstGroupsView, Is.Not.InstanceOf<List<DeformerGroup>>());
+                Assert.That(deformer.Groups, Is.SameAs(firstGroupsView));
+                Assert.That(firstGroupsView[0].Layers, Is.Not.InstanceOf<List<LatticeLayer>>());
+                Assert.That(firstGroupsView[0].Layers, Is.SameAs(firstGroupsView[0].Layers));
+
+                var emptyProfileView = profile.Groups;
+                profile.Capture(firstGroupsView, deformer.ActiveGroupIndex, mesh);
+                Assert.That(profile.Groups, Is.Not.InstanceOf<List<DeformerGroup>>());
+                Assert.That(profile.Groups, Is.Not.SameAs(emptyProfileView),
+                    "Replacing serialized profile data must replace its read-only wrapper as well.");
+                Assert.That(profile.Groups, Is.SameAs(profile.Groups));
+            }
+            finally
+            {
+                DestroyDeformer(deformer);
+                UnityEngine.Object.DestroyImmediate(profile);
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
         }
 
         [Test]

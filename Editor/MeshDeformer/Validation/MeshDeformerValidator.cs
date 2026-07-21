@@ -103,6 +103,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string PreviewBakeTargetMismatch = "MDV018";
         internal const string NullGroupOrLayer = "MDV019";
         internal const string SourceMeshNotReadable = "MDV020";
+        internal const string InvalidBrushData = "MDV021";
+        internal const string InvalidMaskData = "MDV022";
 
         internal static IReadOnlyList<MeshDeformerDiagnostic> Validate(
             LatticeDeformer deformer,
@@ -373,7 +375,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                 $"Brush displacement count {layer.BrushDisplacementCount} does not match vertex count {sourceMesh.vertexCount}.",
                                 g, l, "_brushDisplacements", fix != null ? "Resize" : "", fix);
                         }
-                        int maskCount = layer.VertexMask?.Length ?? 0;
+                        if (layer.HasNonFiniteSerializedBrushDisplacements)
+                        {
+                            Add(results, InvalidBrushData, MeshDeformerDiagnosticSeverity.Error, deformer,
+                                "Brush displacement data contains NaN or Infinity.",
+                                groupIndex, layerIndex, "_brushDisplacements");
+                        }
+                        int maskCount = layer.SerializedVertexMaskCount;
                         if (maskCount != 0 && maskCount != sourceMesh.vertexCount)
                         {
                             int g = groupIndex;
@@ -385,6 +393,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                             Add(results, MaskLengthMismatch, MeshDeformerDiagnosticSeverity.Error, deformer,
                                 $"Vertex mask count {maskCount} does not match vertex count {sourceMesh.vertexCount}.",
                                 g, l, "_vertexMask", fix != null ? "Resize" : "", fix);
+                        }
+                        if (layer.HasInvalidSerializedVertexMask)
+                        {
+                            Add(results, InvalidMaskData, MeshDeformerDiagnosticSeverity.Error, deformer,
+                                "Vertex mask values must be finite and between 0 and 1.",
+                                groupIndex, layerIndex, "_vertexMask");
                         }
                     }
                     else
@@ -430,10 +444,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
             Vector3 size = settings.LocalBounds.size;
             Vector3 center = settings.LocalBounds.center;
-            if (!IsFinite(size) || !IsFinite(center) || size.x <= 0f || size.y <= 0f || size.z <= 0f)
+            if (!IsFinite(size) || !IsFinite(center) ||
+                size.x < 0f || size.y < 0f || size.z < 0f ||
+                size.sqrMagnitude <= Mathf.Epsilon)
             {
                 Add(results, InvalidBounds, MeshDeformerDiagnosticSeverity.Error, deformer,
-                    "Lattice bounds must be finite and have a positive size on every axis.",
+                    "Lattice bounds must be finite, non-negative, and have a positive size on at least one axis.",
                     groupIndex, layerIndex, "_localBounds");
             }
         }

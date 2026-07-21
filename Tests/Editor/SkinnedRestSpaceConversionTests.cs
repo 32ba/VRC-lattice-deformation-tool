@@ -233,7 +233,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.Tests
                 Assert.That(method, Is.Not.Null);
                 method.Invoke(handler, new object[]
                 {
-                    fixture.Deformer, Vector3.zero, 0.1f, 0.1f, 1f
+                    fixture.Deformer, Vector3.zero, Vector3.zero, 0.1f, 0.1f, 1f
                 });
 
                 AssertVector(fixture.Deformer.GetDisplacement(0), Vector3.right);
@@ -272,6 +272,87 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.Tests
 
                 AssertVector(fixture.Deformer.GetDisplacement(0), Vector3.right);
                 Assert.That(fixture.Deformer.GetDisplacement(1), Is.EqualTo(Vector3.zero));
+            }
+            finally
+            {
+                handler.Deactivate();
+                fixture.Destroy();
+            }
+        }
+
+        [Test]
+        public void PosedBrushCenter_UsesDisplayedWorldPosition()
+        {
+            var fixture = CreateSkinnedFixture(new BoneWeight { boneIndex0 = 0, weight0 = 1f }, 1);
+            var handler = new BrushToolHandler();
+            try
+            {
+                PrepareBrushLayer(fixture.Deformer);
+                fixture.Bones[0].localPosition = Vector3.right;
+                handler.Activate(fixture.Deformer);
+                handler.RebuildCacheIfNeeded(fixture.Mesh, fixture.Deformer);
+                SetStaticField(typeof(BrushToolHandler), "s_connectedOnly", false);
+                SetStaticField(typeof(BrushToolHandler), "s_backfaceCulling", false);
+                SetStaticField(typeof(BrushToolHandler), "s_useSurfaceDistance", false);
+
+                var method = typeof(BrushToolHandler).GetMethod(
+                    "ApplyNormalBrush", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(method, Is.Not.Null);
+                bool modified = (bool)method.Invoke(handler, new object[]
+                {
+                    fixture.Deformer, Vector3.right, 0.1f, 0.1f, 1f
+                });
+
+                Assert.That(modified, Is.True,
+                    "The brush must affect the vertex at its posed visual location.");
+                Assert.That(fixture.Deformer.GetDisplacement(0).sqrMagnitude, Is.GreaterThan(0f));
+                Assert.That(fixture.Deformer.GetDisplacement(1), Is.EqualTo(Vector3.zero));
+            }
+            finally
+            {
+                handler.Deactivate();
+                fixture.Destroy();
+            }
+        }
+
+        [Test]
+        public void VertexSelectionRotateAndScale_DoNotBakeCurrentPoseIntoBrushData()
+        {
+            var fixture = CreateSkinnedFixture(new BoneWeight { boneIndex0 = 0, weight0 = 1f }, 1);
+            var handler = new VertexSelectionHandler();
+            try
+            {
+                PrepareBrushLayer(fixture.Deformer);
+                fixture.Bones[0].localPosition = Vector3.right;
+                SkinnedVertexHelper.StoreMovesInRestSpace = true;
+                VertexSelectionHandler.ProportionalEditing = false;
+                handler.Activate(fixture.Deformer);
+                handler.RebuildCacheIfNeeded(fixture.Mesh, fixture.Deformer);
+
+                var selectedField = typeof(VertexSelectionHandler).GetField(
+                    "s_selectedVertices", BindingFlags.Static | BindingFlags.NonPublic);
+                Assert.That(selectedField, Is.Not.Null);
+                var selected = (HashSet<int>)selectedField.GetValue(null);
+                selected.Clear();
+                selected.Add(0);
+
+                var rotate = typeof(VertexSelectionHandler).GetMethod(
+                    "ApplyRotationDelta", BindingFlags.Instance | BindingFlags.NonPublic);
+                var scale = typeof(VertexSelectionHandler).GetMethod(
+                    "ApplyScaleDelta", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(rotate, Is.Not.Null);
+                Assert.That(scale, Is.Not.Null);
+
+                rotate.Invoke(handler, new object[]
+                {
+                    fixture.Deformer, fixture.Deformer.MeshTransform, Vector3.right, Quaternion.identity
+                });
+                scale.Invoke(handler, new object[]
+                {
+                    fixture.Deformer, fixture.Deformer.MeshTransform, Vector3.right, Vector3.one
+                });
+
+                AssertVector(fixture.Deformer.GetDisplacement(0), Vector3.zero);
             }
             finally
             {

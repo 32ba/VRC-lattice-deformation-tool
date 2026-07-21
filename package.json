@@ -1,7 +1,7 @@
 {
   "name": "net.32ba.lattice-deformation-tool",
   "displayName": "Lattice Deformation Tool",
-  "version": "1.4.0",
+  "version": "1.4.2",
   "unity": "2022.3",
   "description": "Non-destructive layered mesh deformation for MeshRenderer and SkinnedMeshRenderer, with lattice, brush, vertex editing, BlendShape I/O, and NDMF Preview/Bake. Formerly known as Mesh Deformation Tool.",
   "author": {

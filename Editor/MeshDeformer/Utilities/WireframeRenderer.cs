@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Diagnostics.CodeAnalysis;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -20,6 +21,29 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static int s_cachedTopologyRevision = int.MinValue;
         private static Color32[] s_vertexColors;
         private static readonly Color k_wireColor = new Color(1f, 1f, 1f, 0.15f);
+
+        static WireframeRenderer()
+        {
+            AssemblyReloadEvents.beforeAssemblyReload += ReleaseStaticResources;
+        }
+
+        internal static void ReleaseStaticResources()
+        {
+            if (s_material != null)
+            {
+                UnityEngine.Object.DestroyImmediate(s_material);
+                s_material = null;
+            }
+            if (s_lineMesh != null)
+            {
+                UnityEngine.Object.DestroyImmediate(s_lineMesh);
+                s_lineMesh = null;
+            }
+            s_cachedTriangleContents = null;
+            s_vertexColors = null;
+            s_cachedVertexCount = -1;
+            s_cachedTopologyRevision = int.MinValue;
+        }
 
         private static Material EnsureMaterial()
         {

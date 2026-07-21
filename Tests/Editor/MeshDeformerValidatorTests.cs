@@ -307,6 +307,48 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void NonFiniteBrushAndOutOfRangeMask_AreErrorsAndBlockBake()
+        {
+            using var fixture = CreateFixture("Invalid Vertex Payload");
+            int layerIndex = fixture.Deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+            var serialized = new SerializedObject(fixture.Deformer);
+            var layer = serialized.FindProperty("_groups").GetArrayElementAtIndex(0)
+                .FindPropertyRelative("_layers").GetArrayElementAtIndex(layerIndex);
+            layer.FindPropertyRelative("_brushDisplacements")
+                .GetArrayElementAtIndex(0).vector3Value = new Vector3(float.NaN, 0f, 0f);
+            var mask = layer.FindPropertyRelative("_vertexMask");
+            mask.arraySize = fixture.Mesh.vertexCount;
+            for (int i = 0; i < mask.arraySize; i++)
+                mask.GetArrayElementAtIndex(i).floatValue = 1f;
+            mask.GetArrayElementAtIndex(0).floatValue = 2f;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            var codes = MeshDeformerValidator.Validate(fixture.Deformer)
+                .Select(d => d.Code).ToArray();
+            Assert.That(codes, Does.Contain(MeshDeformerValidator.InvalidBrushData));
+            Assert.That(codes, Does.Contain(MeshDeformerValidator.InvalidMaskData));
+            Assert.That(LatticeDeformerBakePass.ValidateBeforeBake(fixture.Deformer), Is.False);
+            Assert.That(fixture.Deformer.Deform(false), Is.Null);
+        }
+
+        [Test]
+        public void VertexPayloadSetters_RejectNonFiniteValues()
+        {
+            var layer = new LatticeLayer();
+            layer.EnsureBrushDisplacementCapacity(1);
+            layer.EnsureVertexMaskCapacity(1);
+
+            layer.SetBrushDisplacement(0, Vector3.one);
+            layer.SetBrushDisplacement(0, new Vector3(float.PositiveInfinity, 0f, 0f));
+            layer.AddBrushDisplacement(0, new Vector3(0f, float.NaN, 0f));
+            layer.SetVertexMask(0, 0.5f);
+            layer.SetVertexMask(0, float.NaN);
+
+            Assert.That(layer.GetBrushDisplacement(0), Is.EqualTo(Vector3.one));
+            Assert.That(layer.GetVertexMask(0), Is.EqualTo(0.5f));
+        }
+
+        [Test]
         public void InvalidLatticeGridControlPointsAndBounds_AreReported()
         {
             using var fixture = CreateFixture("Invalid Lattice");
