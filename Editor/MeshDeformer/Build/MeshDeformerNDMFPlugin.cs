@@ -27,15 +27,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
     }
 
-    [ExcludeFromCodeCoverage]
     internal sealed class LatticeDeformerBakePass : Pass<LatticeDeformerBakePass>
     {
+        [ExcludeFromCodeCoverage]
         protected override void Execute(BuildContext context)
         {
             var deformers = context.AvatarRootObject.GetComponentsInChildren<LatticeDeformer>(true);
             if (deformers == null || deformers.Length == 0)
             {
                 return;
+            }
+
+            // Validate the complete build set before any mesh is instantiated, saved, or
+            // assigned. Processing one component at a time would otherwise leave earlier
+            // renderers mutated when a later component fails validation.
+            if (!ValidateAllBeforeBake(deformers, out var firstInvalid))
+            {
+                string invalidName = firstInvalid != null ? firstInvalid.name : "unknown";
+                throw new InvalidOperationException(
+                    $"Mesh Deformer validation failed for '{invalidName}'. See MDV diagnostic codes in the Editor log.");
             }
 
             bool previousSuppressRestore = LatticeDeformer.SuppressRestoreOnDisable;
@@ -45,7 +55,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 foreach (var deformer in deformers)
                 {
-                    ProcessDeformer(context, deformer);
+                    ProcessValidatedDeformer(context, deformer);
                 }
             }
             finally
@@ -54,19 +64,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private static void ProcessDeformer(BuildContext context, LatticeDeformer deformer)
+        [ExcludeFromCodeCoverage]
+        private static void ProcessValidatedDeformer(BuildContext context, LatticeDeformer deformer)
         {
             if (!ShouldProcessDeformer(deformer))
             {
                 return;
-            }
-
-            var diagnostics = MeshDeformerValidator.Validate(deformer, GetCurrentTargetMesh(deformer));
-            MeshDeformerValidator.Log(diagnostics);
-            if (MeshDeformerValidator.HasErrors(diagnostics))
-            {
-                throw new InvalidOperationException(
-                    $"Mesh Deformer validation failed for '{deformer.name}'. See MDV diagnostic codes in the Editor log.");
             }
 
             var skinnedMesh = deformer.GetComponent<SkinnedMeshRenderer>();
@@ -154,6 +157,29 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal static bool ValidateBeforeBake(LatticeDeformer deformer)
         {
             return !MeshDeformerValidator.HasErrors(ValidateBeforeBakeDiagnostics(deformer));
+        }
+
+        internal static bool ValidateAllBeforeBake(
+            IReadOnlyList<LatticeDeformer> deformers,
+            out LatticeDeformer firstInvalid)
+        {
+            firstInvalid = null;
+            if (deformers == null) return true;
+
+            for (int i = 0; i < deformers.Count; i++)
+            {
+                var deformer = deformers[i];
+                if (!ShouldProcessDeformer(deformer)) continue;
+
+                var diagnostics = ValidateBeforeBakeDiagnostics(deformer);
+                MeshDeformerValidator.Log(diagnostics);
+                if (firstInvalid == null && MeshDeformerValidator.HasErrors(diagnostics))
+                {
+                    firstInvalid = deformer;
+                }
+            }
+
+            return firstInvalid == null;
         }
 
         internal static IReadOnlyList<MeshDeformerDiagnostic> ValidateBeforeBakeDiagnostics(LatticeDeformer deformer)

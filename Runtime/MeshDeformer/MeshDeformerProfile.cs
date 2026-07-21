@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -182,8 +183,22 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, TextArea] private string _description = "";
         [SerializeField, TextArea] private string _targetAsset = "";
         [SerializeField, TextArea] private string _notes = "";
+        [NonSerialized] private List<DeformerGroup> _readOnlyGroupSource;
+        [NonSerialized] private ReadOnlyCollection<DeformerGroup> _readOnlyGroups;
 
-        public IReadOnlyList<DeformerGroup> Groups => _groups ?? (_groups = new List<DeformerGroup>());
+        public IReadOnlyList<DeformerGroup> Groups
+        {
+            get
+            {
+                if (_groups == null) _groups = new List<DeformerGroup>();
+                if (_readOnlyGroups == null || !ReferenceEquals(_readOnlyGroupSource, _groups))
+                {
+                    _readOnlyGroupSource = _groups;
+                    _readOnlyGroups = _groups.AsReadOnly();
+                }
+                return _readOnlyGroups;
+            }
+        }
         public MeshCompatibilityMetadata Compatibility => _compatibility;
         public string DisplayName { get => _displayName ?? ""; set => _displayName = value ?? ""; }
         public string Author { get => _author ?? ""; set => _author = value ?? ""; }

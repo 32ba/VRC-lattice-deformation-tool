@@ -1,7 +1,12 @@
 name: Build Release
 
-on: 
+on:
   workflow_dispatch:
+    inputs:
+      performance-report:
+        description: "Profiler evidence (scenario, p50/p95/max, GC allocation, and report URL or artifact)"
+        required: true
+        type: string
 
 jobs:
 
@@ -15,17 +20,28 @@ jobs:
     # Ensure that required repository variable has been created for the Package
     - name: Validate Package Config
       id: config_package
+      env:
+        PERFORMANCE_REPORT: ${{ inputs.performance-report }}
       run: |
-        if [ "${{ vars.PACKAGE_NAME }}" != "" ]; then
+        if [ "${{ vars.PACKAGE_NAME }}" != "" ] && [ -n "$PERFORMANCE_REPORT" ]; then
           echo "configPackage=true" >> $GITHUB_OUTPUT;
         else
           echo "configPackage=false" >> $GITHUB_OUTPUT;
+          echo "PACKAGE_NAME and performance-report are required." >&2;
+          exit 1;
         fi
+
+  quality:
+    needs: config
+    if: needs.config.outputs.config_package == 'true'
+    uses: ./.github/workflows/coverage.yml
+    with:
+      minimum-test-total: "900"
 
   # Build and release the Package
   # If the repository is not configured properly, this job will be skipped
   build:
-    needs: config
+    needs: [config, quality]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -34,14 +50,14 @@ jobs:
 
       # Checkout Local Repository
       - name: Checkout
-        uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Generate token
         id: generate_token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
         with:
-          app-id: ${{ secrets.VPM_MANAGEMENT_GITHUB_APP_ID }}
-          private-key: ${{ secrets.VPM_MANAGEMENT_GITHUB_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
       # Get the Package version based on the package.json file
@@ -51,6 +67,14 @@ jobs:
         with: 
             file_path: "package.json"
             prop_path: "version"
+
+      - name: Reject an existing release tag
+        run: |
+          git fetch --force --tags
+          if git rev-parse --verify --quiet "refs/tags/${{ steps.version.outputs.value }}"; then
+            echo "Release tag ${{ steps.version.outputs.value }} already exists. Bump package.json before releasing." >&2
+            exit 1
+          fi
     
       # Configure the Environment Variables needed for releasing the Package
       - name: Set Environment Variables
@@ -61,7 +85,7 @@ jobs:
           
       # Zip the Package for release
       - name: Create Package Zip
-        run: zip -r "${{ github.workspace }}/${{ steps.set_env.outputs.zipFile }}" . -x '.*' '*/.*' 'CLAUDE.md' 'CLAUDE.md.meta' 'Tests/' 'Tests/**' 'Tests.meta' 'Tools~/' 'Tools~/**'
+        run: zip -r "${{ github.workspace }}/${{ steps.set_env.outputs.zipFile }}" . -x '.*' '*/.*' 'AGENTS.md' 'AGENTS.md.meta' 'CLAUDE.md' 'CLAUDE.md.meta' 'Tests/' 'Tests/**' 'Tests.meta' 'Tools~/' 'Tools~/**'
 
       - name: Prepare Unity Package Layout
         run: |
@@ -79,6 +103,8 @@ jobs:
             --exclude '.gitmodules' \
             --exclude '.gitignore' \
             --exclude '.gitattributes' \
+            --exclude 'AGENTS.md' \
+            --exclude 'AGENTS.md.meta' \
             --exclude 'CLAUDE.md' \
             --exclude 'CLAUDE.md.meta' \
             --exclude 'Tests/' \
@@ -96,7 +122,7 @@ jobs:
       
       # Make a UnityPackage version of the Package for release
       - name: Create UnityPackage
-        uses: pCYSl5EDgo/create-unitypackage@v1.2.3
+        uses: pCYSl5EDgo/create-unitypackage@b5c57408698b1fab8b3a84d4b67f767b8b7c0be9 # v1.2.3
         with:
           package-path: ${{ steps.set_env.outputs.unityPackage }}
           include-files: metaList
@@ -117,6 +143,10 @@ jobs:
             ${{ steps.set_env.outputs.unityPackage }}
             package.json
           tag_name: ${{ steps.version.outputs.value }}
+          body: |
+            Automated quality gate: EditMode tests and enforced line coverage passed.
+
+            Performance evidence: ${{ inputs.performance-report }}
 
       # Update listing using the GitHub API
       - name: Update VPM repository

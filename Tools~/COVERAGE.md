@@ -9,19 +9,19 @@ This package targets 100% line coverage for these production assemblies:
 The coverage command is:
 
 ```powershell
-./Tools~/Run-Coverage.ps1 -ProjectPath D:\VRC\Projects\Plugin-dev-playground -MinimumTestTotal 421
+./Tools~/Run-Coverage.ps1 -ProjectPath D:\VRC\Projects\Plugin-dev-playground -MinimumTestTotal 900
 ```
 
 To fail the run unless the generated XML reports 100% line coverage:
 
 ```powershell
-./Tools~/Run-Coverage.ps1 -ProjectPath D:\VRC\Projects\Plugin-dev-playground -MinimumTestTotal 421 -EnforceLineCoverage
+./Tools~/Run-Coverage.ps1 -ProjectPath D:\VRC\Projects\Plugin-dev-playground -MinimumTestTotal 900 -EnforceLineCoverage
 ```
 
 To validate the fixed paths, filters, Unity executable, package path, and Code Coverage package without launching Unity or cleaning previous artifacts:
 
 ```powershell
-./Tools~/Run-Coverage.ps1 -ProjectPath D:\VRC\Projects\Plugin-dev-playground -MinimumTestTotal 421 -PreflightOnly
+./Tools~/Run-Coverage.ps1 -ProjectPath D:\VRC\Projects\Plugin-dev-playground -MinimumTestTotal 900 -PreflightOnly
 ```
 
 ## MCP Execution
@@ -64,7 +64,7 @@ Omit `net.32ba.lattice-deformation-tool.vrchat` from manual `Assert-Coverage.ps1
 
 If Unity logs `Visited sequence points not found`, Code Coverage was enabled after the current Editor process had already compiled or loaded the target assemblies without coverage instrumentation. Keep the MCP configuration, restart the Editor, confirm `GetStatus` reports `Coverage.enabled=True`, `CodeOptimization=Debug`, `ScriptDebugInfoEnabled=True`, `BurstCompilation=False`, and `CoverageXmlFiles=0` before the run, then rerun the UnityMCP test command. After the run, `CoverageXmlFiles` and `CoverageHtmlFiles` must be greater than zero before the line coverage gate is meaningful.
 
-The current successful MCP test baseline produced `421/421` passing EditMode tests. The latest coverage baseline generated XML/HTML artifacts under `Temp/LatticeCoverage`; after excluding explicit Unity/NDMF/GUI/Burst job glue and adding focused Runtime/WeightTransfer/Editor utility coverage, the current baseline line coverage is:
+The current successful MCP baseline produced `897/897` passing EditMode tests before three final spatial-hash regression cases were added; those cases were then run directly and passed, bringing the enforced minimum to 900. The separate VRChat assembly also passed `3/3`. The latest coverage baseline generated XML/HTML artifacts under `Temp/LatticeCoverage`; after excluding explicit Unity/NDMF/GUI/Burst job glue and adding focused Runtime/WeightTransfer/Editor utility coverage, the current baseline line coverage is:
 
 - `net.32ba.lattice-deformation-tool`: 100.0%
 - `net.32ba.lattice-deformation-tool.editor`: 100.0%
@@ -90,12 +90,14 @@ Run it with the Unity Editor closed. The script fixes:
 - EditMode test assembly: `net.32ba.lattice-deformation-tool.tests.editor`, plus `net.32ba.lattice-deformation-tool.tests.editor.vrchat` when `com.vrchat.avatars` is present
 - Unity Code Coverage package execution: `-enableCodeCoverage`
 - coverage accuracy flags: `-debugCodeOptimization` and `-burst-disable-compilation`
-- test result gate: `Tools~/Assert-TestResults.ps1` requires `result="Passed"` and total/passed with zero failed/skipped/inconclusive tests; current minimum total is 421
+- test result gate: `Tools~/Assert-TestResults.ps1` requires `result="Passed"` and total/passed with zero failed/skipped/inconclusive tests; current minimum total is 900
 - artifact gate: `Tools~/Assert-CoverageArtifacts.ps1` requires generated coverage XML and HTML report files under `ResultsPath`
 - optional line coverage gate: `Tools~/Assert-Coverage.ps1 -MinimumLineCoverage 100` requires each target assembly coverage entry to be present and at 100%
 - preflight: Unity Code Coverage package (`com.unity.testtools.codecoverage`) must be present in `Packages/packages-lock.json` or `Library/PackageCache`
 - `-PreflightOnly`: prints the resolved coverage configuration and exits before Unity launch, result cleanup, or open-editor checks
 - stale-result protection: `ResultsPath` is cleaned before Unity runs; external result paths require `-AllowExternalResultsClean`
+
+The workflow runs automatically for pull requests and pushes to `master`, and is also reused by the release workflow. It defaults to the self-hosted runner project at `D:\VRC\Projects\Plugin-dev-playground`; the `UNITY_PROJECT_PATH` repository variable or a manual input can override that path. A release cannot be built until this gate passes and the dispatcher supplies Profiler evidence including p50, p95, max, and GC allocation.
 
 The gate accepts XML values such as `line-rate="1.0"` and rejects values below 100%, including `line-rate="0.999"`.
 
@@ -139,9 +141,7 @@ These classes are excluded from line coverage because their remaining responsibi
 - `VertexSelectionHandler`
 - `LatticeToolHandler`
 - `LatticeDeformerPreviewFilter`
-- `BrushDeformerPreviewFilter`
 - `LatticeDeformerNDMFPlugin`
-- `LatticeDeformerBakePass`
 - `ReleaseNotificationGUI`
 - `WireframeRenderer`
 - `LatticePrefabUtility`
@@ -155,11 +155,11 @@ Method-level exclusions are also used for `ReleaseChecker` delayed startup and V
 
 `LatticeLocalization.GetPackageRoot` is excluded as Unity PackageManager/AssetDatabase package-root discovery glue. Catalog parsing, path resolution with an injected package root, language preferences, tooltip fallback, and English fallback behavior remain covered.
 
-`LatticeDeformerBakePass` is excluded as NDMF build-pipeline glue because its observable effects require a real `BuildContext`, `AssetSaver`, and `ObjectRegistry` replacement cycle. Burst `IJobParallelFor` worker structs are excluded as Burst/Job glue; their public callers, sequential equivalents, validation paths, and managed data conversion remain test targets, while the workers mirror those algorithms inside Unity's job runner and previously made Code Coverage report generation unstable in MCP-driven runs.
+Only `LatticeDeformerBakePass.Execute` and its `BuildContext` mutation routine are excluded as NDMF build-pipeline glue because their asset-save and object-replacement effects require a real `BuildContext`, `AssetSaver`, and `ObjectRegistry` cycle. The whole-build validation preflight, enabled-state routing, diagnostics, and target-mesh selection remain instrumented and tested. Burst `IJobParallelFor` worker structs are excluded as Burst/Job glue; their public callers, sequential equivalents, validation paths, and managed data conversion remain test targets, while the workers mirror those algorithms inside Unity's job runner and previously made Code Coverage report generation unstable in MCP-driven runs.
 
 ## Verification Gates
 
-- `Tests/Editor` keeps passing as the suite grows; current MCP baseline is `421/421`.
+- `Tests/Editor` keeps passing as the suite grows; the enforced minimum is 900 tests.
 - UnityMCP, batchmode, or CI generates coverage artifacts under `Temp/LatticeCoverage`.
 - Final line coverage for the three target assemblies is 100%.
 - Any excluded line has an explicit UI/SceneView/glue rationale.

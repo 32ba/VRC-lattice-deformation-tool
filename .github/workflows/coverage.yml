@@ -1,11 +1,16 @@
 name: Coverage
 
 on:
+  pull_request:
+  push:
+    branches:
+      - master
   workflow_dispatch:
     inputs:
       project-path:
         description: "Absolute path to the Unity project containing this package"
-        required: true
+        required: false
+        default: "D:\\VRC\\Projects\\Plugin-dev-playground"
         type: string
       unity-path:
         description: "Absolute path to Unity.exe"
@@ -15,26 +20,59 @@ on:
       minimum-test-total:
         description: "Minimum expected EditMode test count"
         required: false
-        default: "287"
+        default: "900"
         type: string
+  workflow_call:
+    inputs:
+      project-path:
+        description: "Absolute path to the Unity project containing this package"
+        required: false
+        type: string
+      unity-path:
+        description: "Absolute path to Unity.exe"
+        required: false
+        default: "C:\\Program Files\\Unity\\Hub\\Editor\\2022.3.22f1\\Editor\\Unity.exe"
+        type: string
+      minimum-test-total:
+        description: "Minimum expected EditMode test count"
+        required: false
+        default: "900"
+        type: string
+
+concurrency:
+  group: coverage-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROJECT_PATH: ${{ inputs.project-path || vars.UNITY_PROJECT_PATH || 'D:\\VRC\\Projects\\Plugin-dev-playground' }}
+  UNITY_PATH: ${{ inputs.unity-path || 'C:\\Program Files\\Unity\\Hub\\Editor\\2022.3.22f1\\Editor\\Unity.exe' }}
+  MINIMUM_TEST_TOTAL: ${{ inputs.minimum-test-total || '900' }}
 
 jobs:
   editmode-coverage:
     runs-on: [self-hosted, Windows]
     steps:
       - name: Checkout package
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Validate runner configuration
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PROJECT_PATH)) {
+            throw "Set the UNITY_PROJECT_PATH repository variable or pass project-path explicitly."
+          }
+          if (-not (Test-Path -LiteralPath $env:PROJECT_PATH)) {
+            throw "Project path was not found: $env:PROJECT_PATH"
+          }
+          if (-not (Test-Path -LiteralPath $env:UNITY_PATH)) {
+            throw "Unity executable was not found: $env:UNITY_PATH"
+          }
 
       - name: Sync package into Unity project
         shell: pwsh
         run: |
-          $projectPath = "${{ inputs.project-path }}"
           $sourcePath = "${{ github.workspace }}"
-          $destinationPath = Join-Path $projectPath "Packages\net.32ba.lattice-deformation-tool"
-
-          if (-not (Test-Path $projectPath)) {
-            throw "Project path was not found: $projectPath"
-          }
+          $destinationPath = Join-Path $env:PROJECT_PATH "Packages\net.32ba.lattice-deformation-tool"
 
           if (([System.IO.Path]::GetFullPath($sourcePath)).TrimEnd('\') -ieq ([System.IO.Path]::GetFullPath($destinationPath)).TrimEnd('\')) {
             Write-Host "Checkout is already at the Unity package path."
@@ -51,25 +89,24 @@ jobs:
       - name: Preflight coverage configuration
         shell: pwsh
         run: >
-          & "${{ inputs.project-path }}\Packages\net.32ba.lattice-deformation-tool\Tools~\Run-Coverage.ps1"
-          -ProjectPath "${{ inputs.project-path }}"
-          -UnityPath "${{ inputs.unity-path }}"
-          -MinimumTestTotal ${{ inputs.minimum-test-total }}
+          & "$env:PROJECT_PATH\Packages\net.32ba.lattice-deformation-tool\Tools~\Run-Coverage.ps1"
+          -ProjectPath "$env:PROJECT_PATH"
+          -UnityPath "$env:UNITY_PATH"
+          -MinimumTestTotal $env:MINIMUM_TEST_TOTAL
           -PreflightOnly
 
       - name: Run EditMode tests with code coverage
         shell: pwsh
         run: >
-          & "${{ inputs.project-path }}\Packages\net.32ba.lattice-deformation-tool\Tools~\Run-Coverage.ps1"
-          -ProjectPath "${{ inputs.project-path }}"
-          -UnityPath "${{ inputs.unity-path }}"
-          -MinimumTestTotal ${{ inputs.minimum-test-total }}
+          & "$env:PROJECT_PATH\Packages\net.32ba.lattice-deformation-tool\Tools~\Run-Coverage.ps1"
+          -ProjectPath "$env:PROJECT_PATH"
+          -UnityPath "$env:UNITY_PATH"
+          -MinimumTestTotal $env:MINIMUM_TEST_TOTAL
           -EnforceLineCoverage
 
       - name: Upload coverage artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: lattice-coverage
-          path: |
-            ${{ inputs.project-path }}\Temp\LatticeCoverage
+          path: ${{ env.PROJECT_PATH }}\Temp\LatticeCoverage

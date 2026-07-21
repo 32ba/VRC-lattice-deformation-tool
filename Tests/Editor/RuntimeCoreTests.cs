@@ -70,6 +70,60 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void Deform_WarmSeventyThousandVertexBrushPathAvoidsVertexSizedManagedAllocation()
+        {
+            const int vertexCount = 70225;
+            var go = new GameObject("warm-deform-allocation");
+            var mesh = new Mesh
+            {
+                name = "WarmDeformAllocationMesh",
+                indexFormat = UnityEngine.Rendering.IndexFormat.UInt32
+            };
+            try
+            {
+                var vertices = new Vector3[vertexCount];
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    vertices[i] = new Vector3((i % 265) * 0.001f, (i / 265) * 0.001f, 0f);
+                }
+                mesh.vertices = vertices;
+                mesh.RecalculateBounds();
+
+                var filter = go.AddComponent<MeshFilter>();
+                filter.sharedMesh = mesh;
+                go.AddComponent<MeshRenderer>();
+                var deformer = go.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                deformer.Layers[0].Enabled = false;
+                int brushIndex = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushIndex;
+                deformer.EnsureDisplacementCapacity();
+                typeof(LatticeDeformer).GetField(
+                    "_recalculateNormals", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.SetValue(deformer, false);
+                typeof(LatticeDeformer).GetField(
+                    "_recalculateTangents", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.SetValue(deformer, false);
+
+                Assert.That(deformer.Deform(false), Is.Not.Null);
+                Assert.That(deformer.Deform(false), Is.Not.Null);
+
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                Assert.That(deformer.Deform(false), Is.Not.Null);
+                long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+                TestContext.WriteLine($"70k warm Deform managed allocation: {allocated} B");
+                Assert.That(allocated, Is.LessThan(64 * 1024),
+                    "A warm edit must not allocate full-size vertex arrays.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
         public void BrushCapacity_InvalidMaskDoesNotAllocateDisplacements()
         {
             var layer = new LatticeLayer();

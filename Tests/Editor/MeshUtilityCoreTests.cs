@@ -11,6 +11,163 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     public sealed class MeshUtilityCoreTests
     {
         [Test]
+        public void ProportionalInfluenceCache_UsesExactWorldSpaceDistance()
+        {
+            var cache = new VertexProportionalInfluenceCache();
+            var positions = new[]
+            {
+                Vector3.zero,
+                new Vector3(0.5f, 0f, 0f),
+                new Vector3(1.01f, 0f, 0f),
+                new Vector3(0f, 0.75f, 0f)
+            };
+
+            cache.Rebuild(
+                positions,
+                new HashSet<int> { 0 },
+                1f,
+                VertexSelectionHandler.FalloffType.Linear);
+
+            Assert.That(cache.GetInfluence(0), Is.EqualTo(1f).Within(1e-6f));
+            Assert.That(cache.GetInfluence(1), Is.EqualTo(0.5f).Within(1e-6f));
+            Assert.That(cache.GetInfluence(2), Is.Zero);
+            Assert.That(cache.GetInfluence(3), Is.EqualTo(0.25f).Within(1e-6f));
+        }
+
+        [Test]
+        public void ProportionalInfluenceCache_SpatialHashMatchesBruteForce()
+        {
+            const int vertexCount = 240;
+            const float radius = 0.37f;
+            var random = new System.Random(32017);
+            var positions = new Vector3[vertexCount];
+            var selected = new HashSet<int>();
+            for (int index = 0; index < vertexCount; index++)
+            {
+                positions[index] = new Vector3(
+                    (float)(random.NextDouble() * 4.0 - 2.0),
+                    (float)(random.NextDouble() * 4.0 - 2.0),
+                    (float)(random.NextDouble() * 4.0 - 2.0));
+                if (index % 5 == 0) selected.Add(index);
+            }
+
+            var cache = new VertexProportionalInfluenceCache();
+            cache.Rebuild(
+                positions,
+                selected,
+                radius,
+                VertexSelectionHandler.FalloffType.Linear);
+
+            for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
+            {
+                float nearest = radius;
+                foreach (int selectedIndex in selected)
+                {
+                    nearest = Mathf.Min(
+                        nearest,
+                        Vector3.Distance(positions[vertexIndex], positions[selectedIndex]));
+                }
+                float expected = nearest < radius ? 1f - nearest / radius : 0f;
+                Assert.That(cache.GetInfluence(vertexIndex), Is.EqualTo(expected).Within(1e-6f),
+                    $"vertex {vertexIndex}");
+            }
+        }
+
+        [Test]
+        public void ProportionalInfluenceCache_HandlesEmptyInputsClearAndEveryFalloff()
+        {
+            var cache = new VertexProportionalInfluenceCache();
+            cache.Rebuild(null, null, 1f, VertexSelectionHandler.FalloffType.Linear);
+            Assert.That(cache.VertexCount, Is.Zero);
+
+            var positions = new[] { Vector3.zero, new Vector3(0.5f, 0f, 0f), new Vector3(0.95f, 0f, 0f) };
+            cache.Rebuild(positions, null, 1f, VertexSelectionHandler.FalloffType.Linear);
+            cache.Rebuild(positions, new HashSet<int>(), 1f, VertexSelectionHandler.FalloffType.Linear);
+            cache.Rebuild(positions, new HashSet<int> { 99 }, 1f, VertexSelectionHandler.FalloffType.Linear);
+            cache.Rebuild(positions, new HashSet<int> { 0 }, 0f, VertexSelectionHandler.FalloffType.Linear);
+            Assert.That(cache.GetInfluence(-1), Is.Zero);
+            Assert.That(cache.GetInfluence(positions.Length), Is.Zero);
+
+            var selected = new HashSet<int> { 0 };
+            cache.Rebuild(positions, selected, 1f, VertexSelectionHandler.FalloffType.Constant);
+            Assert.That(cache.GetInfluence(1), Is.EqualTo(1f));
+            cache.Rebuild(positions, selected, 1f, VertexSelectionHandler.FalloffType.Sphere);
+            Assert.That(cache.GetInfluence(2), Is.EqualTo(0.5f).Within(1e-5f));
+            cache.Rebuild(positions, selected, 1f, VertexSelectionHandler.FalloffType.Gaussian);
+            Assert.That(cache.GetInfluence(1), Is.EqualTo(Mathf.Exp(-0.75f)).Within(1e-6f));
+            cache.Rebuild(positions, selected, 1f, VertexSelectionHandler.FalloffType.Smooth);
+            Assert.That(cache.GetInfluence(1), Is.EqualTo(0.5f).Within(1e-6f));
+            cache.Rebuild(positions, selected, 1f, (VertexSelectionHandler.FalloffType)999);
+            Assert.That(cache.GetInfluence(1), Is.EqualTo(0.5f).Within(1e-6f));
+
+            cache.Clear();
+            Assert.That(cache.GetInfluence(0), Is.Zero);
+            Assert.That(cache.LastQueryNodeVisits, Is.Zero);
+        }
+
+        [Test]
+        public void ProportionalInfluenceCache_SparseSelectionUsesExactHashedFallback()
+        {
+            const int selectedCount = 40;
+            var positions = new Vector3[selectedCount * 2];
+            var selected = new HashSet<int>();
+            for (int index = 0; index < selectedCount; index++)
+            {
+                positions[index] = new Vector3(index * 1000f, -index * 0.25f, index * 0.125f);
+                positions[index + selectedCount] = positions[index] + Vector3.right * 0.5f;
+                selected.Add(index);
+            }
+
+            var cache = new VertexProportionalInfluenceCache();
+            cache.Rebuild(
+                positions,
+                selected,
+                1f,
+                VertexSelectionHandler.FalloffType.Linear);
+
+            for (int index = 0; index < selectedCount; index++)
+            {
+                Assert.That(cache.GetInfluence(index), Is.EqualTo(1f));
+                Assert.That(cache.GetInfluence(index + selectedCount),
+                    Is.EqualTo(0.5f).Within(1e-6f));
+            }
+        }
+
+        [Test]
+        public void ProportionalInfluenceCache_SeventyThousandVerticesAvoidsPairwiseScanAndWarmGc()
+        {
+            const int width = 265;
+            const int vertexCount = width * width;
+            var positions = new Vector3[vertexCount];
+            var selected = new HashSet<int>();
+            for (int i = 0; i < vertexCount; i++)
+            {
+                positions[i] = new Vector3((i % width) * 0.001f, (i / width) * 0.001f, 0f);
+                if (i % 70 == 0) selected.Add(i);
+            }
+
+            var cache = new VertexProportionalInfluenceCache();
+            cache.Rebuild(
+                positions,
+                selected,
+                0.004f,
+                VertexSelectionHandler.FalloffType.Smooth);
+
+            long pairwiseComparisons = (long)vertexCount * selected.Count;
+            Assert.That(cache.LastQueryNodeVisits, Is.LessThan(pairwiseComparisons / 2),
+                "The cached nearest-neighbor query must remain sub-quadratic.");
+
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            cache.Rebuild(
+                positions,
+                selected,
+                0.004f,
+                VertexSelectionHandler.FalloffType.Smooth);
+            long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.That(allocated, Is.Zero);
+        }
+
+        [Test]
         public void WireframeRenderer_BuildLineIndices_PreservesTriangleEdgeMultiplicity()
         {
             int[] indices = WireframeRenderer.BuildLineIndices(
@@ -356,6 +513,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 SkinnedVertexHelper.WorldPositionBakeCountForTests = 0;
 
                 handler.RebuildCacheIfNeeded(mesh, deformer);
+                handler.RebuildCacheIfNeeded(mesh, deformer);
 
                 Assert.That(SkinnedVertexHelper.WorldPositionBakeCountForTests, Is.EqualTo(1));
                 Assert.That(typeof(BrushToolHandler).GetField(
@@ -364,6 +522,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(typeof(BrushToolHandler).GetField(
                     "_raycastMesh", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(handler),
                     Is.Not.Null);
+
+                boneObject.transform.localPosition = Vector3.right;
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                Assert.That(SkinnedVertexHelper.WorldPositionBakeCountForTests, Is.EqualTo(2),
+                    "A changed pose must invalidate the shared brush snapshot.");
             }
             finally
             {
@@ -982,7 +1145,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 SetHandlerField(handler, "_selectionStartPos", new Vector2(41f, 73f));
                 SetHandlerField(handler, "_isTransforming", true);
                 SetHandlerField(handler, "_preTransformDisplacements", new[] { Vector3.one });
-                SetHandlerField(handler, "_preTransformPositions", new[] { Vector3.right });
+                SetHandlerField(handler, "_preTransformWorldPositions", new[] { Vector3.right });
                 SetHandlerField(handler, "_handleRotation", Quaternion.Euler(10f, 20f, 30f));
                 SetHandlerField(handler, "_handleScale", new Vector3(2f, 3f, 4f));
 
@@ -993,7 +1156,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(GetHandlerField<Vector2>(handler, "_selectionStartPos"), Is.EqualTo(Vector2.zero));
                 Assert.That(GetHandlerField<bool>(handler, "_isTransforming"), Is.False);
                 Assert.That(GetHandlerField<Vector3[]>(handler, "_preTransformDisplacements"), Is.Null);
-                Assert.That(GetHandlerField<Vector3[]>(handler, "_preTransformPositions"), Is.Null);
+                Assert.That(GetHandlerField<Vector3[]>(handler, "_preTransformWorldPositions"), Is.Null);
                 Assert.That(GetHandlerField<Quaternion>(handler, "_handleRotation"), Is.EqualTo(Quaternion.identity));
                 Assert.That(GetHandlerField<Vector3>(handler, "_handleScale"), Is.EqualTo(Vector3.one));
                 Assert.That(

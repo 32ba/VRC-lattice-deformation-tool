@@ -52,6 +52,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static HandleOrientation s_handleOrientation = HandleOrientation.Normal;
         private static PivotMode s_pivotMode = PivotMode.Center;
         private static int s_lastSelectedVertex = -1;
+        private static int s_selectionRevision;
+        private static int s_proportionalSettingsRevision;
 
         // Overlay foldout states
         private static bool s_showProportionalSection = false;
@@ -93,7 +95,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Vector3 _handleScale = Vector3.one;
         private bool _isTransforming;
         private Vector3[] _preTransformDisplacements;
-        private Vector3[] _preTransformPositions;
+        private Vector3[] _preTransformWorldPositions;
+        private Vector3[] _proportionalWorldPositions;
+        private readonly VertexProportionalInfluenceCache _proportionalInfluenceCache =
+            new VertexProportionalInfluenceCache();
+        private readonly SkinnedVertexHelper.RestSpaceDeltaConverterCache _restSpaceConverterCache =
+            new SkinnedVertexHelper.RestSpaceDeltaConverterCache();
+        private int _cachedInfluenceSelectionRevision = -1;
+        private int _cachedInfluenceSettingsRevision = -1;
+        private int _cachedInfluenceSourceRevision = -1;
+        private int _transformInfluenceRevision;
+        private Matrix4x4 _cachedInfluenceMatrix;
 
         private static readonly Color k_UnselectedVertexColor = new Color(0.2f, 0.8f, 1f, 0.6f);
         private static readonly Color k_SelectedVertexColor = new Color(1f, 1f, 0f, 1f);
@@ -105,6 +117,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         static VertexSelectionHandler()
         {
             LatticeLocalization.LanguageChanged += OnLanguageChanged;
+            AssemblyReloadEvents.beforeAssemblyReload += ReleaseStaticResources;
+        }
+
+        internal static void ReleaseStaticResources()
+        {
+            if (s_vertexDotMaterial != null)
+            {
+                UnityEngine.Object.DestroyImmediate(s_vertexDotMaterial);
+                s_vertexDotMaterial = null;
+            }
+            if (s_circleTex != null)
+            {
+                UnityEngine.Object.DestroyImmediate(s_circleTex);
+                s_circleTex = null;
+            }
         }
 
         private static void OnLanguageChanged()
@@ -133,7 +160,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             get => s_proportionalRadius > 0f;
             set
             {
-                if (!value) s_proportionalRadius = 0f;
+                if (!value && s_proportionalRadius != 0f)
+                {
+                    s_proportionalRadius = 0f;
+                    s_proportionalSettingsRevision++;
+                }
                 SceneView.RepaintAll();
             }
         }
@@ -143,7 +174,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             get => s_proportionalRadius;
             set
             {
-                s_proportionalRadius = Mathf.Clamp(value, 0f, 5.0f);
+                float clamped = Mathf.Clamp(value, 0f, 5.0f);
+                if (Mathf.Approximately(s_proportionalRadius, clamped)) return;
+                s_proportionalRadius = clamped;
+                s_proportionalSettingsRevision++;
                 SceneView.RepaintAll();
             }
         }
@@ -155,6 +189,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (s_proportionalFalloff == value) return;
                 s_proportionalFalloff = value;
+                s_proportionalSettingsRevision++;
                 SceneView.RepaintAll();
             }
         }
@@ -194,14 +229,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
 
         internal static int SelectedVertexCount => s_selectedVertices.Count;
-
-        private float WorldToLocalRadius(float worldRadius)
-        {
-            if (_activeDeformer == null) return worldRadius;
-            var scale = _activeDeformer.MeshTransform.lossyScale;
-            float avg = (Mathf.Abs(scale.x) + Mathf.Abs(scale.y) + Mathf.Abs(scale.z)) / 3f;
-            return worldRadius / Mathf.Max(avg, 1e-6f);
-        }
 
         internal void Activate(LatticeDeformer deformer)
         {
@@ -264,7 +291,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             _isTransforming = false;
             _preTransformDisplacements = null;
-            _preTransformPositions = null;
+            _preTransformWorldPositions = null;
+            InvalidateProportionalInfluenceCache();
             _handleRotation = Quaternion.identity;
             _handleScale = Vector3.one;
         }
@@ -490,7 +518,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 _isTransforming = false;
                 _preTransformDisplacements = null;
-                _preTransformPositions = null;
+                _preTransformWorldPositions = null;
+                NotifySelectionChanged();
                 SceneView.RepaintAll();
                 evt.Use();
             }
@@ -572,6 +601,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var camUp = cam.transform.up;
                 int vertexCount = _deformedVertices.Length;
                 bool showInfluence = ProportionalEditing && s_selectedVertices.Count > 0;
+                if (showInfluence)
+                {
+                    EnsureProportionalInfluences(meshTransform);
+                }
 
                 // Set up batched GL drawing with depth test.
                 var material = EnsureVertexDotMaterial();
@@ -889,10 +922,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _preTransformDisplacements = null;
             }
 
-            // Cache positions for proportional distance computations
-            if (_meshVertices != null)
+            // Freeze world-space positions for proportional distance computations so
+            // non-uniform Transform scale and posed skinning remain geometrically exact
+            // throughout the drag gesture.
+            if (_deformedVertices != null)
             {
-                _preTransformPositions = (Vector3[])_meshVertices.Clone();
+                int count = _deformedVertices.Length;
+                if (_preTransformWorldPositions == null || _preTransformWorldPositions.Length != count)
+                {
+                    _preTransformWorldPositions = new Vector3[count];
+                }
+
+                Matrix4x4 matrix = deformer.MeshTransform.localToWorldMatrix;
+                for (int i = 0; i < count; i++)
+                {
+                    _preTransformWorldPositions[i] = DeformedToWorld(i, matrix);
+                }
+
+                _transformInfluenceRevision++;
+                InvalidateProportionalInfluenceCache();
             }
         }
 
@@ -914,7 +962,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void ApplyMoveDelta(LatticeDeformer deformer, Vector3 localDelta)
         {
             var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
-                ? SkinnedVertexHelper.CreateRestSpaceDeltaConverter(deformer)
+                ? _restSpaceConverterCache.Get(deformer)
                 : null;
             foreach (int i in s_selectedVertices)
             {
@@ -925,6 +973,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (ProportionalEditing)
             {
+                EnsureProportionalInfluences(deformer.MeshTransform);
                 ApplyProportionalMove(deformer, localDelta, restSpaceConverter);
             }
 
@@ -954,6 +1003,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (ProportionalEditing)
             {
+                EnsureProportionalInfluences(meshTransform);
                 ApplyProportionalRotation(deformer, meshTransform, worldCentroid, deltaRotation);
             }
 
@@ -987,6 +1037,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (ProportionalEditing)
             {
+                EnsureProportionalInfluences(meshTransform);
                 ApplyProportionalScale(deformer, meshTransform, worldCentroid, relativeScale);
             }
 
@@ -1071,56 +1122,70 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private float ComputeProportionalInfluence(int vertexIndex)
         {
-            if (_meshVertices == null || vertexIndex < 0 || vertexIndex >= _meshVertices.Length)
+            return _proportionalInfluenceCache.GetInfluence(vertexIndex);
+        }
+
+        private void EnsureProportionalInfluences(Transform meshTransform)
+        {
+            if (meshTransform == null || _deformedVertices == null)
             {
-                return 0f;
+                _proportionalInfluenceCache.Clear();
+                return;
             }
 
-            var vertexPos = _preTransformPositions != null ? _preTransformPositions[vertexIndex] : _meshVertices[vertexIndex];
-            float minDist = float.MaxValue;
-
-            foreach (int sel in s_selectedVertices)
+            Matrix4x4 matrix = meshTransform.localToWorldMatrix;
+            int sourceRevision = _preTransformWorldPositions != null
+                ? _transformInfluenceRevision
+                : RefreshCountForTests;
+            if (_cachedInfluenceSelectionRevision == s_selectionRevision &&
+                _cachedInfluenceSettingsRevision == s_proportionalSettingsRevision &&
+                _cachedInfluenceSourceRevision == sourceRevision &&
+                _cachedInfluenceMatrix == matrix)
             {
-                if (sel < 0 || sel >= _meshVertices.Length) continue;
+                return;
+            }
 
-                var selPos = _preTransformPositions != null ? _preTransformPositions[sel] : _meshVertices[sel];
-                float dist = (vertexPos - selPos).magnitude;
-                if (dist < minDist)
+            Vector3[] worldPositions = _preTransformWorldPositions;
+            if (worldPositions == null)
+            {
+                int count = _deformedVertices.Length;
+                if (_worldPositions != null && _worldPositions.Length == count)
                 {
-                    minDist = dist;
+                    worldPositions = _worldPositions;
+                }
+                else
+                {
+                    if (_proportionalWorldPositions == null ||
+                        _proportionalWorldPositions.Length != count)
+                    {
+                        _proportionalWorldPositions = new Vector3[count];
+                    }
+
+                    for (int i = 0; i < count; i++)
+                    {
+                        _proportionalWorldPositions[i] = matrix.MultiplyPoint3x4(_deformedVertices[i]);
+                    }
+
+                    worldPositions = _proportionalWorldPositions;
                 }
             }
 
-            // Convert world-space radius to mesh-local for distance comparison
-            float localPropRadius = WorldToLocalRadius(s_proportionalRadius);
-            if (minDist >= localPropRadius)
-            {
-                return 0f;
-            }
-
-            float t = minDist / localPropRadius;
-            return EvaluateFalloff(t);
+            _proportionalInfluenceCache.Rebuild(
+                worldPositions,
+                s_selectedVertices,
+                s_proportionalRadius,
+                s_proportionalFalloff);
+            _cachedInfluenceSelectionRevision = s_selectionRevision;
+            _cachedInfluenceSettingsRevision = s_proportionalSettingsRevision;
+            _cachedInfluenceSourceRevision = sourceRevision;
+            _cachedInfluenceMatrix = matrix;
         }
 
-        private static float EvaluateFalloff(float t)
+        private void InvalidateProportionalInfluenceCache()
         {
-            t = Mathf.Clamp01(t);
-            switch (s_proportionalFalloff)
-            {
-                case FalloffType.Linear:
-                    return 1f - t;
-                case FalloffType.Smooth:
-                    float s = 1f - t;
-                    return s * s * (3f - 2f * s);
-                case FalloffType.Constant:
-                    return 1f;
-                case FalloffType.Sphere:
-                    return t < 0.9f ? 1f : Mathf.Clamp01((1f - t) / 0.1f);
-                case FalloffType.Gaussian:
-                    return Mathf.Exp(-3f * t * t);
-                default:
-                    return 1f - t;
-            }
+            _cachedInfluenceSelectionRevision = -1;
+            _cachedInfluenceSettingsRevision = -1;
+            _cachedInfluenceSourceRevision = -1;
         }
 
         private void DrawProportionalRadius(LatticeDeformer deformer, Transform meshTransform)
@@ -1473,6 +1538,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _meshTriangles = null;
             _worldPositions = null;
             _cachedRuntimeMesh = null;
+            _restSpaceConverterCache.Clear();
+            _preTransformWorldPositions = null;
+            InvalidateProportionalInfluenceCache();
+            _proportionalInfluenceCache.Clear();
             InvalidatePoseRendererCache();
             _snapshotValid = false;
         }
@@ -1538,6 +1607,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             s_lastSelectedVertex = -1;
             if (hadSelection)
             {
+                NotifySelectionChanged();
                 SceneView.RepaintAll();
             }
         }
@@ -1555,6 +1625,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 s_selectedVertices.Add(i);
             }
 
+            NotifySelectionChanged();
             SceneView.RepaintAll();
         }
 
@@ -1580,6 +1651,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 s_selectedVertices.Add(i);
             }
 
+            NotifySelectionChanged();
             SceneView.RepaintAll();
         }
 
@@ -1604,7 +1676,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
+            NotifySelectionChanged();
             SceneView.RepaintAll();
+        }
+
+        private static void NotifySelectionChanged()
+        {
+            unchecked
+            {
+                s_selectionRevision++;
+            }
         }
 
         internal static string GetSelectionLabel()

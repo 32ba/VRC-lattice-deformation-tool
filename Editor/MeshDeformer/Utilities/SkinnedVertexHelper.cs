@@ -18,6 +18,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal static bool StoreMovesInRestSpace { get; set; }
         internal static int WorldPositionBakeCountForTests { get; set; }
 
+        static SkinnedVertexHelper()
+        {
+            AssemblyReloadEvents.beforeAssemblyReload += ReleaseStaticResources;
+        }
+
+        [ExcludeFromCodeCoverage]
+        internal static void ReleaseStaticResources()
+        {
+            if (s_bakeMesh != null)
+            {
+                Object.DestroyImmediate(s_bakeMesh);
+                s_bakeMesh = null;
+            }
+            s_bakedVertices.Clear();
+        }
+
         /// <summary>
         /// Computes world-space positions matching the rendered output.
         /// Returns world-space positions for SkinnedMeshRenderer (via proxy BakeMesh),

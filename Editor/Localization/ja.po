@@ -94,25 +94,25 @@ msgstr "変形対象の MeshFilter を設定します。"
 
 # Groups & Layers
 msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups"
-msgstr ""
+msgstr "変形グループ"
 
 msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups.tooltip"
 msgstr "複数の独立したグループで変形を管理できます。各グループは別々のShapeKeyとして出力可能です。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.layers"
-msgstr ""
+msgstr "レイヤー"
 
 msgid "net.32ba.lattice-deformation-tool.localization.layers.tooltip"
 msgstr "アクティブグループ内の全変形レイヤーを一覧表示します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.add-lattice-layer"
-msgstr ""
+msgstr "ラティスレイヤーを追加"
 
 msgid "net.32ba.lattice-deformation-tool.localization.add-lattice-layer.tooltip"
 msgstr "ケージレイヤーを追加。四隅のハンドルをドラッグしてメッシュを変形します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer"
-msgstr ""
+msgstr "ブラシレイヤーを追加"
 
 msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer.tooltip"
 msgstr "ペイントレイヤーを追加。ブラシで描いてメッシュの形状を変更できます。"
@@ -172,7 +172,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.delete-group.tooltip"
 msgstr "選択中のグループとその全レイヤーを削除します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer"
-msgstr ""
+msgstr "アクティブレイヤーをリセット"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer.tooltip"
 msgstr "アクティブレイヤーの全変形データをクリアします。"
@@ -203,13 +203,13 @@ msgid "net.32ba.lattice-deformation-tool.localization.split-r.tooltip"
 msgstr "右側の変形のみ残し、左側をゼロにします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-layer-left"
-msgstr ""
+msgstr "レイヤーを左側に分割"
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-layer-left.tooltip"
 msgstr "レイヤーのX正側の変形をすべてゼロにします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-layer-right"
-msgstr ""
+msgstr "レイヤーを右側に分割"
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-layer-right.tooltip"
 msgstr "レイヤーのX負側の変形をすべてゼロにします。"
@@ -233,19 +233,19 @@ msgid "net.32ba.lattice-deformation-tool.localization.flip-z.tooltip"
 msgstr "Z軸を基準に全変形データをミラーリングします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-x"
-msgstr ""
+msgstr "レイヤーをX軸で反転"
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-x.tooltip"
 msgstr "X軸上のミラー頂点ペア間で変形を入れ替えます。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-y"
-msgstr ""
+msgstr "レイヤーをY軸で反転"
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-y.tooltip"
 msgstr "Y軸上のミラー頂点ペア間で変形を入れ替えます。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-z"
-msgstr ""
+msgstr "レイヤーをZ軸で反転"
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-z.tooltip"
 msgstr "Z軸上のミラー頂点ペア間で変形を入れ替えます。"
@@ -258,7 +258,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool.tooltip"
 msgstr "Sceneビューでラティスケージエディターを起動します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-lattice"
-msgstr ""
+msgstr "アクティブレイヤーはラティスレイヤーではありません。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-lattice.tooltip"
 msgstr "ラティス編集ツールを使うにはラティスレイヤーに切り替えてください。"
@@ -440,13 +440,13 @@ msgid "net.32ba.lattice-deformation-tool.localization.brush-tool.tooltip"
 msgstr "ブラシベースの頂点ペイントエディターを起動します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-brush"
-msgstr ""
+msgstr "アクティブレイヤーはブラシレイヤーではありません。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-brush.tooltip"
 msgstr "ブラシ編集ツールを使うにはブラシレイヤーに切り替えてください。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info"
-msgstr ""
+msgstr "ブラシレイヤー"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info.tooltip"
 msgstr "ペイント結果を保存するレイヤーです。描いたストロークはすべて保存されます。"
@@ -572,7 +572,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.clear-all-displacements.to
 msgstr "すべてのレイヤーの変更をリセットします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements"
-msgstr ""
+msgstr "アクティブレイヤーの変位をクリア"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements.tooltip"
 msgstr "現在のレイヤーの変更のみをリセットします。"

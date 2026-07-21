@@ -236,6 +236,50 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeLocalization_AllEnglishContentIsTranslatedAndPreservesPlaceholders()
+        {
+            var method = typeof(LatticeLocalization).GetMethod(
+                "EnsureCatalogLoaded",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null);
+
+            var english = method.Invoke(
+                null,
+                new object[] { LatticeLocalization.Language.English, true })
+                as IReadOnlyDictionary<string, string>;
+            Assert.That(english, Is.Not.Null);
+
+            foreach (LatticeLocalization.Language language in Enum.GetValues(typeof(LatticeLocalization.Language)))
+            {
+                if (language == LatticeLocalization.Language.English) continue;
+                var catalog = method.Invoke(null, new object[] { language, true })
+                    as IReadOnlyDictionary<string, string>;
+                Assert.That(catalog, Is.Not.Null, language.ToString());
+
+                foreach (var entry in english)
+                {
+                    if (string.IsNullOrEmpty(entry.Value)) continue;
+                    Assert.That(catalog.ContainsKey(entry.Key), Is.True, $"{language}: {entry.Key}");
+                    Assert.That(catalog[entry.Key], Is.Not.Null.And.Not.Empty,
+                        $"{language}: {entry.Key}");
+
+                    string sourcePlaceholders = string.Join(",",
+                        System.Text.RegularExpressions.Regex.Matches(entry.Value, @"\{\d+\}")
+                            .Cast<System.Text.RegularExpressions.Match>()
+                            .Select(match => match.Value)
+                            .OrderBy(value => value));
+                    string translatedPlaceholders = string.Join(",",
+                        System.Text.RegularExpressions.Regex.Matches(catalog[entry.Key], @"\{\d+\}")
+                            .Cast<System.Text.RegularExpressions.Match>()
+                            .Select(match => match.Value)
+                            .OrderBy(value => value));
+                    Assert.That(translatedPlaceholders, Is.EqualTo(sourcePlaceholders),
+                        $"{language}: {entry.Key} placeholders");
+                }
+            }
+        }
+
+        [Test]
         public void LatticeLocalization_AllCatalogsContainLegacyBrushMigrationMessages()
         {
             var method = typeof(LatticeLocalization).GetMethod(
