@@ -252,7 +252,7 @@ msgstr "Z軸上のミラー頂点ペア間で変形を入れ替えます。"
 
 # Lattice Tool
 msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool"
-msgstr "Lattice Tool"
+msgstr "ラティスツール"
 
 msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool.tooltip"
 msgstr "Sceneビューでラティスケージエディターを起動します。"
@@ -264,7 +264,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-lattice.t
 msgstr "ラティス編集ツールを使うにはラティスレイヤーに切り替えてください。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls"
-msgstr "Move Lattice Controls"
+msgstr "ラティス制御点を移動"
 
 msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls.tooltip"
 msgstr "制御点をドラッグしてケージ経由でメッシュを変形します。"
@@ -421,7 +421,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.change-lattice-divisions.t
 msgstr "変更中の分割数を適用してグリッドを再構築します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected"
-msgstr "No Lattice Deformer selected."
+msgstr "Lattice Deformer が選択されていません。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected.tooltip"
 msgstr "Mesh Deformer コンポーネントを持つGameObjectを選択してください。"
@@ -1162,13 +1162,13 @@ msgstr "全フレーム"
 
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
-msgstr "(NDMF) Disable Lattice Preview"
+msgstr "(NDMF) ラティスプレビューを無効化"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview.tooltip"
 msgstr "NDMFのリアルタイム変形プレビューをオフにします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview"
-msgstr "(NDMF) Enable Lattice Preview"
+msgstr "(NDMF) ラティスプレビューを有効化"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview.tooltip"
 msgstr "Sceneビューでの NDMFリアルタイム変形プレビューをオンにします。"

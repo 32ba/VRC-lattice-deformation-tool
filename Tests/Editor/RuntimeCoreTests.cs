@@ -14,7 +14,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     public sealed class RuntimeCoreTests
     {
         [Test]
-        public void ValidatedActiveLayerFastPath_SeventyThousandVerticesAllocatesZeroBytes()
+        public void ValidatedActiveLayerFastPath_SeventyThousandVerticesUsesLayerCache()
         {
             const int vertexCount = 70000;
             var go = new GameObject("validated-active-layer-fast-path");
@@ -58,9 +58,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 watch.Stop();
 
                 TestContext.WriteLine(
-                    $"70k validated active-layer fast path: {watch.Elapsed.TotalMilliseconds / 100.0:F4} ms/call, {allocated} B");
+                    $"70k validated active-layer fast path: {watch.Elapsed.TotalMilliseconds / 100.0:F4} ms/call, " +
+                    ManagedAllocationCounter.Format(allocated));
                 Assert.That(allMatched, Is.True);
-                Assert.That(allocated, Is.Zero);
+                ManagedAllocationCounter.AssertNoAllocations(allocated);
             }
             finally
             {
@@ -112,8 +113,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(deformer.Deform(false), Is.Not.Null);
                 long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
-                TestContext.WriteLine($"70k warm Deform managed allocation: {allocated} B");
-                Assert.That(allocated, Is.LessThan(64 * 1024),
+                TestContext.WriteLine(
+                    $"70k warm Deform managed allocation: {ManagedAllocationCounter.Format(allocated)}");
+                ManagedAllocationCounter.AssertLessThan(allocated, 64 * 1024,
                     "A warm edit must not allocate full-size vertex arrays.");
             }
             finally
@@ -2164,8 +2166,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 var interpolated = InvokeStaticPrivate<Vector3[]>("EvaluateBlendShapeVertexDelta", mesh, 0, 75f);
                 Assert.That(interpolated[0].x, Is.EqualTo(0.75f).Within(1e-6f));
-                var lastFrame = InvokeStaticPrivate<Vector3[]>("EvaluateBlendShapeVertexDelta", mesh, 0, 150f);
-                Assert.That(lastFrame[0].x, Is.EqualTo(1f).Within(1e-6f));
+                var extrapolated = InvokeStaticPrivate<Vector3[]>("EvaluateBlendShapeVertexDelta", mesh, 0, 150f);
+                Assert.That(extrapolated[0].x, Is.EqualTo(2f).Within(1e-6f));
 
                 Assert.That(InvokeStaticPrivate<int>("HashVertices", new object[] { null }), Is.EqualTo(0));
                 Assert.That(InvokeStaticPrivate<int>("HashVertices", Array.Empty<Vector3>()), Is.EqualTo(0));
@@ -2177,6 +2179,34 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 UnityEngine.Object.DestroyImmediate(mesh);
                 UnityEngine.Object.DestroyImmediate(emptyMesh);
                 UnityEngine.Object.DestroyImmediate(go);
+            }
+        }
+
+        [Test]
+        public void BlendShapeSourceExtrapolation_MatchesUnityAboveLastFrame()
+        {
+            var gameObject = new GameObject("BlendShape Extrapolation");
+            var source = CreateBlendShapeMesh("BlendShape Extrapolation Source");
+            var baked = new Mesh();
+            try
+            {
+                var renderer = gameObject.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = source;
+                renderer.SetBlendShapeWeight(0, 150f);
+                renderer.BakeMesh(baked);
+
+                var evaluated = InvokeStaticPrivate<Vector3[]>(
+                    "EvaluateBlendShapeVertexDelta", source, 0, 150f);
+                Vector3 unityDelta = baked.vertices[0] - source.vertices[0];
+
+                Assert.That(evaluated[0].x, Is.EqualTo(unityDelta.x).Within(1e-5f));
+                Assert.That(evaluated[0].x, Is.EqualTo(2f).Within(1e-5f));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(baked);
+                UnityEngine.Object.DestroyImmediate(source);
+                UnityEngine.Object.DestroyImmediate(gameObject);
             }
         }
 

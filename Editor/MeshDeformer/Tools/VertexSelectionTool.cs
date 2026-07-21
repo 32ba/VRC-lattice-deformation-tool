@@ -94,7 +94,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Quaternion _handleRotation = Quaternion.identity;
         private Vector3 _handleScale = Vector3.one;
         private bool _isTransforming;
-        private Vector3[] _preTransformDisplacements;
         private Vector3[] _preTransformWorldPositions;
         private Vector3[] _proportionalWorldPositions;
         private readonly VertexProportionalInfluenceCache _proportionalInfluenceCache =
@@ -290,8 +289,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void ResetTransformGesture()
         {
             _isTransforming = false;
-            _preTransformDisplacements = null;
-            _preTransformWorldPositions = null;
             InvalidateProportionalInfluenceCache();
             _handleRotation = Quaternion.identity;
             _handleScale = Vector3.one;
@@ -517,7 +514,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
 
                 _isTransforming = false;
-                _preTransformDisplacements = null;
                 _preTransformWorldPositions = null;
                 NotifySelectionChanged();
                 SceneView.RepaintAll();
@@ -911,17 +907,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             deformer.EnsureDisplacementCapacity();
             _isTransforming = true;
 
-            // Snapshot current displacements and world positions for proportional editing
-            var displacements = deformer.Displacements;
-            if (displacements != null)
-            {
-                _preTransformDisplacements = (Vector3[])displacements.Clone();
-            }
-            else
-            {
-                _preTransformDisplacements = null;
-            }
-
             // Freeze world-space positions for proportional distance computations so
             // non-uniform Transform scale and posed skinning remain geometrically exact
             // throughout the drag gesture.
@@ -988,7 +973,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (displacements == null) return;
 
             var matrix = meshTransform.localToWorldMatrix;
-            var invMatrix = meshTransform.worldToLocalMatrix;
+            var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
+                ? _restSpaceConverterCache.Get(deformer)
+                : null;
 
             foreach (int i in s_selectedVertices)
             {
@@ -996,9 +983,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 var worldPos = DeformedToWorld(i, matrix);
                 var rotated = deltaRotation * (worldPos - worldCentroid) + worldCentroid;
-                var newLocal = invMatrix.MultiplyPoint3x4(rotated);
-                var newDisplacement = newLocal - _meshVertices[i];
-                deformer.SetDisplacement(i, newDisplacement);
+                AddWorldDelta(deformer, meshTransform, restSpaceConverter, i, rotated - worldPos);
             }
 
             if (ProportionalEditing)
@@ -1018,9 +1003,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (displacements == null) return;
 
             var matrix = meshTransform.localToWorldMatrix;
-            var invMatrix = meshTransform.worldToLocalMatrix;
             var rotation = meshTransform.rotation;
             var invRotation = Quaternion.Inverse(rotation);
+            var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
+                ? _restSpaceConverterCache.Get(deformer)
+                : null;
 
             foreach (int i in s_selectedVertices)
             {
@@ -1030,9 +1017,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var localOffset = invRotation * (worldPos - worldCentroid);
                 localOffset = Vector3.Scale(localOffset, relativeScale);
                 var scaled = worldCentroid + rotation * localOffset;
-                var newLocal = invMatrix.MultiplyPoint3x4(scaled);
-                var newDisplacement = newLocal - _meshVertices[i];
-                deformer.SetDisplacement(i, newDisplacement);
+                AddWorldDelta(deformer, meshTransform, restSpaceConverter, i, scaled - worldPos);
             }
 
             if (ProportionalEditing)
@@ -1073,7 +1058,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (_meshVertices == null || _deformedVertices == null) return;
 
             var matrix = meshTransform.localToWorldMatrix;
-            var invMatrix = meshTransform.worldToLocalMatrix;
+            var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
+                ? _restSpaceConverterCache.Get(deformer)
+                : null;
             int vertexCount = _meshVertices.Length;
 
             for (int i = 0; i < vertexCount; i++)
@@ -1085,9 +1072,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 var worldPos = DeformedToWorld(i, matrix);
                 var rotated = Quaternion.Slerp(Quaternion.identity, deltaRotation, influence) * (worldPos - worldCentroid) + worldCentroid;
-                var newLocal = invMatrix.MultiplyPoint3x4(rotated);
-                var newDisplacement = newLocal - _meshVertices[i];
-                deformer.SetDisplacement(i, newDisplacement);
+                AddWorldDelta(deformer, meshTransform, restSpaceConverter, i, rotated - worldPos);
             }
         }
 
@@ -1096,9 +1081,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (_meshVertices == null || _deformedVertices == null) return;
 
             var matrix = meshTransform.localToWorldMatrix;
-            var invMatrix = meshTransform.worldToLocalMatrix;
             var rotation = meshTransform.rotation;
             var invRotation = Quaternion.Inverse(rotation);
+            var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
+                ? _restSpaceConverterCache.Get(deformer)
+                : null;
             int vertexCount = _meshVertices.Length;
 
             for (int i = 0; i < vertexCount; i++)
@@ -1114,10 +1101,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var localOffset = invRotation * (worldPos - worldCentroid);
                 localOffset = Vector3.Scale(localOffset, blendedScale);
                 var scaled = worldCentroid + rotation * localOffset;
-                var newLocal = invMatrix.MultiplyPoint3x4(scaled);
-                var newDisplacement = newLocal - _meshVertices[i];
-                deformer.SetDisplacement(i, newDisplacement);
+                AddWorldDelta(deformer, meshTransform, restSpaceConverter, i, scaled - worldPos);
             }
+        }
+
+        private static void AddWorldDelta(
+            LatticeDeformer deformer,
+            Transform meshTransform,
+            SkinnedVertexHelper.RestSpaceDeltaConverter restSpaceConverter,
+            int vertexIndex,
+            Vector3 worldDelta)
+        {
+            Vector3 posedLocalDelta = meshTransform.InverseTransformVector(worldDelta);
+            Vector3 storedDelta = restSpaceConverter != null
+                ? restSpaceConverter.ConvertOrFallback(vertexIndex, posedLocalDelta)
+                : posedLocalDelta;
+            deformer.AddDisplacement(vertexIndex, storedDelta);
         }
 
         private float ComputeProportionalInfluence(int vertexIndex)

@@ -3,8 +3,12 @@ name: Build Release
 on:
   workflow_dispatch:
     inputs:
+      test-report:
+        description: "Local EditMode evidence (date, Unity version, passed/failed/skipped, and report path or URL)"
+        required: true
+        type: string
       performance-report:
-        description: "Profiler evidence (scenario, p50/p95/max, GC allocation, and report URL or artifact)"
+        description: "Local Profiler evidence (scenario, p50/p95/max, GC allocation, and report path or URL)"
         required: true
         type: string
 
@@ -21,27 +25,21 @@ jobs:
     - name: Validate Package Config
       id: config_package
       env:
+        TEST_REPORT: ${{ inputs.test-report }}
         PERFORMANCE_REPORT: ${{ inputs.performance-report }}
       run: |
-        if [ "${{ vars.PACKAGE_NAME }}" != "" ] && [ -n "$PERFORMANCE_REPORT" ]; then
+        if [ "${{ vars.PACKAGE_NAME }}" != "" ] && [ -n "$TEST_REPORT" ] && [ -n "$PERFORMANCE_REPORT" ]; then
           echo "configPackage=true" >> $GITHUB_OUTPUT;
         else
           echo "configPackage=false" >> $GITHUB_OUTPUT;
-          echo "PACKAGE_NAME and performance-report are required." >&2;
+          echo "PACKAGE_NAME, test-report, and performance-report are required." >&2;
           exit 1;
         fi
-
-  quality:
-    needs: config
-    if: needs.config.outputs.config_package == 'true'
-    uses: ./.github/workflows/coverage.yml
-    with:
-      minimum-test-total: "900"
 
   # Build and release the Package
   # If the repository is not configured properly, this job will be skipped
   build:
-    needs: [config, quality]
+    needs: config
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -59,6 +57,7 @@ jobs:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: vpm.32ba.net
 
       # Get the Package version based on the package.json file
       - name: Get Version
@@ -69,10 +68,17 @@ jobs:
             prop_path: "version"
 
       - name: Reject an existing release tag
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.value }}
         run: |
+          set -euo pipefail
+          if [[ ! "$PACKAGE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "package.json contains an invalid release version: $PACKAGE_VERSION" >&2
+            exit 1
+          fi
           git fetch --force --tags
-          if git rev-parse --verify --quiet "refs/tags/${{ steps.version.outputs.value }}"; then
-            echo "Release tag ${{ steps.version.outputs.value }} already exists. Bump package.json before releasing." >&2
+          if git rev-parse --verify --quiet "refs/tags/$PACKAGE_VERSION"; then
+            echo "Release tag $PACKAGE_VERSION already exists. Bump package.json before releasing." >&2
             exit 1
           fi
     
@@ -144,9 +150,11 @@ jobs:
             package.json
           tag_name: ${{ steps.version.outputs.value }}
           body: |
-            Automated quality gate: EditMode tests and enforced line coverage passed.
+            Unity tests are run locally because this repository does not provide a Unity-capable Actions runner.
 
-            Performance evidence: ${{ inputs.performance-report }}
+            Local EditMode evidence: ${{ inputs.test-report }}
+
+            Local performance evidence: ${{ inputs.performance-report }}
 
       # Update listing using the GitHub API
       - name: Update VPM repository

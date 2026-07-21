@@ -376,7 +376,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void QueryPoint_WarmQueriesDoNotAllocateManagedScratch()
+        public void QueryPoint_WarmQueriesReuseTraversalScratch()
         {
             var mesh = CreateGrid(60, 12f);
             try
@@ -392,7 +392,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 }
                 long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
 
-                Assert.That(allocated, Is.Zero,
+                ManagedAllocationCounter.AssertNoAllocations(allocated,
                     "Warm nearest-point queries must reuse the BVH traversal workspace.");
             }
             finally
@@ -402,7 +402,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void ClosedMeshQuery_WarmQueriesDoNotAllocateManagedScratch()
+        public void ClosedMeshQuery_WarmQueriesReuseTraversalAndRayScratch()
         {
             var mesh = CreateCube();
             try
@@ -419,7 +419,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 }
                 long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
 
-                Assert.That(allocated, Is.Zero,
+                ManagedAllocationCounter.AssertNoAllocations(allocated,
                     "Warm closed-mesh queries must reuse both traversal and ray-hit buffers.");
             }
             finally
@@ -429,7 +429,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void BatchQuery_WithCallerOwnedResultsHasZeroWarmScratchAllocation()
+        public void BatchQuery_WithCallerOwnedResultsReusesWarmScratch()
         {
             var mesh = CreateGrid(60, 12f);
             var targets = new Vector3[256];
@@ -460,7 +460,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 }
                 long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
 
-                Assert.That(allocated, Is.Zero,
+                ManagedAllocationCounter.AssertNoAllocations(allocated,
                     "A caller-owned result buffer must make repeated batch queries allocation-free.");
                 Assert.That(results[0].IsValid, Is.True);
             }
@@ -471,7 +471,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void CachedBatch_WithCallerOwnedResultsHasZeroWarmManagedAllocation()
+        public void CachedBatch_WithCallerOwnedResultsReusesWarmBuffers()
         {
             var mesh = CreateGrid(60, 12f);
             var renderer = CreateMeshRenderer("Dense Reference", mesh);
@@ -503,7 +503,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
 
                 Assert.That(allSucceeded, Is.True);
-                Assert.That(allocated, Is.Zero,
+                ManagedAllocationCounter.AssertNoAllocations(allocated,
                     "The production cache/hash/query path must be allocation-free with caller-owned output.");
             }
             finally
@@ -514,7 +514,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void SkinnedCachedBatch_ReusesBakedMeshWithZeroWarmManagedAllocation()
+        public void SkinnedCachedBatch_ReusesBakedMeshAndWarmBuffers()
         {
             var mesh = CreatePlane(false);
             var root = new GameObject("Skinned Cached Reference");
@@ -553,7 +553,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
 
                 Assert.That(allSucceeded, Is.True);
-                Assert.That(allocated, Is.Zero,
+                ManagedAllocationCounter.AssertNoAllocations(allocated,
                     "A stable skinned reference must reuse its cache-owned BakeMesh.");
                 Assert.That(ClearanceQueryCache.BuildCount, Is.EqualTo(1));
             }
@@ -565,7 +565,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void AllocatingBatch_OutputAllocationDoesNotGrowWithReferenceDensity()
+        public void AllocatingBatch_OutputCostDoesNotGrowWithReferenceDensity()
         {
             var coarseMesh = CreateGrid(1, 12f);
             var denseMesh = CreateGrid(60, 12f);
@@ -594,7 +594,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 Assert.That(coarseResults.Length, Is.EqualTo(targets.Length));
                 Assert.That(denseResults.Length, Is.EqualTo(targets.Length));
-                Assert.That(denseAllocation, Is.EqualTo(coarseAllocation),
+                ManagedAllocationCounter.AssertEqualAllocations(coarseAllocation, denseAllocation,
                     "Only the owned result snapshot may allocate; reference BVH density must not affect GC.");
             }
             finally
@@ -696,7 +696,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void AllocatingBatch_InvalidReferenceDoesNotAllocateTargetSizedResults()
+        public void AllocatingBatch_InvalidReferenceFailsBeforeCreatingTargetSizedResults()
         {
             var referenceObject = new GameObject("Invalid Reference");
             var reference = referenceObject.AddComponent<MeshRenderer>();
@@ -718,7 +718,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
 
                 Assert.That(results, Is.Empty);
-                Assert.That(allocated, Is.Zero,
+                ManagedAllocationCounter.AssertNoAllocations(allocated,
                     "An invalid reference must be rejected before allocating the target-sized snapshot.");
             }
             finally

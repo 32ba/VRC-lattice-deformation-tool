@@ -369,7 +369,7 @@ namespace Net._32Ba.LatticeDeformationTool
             return !float.IsNaN(value) && !float.IsInfinity(value);
         }
 
-        internal bool HasNonFiniteSerializedVertexData
+        internal bool HasNonFiniteSerializedBrushDisplacements
         {
             get
             {
@@ -387,11 +387,20 @@ namespace Net._32Ba.LatticeDeformationTool
                     }
                 }
 
+                return false;
+            }
+        }
+
+        internal bool HasInvalidSerializedVertexMask
+        {
+            get
+            {
                 if (_vertexMask != null)
                 {
                     for (int i = 0; i < _vertexMask.Length; i++)
                     {
-                        if (float.IsNaN(_vertexMask[i]) || float.IsInfinity(_vertexMask[i]))
+                        float value = _vertexMask[i];
+                        if (!IsFinite(value) || value < 0f || value > 1f)
                         {
                             return true;
                         }
@@ -401,6 +410,9 @@ namespace Net._32Ba.LatticeDeformationTool
                 return false;
             }
         }
+
+        internal bool HasNonFiniteSerializedVertexData =>
+            HasNonFiniteSerializedBrushDisplacements || HasInvalidSerializedVertexMask;
 
         public void EnsureBrushDisplacementCapacity(int vertexCount)
         {
@@ -485,12 +497,22 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
+            if (!IsFinite(displacement.x) || !IsFinite(displacement.y) || !IsFinite(displacement.z))
+            {
+                return;
+            }
+
             _brushDisplacements[index] = displacement;
         }
 
         public void AddBrushDisplacement(int index, Vector3 delta)
         {
             if (_brushDisplacements == null || index < 0 || index >= _brushDisplacements.Length)
+            {
+                return;
+            }
+
+            if (!IsFinite(delta.x) || !IsFinite(delta.y) || !IsFinite(delta.z))
             {
                 return;
             }
@@ -538,6 +560,11 @@ namespace Net._32Ba.LatticeDeformationTool
         public void SetVertexMask(int index, float value)
         {
             if (_vertexMask == null || index < 0 || index >= _vertexMask.Length)
+            {
+                return;
+            }
+
+            if (!IsFinite(value))
             {
                 return;
             }
@@ -4382,6 +4409,11 @@ namespace Net._32Ba.LatticeDeformationTool
             var unusedNormals = new Vector3[vertexCount];
             var unusedTangents = new Vector3[vertexCount];
 
+            if (frameCount == 0)
+            {
+                return lower;
+            }
+
             float firstWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, 0);
             if (weight <= firstWeight || frameCount == 1)
             {
@@ -4412,7 +4444,18 @@ namespace Net._32Ba.LatticeDeformationTool
                 }
             }
 
-            mesh.GetBlendShapeFrameVertices(shapeIndex, frameCount - 1, lower, unusedNormals, unusedTangents);
+            int lastFrame = frameCount - 1;
+            mesh.GetBlendShapeFrameVertices(shapeIndex, lastFrame, lower, unusedNormals, unusedTangents);
+            float lastWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, lastFrame);
+            float previousWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, lastFrame - 1);
+            float interval = lastWeight - previousWeight;
+            if (Mathf.Abs(interval) > Mathf.Epsilon)
+            {
+                // Unity extrapolates the last frame itself over the final frame interval;
+                // it does not continue the slope between the final two delta arrays.
+                float scale = 1f + (weight - lastWeight) / interval;
+                ScaleDeltas(lower, scale);
+            }
             return lower;
         }
 

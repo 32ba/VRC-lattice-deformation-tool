@@ -248,6 +248,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 new object[] { LatticeLocalization.Language.English, true })
                 as IReadOnlyDictionary<string, string>;
             Assert.That(english, Is.Not.Null);
+            string[] requiredLocalizedLabels =
+            {
+                LocKey.LatticeTool,
+                LocKey.MoveLatticeControls,
+                LocKey.NoLatticeDeformerSelected,
+                LocKey.NDMFDisableMeshPreview,
+                LocKey.NDMFEnableMeshPreview
+            };
 
             foreach (LatticeLocalization.Language language in Enum.GetValues(typeof(LatticeLocalization.Language)))
             {
@@ -275,6 +283,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                             .OrderBy(value => value));
                     Assert.That(translatedPlaceholders, Is.EqualTo(sourcePlaceholders),
                         $"{language}: {entry.Key} placeholders");
+                }
+
+                foreach (string key in requiredLocalizedLabels)
+                {
+                    Assert.That(catalog[key], Is.Not.EqualTo(english[key]),
+                        $"{language}: {key} must not be left in English");
                 }
             }
         }
@@ -628,7 +642,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void GeodesicWorkspace_WarmRecomputeAllocatesZeroBytes()
+        public void GeodesicWorkspace_WarmRecomputeReusesWorkspace()
         {
             var vertices = new[]
             {
@@ -647,13 +661,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 0, 4f, adjacency, vertices, workspace), Is.True);
             long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
 
-            Assert.That(allocated, Is.Zero);
+            ManagedAllocationCounter.AssertNoAllocations(allocated);
             Assert.That(workspace.TryGetDistance(3, out float distance), Is.True);
             Assert.That(distance, Is.EqualTo(3f).Within(1e-5f));
         }
 
         [Test]
-        public void GeodesicWorkspace_SeventyThousandVertexWarmHoverAllocatesZeroBytes()
+        public void GeodesicWorkspace_SeventyThousandVertexWarmHoverReusesWorkspace()
         {
             const int vertexCount = 70000;
             var vertices = new Vector3[vertexCount];
@@ -683,8 +697,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
             TestContext.WriteLine(
                 $"70k adjacency: {buildWatch.Elapsed.TotalMilliseconds:F3} ms; " +
-                $"warm geodesic: {hoverWatch.Elapsed.TotalMilliseconds:F3} ms, {allocated} B");
-            Assert.That(allocated, Is.Zero);
+                $"warm geodesic: {hoverWatch.Elapsed.TotalMilliseconds:F3} ms, " +
+                ManagedAllocationCounter.Format(allocated));
+            ManagedAllocationCounter.AssertNoAllocations(allocated);
         }
 
         [TestCase(0, 1)]

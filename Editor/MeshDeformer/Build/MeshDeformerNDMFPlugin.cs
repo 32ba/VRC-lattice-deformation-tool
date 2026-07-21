@@ -78,7 +78,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var bakedMesh = deformer.Deform(false) ?? deformer.RuntimeMesh;
             if (bakedMesh == null)
             {
-                return;
+                throw new InvalidOperationException(
+                    $"Validated Mesh Deformer '{deformer.name}' did not produce an output mesh.");
             }
 
             var sourceMesh = deformer.SourceMesh;
@@ -96,7 +97,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (sourceMesh == null)
             {
-                return;
+                throw new InvalidOperationException(
+                    $"Validated Mesh Deformer '{deformer.name}' lost its source mesh before export.");
             }
 
             var ownerName = skinnedMesh != null ? skinnedMesh.name : meshFilter != null ? meshFilter.name : deformer.name;

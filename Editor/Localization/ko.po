@@ -252,7 +252,7 @@ msgstr "Z에서 미러링된 정점 쌍 사이의 변형을 교환합니다."
 
 # Lattice Tool
 msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool"
-msgstr "Lattice Tool"
+msgstr "래티스 도구"
 
 msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool.tooltip"
 msgstr "장면 뷰에서 래티스 케이지 편집기를 활성화합니다."
@@ -264,7 +264,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-lattice.t
 msgstr "래티스 편집 도구를 사용하려면 래티스 레이어로 전환하세요."
 
 msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls"
-msgstr "Move Lattice Controls"
+msgstr "래티스 제어점 이동"
 
 msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls.tooltip"
 msgstr "제어점을 드래그하여 케이지를 통해 메쉬를 변형합니다."
@@ -421,7 +421,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.change-lattice-divisions.t
 msgstr "보류 중인 분할 값을 적용하고 그리드를 다시 작성합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected"
-msgstr "No Lattice Deformer selected."
+msgstr "Lattice Deformer가 선택되지 않았습니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected.tooltip"
 msgstr "Mesh Deformer 컴포넌트가 있는 GameObject를 선택합니다."
@@ -1033,13 +1033,13 @@ msgid "net.32ba.lattice-deformation-tool.localization.bounds.tooltip"
 msgstr "변형된 메시 주위의 경계 상자를 다시 계산합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights"
-msgstr "뼈 무게 재계산"
+msgstr "본 웨이트 재계산"
 
 msgid "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights.tooltip"
 msgstr "변형에 맞게 뼈 애니메이션을 업데이트합니다(조작된 아바타의 경우)."
 
 msgid "net.32ba.lattice-deformation-tool.localization.bone-weight-requires-smr"
-msgstr "뼈의 무게를 재계산하려면 SkinnedMeshRenderer가 필요합니다."
+msgstr "본 웨이트를 재계산하려면 SkinnedMeshRenderer가 필요합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.bone-weight-requires-smr.tooltip"
 msgstr "이는 뼈대가 있는 조작된(스킨 처리된) 메시에만 작동합니다."
@@ -1162,13 +1162,13 @@ msgstr "모든 프레임"
 
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
-msgstr "(NDMF) Disable Lattice Preview"
+msgstr "(NDMF) 래티스 미리보기 비활성화"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview.tooltip"
 msgstr "실시간 NDMF 변형 미리보기를 끕니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview"
-msgstr "(NDMF) Enable Lattice Preview"
+msgstr "(NDMF) 래티스 미리보기 활성화"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview.tooltip"
 msgstr "장면 뷰에서 실시간 NDMF 변형 미리보기를 켭니다."

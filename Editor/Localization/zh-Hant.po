@@ -115,7 +115,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer"
 msgstr "新增畫筆層"
 
 msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer.tooltip"
-msgstr "建立一個油漆層。用畫筆在網格上繪畫以重塑區域。"
+msgstr "建立一個筆刷圖層。用筆刷在網格上繪製以重塑區域。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer"
 msgstr "活動圖層"
@@ -252,7 +252,7 @@ msgstr "交換 Z 上鏡像頂點對之間的變形。"
 
 # Lattice Tool
 msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool"
-msgstr "Lattice Tool"
+msgstr "晶格工具"
 
 msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool.tooltip"
 msgstr "在場景視圖中啟動晶格籠編輯器。"
@@ -264,7 +264,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-lattice.t
 msgstr "切換到晶格圖層以使用晶格編輯工具。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls"
-msgstr "Move Lattice Controls"
+msgstr "移動晶格控制點"
 
 msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls.tooltip"
 msgstr "拖曳控制點使網格通過籠子變形。"
@@ -421,7 +421,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.change-lattice-divisions.t
 msgstr "套用掛起的劃分值並重建網格。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected"
-msgstr "No Lattice Deformer selected."
+msgstr "未選取 Lattice Deformer。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected.tooltip"
 msgstr "選擇具有網格變形器組件的遊戲物件。"
@@ -449,7 +449,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info"
 msgstr "筆刷圖層"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info.tooltip"
-msgstr "油漆基層。每個筆觸都保存在這裡。"
+msgstr "筆刷基礎圖層。每個筆觸都保存在這裡。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-radius"
 msgstr "筆刷半徑"
@@ -1033,20 +1033,20 @@ msgid "net.32ba.lattice-deformation-tool.localization.bounds.tooltip"
 msgstr "重新計算變形網格周圍的邊界框。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights"
-msgstr "重新計算骨骼重量"
+msgstr "重新計算骨骼權重"
 
 msgid "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights.tooltip"
-msgstr "更新骨骼動畫以配合您的變形（對於已裝備的化身）。"
+msgstr "更新骨骼動畫以配合變形（適用於已裝配的虛擬形象）。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.bone-weight-requires-smr"
-msgstr "骨骼重量重新計算需要 SkinnedMeshRenderer。"
+msgstr "重新計算骨骼權重需要 SkinnedMeshRenderer。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.bone-weight-requires-smr.tooltip"
 msgstr "這僅適用於具有骨骼的裝備（蒙皮）網格體。"
 
 # Weight Transfer
 msgid "net.32ba.lattice-deformation-tool.localization.weight-transfer-settings"
-msgstr "重量轉移設置"
+msgstr "權重傳遞設定"
 
 msgid "net.32ba.lattice-deformation-tool.localization.weight-transfer-settings.tooltip"
 msgstr "用於在網格變形後更新骨骼動畫的設定。"
@@ -1162,13 +1162,13 @@ msgstr "所有影格"
 
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
-msgstr "(NDMF) Disable Lattice Preview"
+msgstr "(NDMF) 停用晶格預覽"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview.tooltip"
 msgstr "關閉即時 NDMF 變形預覽。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview"
-msgstr "(NDMF) Enable Lattice Preview"
+msgstr "(NDMF) 啟用晶格預覽"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview.tooltip"
 msgstr "在場景視圖中開啟即時 NDMF 變形預覽。"

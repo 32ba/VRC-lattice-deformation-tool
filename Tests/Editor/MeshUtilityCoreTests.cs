@@ -164,7 +164,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 0.004f,
                 VertexSelectionHandler.FalloffType.Smooth);
             long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
-            Assert.That(allocated, Is.Zero);
+            ManagedAllocationCounter.AssertNoAllocations(allocated);
         }
 
         [Test]
@@ -307,7 +307,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void VertexSelectionCache_WarmUnchangedMeshAllocatesZeroBytes()
+        public void VertexSelectionCache_WarmUnchangedMeshReusesSnapshot()
         {
             var mesh = new Mesh
             {
@@ -324,7 +324,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 handler.RebuildCacheIfNeeded(mesh);
                 long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
 
-                Assert.That(allocated, Is.Zero);
+                ManagedAllocationCounter.AssertNoAllocations(allocated);
                 Assert.That(handler.RefreshCountForTests, Is.EqualTo(1));
             }
             finally
@@ -334,7 +334,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void VertexSelectionCache_WarmMeshRendererWithDeformerAllocatesZeroBytes()
+        public void VertexSelectionCache_WarmMeshRendererWithDeformerReusesSnapshot()
         {
             var rendererObject = new GameObject("Renderer");
             var mesh = new Mesh
@@ -355,7 +355,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 handler.RebuildCacheIfNeeded(mesh, deformer);
                 long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
 
-                Assert.That(allocated, Is.Zero);
+                ManagedAllocationCounter.AssertNoAllocations(allocated);
                 Assert.That(handler.RefreshCountForTests, Is.EqualTo(1));
             }
             finally
@@ -366,7 +366,46 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void VertexSelectionCache_WarmHundredThousandVerticesAllocatesZeroBytes()
+        public void BrushCache_MeshRendererUsesCurrentRuntimeMeshForVisualSnapshot()
+        {
+            var rendererObject = new GameObject("Runtime Brush Snapshot");
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            mesh.RecalculateNormals();
+            var handler = new BrushToolHandler();
+            try
+            {
+                rendererObject.AddComponent<MeshRenderer>();
+                rendererObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var deformer = rendererObject.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                int layerIndex = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = layerIndex;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, Vector3.forward);
+                Mesh runtimeMesh = deformer.Deform(true);
+
+                handler.Activate(deformer);
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+
+                var raycastMesh = GetHandlerField<Mesh>(handler, "_raycastMesh");
+                var worldPositions = GetHandlerField<Vector3[]>(handler, "_worldPositions");
+                Assert.That(raycastMesh, Is.SameAs(runtimeMesh));
+                Assert.That(worldPositions[0], Is.EqualTo(Vector3.forward));
+            }
+            finally
+            {
+                handler.Deactivate();
+                Object.DestroyImmediate(rendererObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void VertexSelectionCache_WarmHundredThousandVerticesReusesSnapshot()
         {
             const int vertexCount = 100000;
             const int iterations = 20;
@@ -390,8 +429,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 double averageMilliseconds = stopwatch.Elapsed.TotalMilliseconds / iterations;
                 TestContext.WriteLine(
-                    $"100k warm snapshot: {averageMilliseconds:F3} ms/call, {allocated} B/{iterations} calls");
-                Assert.That(allocated, Is.Zero);
+                    $"100k warm snapshot: {averageMilliseconds:F3} ms/call, " +
+                    ManagedAllocationCounter.Format(allocated));
+                ManagedAllocationCounter.AssertNoAllocations(allocated);
                 Assert.That(handler.RefreshCountForTests, Is.EqualTo(1));
             }
             finally
@@ -470,7 +510,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 long before = System.GC.GetAllocatedBytesForCurrentThread();
                 handler.RebuildCacheIfNeeded(mesh, deformer);
                 long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
-                Assert.That(allocated, Is.Zero);
+                ManagedAllocationCounter.AssertNoAllocations(allocated);
 
                 boneObject.transform.localPosition = Vector3.right;
                 handler.RebuildCacheIfNeeded(mesh, deformer);
@@ -538,7 +578,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void BrushCache_WarmMeshRendererAllocatesZeroBytes()
+        public void BrushCache_WarmMeshRendererReusesSnapshot()
         {
             var rendererObject = new GameObject("Renderer");
             var mesh = new Mesh
@@ -559,7 +599,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 handler.RebuildCacheIfNeeded(mesh, deformer);
                 long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
 
-                Assert.That(allocated, Is.Zero);
+                ManagedAllocationCounter.AssertNoAllocations(allocated);
             }
             finally
             {
@@ -641,7 +681,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     Is.False);
                 Assert.DoesNotThrow(() =>
                     typeof(BrushToolHandler).GetMethod("ApplyMirror", flags).Invoke(
-                        handler, new object[] { deformer, Vector3.zero, 1f, 1f, 1f }));
+                        handler, new object[] { deformer, Vector3.zero, Vector3.zero, 1f, 1f, 1f }));
                 Assert.That(layer.BrushDisplacements, Is.SameAs(malformed));
                 Assert.That(layer.BrushDisplacements[0], Is.EqualTo(new Vector3(1f, 2f, 3f)));
             }
@@ -654,7 +694,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void BrushCache_WarmSkinnedRendererAllocatesZeroBytes()
+        public void BrushCache_WarmSkinnedRendererReusesSnapshot()
         {
             var rendererObject = new GameObject("Renderer");
             var boneObject = new GameObject("Bone");
@@ -675,7 +715,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 handler.RebuildCacheIfNeeded(mesh, deformer);
                 long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
 
-                Assert.That(allocated, Is.Zero);
+                ManagedAllocationCounter.AssertNoAllocations(allocated);
             }
             finally
             {
@@ -707,7 +747,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var warm = cache.Get(deformer);
                 long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
                 Assert.That(warm, Is.SameAs(first));
-                Assert.That(allocated, Is.Zero);
+                ManagedAllocationCounter.AssertNoAllocations(allocated);
 
                 boneObject.transform.localPosition = Vector3.right;
                 Assert.That(cache.Get(deformer), Is.Not.SameAs(first));
@@ -1144,7 +1184,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 SetHandlerField(handler, "_isDraggingSelection", true);
                 SetHandlerField(handler, "_selectionStartPos", new Vector2(41f, 73f));
                 SetHandlerField(handler, "_isTransforming", true);
-                SetHandlerField(handler, "_preTransformDisplacements", new[] { Vector3.one });
                 SetHandlerField(handler, "_preTransformWorldPositions", new[] { Vector3.right });
                 SetHandlerField(handler, "_handleRotation", Quaternion.Euler(10f, 20f, 30f));
                 SetHandlerField(handler, "_handleScale", new Vector3(2f, 3f, 4f));
@@ -1155,7 +1194,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(GetHandlerField<bool>(handler, "_isDraggingSelection"), Is.False);
                 Assert.That(GetHandlerField<Vector2>(handler, "_selectionStartPos"), Is.EqualTo(Vector2.zero));
                 Assert.That(GetHandlerField<bool>(handler, "_isTransforming"), Is.False);
-                Assert.That(GetHandlerField<Vector3[]>(handler, "_preTransformDisplacements"), Is.Null);
                 Assert.That(GetHandlerField<Vector3[]>(handler, "_preTransformWorldPositions"), Is.Null);
                 Assert.That(GetHandlerField<Quaternion>(handler, "_handleRotation"), Is.EqualTo(Quaternion.identity));
                 Assert.That(GetHandlerField<Vector3>(handler, "_handleScale"), Is.EqualTo(Vector3.one));
@@ -1335,6 +1373,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         private static T GetHandlerField<T>(VertexSelectionHandler handler, string name)
         {
             var field = typeof(VertexSelectionHandler).GetField(
+                name,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(field, Is.Not.Null, name);
+            return (T)field.GetValue(handler);
+        }
+
+        private static T GetHandlerField<T>(BrushToolHandler handler, string name)
+        {
+            var field = typeof(BrushToolHandler).GetField(
                 name,
                 BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That(field, Is.Not.Null, name);
