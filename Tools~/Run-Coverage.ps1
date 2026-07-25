@@ -3,7 +3,7 @@ param(
     [string]$UnityPath = "C:\Program Files\Unity\Hub\Editor\2022.3.22f1\Editor\Unity.exe",
     [string]$ResultsPath,
     [string]$TestResultsPath,
-    [int]$MinimumTestTotal = 287,
+    [int]$MinimumTestTotal = 900,
     [switch]$PreflightOnly,
     [switch]$EnforceLineCoverage,
     [switch]$NoCleanResults,

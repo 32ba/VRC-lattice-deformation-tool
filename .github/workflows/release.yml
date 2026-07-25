@@ -34,15 +34,16 @@ jobs:
 
       # Checkout Local Repository
       - name: Checkout
-        uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Generate token
         id: generate_token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
         with:
-          app-id: ${{ secrets.VPM_MANAGEMENT_GITHUB_APP_ID }}
-          private-key: ${{ secrets.VPM_MANAGEMENT_GITHUB_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: vpm.32ba.net
 
       # Get the Package version based on the package.json file
       - name: Get Version
@@ -51,6 +52,21 @@ jobs:
         with: 
             file_path: "package.json"
             prop_path: "version"
+
+      - name: Reject an existing release tag
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$PACKAGE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "package.json contains an invalid release version: $PACKAGE_VERSION" >&2
+            exit 1
+          fi
+          git fetch --force --tags
+          if git rev-parse --verify --quiet "refs/tags/$PACKAGE_VERSION"; then
+            echo "Release tag $PACKAGE_VERSION already exists. Bump package.json before releasing." >&2
+            exit 1
+          fi
     
       # Configure the Environment Variables needed for releasing the Package
       - name: Set Environment Variables
@@ -61,7 +77,7 @@ jobs:
           
       # Zip the Package for release
       - name: Create Package Zip
-        run: zip -r "${{ github.workspace }}/${{ steps.set_env.outputs.zipFile }}" . -x '.*' '*/.*' 'CLAUDE.md' 'CLAUDE.md.meta' 'Tests/' 'Tests/**' 'Tests.meta' 'Tools~/' 'Tools~/**'
+        run: zip -r "${{ github.workspace }}/${{ steps.set_env.outputs.zipFile }}" . -x '.*' '*/.*' 'AGENTS.md' 'AGENTS.md.meta' 'CLAUDE.md' 'CLAUDE.md.meta' 'Tests/' 'Tests/**' 'Tests.meta' 'Tools~/' 'Tools~/**'
 
       - name: Prepare Unity Package Layout
         run: |
@@ -79,6 +95,8 @@ jobs:
             --exclude '.gitmodules' \
             --exclude '.gitignore' \
             --exclude '.gitattributes' \
+            --exclude 'AGENTS.md' \
+            --exclude 'AGENTS.md.meta' \
             --exclude 'CLAUDE.md' \
             --exclude 'CLAUDE.md.meta' \
             --exclude 'Tests/' \
@@ -96,7 +114,7 @@ jobs:
       
       # Make a UnityPackage version of the Package for release
       - name: Create UnityPackage
-        uses: pCYSl5EDgo/create-unitypackage@v1.2.3
+        uses: pCYSl5EDgo/create-unitypackage@b5c57408698b1fab8b3a84d4b67f767b8b7c0be9 # v1.2.3
         with:
           package-path: ${{ steps.set_env.outputs.unityPackage }}
           include-files: metaList

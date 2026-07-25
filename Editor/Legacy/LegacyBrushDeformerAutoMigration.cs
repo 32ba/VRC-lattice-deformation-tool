@@ -18,6 +18,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     internal static class LegacyBrushDeformerAutoMigration
     {
         private static readonly Queue<string> s_prefabQueue = new Queue<string>();
+        private static readonly Queue<string> s_projectPrefabDiscoveryQueue = new Queue<string>();
         private static readonly HashSet<string> s_queuedPrefabs =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> s_reportedFailures = new HashSet<string>();
@@ -26,6 +27,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_scheduled;
         private static bool s_allowBatchExecution;
         private static bool s_hooksSubscribed;
+        private const int k_ProjectDiscoveryBatchSize = 25;
+        private const string k_ProjectScanSessionKey =
+            "net.32ba.lattice-deformation-tool.legacy-brush-project-scan.v1";
 
         static LegacyBrushDeformerAutoMigration()
         {
@@ -33,7 +37,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (Application.isBatchMode) return;
 
             QueueLoadedSceneScan();
-            QueueProjectPrefabScan();
+            if (!SessionState.GetBool(k_ProjectScanSessionKey, false))
+            {
+                QueueProjectPrefabScan();
+            }
         }
 
         internal static IDisposable EnableEventExecutionForTests()
@@ -184,7 +191,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Schedule();
         }
 
-        private static void DiscoverProjectPrefabs()
+        private static void BeginProjectPrefabDiscovery()
         {
             string scriptPath = ResolveLegacyScriptPath();
             if (string.IsNullOrEmpty(scriptPath)) return;
@@ -192,6 +199,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets" }))
             {
                 string path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!string.IsNullOrEmpty(path)) s_projectPrefabDiscoveryQueue.Enqueue(path);
+            }
+
+            ProcessProjectPrefabDiscoveryBatch(scriptPath);
+        }
+
+        private static void ProcessProjectPrefabDiscoveryBatch(string scriptPath = null)
+        {
+            scriptPath ??= ResolveLegacyScriptPath();
+            if (string.IsNullOrEmpty(scriptPath)) return;
+
+            int remaining = k_ProjectDiscoveryBatchSize;
+            while (remaining-- > 0 && s_projectPrefabDiscoveryQueue.Count > 0)
+            {
+                string path = s_projectPrefabDiscoveryQueue.Dequeue();
                 if (AssetDatabase.GetDependencies(path, false)
                     .Any(dependency => string.Equals(
                         dependency,
@@ -200,6 +222,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     QueuePrefab(path);
                 }
+            }
+
+            if (s_projectPrefabDiscoveryQueue.Count == 0)
+            {
+                SessionState.SetBool(k_ProjectScanSessionKey, true);
             }
         }
 
@@ -280,7 +307,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (s_scanProjectPrefabs)
             {
                 s_scanProjectPrefabs = false;
-                DiscoverProjectPrefabs();
+                BeginProjectPrefabDiscovery();
+            }
+            else if (s_projectPrefabDiscoveryQueue.Count > 0)
+            {
+                ProcessProjectPrefabDiscoveryBatch();
             }
 
             if (s_prefabQueue.Count > 0)
@@ -293,7 +324,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
-            if (s_prefabQueue.Count > 0 || s_scanLoadedScenes || s_scanProjectPrefabs) Schedule();
+            if (s_prefabQueue.Count > 0 || s_projectPrefabDiscoveryQueue.Count > 0 ||
+                s_scanLoadedScenes || s_scanProjectPrefabs) Schedule();
         }
 
         private static void ReportFailure(string key, string error, UnityEngine.Object context)
@@ -342,6 +374,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorApplication.delayCall -= RunPending;
             EditorApplication.update -= RunPending;
             s_prefabQueue.Clear();
+            s_projectPrefabDiscoveryQueue.Clear();
             s_queuedPrefabs.Clear();
             s_reportedFailures.Clear();
             s_scanLoadedScenes = false;

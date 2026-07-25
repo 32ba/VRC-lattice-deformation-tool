@@ -1110,7 +1110,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 handler.UpdateSkinningSnapshotIfNeeded(
                     deformer, renderer, sourceBounds, Matrix4x4.identity, Matrix4x4.identity);
                 long skinningAllocated = System.GC.GetAllocatedBytesForCurrentThread() - skinningBefore;
-                Assert.That(skinningAllocated, Is.Zero);
+                ManagedAllocationCounter.AssertNoAllocations(skinningAllocated);
                 Assert.That(handler.SkinningRefreshCountForTests, Is.EqualTo(warmSkinningCount));
 
                 handler.UpdateProxySnapshotIfNeeded(
@@ -1123,7 +1123,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 handler.UpdateProxySnapshotIfNeeded(
                     deformer, renderer, sourceBounds, Matrix4x4.identity, Matrix4x4.identity);
                 long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
-                Assert.That(allocated, Is.Zero);
+                ManagedAllocationCounter.AssertNoAllocations(allocated);
                 Assert.That(handler.ProxyBoundsRefreshCountForTests, Is.EqualTo(warmRefreshCount));
 
                 Bounds initial = handler.ProxyMeshBoundsForTests;

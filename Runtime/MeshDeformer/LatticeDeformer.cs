@@ -1,4 +1,5 @@
 using System;
+using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -368,7 +369,7 @@ namespace Net._32Ba.LatticeDeformationTool
             return !float.IsNaN(value) && !float.IsInfinity(value);
         }
 
-        internal bool HasNonFiniteSerializedVertexData
+        internal bool HasNonFiniteSerializedBrushDisplacements
         {
             get
             {
@@ -386,11 +387,20 @@ namespace Net._32Ba.LatticeDeformationTool
                     }
                 }
 
+                return false;
+            }
+        }
+
+        internal bool HasInvalidSerializedVertexMask
+        {
+            get
+            {
                 if (_vertexMask != null)
                 {
                     for (int i = 0; i < _vertexMask.Length; i++)
                     {
-                        if (float.IsNaN(_vertexMask[i]) || float.IsInfinity(_vertexMask[i]))
+                        float value = _vertexMask[i];
+                        if (!IsFinite(value) || value < 0f || value > 1f)
                         {
                             return true;
                         }
@@ -400,6 +410,9 @@ namespace Net._32Ba.LatticeDeformationTool
                 return false;
             }
         }
+
+        internal bool HasNonFiniteSerializedVertexData =>
+            HasNonFiniteSerializedBrushDisplacements || HasInvalidSerializedVertexMask;
 
         public void EnsureBrushDisplacementCapacity(int vertexCount)
         {
@@ -484,12 +497,22 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
+            if (!IsFinite(displacement.x) || !IsFinite(displacement.y) || !IsFinite(displacement.z))
+            {
+                return;
+            }
+
             _brushDisplacements[index] = displacement;
         }
 
         public void AddBrushDisplacement(int index, Vector3 delta)
         {
             if (_brushDisplacements == null || index < 0 || index >= _brushDisplacements.Length)
+            {
+                return;
+            }
+
+            if (!IsFinite(delta.x) || !IsFinite(delta.y) || !IsFinite(delta.z))
             {
                 return;
             }
@@ -541,6 +564,11 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
+            if (!IsFinite(value))
+            {
+                return;
+            }
+
             _vertexMask[index] = Mathf.Clamp01(value);
         }
 
@@ -587,6 +615,8 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private string _blendShapeName = "";
         [SerializeField] private AnimationCurve _blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
         [SerializeField] private BlendShapeCompositionMode _blendShapeComposition = BlendShapeCompositionMode.Single;
+        [NonSerialized] private List<LatticeLayer> _readOnlyLayerSource;
+        [NonSerialized] private ReadOnlyCollection<LatticeLayer> _readOnlyLayers;
 
         public string Name
         {
@@ -600,6 +630,12 @@ namespace Net._32Ba.LatticeDeformationTool
             set => _enabled = value;
         }
 
+        /// <summary>
+        /// Legacy mutable collection retained for source compatibility. Prefer
+        /// <see cref="Layers"/> and the mutation methods on <see cref="LatticeDeformer"/>
+        /// so cache invalidation and active-index maintenance cannot be bypassed.
+        /// </summary>
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
         public List<LatticeLayer> LayersList
         {
             get
@@ -609,7 +645,28 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        public IReadOnlyList<LatticeLayer> Layers => LayersList;
+        public IReadOnlyList<LatticeLayer> Layers
+        {
+            get
+            {
+                var layers = MutableLayers;
+                if (_readOnlyLayers == null || !ReferenceEquals(_readOnlyLayerSource, layers))
+                {
+                    _readOnlyLayerSource = layers;
+                    _readOnlyLayers = layers.AsReadOnly();
+                }
+                return _readOnlyLayers;
+            }
+        }
+
+        internal List<LatticeLayer> MutableLayers
+        {
+            get
+            {
+                if (_layers == null) _layers = new List<LatticeLayer>();
+                return _layers;
+            }
+        }
 
         internal List<LatticeLayer> SerializedLayers => _layers;
 
@@ -767,11 +824,30 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private int _lastBakedBlendShapeHash;
         [NonSerialized] private List<DeformerGroup> _profileGroups;
         [NonSerialized] private List<DeformerGroup> _blockedProfileGroups;
+        [NonSerialized] private List<DeformerGroup> _readOnlyGroupSource;
+        [NonSerialized] private ReadOnlyCollection<DeformerGroup> _readOnlyGroups;
         [NonSerialized] private string _profileFingerprint;
         [NonSerialized] private bool _blendShapeOutputDirty = true;
         [NonSerialized] private int _runtimeMeshRevision;
         [NonSerialized] private bool _isEnsuringLayerModelReady;
         [NonSerialized] private bool _hasIncompatibleBrushData;
+        [NonSerialized] private List<Vector3> _sourceVertexScratch = new List<Vector3>();
+        [NonSerialized] private List<Vector3> _sourceNormalScratch = new List<Vector3>();
+        [NonSerialized] private List<Vector4> _sourceTangentScratch = new List<Vector4>();
+        [NonSerialized] private Vector3[] _sourceVerticesBuffer = Array.Empty<Vector3>();
+        [NonSerialized] private Vector3[] _directDeltasBuffer = Array.Empty<Vector3>();
+        [NonSerialized] private Vector3[] _groupVerticesBuffer = Array.Empty<Vector3>();
+        [NonSerialized] private Vector3[] _layerVerticesBuffer = Array.Empty<Vector3>();
+        [NonSerialized] private Vector3[] _finalVerticesBuffer = Array.Empty<Vector3>();
+        [NonSerialized] private Vector3[] _latticeOutputBuffer = Array.Empty<Vector3>();
+        [NonSerialized] private List<GeneratedBlendShape> _generatedBlendShapeBuffer =
+            new List<GeneratedBlendShape>();
+        [NonSerialized] private NativeArray<float3> _deformControlNative;
+        [NonSerialized] private NativeArray<LatticeCacheEntry> _deformEntriesNative;
+        [NonSerialized] private NativeArray<float3> _deformOutputNative;
+        [NonSerialized] private NativeArray<float> _deformBernsteinWeightsNative;
+        [NonSerialized] private LatticeCacheEntry[] _deformEntriesSource;
+        [NonSerialized] private float[] _deformBernsteinWeightsSource;
         [NonSerialized] private DeformationDataMigrationStatus _migrationStatus =
             DeformationDataMigrationStatus.Uninitialized;
         private const int k_CurrentLayerModelVersion = 3;
@@ -1008,7 +1084,13 @@ namespace Net._32Ba.LatticeDeformationTool
             get
             {
                 if (!EnsureGroups()) return Array.Empty<DeformerGroup>();
-                return GetGroupStorage();
+                var groups = GetGroupStorage();
+                if (_readOnlyGroups == null || !ReferenceEquals(_readOnlyGroupSource, groups))
+                {
+                    _readOnlyGroupSource = groups;
+                    _readOnlyGroups = groups.AsReadOnly();
+                }
+                return _readOnlyGroups;
             }
         }
 
@@ -2213,6 +2295,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [ExcludeFromCodeCoverage]
         private void OnDisable()
         {
+            ReleaseDeformationNativeBuffers();
             if (Application.isPlaying)
             {
                 return;
@@ -2229,6 +2312,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private void OnDestroy()
         {
+            ReleaseDeformationNativeBuffers();
             if (SuppressRestoreOnDisable)
             {
                 ReleaseRuntimeMesh();
@@ -2295,9 +2379,12 @@ namespace Net._32Ba.LatticeDeformationTool
 #line default
 
             // Accumulate direct-deform deltas across all groups
-            var directDeltas = new Vector3[vertexCount];
+            EnsureManagedDeformationBuffers(vertexCount);
+            var directDeltas = _directDeltasBuffer;
+            Array.Clear(directDeltas, 0, vertexCount);
             // Collect generated BlendShapes from groups and individual layers.
-            var generatedBlendShapes = new List<GeneratedBlendShape>();
+            var generatedBlendShapes = _generatedBlendShapeBuffer;
+            generatedBlendShapes.Clear();
             var groups = GetGroupStorage();
 
             for (int g = 0; g < groups.Count; g++)
@@ -2305,7 +2392,8 @@ namespace Net._32Ba.LatticeDeformationTool
                 var group = groups[g];
                 if (group == null || !group.Enabled) continue;
 
-                var groupVertices = (Vector3[])sourceVertices.Clone();
+                var groupVertices = _groupVerticesBuffer;
+                Array.Copy(sourceVertices, groupVertices, vertexCount);
                 var layers = group.LayersList;
                 bool stagedGroupOutput =
                     group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape &&
@@ -2322,7 +2410,8 @@ namespace Net._32Ba.LatticeDeformationTool
                     if (!_legacyPublishedBlendShapeSemantics &&
                         layer.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
                     {
-                        var layerVertices = (Vector3[])sourceVertices.Clone();
+                        var layerVertices = _layerVerticesBuffer;
+                        Array.Copy(sourceVertices, layerVertices, vertexCount);
                         TryApplyLayerContribution(layer, sourceVertices, layerVertices);
                         if (TryBuildDeltas(sourceVertices, layerVertices, out var layerDeltas))
                         {
@@ -2337,7 +2426,8 @@ namespace Net._32Ba.LatticeDeformationTool
 
                     if (stagedGroupOutput)
                     {
-                        var layerVertices = (Vector3[])sourceVertices.Clone();
+                        var layerVertices = _layerVerticesBuffer;
+                        Array.Copy(sourceVertices, layerVertices, vertexCount);
                         TryApplyLayerContribution(layer, sourceVertices, layerVertices);
                         if (TryBuildDeltas(
                                 sourceVertices,
@@ -2392,7 +2482,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             // Apply direct deltas
-            var finalVertices = new Vector3[vertexCount];
+            var finalVertices = _finalVerticesBuffer;
             for (int v = 0; v < vertexCount; v++)
                 finalVertices[v] = sourceVertices[v] + directDeltas[v];
 
@@ -2493,10 +2583,16 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            var normals = _sourceMesh.normals;
-            mesh.normals = normals != null && normals.Length == mesh.vertexCount
-                ? normals
-                : Array.Empty<Vector3>();
+            _sourceNormalScratch ??= new List<Vector3>(mesh.vertexCount);
+            _sourceMesh.GetNormals(_sourceNormalScratch);
+            if (_sourceNormalScratch.Count == mesh.vertexCount)
+            {
+                mesh.SetNormals(_sourceNormalScratch);
+            }
+            else
+            {
+                mesh.normals = Array.Empty<Vector3>();
+            }
         }
 
         private void RestoreSourceTangents(Mesh mesh)
@@ -2506,10 +2602,16 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            var tangents = _sourceMesh.tangents;
-            mesh.tangents = tangents != null && tangents.Length == mesh.vertexCount
-                ? tangents
-                : Array.Empty<Vector4>();
+            _sourceTangentScratch ??= new List<Vector4>(mesh.vertexCount);
+            _sourceMesh.GetTangents(_sourceTangentScratch);
+            if (_sourceTangentScratch.Count == mesh.vertexCount)
+            {
+                mesh.SetTangents(_sourceTangentScratch);
+            }
+            else
+            {
+                mesh.tangents = Array.Empty<Vector4>();
+            }
         }
 
         private bool EnsureLayerModelReady()
@@ -3703,7 +3805,7 @@ namespace Net._32Ba.LatticeDeformationTool
                     return;
                 }
 
-                var layerVertices = DeformWithJobs(entries, _controlBuffer);
+                var layerVertices = DeformWithJobs(entries, _controlBuffer, _latticeOutputBuffer);
                 for (int vertex = 0; vertex < deformedVertices.Length; vertex++)
                 {
                     deformedVertices[vertex] +=
@@ -3713,7 +3815,7 @@ namespace Net._32Ba.LatticeDeformationTool
             else
             {
                 CollectControlPointOffsetsLocal(layerSettings, _controlBuffer.AsSpan());
-                var layerOffsets = DeformWithJobs(entries, _controlBuffer);
+                var layerOffsets = DeformWithJobs(entries, _controlBuffer, _latticeOutputBuffer);
                 for (int vertex = 0; vertex < deformedVertices.Length; vertex++)
                 {
                     deformedVertices[vertex] += layerOffsets[vertex] * weight;
@@ -4207,11 +4309,27 @@ namespace Net._32Ba.LatticeDeformationTool
                 return null;
             }
 
-            var vertices = _sourceMesh.vertices;
-            if (vertices == null || vertices.Length == 0)
+            int sourceVertexCount = _sourceMesh.vertexCount;
+            if (sourceVertexCount <= 0)
             {
-                return vertices;
+                return Array.Empty<Vector3>();
             }
+
+            EnsureManagedDeformationBuffers(sourceVertexCount);
+            _sourceVertexScratch ??= new List<Vector3>(sourceVertexCount);
+            if (_sourceVertexScratch.Capacity < sourceVertexCount)
+            {
+                _sourceVertexScratch.Capacity = sourceVertexCount;
+            }
+
+            _sourceMesh.GetVertices(_sourceVertexScratch);
+            if (_sourceVertexScratch.Count != sourceVertexCount)
+            {
+                return null;
+            }
+
+            _sourceVertexScratch.CopyTo(_sourceVerticesBuffer, 0);
+            var vertices = _sourceVerticesBuffer;
 
             if (_skinnedMeshRenderer == null || _sourceMesh.blendShapeCount == 0)
             {
@@ -4258,6 +4376,30 @@ namespace Net._32Ba.LatticeDeformationTool
             return vertices;
         }
 
+        private void EnsureManagedDeformationBuffers(int vertexCount)
+        {
+            if (vertexCount < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(vertexCount));
+            }
+
+            EnsureVectorBuffer(ref _sourceVerticesBuffer, vertexCount);
+            EnsureVectorBuffer(ref _directDeltasBuffer, vertexCount);
+            EnsureVectorBuffer(ref _groupVerticesBuffer, vertexCount);
+            EnsureVectorBuffer(ref _layerVerticesBuffer, vertexCount);
+            EnsureVectorBuffer(ref _finalVerticesBuffer, vertexCount);
+            EnsureVectorBuffer(ref _latticeOutputBuffer, vertexCount);
+            _generatedBlendShapeBuffer ??= new List<GeneratedBlendShape>();
+        }
+
+        private static void EnsureVectorBuffer(ref Vector3[] buffer, int length)
+        {
+            if (buffer == null || buffer.Length != length)
+            {
+                buffer = length == 0 ? Array.Empty<Vector3>() : new Vector3[length];
+            }
+        }
+
         private static Vector3[] EvaluateBlendShapeVertexDelta(Mesh mesh, int shapeIndex, float weight)
         {
             int frameCount = mesh.GetBlendShapeFrameCount(shapeIndex);
@@ -4266,6 +4408,11 @@ namespace Net._32Ba.LatticeDeformationTool
             var upper = new Vector3[vertexCount];
             var unusedNormals = new Vector3[vertexCount];
             var unusedTangents = new Vector3[vertexCount];
+
+            if (frameCount == 0)
+            {
+                return lower;
+            }
 
             float firstWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, 0);
             if (weight <= firstWeight || frameCount == 1)
@@ -4297,7 +4444,18 @@ namespace Net._32Ba.LatticeDeformationTool
                 }
             }
 
-            mesh.GetBlendShapeFrameVertices(shapeIndex, frameCount - 1, lower, unusedNormals, unusedTangents);
+            int lastFrame = frameCount - 1;
+            mesh.GetBlendShapeFrameVertices(shapeIndex, lastFrame, lower, unusedNormals, unusedTangents);
+            float lastWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, lastFrame);
+            float previousWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, lastFrame - 1);
+            float interval = lastWeight - previousWeight;
+            if (Mathf.Abs(interval) > Mathf.Epsilon)
+            {
+                // Unity extrapolates the last frame itself over the final frame interval;
+                // it does not continue the slope between the final two delta arrays.
+                float scale = 1f + (weight - lastWeight) / interval;
+                ScaleDeltas(lower, scale);
+            }
             return lower;
         }
 
@@ -4337,6 +4495,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             _cache.Clear();
+            ReleaseDeformationNativeBuffers();
             _lastBlendShapeHash = 0;
             _blendShapeOutputDirty = true;
         }
@@ -5241,7 +5400,27 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        private Vector3[] DeformWithJobs(LatticeCacheEntry[] entries, Vector3[] controlPoints)
+        // Compatibility/testing entry point. Production hot paths pass a reusable result
+        // buffer to the overload below and therefore avoid this allocation.
+        private Vector3[] DeformWithJobs(
+            LatticeCacheEntry[] entries,
+            Vector3[] controlPoints)
+        {
+            if (entries == null || entries.Length == 0)
+            {
+                throw new ArgumentException("Cache entries are required for deformation.", nameof(entries));
+            }
+            if (controlPoints == null || controlPoints.Length == 0)
+            {
+                throw new ArgumentException("Control points are required for deformation.", nameof(controlPoints));
+            }
+            return DeformWithJobs(entries, controlPoints, new Vector3[entries.Length]);
+        }
+
+        private Vector3[] DeformWithJobs(
+            LatticeCacheEntry[] entries,
+            Vector3[] controlPoints,
+            Vector3[] result)
         {
             if (entries == null || entries.Length == 0)
             {
@@ -5253,24 +5432,26 @@ namespace Net._32Ba.LatticeDeformationTool
                 throw new ArgumentException("Control points are required for deformation.", nameof(controlPoints));
             }
 
-            using var controlNative = LatticeNativeArrayUtility.CreateCopy(controlPoints, Allocator.TempJob);
-            using var entriesNative = LatticeNativeArrayUtility.CreateCopy(entries, Allocator.TempJob);
-            using var outputNative = LatticeNativeArrayUtility.CreateFloat3Array(entries.Length, Allocator.TempJob);
+            if (result == null || result.Length != entries.Length)
+            {
+                throw new ArgumentException(
+                    "The caller-owned result buffer must match the cache entry count.",
+                    nameof(result));
+            }
 
             bool useBernstein = _cache != null &&
                                 _cache.Interpolation == LatticeInterpolationMode.CubicBernstein &&
                                 _cache.HasValidBernsteinWeights(entries.Length);
+            EnsureDeformationNativeBuffers(entries, controlPoints.Length, useBernstein);
+            _deformControlNative.CopyFromManaged(controlPoints);
             if (useBernstein)
             {
-                using var weightsNative = LatticeNativeArrayUtility.CreateCopy(
-                    _cache.BernsteinWeights,
-                    Allocator.TempJob);
                 var bernsteinJob = new DeformBernsteinVerticesJob
                 {
-                    ControlPoints = controlNative,
-                    Weights = weightsNative,
+                    ControlPoints = _deformControlNative,
+                    Weights = _deformBernsteinWeightsNative,
                     Grid = new int3(_cache.GridSize.x, _cache.GridSize.y, _cache.GridSize.z),
-                    Result = outputNative
+                    Result = _deformOutputNative
                 };
 
                 bernsteinJob.Schedule(entries.Length, 64).Complete();
@@ -5279,18 +5460,71 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 var job = new DeformVerticesJob
                 {
-                    ControlPoints = controlNative,
-                    Entries = entriesNative,
-                    Result = outputNative
+                    ControlPoints = _deformControlNative,
+                    Entries = _deformEntriesNative,
+                    Result = _deformOutputNative
                 };
 
                 job.Schedule(entries.Length, 64).Complete();
             }
 
-            var vertices = new Vector3[entries.Length];
-            outputNative.CopyToManaged(vertices);
+            _deformOutputNative.CopyToManaged(result);
+            return result;
+        }
 
-            return vertices;
+        private void EnsureDeformationNativeBuffers(
+            LatticeCacheEntry[] entries,
+            int controlPointCount,
+            bool useBernstein)
+        {
+            if (!_deformControlNative.IsCreated || _deformControlNative.Length != controlPointCount)
+            {
+                if (_deformControlNative.IsCreated) _deformControlNative.Dispose();
+                _deformControlNative = LatticeNativeArrayUtility.CreateFloat3Array(
+                    controlPointCount,
+                    Allocator.Persistent);
+            }
+
+            if (!_deformOutputNative.IsCreated || _deformOutputNative.Length != entries.Length)
+            {
+                if (_deformOutputNative.IsCreated) _deformOutputNative.Dispose();
+                _deformOutputNative = LatticeNativeArrayUtility.CreateFloat3Array(
+                    entries.Length,
+                    Allocator.Persistent);
+            }
+
+            if (!_deformEntriesNative.IsCreated ||
+                _deformEntriesNative.Length != entries.Length ||
+                !ReferenceEquals(_deformEntriesSource, entries))
+            {
+                if (_deformEntriesNative.IsCreated) _deformEntriesNative.Dispose();
+                _deformEntriesNative = LatticeNativeArrayUtility.CreateCopy(entries, Allocator.Persistent);
+                _deformEntriesSource = entries;
+            }
+
+            if (!useBernstein) return;
+
+            float[] weights = _cache.BernsteinWeights;
+            if (!_deformBernsteinWeightsNative.IsCreated ||
+                _deformBernsteinWeightsNative.Length != weights.Length ||
+                !ReferenceEquals(_deformBernsteinWeightsSource, weights))
+            {
+                if (_deformBernsteinWeightsNative.IsCreated) _deformBernsteinWeightsNative.Dispose();
+                _deformBernsteinWeightsNative = LatticeNativeArrayUtility.CreateCopy(
+                    weights,
+                    Allocator.Persistent);
+                _deformBernsteinWeightsSource = weights;
+            }
+        }
+
+        private void ReleaseDeformationNativeBuffers()
+        {
+            if (_deformControlNative.IsCreated) _deformControlNative.Dispose();
+            if (_deformEntriesNative.IsCreated) _deformEntriesNative.Dispose();
+            if (_deformOutputNative.IsCreated) _deformOutputNative.Dispose();
+            if (_deformBernsteinWeightsNative.IsCreated) _deformBernsteinWeightsNative.Dispose();
+            _deformEntriesSource = null;
+            _deformBernsteinWeightsSource = null;
         }
 
 

@@ -8,19 +8,19 @@ msgid "net.32ba.lattice-deformation-tool.localization.tool-language"
 msgstr "툴 언어"
 
 msgid "net.32ba.lattice-deformation-tool.localization.tool-language.tooltip"
-msgstr ""
+msgstr "모든 도구 UI 요소의 표시 언어를 설정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-tooltips"
 msgstr "툴팁 표시"
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-tooltips.tooltip"
-msgstr ""
+msgstr "UI 요소 위로 마우스를 가져가면 유용한 설명이 표시됩니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer"
 msgstr "Mesh Deformer"
 
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer.tooltip"
-msgstr ""
+msgstr "비파괴적인 메시 변형을 위한 주요 구성 요소입니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer-overview"
 msgstr "Mesh / SkinnedMesh 형상을 Lattice, Brush, Vertex Selection 레이어로 조정합니다. 원본 Mesh는 변경하지 않으며 NDMF Preview와 빌드 시 결과를 비파괴 방식으로 적용합니다."
@@ -84,274 +84,274 @@ msgid "net.32ba.lattice-deformation-tool.localization.skinned-mesh-source"
 msgstr "Skinned Mesh Source"
 
 msgid "net.32ba.lattice-deformation-tool.localization.skinned-mesh-source.tooltip"
-msgstr ""
+msgstr "SkinnedMeshRenderer를 변형하도록 설정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.static-mesh-source"
 msgstr "Static Mesh Source"
 
 msgid "net.32ba.lattice-deformation-tool.localization.static-mesh-source.tooltip"
-msgstr ""
+msgstr "변형할 MeshFilter를 설정합니다."
 
 # Groups & Layers
 msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups"
-msgstr ""
+msgstr "변형 그룹"
 
 msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups.tooltip"
-msgstr ""
+msgstr "변경 사항을 각각 자체 효과로 출력할 수 있는 별도의 그룹으로 구성합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.layers"
-msgstr ""
+msgstr "레이어"
 
 msgid "net.32ba.lattice-deformation-tool.localization.layers.tooltip"
-msgstr ""
+msgstr "활성 그룹의 모든 변형 레이어를 나열합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.add-lattice-layer"
-msgstr ""
+msgstr "래티스 레이어 추가"
 
 msgid "net.32ba.lattice-deformation-tool.localization.add-lattice-layer.tooltip"
-msgstr ""
+msgstr "케이지 레이어를 만듭니다. 케이지 모서리를 드래그하여 메시를 변형합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer"
-msgstr ""
+msgstr "브러시 레이어 추가"
 
 msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer.tooltip"
-msgstr ""
+msgstr "페인트 레이어를 만듭니다. 영역의 모양을 변경하려면 브러시로 메쉬를 칠합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer"
 msgstr "활성 레이어"
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer.tooltip"
-msgstr ""
+msgstr "현재 편집 중인 레이어를 선택합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.duplicate-layer"
 msgstr "레이어 복제"
 
 msgid "net.32ba.lattice-deformation-tool.localization.duplicate-layer.tooltip"
-msgstr ""
+msgstr "모든 데이터가 포함된 선택한 레이어의 복사본을 만듭니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy-layer"
-msgstr ""
+msgstr "레이어 복사"
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy-layer.tooltip"
-msgstr ""
+msgstr "붙여넣기 위해 선택한 레이어를 클립보드에 복사합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.paste-layer"
 msgstr "레이어 붙여넣기"
 
 msgid "net.32ba.lattice-deformation-tool.localization.paste-layer.tooltip"
-msgstr ""
+msgstr "이전에 복사한 레이어를 활성 그룹에 삽입합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.delete-layer"
-msgstr ""
+msgstr "레이어 삭제"
 
 msgid "net.32ba.lattice-deformation-tool.localization.delete-layer.tooltip"
-msgstr ""
+msgstr "그룹에서 선택한 레이어를 제거합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.duplicate-group"
-msgstr ""
+msgstr "그룹 복제"
 
 msgid "net.32ba.lattice-deformation-tool.localization.duplicate-group.tooltip"
-msgstr ""
+msgstr "모든 레이어와 함께 선택한 그룹의 복사본을 만듭니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy-group"
-msgstr ""
+msgstr "그룹 복사"
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy-group.tooltip"
-msgstr ""
+msgstr "붙여넣기 위해 선택한 그룹을 클립보드에 복사합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.paste-group"
-msgstr ""
+msgstr "그룹 붙여넣기"
 
 msgid "net.32ba.lattice-deformation-tool.localization.paste-group.tooltip"
-msgstr ""
+msgstr "이전에 복사한 그룹을 디포머에 삽입합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.delete-group"
-msgstr ""
+msgstr "그룹 삭제"
 
 msgid "net.32ba.lattice-deformation-tool.localization.delete-group.tooltip"
-msgstr ""
+msgstr "선택한 그룹과 해당 레이어를 모두 제거합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer"
-msgstr ""
+msgstr "활성 레이어 재설정"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer.tooltip"
-msgstr ""
+msgstr "활성 레이어의 모든 변형 데이터를 지웁니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.no-deformation-layers"
 msgstr "사용 가능한 변형 레이어가 없습니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.no-deformation-layers.tooltip"
-msgstr ""
+msgstr "편집을 시작하려면 래티스 또는 브러시 레이어를 추가하세요."
 
 # L/R Operations
 msgid "net.32ba.lattice-deformation-tool.localization.lr-operations"
 msgstr "좌우 조작"
 
 msgid "net.32ba.lattice-deformation-tool.localization.lr-operations.tooltip"
-msgstr ""
+msgstr "축별로 변형을 분할하고 미러링하는 도구입니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-l"
 msgstr "왼쪽 분리"
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-l.tooltip"
-msgstr ""
+msgstr "왼쪽 변형만 유지하고 오른쪽 변형을 0으로 만듭니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-r"
 msgstr "오른쪽 분리"
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-r.tooltip"
-msgstr ""
+msgstr "오른쪽 변형만 유지하고 왼쪽 변형을 0으로 설정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-layer-left"
-msgstr ""
+msgstr "왼쪽으로 레이어 분할"
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-layer-left.tooltip"
-msgstr ""
+msgstr "레이어의 양의 X 방향에 있는 모든 변형을 0으로 설정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-layer-right"
-msgstr ""
+msgstr "레이어를 오른쪽으로 분할"
 
 msgid "net.32ba.lattice-deformation-tool.localization.split-layer-right.tooltip"
-msgstr ""
+msgstr "레이어의 음수 X 측의 모든 변형을 0으로 설정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-x"
 msgstr "X 반전"
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-x.tooltip"
-msgstr ""
+msgstr "X축을 따라 모든 변형 데이터를 미러링합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-y"
 msgstr "Y 반전"
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-y.tooltip"
-msgstr ""
+msgstr "Y축 전체에 걸쳐 모든 변형 데이터를 미러링합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-z"
 msgstr "Z 반전"
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-z.tooltip"
-msgstr ""
+msgstr "Z축 전체의 모든 변형 데이터를 미러링합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-x"
-msgstr ""
+msgstr "레이어 X 뒤집기"
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-x.tooltip"
-msgstr ""
+msgstr "X에서 미러링된 정점 쌍 사이의 변형을 교환합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-y"
-msgstr ""
+msgstr "레이어 Y 뒤집기"
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-y.tooltip"
-msgstr ""
+msgstr "Y의 미러링된 정점 쌍 사이의 변형을 교환합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-z"
-msgstr ""
+msgstr "레이어 Z 뒤집기"
 
 msgid "net.32ba.lattice-deformation-tool.localization.flip-layer-z.tooltip"
-msgstr ""
+msgstr "Z에서 미러링된 정점 쌍 사이의 변형을 교환합니다."
 
 # Lattice Tool
 msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool"
-msgstr "Lattice Tool"
+msgstr "래티스 도구"
 
 msgid "net.32ba.lattice-deformation-tool.localization.lattice-tool.tooltip"
-msgstr ""
+msgstr "장면 뷰에서 래티스 케이지 편집기를 활성화합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-lattice"
-msgstr ""
+msgstr "활성 레이어는 래티스 레이어가 아닙니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-lattice.tooltip"
-msgstr ""
+msgstr "래티스 편집 도구를 사용하려면 래티스 레이어로 전환하세요."
 
 msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls"
-msgstr "Move Lattice Controls"
+msgstr "래티스 제어점 이동"
 
 msgid "net.32ba.lattice-deformation-tool.localization.move-lattice-controls.tooltip"
-msgstr ""
+msgstr "제어점을 드래그하여 케이지를 통해 메쉬를 변형합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-lattice-cage"
 msgstr "래티스 케이지 초기화"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-lattice-cage.tooltip"
-msgstr ""
+msgstr "모든 제어점을 기본 위치로 되돌립니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.control-point-scope"
 msgstr "제어점 범위"
 
 msgid "net.32ba.lattice-deformation-tool.localization.control-point-scope.tooltip"
-msgstr ""
+msgstr "어떤 제어점이 표시되고 선택 가능한지 필터링합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.all-controls"
 msgstr "모든 제어점"
 
 msgid "net.32ba.lattice-deformation-tool.localization.all-controls.tooltip"
-msgstr ""
+msgstr "내부 제어점을 포함한 모든 제어점을 표시합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.boundary-only"
 msgstr "경계만"
 
 msgid "net.32ba.lattice-deformation-tool.localization.boundary-only.tooltip"
-msgstr ""
+msgstr "케이지 외부 면의 제어점만 표시합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.keep-control-points-visible"
 msgstr "오브젝트 뒤에서도 제어점이 보이도록 유지"
 
 msgid "net.32ba.lattice-deformation-tool.localization.keep-control-points-visible.tooltip"
-msgstr ""
+msgstr "장면 형상 위에 제어점을 렌더링합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-control-ids"
 msgstr "제어 ID 표시"
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-control-ids.tooltip"
-msgstr ""
+msgstr "각 제어점 옆에 인덱스 번호를 표시합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.handle-orientation"
 msgstr "핸들 방향"
 
 msgid "net.32ba.lattice-deformation-tool.localization.handle-orientation.tooltip"
-msgstr ""
+msgstr "이동 핸들이 로컬 또는 월드 공간에 정렬되는지 여부를 설정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.local"
 msgstr "로컬"
 
 msgid "net.32ba.lattice-deformation-tool.localization.local.tooltip"
-msgstr ""
+msgstr "개체의 로컬 좌표 공간에 핸들을 정렬합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.global"
 msgstr "글로벌"
 
 msgid "net.32ba.lattice-deformation-tool.localization.global.tooltip"
-msgstr ""
+msgstr "핸들을 표준 좌표 공간에 정렬합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-symmetry-editing"
 msgstr "대칭 편집 활성화"
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-symmetry-editing.tooltip"
-msgstr ""
+msgstr "축 전체에 걸쳐 제어점을 미러링하여 편집할 수 있습니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-axis"
 msgstr "대칭 축"
 
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-axis.tooltip"
-msgstr ""
+msgstr "대칭 제어점 편집에 사용되는 축을 설정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-mode"
 msgstr "대칭 모드"
 
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-mode.tooltip"
-msgstr ""
+msgstr "거울 또는 반대칭 반사 중에서 선택합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.antisymmetric"
 msgstr "반대칭"
 
 msgid "net.32ba.lattice-deformation-tool.localization.antisymmetric.tooltip"
-msgstr ""
+msgstr "움직임을 미러링하지만 축 구성 요소 기호를 뒤집습니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.mirror"
 msgstr "미러"
 
 msgid "net.32ba.lattice-deformation-tool.localization.mirror.tooltip"
-msgstr ""
+msgstr "반대쪽 제어점에 정확한 움직임을 복사합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.x"
 msgstr "X"
@@ -375,243 +375,243 @@ msgid "net.32ba.lattice-deformation-tool.localization.shift-click-hint"
 msgstr "Shift/Ctrl을 눌러 제어점을 추가/제거합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.shift-click-hint.tooltip"
-msgstr ""
+msgstr "Shift가 선택 항목에 추가됩니다. Ctrl은 개별 포인트를 전환합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.selected-none"
 msgstr "선택: 없음"
 
 msgid "net.32ba.lattice-deformation-tool.localization.selected-none.tooltip"
-msgstr ""
+msgstr "제어점을 클릭하여 선택합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.selected-format"
 msgstr "선택: {0}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.selected-format.tooltip"
-msgstr ""
+msgstr "현재 선택된 제어점을 표시합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.selected-controls-format"
 msgstr "선택: 컨트롤 {0}개"
 
 msgid "net.32ba.lattice-deformation-tool.localization.selected-controls-format.tooltip"
-msgstr ""
+msgstr "선택된 제어점 수를 표시합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.global-space-disabled"
 msgstr "글로벌 공간 편집이 비활성화되었습니다"
 
 msgid "net.32ba.lattice-deformation-tool.localization.global-space-disabled.tooltip"
-msgstr ""
+msgstr "다중 선택에서는 전역 공간 편집을 사용할 수 없습니다."
 
 # Lattice Grid
 msgid "net.32ba.lattice-deformation-tool.localization.current-grid-divisions"
 msgstr "현재 그리드 분할"
 
 msgid "net.32ba.lattice-deformation-tool.localization.current-grid-divisions.tooltip"
-msgstr ""
+msgstr "각 축의 현재 분할 수를 표시합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.pending-grid-divisions"
 msgstr "변경될 그리드 분할"
 
 msgid "net.32ba.lattice-deformation-tool.localization.pending-grid-divisions.tooltip"
-msgstr ""
+msgstr "래티스 그리드에 적용할 새로운 세분화 개수를 설정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.change-lattice-divisions"
 msgstr "래티스 분할 변경"
 
 msgid "net.32ba.lattice-deformation-tool.localization.change-lattice-divisions.tooltip"
-msgstr ""
+msgstr "보류 중인 분할 값을 적용하고 그리드를 다시 작성합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected"
-msgstr "No Lattice Deformer selected."
+msgstr "Lattice Deformer가 선택되지 않았습니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected.tooltip"
-msgstr ""
+msgstr "Mesh Deformer 컴포넌트가 있는 GameObject를 선택합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-asset-assigned"
 msgstr "이 디포머에 라티스 에셋이 할당되어 있지 않습니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-asset-assigned.tooltip"
-msgstr ""
+msgstr "디포머 사용을 시작하려면 메시 소스를 할당하세요."
 
 # Brush Tool
 msgid "net.32ba.lattice-deformation-tool.localization.brush-tool"
 msgstr "브러시 도구"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-tool.tooltip"
-msgstr ""
+msgstr "브러시 기반 정점 페인팅 편집기를 활성화합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-brush"
-msgstr ""
+msgstr "활성 레이어는 브러시 레이어가 아닙니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-brush.tooltip"
-msgstr ""
+msgstr "브러시 편집 도구를 사용하려면 브러시 레이어로 전환하세요."
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info"
-msgstr ""
+msgstr "브러시 레이어"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info.tooltip"
-msgstr ""
+msgstr "페인트 기반 레이어. 모든 브러시 스트로크가 여기에 저장됩니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-radius"
 msgstr "브러시 반경"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-radius.tooltip"
-msgstr ""
+msgstr "브러시 효과 영역의 크기를 제어합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-strength"
 msgstr "브러시 강도"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-strength.tooltip"
-msgstr ""
+msgstr "각 스트로크가 적용되는 변위량을 제어합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-falloff"
 msgstr "브러시 감쇠"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-falloff.tooltip"
-msgstr ""
+msgstr "브러시 가장자리의 부드러움 또는 딱딱함을 선택합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.normal"
 msgstr "노멀"
 
 msgid "net.32ba.lattice-deformation-tool.localization.normal.tooltip"
-msgstr ""
+msgstr "표면을 바깥쪽으로(메쉬에 수직으로) 밀어냅니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.move"
 msgstr "이동"
 
 msgid "net.32ba.lattice-deformation-tool.localization.move.tooltip"
-msgstr ""
+msgstr "화면에서 드래그하는 방향으로 메쉬를 이동합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-smooth"
 msgstr "브러시 스무스"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-smooth.tooltip"
-msgstr ""
+msgstr "가장자리를 혼합하여 급격한 변화를 부드럽게 만듭니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-mask"
 msgstr "브러시 마스크"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-mask.tooltip"
-msgstr ""
+msgstr "변경하고 싶지 않은 영역을 표시하세요. 이것들은 잠겨 있습니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deform"
 msgstr "브러시 변형"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deform.tooltip"
-msgstr ""
+msgstr "브러시가 메시에 미치는 영향을 선택합니다(밀기, 이동, 부드럽게 또는 잠금)."
 
 msgid "net.32ba.lattice-deformation-tool.localization.smooth"
 msgstr "부드러움"
 
 msgid "net.32ba.lattice-deformation-tool.localization.smooth.tooltip"
-msgstr ""
+msgstr "중앙에서 가장자리까지 부드럽게 페이드됩니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.linear"
 msgstr "선형"
 
 msgid "net.32ba.lattice-deformation-tool.localization.linear.tooltip"
-msgstr ""
+msgstr "심지어 페이드. 강도는 중앙에서 가장자리로 갈수록 꾸준히 감소합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.constant"
 msgstr "일정"
 
 msgid "net.32ba.lattice-deformation-tool.localization.constant.tooltip"
-msgstr ""
+msgstr "전체 브러시 영역에 걸쳐 최대 강도. 날카로운 모서리."
 
 msgid "net.32ba.lattice-deformation-tool.localization.sphere"
 msgstr "구체"
 
 msgid "net.32ba.lattice-deformation-tool.localization.sphere.tooltip"
-msgstr ""
+msgstr "부드러운 가장자리. 중앙에서 가장자리까지 부드럽고 둥글게 페이드됩니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.gaussian"
 msgstr "가우시안"
 
 msgid "net.32ba.lattice-deformation-tool.localization.gaussian.tooltip"
-msgstr ""
+msgstr "종 모양의 페이드. 유기적 성형에 가장 자연적입니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.falloff"
 msgstr "감쇠"
 
 msgid "net.32ba.lattice-deformation-tool.localization.falloff.tooltip"
-msgstr ""
+msgstr "브러시 효과가 중앙에서 가장자리로 페이드되는 방식입니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.invert"
 msgstr "선택 반전"
 
 msgid "net.32ba.lattice-deformation-tool.localization.invert.tooltip"
-msgstr ""
+msgstr "브러시 방향을 반대로 바꿉니다(밖이 아닌 안으로 밀어 넣음)."
 
 msgid "net.32ba.lattice-deformation-tool.localization.invert-brush"
 msgstr "브러시 반전"
 
 msgid "net.32ba.lattice-deformation-tool.localization.invert-brush.tooltip"
-msgstr ""
+msgstr "밀기와 당기기 사이를 전환합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-mirror"
 msgstr "미러 활성화"
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-mirror.tooltip"
-msgstr ""
+msgstr "양면을 동시에 칠합니다(미러 모드)."
 
 msgid "net.32ba.lattice-deformation-tool.localization.mirror-axis"
 msgstr "미러 축"
 
 msgid "net.32ba.lattice-deformation-tool.localization.mirror-axis.tooltip"
-msgstr ""
+msgstr "미러링할 축을 왼쪽-오른쪽, 위-아래 또는 앞-뒤 중에서 선택합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.surface-distance"
 msgstr "표면 거리"
 
 msgid "net.32ba.lattice-deformation-tool.localization.surface-distance.tooltip"
-msgstr ""
+msgstr "메쉬가 겹쳐서 브러시 효과가 새어나오는 것을 방지합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-all-displacements"
 msgstr "모든 변형 지우기"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-all-displacements.tooltip"
-msgstr ""
+msgstr "모든 레이어의 모든 변경 사항을 지웁니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements"
-msgstr ""
+msgstr "활성 레이어 변위 지우기"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements.tooltip"
-msgstr ""
+msgstr "현재 레이어의 모든 변경 사항만 지웁니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.backface-culling"
 msgstr "후면 컬링"
 
 msgid "net.32ba.lattice-deformation-tool.localization.backface-culling.tooltip"
-msgstr ""
+msgstr "뒷면에는 칠하지 마십시오(카메라에서 숨겨짐)."
 
 msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-hint"
 msgstr "Alt+스크롤: 반경 / Shift+스크롤: 강도"
 
 msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-hint.tooltip"
-msgstr ""
+msgstr "브러시 매개변수를 빠르게 조정하는 키보드 단축키입니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.mask"
 msgstr "마스크"
 
 msgid "net.32ba.lattice-deformation-tool.localization.mask.tooltip"
-msgstr ""
+msgstr "페인팅된 정점이 추가 변형되지 않도록 보호합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-mask"
 msgstr "마스크 지우기"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-mask.tooltip"
-msgstr ""
+msgstr "모든 마스크 데이터를 제거하여 모든 정점을 다시 편집 가능하게 만듭니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-all"
 msgstr "모두 지우기"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-all.tooltip"
-msgstr ""
+msgstr "활성 레이어에서 모든 변위와 마스크를 제거합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.visualization"
 msgstr "시각화"
 
 msgid "net.32ba.lattice-deformation-tool.localization.visualization.tooltip"
-msgstr ""
+msgstr "장면 뷰에서 편집 피드백을 표시하기 위한 옵션입니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-wireframe"
 msgstr "와이어프레임 표시"
@@ -623,31 +623,31 @@ msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices"
 msgstr "영향 버텍스 표시"
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-affected-vertices.tooltip"
-msgstr ""
+msgstr "브러시가 영향을 미칠 영역을 강조 표시합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-displacement-heatmap"
 msgstr "변위 히트맵 표시"
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-displacement-heatmap.tooltip"
-msgstr ""
+msgstr "메쉬에 색상을 지정하여 각 영역이 얼마나 변경되었는지 표시합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-penetration"
 msgstr "관통 표시"
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-penetration.tooltip"
-msgstr ""
+msgstr "원본 메시를 뚫고 나오는 영역을 강조 표시합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.reference-mesh"
 msgstr "참조 메시"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reference-mesh.tooltip"
-msgstr ""
+msgstr "침투 감지 검사에 사용되는 메시를 설정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.dot-size"
 msgstr "점 크기"
 
 msgid "net.32ba.lattice-deformation-tool.localization.dot-size.tooltip"
-msgstr ""
+msgstr "정점 표시기 도트의 표시 크기를 제어합니다."
 
 # Clearance Heatmap
 msgid "net.32ba.lattice-deformation-tool.localization.clearance-heatmap"
@@ -861,298 +861,298 @@ msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
 msgstr "버텍스 도구"
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool.tooltip"
-msgstr ""
+msgstr "정점 선택 및 변환 편집기를 활성화합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection"
 msgstr "버텍스 선택"
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection.tooltip"
-msgstr ""
+msgstr "정점을 선택하려면 클릭하세요. 드래그하여 그룹을 선택하세요."
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-move"
 msgstr "버텍스 이동"
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-move.tooltip"
-msgstr ""
+msgstr "핸들을 사용하여 선택한 정점을 이동합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-rotate"
 msgstr "버텍스 회전"
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-rotate.tooltip"
-msgstr ""
+msgstr "중심점을 중심으로 선택한 정점을 회전합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-scale"
 msgstr "버텍스 스케일"
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-scale.tooltip"
-msgstr ""
+msgstr "선택한 정점의 크기를 더 크거나 작게 조정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-transform"
 msgstr "버텍스 변환"
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-transform.tooltip"
-msgstr ""
+msgstr "선택한 정점을 이동, 회전 또는 크기 조정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.transform-mode"
 msgstr "변환 모드"
 
 msgid "net.32ba.lattice-deformation-tool.localization.transform-mode.tooltip"
-msgstr ""
+msgstr "이동, 회전 및 배율 조정 작업 간에 전환합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.rotate"
 msgstr "회전"
 
 msgid "net.32ba.lattice-deformation-tool.localization.rotate.tooltip"
-msgstr ""
+msgstr "선택한 정점에 대해 회전 모드를 활성화합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.scale"
 msgstr "스케일"
 
 msgid "net.32ba.lattice-deformation-tool.localization.scale.tooltip"
-msgstr ""
+msgstr "선택한 정점에 대해 크기 조정 모드를 활성화합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.select-all"
 msgstr "모두 선택"
 
 msgid "net.32ba.lattice-deformation-tool.localization.select-all.tooltip"
-msgstr ""
+msgstr "활성 브러시 레이어의 모든 정점을 선택합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.select-none"
 msgstr "선택 해제"
 
 msgid "net.32ba.lattice-deformation-tool.localization.select-none.tooltip"
-msgstr ""
+msgstr "현재 선택된 모든 정점을 선택 취소합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-selection"
 msgstr "선택 지우기"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-selection.tooltip"
-msgstr ""
+msgstr "현재 선택에서 모든 정점을 제거합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.connected-only"
 msgstr "연결된 면만"
 
 msgid "net.32ba.lattice-deformation-tool.localization.connected-only.tooltip"
-msgstr ""
+msgstr "직사각형 선택을 메시에 연결된 정점으로만 제한합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-selected-vertices"
 msgstr "선택한 버텍스 초기화"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-selected-vertices.tooltip"
-msgstr ""
+msgstr "선택한 정점에 대해서만 변위 데이터를 지웁니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-all-vertices"
 msgstr "모든 버텍스 초기화"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-all-vertices.tooltip"
-msgstr ""
+msgstr "레이어의 모든 정점에 대한 변위 데이터를 지웁니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-editing"
 msgstr "비례 편집"
 
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-editing.tooltip"
-msgstr ""
+msgstr "근처의 선택되지 않은 정점도 더 부드러운 영향을 받습니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-radius"
 msgstr "비례 반경"
 
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-radius.tooltip"
-msgstr ""
+msgstr "영향이 인근 정점으로 확산되는 정도입니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.pivot"
 msgstr "피벗"
 
 msgid "net.32ba.lattice-deformation-tool.localization.pivot.tooltip"
-msgstr ""
+msgstr "회전 및 크기 조정 작업에 대한 참조점을 설정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.center"
 msgstr "중심"
 
 msgid "net.32ba.lattice-deformation-tool.localization.center.tooltip"
-msgstr ""
+msgstr "선택한 정점의 평균 위치를 피벗으로 사용합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.last-selected"
 msgstr "마지막 선택"
 
 msgid "net.32ba.lattice-deformation-tool.localization.last-selected.tooltip"
-msgstr ""
+msgstr "가장 최근에 선택한 정점을 피벗으로 사용합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.selected-vertices-format"
 msgstr "선택: 버텍스 {0}개"
 
 msgid "net.32ba.lattice-deformation-tool.localization.selected-vertices-format.tooltip"
-msgstr ""
+msgstr "현재 선택된 정점 수를 표시합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.wer-hint"
 msgstr "W/E/R: 이동/회전/스케일"
 
 msgid "net.32ba.lattice-deformation-tool.localization.wer-hint.tooltip"
-msgstr ""
+msgstr "변환 모드를 전환하는 키보드 단축키입니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-proportional-hint"
 msgstr "Alt+스크롤: 비례 반경"
 
 msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-proportional-hint.tooltip"
-msgstr ""
+msgstr "스크롤 휠을 사용하여 비례 반경을 빠르게 조정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.shift-drag-precision"
 msgstr "Shift+드래그: 정밀 모드"
 
 msgid "net.32ba.lattice-deformation-tool.localization.shift-drag-precision.tooltip"
-msgstr ""
+msgstr "핸들을 드래그하는 동안 세밀한 제어가 가능합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.z-toggle-pivot"
 msgstr "Z: 피벗 전환"
 
 msgid "net.32ba.lattice-deformation-tool.localization.z-toggle-pivot.tooltip"
-msgstr ""
+msgstr "중심과 마지막 선택 사이에서 피벗을 전환합니다."
 
 # Mesh Rebuild Options
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-rebuild-options"
 msgstr "메시 재구성 옵션"
 
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-rebuild-options.tooltip"
-msgstr ""
+msgstr "변형 후 다시 계산되는 메쉬 데이터를 제어합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.normals"
 msgstr "노멀"
 
 msgid "net.32ba.lattice-deformation-tool.localization.normals.tooltip"
-msgstr ""
+msgstr "변형된 표면에서 빛이 반사되는 방식을 다시 계산합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.tangents"
 msgstr "탄젠트"
 
 msgid "net.32ba.lattice-deformation-tool.localization.tangents.tooltip"
-msgstr ""
+msgstr "변형된 표면의 텍스처 방향을 다시 계산합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.bounds"
 msgstr "바운드"
 
 msgid "net.32ba.lattice-deformation-tool.localization.bounds.tooltip"
-msgstr ""
+msgstr "변형된 메시 주위의 경계 상자를 다시 계산합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights"
-msgstr ""
+msgstr "본 웨이트 재계산"
 
 msgid "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights.tooltip"
-msgstr ""
+msgstr "변형에 맞게 뼈 애니메이션을 업데이트합니다(조작된 아바타의 경우)."
 
 msgid "net.32ba.lattice-deformation-tool.localization.bone-weight-requires-smr"
-msgstr ""
+msgstr "본 웨이트를 재계산하려면 SkinnedMeshRenderer가 필요합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.bone-weight-requires-smr.tooltip"
-msgstr ""
+msgstr "이는 뼈대가 있는 조작된(스킨 처리된) 메시에만 작동합니다."
 
 # Weight Transfer
 msgid "net.32ba.lattice-deformation-tool.localization.weight-transfer-settings"
-msgstr ""
+msgstr "웨이트 전송 설정"
 
 msgid "net.32ba.lattice-deformation-tool.localization.weight-transfer-settings.tooltip"
-msgstr ""
+msgstr "메시를 변형한 후 뼈대 애니메이션을 업데이트하기 위한 설정입니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.stage1-initial-transfer"
-msgstr ""
+msgstr "1단계: 초기 전송"
 
 msgid "net.32ba.lattice-deformation-tool.localization.stage1-initial-transfer.tooltip"
-msgstr ""
+msgstr "원본 메시의 가까운 지점에서 애니메이션 가중치를 복사합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.stage2-weight-inpainting"
-msgstr ""
+msgstr "2단계: 웨이트 인페인팅"
 
 msgid "net.32ba.lattice-deformation-tool.localization.stage2-weight-inpainting.tooltip"
-msgstr ""
+msgstr "패턴을 부드럽게 하여 누락된 애니메이션 가중치를 채웁니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.max-transfer-distance"
-msgstr ""
+msgstr "최대 전송 거리"
 
 msgid "net.32ba.lattice-deformation-tool.localization.max-transfer-distance.tooltip"
-msgstr ""
+msgstr "가장 가까운 정점 가중치 조회를 위한 최대 거리를 설정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.normal-angle-threshold"
-msgstr ""
+msgstr "법선 각도 임계값"
 
 msgid "net.32ba.lattice-deformation-tool.localization.normal-angle-threshold.tooltip"
-msgstr ""
+msgstr "유사한 법선 방향을 가진 정점으로의 전송을 제한합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-inpainting"
-msgstr ""
+msgstr "인페인팅 활성화"
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-inpainting.tooltip"
-msgstr ""
+msgstr "근처의 가중치를 평활화하여 간격을 자동으로 채웁니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.max-iterations"
-msgstr ""
+msgstr "최대 반복"
 
 msgid "net.32ba.lattice-deformation-tool.localization.max-iterations.tooltip"
-msgstr ""
+msgstr "가중치를 스무딩하는 횟수입니다(높을수록 좋지만 느림)."
 
 msgid "net.32ba.lattice-deformation-tool.localization.tolerance"
-msgstr ""
+msgstr "공차"
 
 msgid "net.32ba.lattice-deformation-tool.localization.tolerance.tooltip"
-msgstr ""
+msgstr "품질이 이 수준에 도달하면 스무딩을 중지합니다(낮음 = 더 미세한 세부 묘사)."
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-count"
 msgstr "버텍스 수"
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-count.tooltip"
-msgstr ""
+msgstr "소스 메시의 총 정점 수를 표시합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.has-displacements"
 msgstr "변형 데이터 있음"
 
 msgid "net.32ba.lattice-deformation-tool.localization.has-displacements.tooltip"
-msgstr ""
+msgstr "이 레이어에 저장된 변경 사항이 있는지 표시합니다."
 
 # BlendShape
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-output"
 msgstr "BlendShape 출력"
 
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-output.tooltip"
-msgstr ""
+msgstr "메시를 직접 변형하는 대신 새 ShapeKey를 만듭니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-name"
 msgstr "BlendShape 이름"
 
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-name.tooltip"
-msgstr ""
+msgstr "메시에 생성된 BlendShape의 이름을 설정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.curve"
 msgstr "커브"
 
 msgid "net.32ba.lattice-deformation-tool.localization.curve.tooltip"
-msgstr ""
+msgstr "모양 전환 곡선을 제어합니다(효과가 증가/감소하는 방식)."
 
 msgid "net.32ba.lattice-deformation-tool.localization.enter-test-mode"
 msgstr "테스트 모드 시작"
 
 msgid "net.32ba.lattice-deformation-tool.localization.enter-test-mode.tooltip"
-msgstr ""
+msgstr "실시간으로 ShapeKey가 메시에서 어떻게 보이는지 미리 봅니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.exit-test-mode"
 msgstr "테스트 모드 종료"
 
 msgid "net.32ba.lattice-deformation-tool.localization.exit-test-mode.tooltip"
-msgstr ""
+msgstr "미리보기를 중지하고 메시를 정상으로 되돌립니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-test-mode"
 msgstr "BlendShape 테스트 모드"
 
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-test-mode.tooltip"
-msgstr ""
+msgstr "메시의 ShapeKey 효과를 실시간으로 미리 봅니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.test-weight"
 msgstr "테스트 가중치"
 
 msgid "net.32ba.lattice-deformation-tool.localization.test-weight.tooltip"
-msgstr ""
+msgstr "미리보기 강도를 0에서 100%까지 조정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape"
 msgstr "BlendShape 가져오기"
 
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape.tooltip"
-msgstr ""
+msgstr "편집할 페인트 레이어로 기존 ShapeKey를 로드합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-single-frame"
 msgstr "단일 프레임"
@@ -1162,35 +1162,35 @@ msgstr "모든 프레임"
 
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
-msgstr "(NDMF) Disable Lattice Preview"
+msgstr "(NDMF) 래티스 미리보기 비활성화"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview.tooltip"
-msgstr ""
+msgstr "실시간 NDMF 변형 미리보기를 끕니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview"
-msgstr "(NDMF) Enable Lattice Preview"
+msgstr "(NDMF) 래티스 미리보기 활성화"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview.tooltip"
-msgstr ""
+msgstr "장면 뷰에서 실시간 NDMF 변형 미리보기를 켭니다."
 
 # Lattice Cage Alignment
 msgid "net.32ba.lattice-deformation-tool.localization.lattice-cage-alignment"
 msgstr "라티스 케이지 정렬"
 
 msgid "net.32ba.lattice-deformation-tool.localization.lattice-cage-alignment.tooltip"
-msgstr ""
+msgstr "편집 케이지 표시의 위치와 배율을 조정합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.alignment-cage-info"
 msgstr "여기서 설정한 위치/스케일은 씬 뷰의 편집용 케이지만 이동합니다. 변형 대상 메시의 바운즈나 최종 변형에는 영향을 주지 않습니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.alignment-cage-info.tooltip"
-msgstr ""
+msgstr "이러한 설정은 변형이 아닌 시각적 정렬에만 사용됩니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.offset"
 msgstr "오프셋"
 
 msgid "net.32ba.lattice-deformation-tool.localization.offset.tooltip"
-msgstr ""
+msgstr "케이지 표시 위치를 조금씩 움직입니다(시각적 전용, 변형에는 영향을 주지 않음)."
 
 msgid "net.32ba.lattice-deformation-tool.localization.offset-tooltip"
 msgstr "자동 센터/클램프 전에 프록시 로컬 공간에 직접 적용되는 오프셋"
@@ -1199,51 +1199,51 @@ msgid "net.32ba.lattice-deformation-tool.localization.debug-log-alignment"
 msgstr "(Debug) 프리뷰 정렬을 콘솔에 로그"
 
 msgid "net.32ba.lattice-deformation-tool.localization.debug-log-alignment.tooltip"
-msgstr ""
+msgstr "디버깅을 위해 케이지 정렬 데이터를 콘솔에 인쇄합니다."
 
 # Editor buttons
 msgid "net.32ba.lattice-deformation-tool.localization.open-brush-editor"
 msgstr "브러시 에디터 열기"
 
 msgid "net.32ba.lattice-deformation-tool.localization.open-brush-editor.tooltip"
-msgstr ""
+msgstr "장면 뷰 브러시 변형 도구를 엽니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.open-lattice-editor"
 msgstr "래티스 편집기 열기"
 
 msgid "net.32ba.lattice-deformation-tool.localization.open-lattice-editor.tooltip"
-msgstr ""
+msgstr "장면 뷰 래티스 케이지 편집 도구를 엽니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.select-mesh-deformer"
 msgstr "편집할 Mesh Deformer를 선택하세요."
 
 msgid "net.32ba.lattice-deformation-tool.localization.select-mesh-deformer.tooltip"
-msgstr ""
+msgstr "먼저 Mesh Deformer 컴포넌트가 있는 GameObject를 선택하세요."
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush"
 msgstr "브러시"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush.tooltip"
-msgstr ""
+msgstr "오버레이를 브러시 편집 모드로 전환합니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.advanced"
 msgstr "고급 설정"
 
 msgid "net.32ba.lattice-deformation-tool.localization.advanced.tooltip"
-msgstr ""
+msgstr "미세 조정 동작에 대한 추가 설정을 표시합니다."
 
 # Legacy Brush Deformer
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformer"
 msgstr "브러시 디포머"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformer.tooltip"
-msgstr ""
+msgstr "레거시 독립형 브러시 변형 구성요소."
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation"
 msgstr "브러시 변형"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation.tooltip"
-msgstr ""
+msgstr "브러시 기반 정점 변형 설정을 위한 섹션입니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-warning"
 msgstr "이 레거시 컴포넌트는 현재 NDMF 파이프라인에서 처리되지 않습니다. 편집을 계속하기 전에 변형 데이터를 Mesh Deformer로 마이그레이션하세요."

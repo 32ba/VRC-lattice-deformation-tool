@@ -53,11 +53,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_occludeWithSceneGeometry = true;
         private static PivotRotation? s_previousPivotRotation;
         private static Vector3Int s_lastGridSize = Vector3Int.one;
+        private static readonly Vector3[] s_mirrorPlaneCorners = new Vector3[4];
 
         // Overlay foldout states
         private static bool s_showSymmetrySection = false;
 
         private LatticeDeformer _activeDeformer;
+        private Vector3[] _worldPositions = Array.Empty<Vector3>();
+        private readonly HashSet<int> _processedIndices = new HashSet<int>();
         private Renderer _cachedSourceRenderer;
         private Renderer _cachedProxyRenderer;
         private bool _proxyResolved;
@@ -430,7 +433,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             int Index(int x, int y, int z) => x + y * nx + z * nx * ny;
 
-            var worldPositions = new Vector3[controlCount];
+            if (_worldPositions.Length != controlCount)
+                _worldPositions = new Vector3[controlCount];
+            var worldPositions = _worldPositions;
             for (int z = 0; z < nz; z++)
             {
                 for (int y = 0; y < ny; y++)
@@ -589,11 +594,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                             var deltaProxy = proxyTransform != null
                                 ? proxyTransform.InverseTransformVector(delta)
                                 : delta;
-                            var processedIndices = new HashSet<int>();
+                            _processedIndices.Clear();
 
                             foreach (var selectedIndex in s_selectedControls)
                             {
-                                if (!processedIndices.Add(selectedIndex))
+                                if (!_processedIndices.Add(selectedIndex))
                                 {
                                     continue;
                                 }
@@ -630,7 +635,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                                 if (MirrorEditing && TryGetSymmetryIndex(selectedIndex, gridSize, CurrentMirrorBehavior, CurrentMirrorAxis, out var mirrorIndex))
                                 {
-                                    if (!processedIndices.Add(mirrorIndex))
+                                    if (!_processedIndices.Add(mirrorIndex))
                                     {
                                         continue;
                                     }
@@ -927,7 +932,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     break;
             }
 
-            var localCorners = new Vector3[4];
+            var localCorners = s_mirrorPlaneCorners;
             localCorners[0] = centerLocal + axisA + axisB;
             localCorners[1] = centerLocal + axisA - axisB;
             localCorners[2] = centerLocal - axisA - axisB;

@@ -246,7 +246,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void SkinnedTargetCapture_UnchangedPoseAvoidsBakeHashAndAllocation()
+        public void SkinnedTargetCapture_UnchangedPoseReusesSnapshot()
         {
             var root = new GameObject("Skinned Cache Target");
             var bone = new GameObject("Bone");
@@ -277,7 +277,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(ClearanceQueryCache.BakeCount, Is.EqualTo(bakeCount));
                 Assert.That(ClearanceQueryCache.CaptureCount, Is.EqualTo(captureCount));
                 Assert.That(ClearanceQueryCache.StateHashCount, Is.EqualTo(stateHashCount));
-                Assert.That(allocated, Is.Zero);
+                ManagedAllocationCounter.AssertNoAllocations(allocated);
 
                 bone.transform.localPosition = Vector3.forward * 0.02f;
                 Assert.That(ClearanceQueryCache.TryGetWorldVerticesAndStateHash(
