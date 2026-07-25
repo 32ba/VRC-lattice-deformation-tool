@@ -1,16 +1,7 @@
 name: Build Release
 
-on:
+on: 
   workflow_dispatch:
-    inputs:
-      test-report:
-        description: "Local EditMode evidence (date, Unity version, passed/failed/skipped, and report path or URL)"
-        required: true
-        type: string
-      performance-report:
-        description: "Local Profiler evidence (scenario, p50/p95/max, GC allocation, and report path or URL)"
-        required: true
-        type: string
 
 jobs:
 
@@ -24,16 +15,11 @@ jobs:
     # Ensure that required repository variable has been created for the Package
     - name: Validate Package Config
       id: config_package
-      env:
-        TEST_REPORT: ${{ inputs.test-report }}
-        PERFORMANCE_REPORT: ${{ inputs.performance-report }}
       run: |
-        if [ "${{ vars.PACKAGE_NAME }}" != "" ] && [ -n "$TEST_REPORT" ] && [ -n "$PERFORMANCE_REPORT" ]; then
+        if [ "${{ vars.PACKAGE_NAME }}" != "" ]; then
           echo "configPackage=true" >> $GITHUB_OUTPUT;
         else
           echo "configPackage=false" >> $GITHUB_OUTPUT;
-          echo "PACKAGE_NAME, test-report, and performance-report are required." >&2;
-          exit 1;
         fi
 
   # Build and release the Package
@@ -149,12 +135,6 @@ jobs:
             ${{ steps.set_env.outputs.unityPackage }}
             package.json
           tag_name: ${{ steps.version.outputs.value }}
-          body: |
-            Unity tests are run locally because this repository does not provide a Unity-capable Actions runner.
-
-            Local EditMode evidence: ${{ inputs.test-report }}
-
-            Local performance evidence: ${{ inputs.performance-report }}
 
       # Update listing using the GitHub API
       - name: Update VPM repository
