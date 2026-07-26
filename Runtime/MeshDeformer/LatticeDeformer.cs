@@ -829,6 +829,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private string _profileFingerprint;
         [NonSerialized] private bool _blendShapeOutputDirty = true;
         [NonSerialized] private int _runtimeMeshRevision;
+        [NonSerialized] private int _cacheInvalidationRevision;
         [NonSerialized] private bool _isEnsuringLayerModelReady;
         [NonSerialized] private bool _hasIncompatibleBrushData;
         [NonSerialized] private List<Vector3> _sourceVertexScratch = new List<Vector3>();
@@ -1297,6 +1298,7 @@ namespace Net._32Ba.LatticeDeformationTool
         public Mesh RuntimeMesh => _runtimeMesh;
 
         internal int RuntimeMeshRevision => _runtimeMeshRevision;
+        internal int CacheInvalidationRevision => _cacheInvalidationRevision;
 
         public Mesh SourceMesh => _sourceMesh;
 
@@ -4489,6 +4491,11 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public void InvalidateCache()
         {
+            unchecked
+            {
+                _cacheInvalidationRevision++;
+            }
+
             if (_cache == null)
             {
                 _cache = new LatticeDeformerCache();
