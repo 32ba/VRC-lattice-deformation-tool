@@ -4,6 +4,7 @@ using System.Reflection;
 using Net._32Ba.LatticeDeformationTool;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
@@ -360,6 +361,133 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
             finally
             {
+                Object.DestroyImmediate(rendererObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void VertexSelectionProportionalMove_UndoRestoresOriginalShape()
+        {
+            var rendererObject = new GameObject("Proportional Undo");
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            var handler = new VertexSelectionHandler();
+            float previousRadius = VertexSelectionHandler.ProportionalRadius;
+            var previousMode = VertexSelectionHandler.CurrentTransformMode;
+            try
+            {
+                rendererObject.AddComponent<MeshRenderer>();
+                rendererObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var deformer = rendererObject.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                int layerIndex = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = layerIndex;
+                deformer.EnsureDisplacementCapacity();
+
+                handler.Activate(deformer);
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                VertexSelectionHandler.ClearSelection();
+                var selected = typeof(VertexSelectionHandler).GetField(
+                    "s_selectedVertices",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                Assert.That(selected, Is.Not.Null);
+                ((HashSet<int>)selected.GetValue(null)).Add(0);
+
+                VertexSelectionHandler.CurrentTransformMode =
+                    VertexSelectionHandler.TransformMode.Move;
+                VertexSelectionHandler.ProportionalRadius = 1.1f;
+
+                Mesh beforeMesh = deformer.Deform(true);
+                var beforeVertices = beforeMesh.vertices;
+                InvokeHandlerMethod(handler, "BeginTransform", deformer);
+                InvokeHandlerMethod(handler, "ApplyMoveDelta", deformer, Vector3.forward * 0.25f);
+                InvokeHandlerMethod(handler, "EndTransform");
+                Undo.FlushUndoRecordObjects();
+
+                Assert.That(
+                    deformer.RuntimeMesh.vertices,
+                    Is.Not.EqualTo(beforeVertices),
+                    "The setup must actually deform the mesh before Undo.");
+
+                Undo.PerformUndo();
+
+                Assert.That(deformer.Displacements, Is.All.EqualTo(Vector3.zero));
+                Assert.That(
+                    deformer.RuntimeMesh.vertices,
+                    Is.EqualTo(beforeVertices),
+                    "Undo must restore both selected and proportionally affected vertices.");
+            }
+            finally
+            {
+                handler.Deactivate();
+                VertexSelectionHandler.ClearSelection();
+                VertexSelectionHandler.ProportionalRadius = previousRadius;
+                VertexSelectionHandler.CurrentTransformMode = previousMode;
+                Undo.ClearAll();
+                Object.DestroyImmediate(rendererObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void VertexSelectionUndo_DiscardsGestureSnapshotAndUsesRestoredShape()
+        {
+            var rendererObject = new GameObject("Proportional Undo Cache");
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            var handler = new VertexSelectionHandler();
+            float previousRadius = VertexSelectionHandler.ProportionalRadius;
+            try
+            {
+                rendererObject.AddComponent<MeshRenderer>();
+                rendererObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var deformer = rendererObject.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                int layerIndex = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = layerIndex;
+
+                handler.Activate(deformer);
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                VertexSelectionHandler.ClearSelection();
+                var selected = typeof(VertexSelectionHandler).GetField(
+                    "s_selectedVertices",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                Assert.That(selected, Is.Not.Null);
+                ((HashSet<int>)selected.GetValue(null)).Add(0);
+                VertexSelectionHandler.ProportionalRadius = 1.1f;
+
+                SetHandlerField(
+                    handler,
+                    "_preTransformWorldPositions",
+                    new[] { Vector3.zero, Vector3.right * 100f, Vector3.up * 100f });
+                var validityField = typeof(VertexSelectionHandler).GetField(
+                    "_preTransformWorldPositionsValid",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                validityField?.SetValue(handler, true);
+
+                InvokeHandlerMethod(handler, "OnUndoRedo");
+                InvokeHandlerMethod(handler, "EnsureProportionalInfluences", rendererObject.transform);
+
+                var cache = GetHandlerField<VertexProportionalInfluenceCache>(
+                    handler,
+                    "_proportionalInfluenceCache");
+                Assert.That(
+                    cache.GetInfluence(1),
+                    Is.GreaterThan(0f),
+                    "Undo must rebuild proportional influence from the restored mesh, not a stale gesture snapshot.");
+            }
+            finally
+            {
+                handler.Deactivate();
+                VertexSelectionHandler.ClearSelection();
+                VertexSelectionHandler.ProportionalRadius = previousRadius;
                 Object.DestroyImmediate(rendererObject);
                 Object.DestroyImmediate(mesh);
             }
@@ -1377,6 +1505,18 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That(field, Is.Not.Null, name);
             return (T)field.GetValue(handler);
+        }
+
+        private static object InvokeHandlerMethod(
+            VertexSelectionHandler handler,
+            string name,
+            params object[] arguments)
+        {
+            var method = typeof(VertexSelectionHandler).GetMethod(
+                name,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null, name);
+            return method.Invoke(handler, arguments);
         }
 
         private static T GetHandlerField<T>(BrushToolHandler handler, string name)
