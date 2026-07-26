@@ -70,6 +70,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Bounds _cachedProxyMeshBounds;
         private Bounds _cachedProxyRendererBounds;
         private Matrix4x4? _cachedSkinningCorrection;
+        private readonly LatticeControlPointSkinning _controlPointSkinning =
+            new LatticeControlPointSkinning();
+        private Mesh _skinningFallbackMesh;
+        private Bounds _skinningFallbackBounds;
+        private bool _hasSkinningFallbackBounds;
+        private int _skinningReferenceGeometryHash;
+        private bool _hasSkinningReferenceBounds;
+        private Bounds _skinningReferenceSampleBounds;
+        private Bounds _skinningReferenceBakedBounds;
+        private Bounds _skinningDisplayBounds;
+        private bool _hasSkinningDisplayBounds;
         private bool _skinningSnapshotValid;
         private int _skinningSnapshotHash;
         private SkinnedMeshRenderer _cachedSkinningRenderer;
@@ -320,6 +331,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Both helpers already return proxy-local bounds. Dividing by lossyScale here
             // would apply the transform scale a second time and shrink/enlarge the cage.
             var proxyBoundsLocal = useProxy ? ChooseLargerBounds(proxyBoundsMesh, proxyBoundsRenderer) : sourceBounds;
+            if (!_controlPointSkinning.IsValid && _hasSkinningFallbackBounds)
+            {
+                proxyBoundsLocal = _skinningFallbackBounds;
+            }
             const float k_BoundsTolerance = 0.02f;
             const float k_MaxVolumeRatio = 4f; // if proxy bounds are >4x volume, treat as unreliable
             var proxyVolume = proxyBoundsLocal.size.x * proxyBoundsLocal.size.y * proxyBoundsLocal.size.z;
@@ -339,7 +354,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 !hasManualAdjust &&
                 !AreBoundsApproximatelyEqual(sourceBounds, proxyBoundsLocal, k_BoundsTolerance);
 
-            var needBoundsMap = useBoundsRemap;
+            bool useSkinningFallback =
+                !_controlPointSkinning.IsValid &&
+                _hasSkinningFallbackBounds &&
+                !AreBoundsApproximatelyEqual(sourceBounds, proxyBoundsLocal, k_BoundsTolerance);
+            var needBoundsMap = useBoundsRemap || useSkinningFallback;
 
             if (proxyTooBig && LatticePreviewUtility.DebugAlignLogs)
             {
@@ -373,6 +392,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             // Apply manual offset (proxy local)
             centerOffsetProxyLocal += manualOffset;
+            if (useSkinningFallback)
+            {
+                centerOffsetProxyLocal = manualOffset;
+            }
 
             // Root bone/world offset (affects Skinned meshes when armature position differs)
             Vector3 rootOffsetWorld = Vector3.zero;
@@ -383,38 +406,35 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 rootOffsetWorld = proxyRoot.position - srcRoot.position;
             }
             var rootOffsetProxyLocal = useProxy ? worldToProxy.MultiplyVector(rootOffsetWorld) : Vector3.zero;
-
-            // Skinning correction: full matrix to compensate for discrepancy between renderer Transform
-            // and actual bone+bindPose placement (handles both position and scale from MA).
-            // The matrix transforms source-local → corrected source-local.
-            // When proxy is available, prefer proxy bones so the cage aligns with the visible
-            // proxy mesh (whose bones may differ from source after NDMF/MA modifications).
-            Matrix4x4 skinningLocal = Matrix4x4.identity;
-            Matrix4x4 skinningLocalInv = Matrix4x4.identity;
-            bool hasSkinningCorrection = false;
-            if (_cachedSkinningCorrection.HasValue)
+            if (needBoundsMap)
             {
-                skinningLocal = _cachedSkinningCorrection.Value;
-                skinningLocalInv = skinningLocal.inverse;
-                hasSkinningCorrection = true;
+                rootOffsetProxyLocal = Vector3.zero;
             }
 
-            // When skinning correction is active, disable bounds remap (Mode3) to avoid
-            // double-correction — the correction matrix already handles position/scale.
-            if (hasSkinningCorrection)
+            // A skinned mesh cannot be represented by one root-bone matrix. Each control
+            // point is bound to the closest source triangle and uses its interpolated
+            // bone weights, so the cage follows the same non-uniform pose as the mesh.
+            bool hasControlPointSkinning = _controlPointSkinning.IsValid;
+            bool normalizeSkinnedBounds =
+                hasControlPointSkinning &&
+                _hasSkinningDisplayBounds &&
+                !AreBoundsApproximatelyEqual(
+                    _controlPointSkinning.PosedControlBounds,
+                    _skinningDisplayBounds,
+                    k_BoundsTolerance);
+
+            // Per-point skinning already includes bone placement and scale. Applying a
+            // second bounds or root offset correction would double-transform the cage.
+            if (hasControlPointSkinning)
             {
                 needBoundsMap = false;
+                rootOffsetProxyLocal = Vector3.zero;
             }
 
-            if (LatticePreviewUtility.DebugAlignLogs && hasSkinningCorrection)
+            if (LatticePreviewUtility.DebugAlignLogs && hasControlPointSkinning)
             {
-                var off = skinningLocal.MultiplyPoint3x4(sourceBounds.center) - sourceBounds.center;
-                var scl = new Vector3(
-                    skinningLocal.GetColumn(0).magnitude,
-                    skinningLocal.GetColumn(1).magnitude,
-                    skinningLocal.GetColumn(2).magnitude);
                 LatticePreviewUtility.LogAlign("SkinningCorrection",
-                    $"useProxy={useProxy}, offset=({off.x:F4},{off.y:F4},{off.z:F4}), scale=({scl.x:F4},{scl.y:F4},{scl.z:F4})");
+                    $"useProxy={useProxy}, mode=per-control-point, controlCount={controlCount}");
             }
 
             // Auto-initialize clamp values once per instance based on observed offset
@@ -444,9 +464,27 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     {
                         int index = Index(x, y, z);
                         var local = settings.GetControlPointLocal(index);
-                        var correctedLocal = hasSkinningCorrection ? skinningLocal.MultiplyPoint3x4(local) : local;
-                        var mappedLocal = (useProxy && needBoundsMap) ? MapPointBetweenBounds(correctedLocal, sourceBounds, proxyBoundsLocal) : correctedLocal;
-                        var proxyLocal = sourceToProxy.MultiplyPoint3x4(mappedLocal) + rootOffsetProxyLocal + centerOffsetProxyLocal;
+                        var correctedLocal = local;
+                        if (hasControlPointSkinning)
+                        {
+                            _controlPointSkinning.TryTransformPoint(index, local, out correctedLocal);
+                            if (normalizeSkinnedBounds)
+                            {
+                                correctedLocal = MapPointBetweenBounds(
+                                    correctedLocal,
+                                    _controlPointSkinning.PosedControlBounds,
+                                    _skinningDisplayBounds);
+                            }
+                        }
+                        var mappedLocal = needBoundsMap
+                            ? MapPointBetweenBounds(correctedLocal, sourceBounds, proxyBoundsLocal)
+                            : correctedLocal;
+                        var proxyLocal = needBoundsMap
+                            ? useSkinningFallback
+                                ? sourceToProxy.MultiplyPoint3x4(mappedLocal)
+                                : mappedLocal
+                            : sourceToProxy.MultiplyPoint3x4(mappedLocal);
+                        proxyLocal += rootOffsetProxyLocal + centerOffsetProxyLocal;
                         proxyLocal = Vector3.Scale(proxyLocal, LatticePreviewUtility.GetManualScaleProxy(deformer));
 
                         worldPositions[index] = proxyTransform != null ? proxyTransform.TransformPoint(proxyLocal) : proxyLocal;
@@ -460,15 +498,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (MirrorEditing)
             {
                 // Include manual scale and offsets in mirror plane bounds
-                var mirrorBounds = (useProxy && needBoundsMap) ? proxyBoundsLocal : sourceBounds;
-                if (hasSkinningCorrection && !(useProxy && needBoundsMap))
-                {
-                    mirrorBounds.center = skinningLocal.MultiplyPoint3x4(mirrorBounds.center);
-                    mirrorBounds.size = new Vector3(
-                        mirrorBounds.size.x * skinningLocal.GetColumn(0).magnitude,
-                        mirrorBounds.size.y * skinningLocal.GetColumn(1).magnitude,
-                        mirrorBounds.size.z * skinningLocal.GetColumn(2).magnitude);
-                }
+                var mirrorBounds = normalizeSkinnedBounds
+                    ? _skinningDisplayBounds
+                    : needBoundsMap
+                        ? proxyBoundsLocal
+                        : sourceBounds;
                 var mirrorScale = LatticePreviewUtility.GetManualScaleProxy(deformer);
                 mirrorBounds.size = Vector3.Scale(mirrorBounds.size, mirrorScale);
                 mirrorBounds.center += centerOffsetProxyLocal;
@@ -618,18 +652,57 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                 if (useProxy)
                                 {
                                     var proxyLocalAdjusted = proxyLocal - centerOffsetProxyLocal;
-                                    var mappedSource = needBoundsMap
-                                        ? MapPointBetweenBounds(proxyLocalAdjusted, proxyBoundsLocal, sourceBounds)
-                                        : proxyLocalAdjusted;
+                                    var mappedSource = proxyLocalAdjusted;
+                                    if (needBoundsMap)
+                                    {
+                                        if (useSkinningFallback)
+                                        {
+                                            mappedSource = proxyToSource.MultiplyPoint3x4(mappedSource);
+                                        }
+                                        mappedSource = MapPointBetweenBounds(
+                                            mappedSource,
+                                            proxyBoundsLocal,
+                                            sourceBounds);
+                                    }
                                     mappedSource -= rootOffsetProxyLocal;
-                                    storedLocal = proxyToSource.MultiplyPoint3x4(mappedSource);
-                                    if (hasSkinningCorrection) storedLocal = skinningLocalInv.MultiplyPoint3x4(storedLocal);
+                                    storedLocal = needBoundsMap
+                                        ? mappedSource
+                                        : proxyToSource.MultiplyPoint3x4(mappedSource);
+                                    if (hasControlPointSkinning)
+                                    {
+                                        if (normalizeSkinnedBounds)
+                                        {
+                                            storedLocal = MapPointBetweenBounds(
+                                                storedLocal,
+                                                _skinningDisplayBounds,
+                                                _controlPointSkinning.PosedControlBounds);
+                                        }
+                                        _controlPointSkinning.TryInverseTransformPoint(
+                                            selectedIndex,
+                                            storedLocal,
+                                            out storedLocal);
+                                    }
                                     settings.SetControlPointLocal(selectedIndex, storedLocal);
                                 }
                                 else
                                 {
-                                    storedLocal = proxyToSource.MultiplyPoint3x4(proxyLocal);
-                                    if (hasSkinningCorrection) storedLocal = skinningLocalInv.MultiplyPoint3x4(storedLocal);
+                                    storedLocal = needBoundsMap
+                                        ? MapPointBetweenBounds(proxyLocal, proxyBoundsLocal, sourceBounds)
+                                        : proxyToSource.MultiplyPoint3x4(proxyLocal);
+                                    if (hasControlPointSkinning)
+                                    {
+                                        if (normalizeSkinnedBounds)
+                                        {
+                                            storedLocal = MapPointBetweenBounds(
+                                                storedLocal,
+                                                _skinningDisplayBounds,
+                                                _controlPointSkinning.PosedControlBounds);
+                                        }
+                                        _controlPointSkinning.TryInverseTransformPoint(
+                                            selectedIndex,
+                                            storedLocal,
+                                            out storedLocal);
+                                    }
                                     settings.SetControlPointLocal(selectedIndex, storedLocal);
                                 }
 
@@ -645,23 +718,48 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                     Vector3 deltaSource;
                                     if (useProxy)
                                     {
-                                        deltaSource = needBoundsMap
-                                            ? MapDeltaBetweenBounds(deltaProxy, proxyBoundsLocal, sourceBounds)
-                                            : deltaProxy;
+                                        deltaSource = deltaProxy;
+                                        if (needBoundsMap)
+                                        {
+                                            if (useSkinningFallback)
+                                            {
+                                                deltaSource = proxyToSource.MultiplyVector(deltaSource);
+                                            }
+                                            deltaSource = MapDeltaBetweenBounds(
+                                                deltaSource,
+                                                proxyBoundsLocal,
+                                                sourceBounds);
+                                        }
                                         // Remove root offset contribution before mapping back
-                                        deltaSource = proxyToSource.MultiplyVector(deltaSource);
+                                        if (!needBoundsMap)
+                                        {
+                                            deltaSource = proxyToSource.MultiplyVector(deltaSource);
+                                        }
                                     }
                                     else
                                     {
-                                        deltaSource = proxyToSource.MultiplyVector(deltaProxy);
+                                        deltaSource = needBoundsMap
+                                            ? MapDeltaBetweenBounds(deltaProxy, proxyBoundsLocal, sourceBounds)
+                                            : proxyToSource.MultiplyVector(deltaProxy);
                                     }
-                                    // Convert delta from corrected space to stored (uncorrected) space
-                                    if (hasSkinningCorrection) deltaSource = skinningLocalInv.MultiplyVector(deltaSource);
-
                                     switch (CurrentMirrorBehavior)
                                     {
                                         case MirrorBehavior.Identical:
                                         {
+                                            if (hasControlPointSkinning)
+                                            {
+                                                if (normalizeSkinnedBounds)
+                                                {
+                                                    deltaSource = MapDeltaBetweenBounds(
+                                                        deltaSource,
+                                                        _skinningDisplayBounds,
+                                                        _controlPointSkinning.PosedControlBounds);
+                                                }
+                                                _controlPointSkinning.TryInverseTransformVector(
+                                                    mirrorIndex,
+                                                    deltaSource,
+                                                    out deltaSource);
+                                            }
                                             var original = settings.GetControlPointLocal(mirrorIndex);
                                             mirrorLocal = original + deltaSource;
                                             break;
@@ -671,6 +769,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                             break;
                                         case MirrorBehavior.Antisymmetric:
                                         {
+                                            if (hasControlPointSkinning)
+                                            {
+                                                if (normalizeSkinnedBounds)
+                                                {
+                                                    deltaSource = MapDeltaBetweenBounds(
+                                                        deltaSource,
+                                                        _skinningDisplayBounds,
+                                                        _controlPointSkinning.PosedControlBounds);
+                                                }
+                                                _controlPointSkinning.TryInverseTransformVector(
+                                                    mirrorIndex,
+                                                    deltaSource,
+                                                    out deltaSource);
+                                            }
                                             var original = settings.GetControlPointLocal(mirrorIndex);
                                             mirrorLocal = original - deltaSource;
                                             break;
@@ -763,6 +875,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (renderer == null)
             {
                 _cachedSkinningCorrection = null;
+                _controlPointSkinning.Reset();
+                _hasSkinningFallbackBounds = false;
+                _hasSkinningReferenceBounds = false;
+                _hasSkinningDisplayBounds = false;
                 _cachedSkinningRenderer = null;
                 _cachedSkinningBones = null;
                 _cachedSkinningRendererDirtyCount = 0;
@@ -790,6 +906,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 hash = hash * 31 + renderer.transform.localToWorldMatrix.GetHashCode();
                 hash = hash * 31 + (mesh != null ? mesh.GetInstanceID() : 0);
                 hash = hash * 31 + (mesh != null ? EditorUtility.GetDirtyCount(mesh) : 0);
+                if (mesh != null)
+                {
+                    hash = hash * 31 + mesh.blendShapeCount;
+                    for (int i = 0; i < mesh.blendShapeCount; i++)
+                    {
+                        hash = hash * 31 + renderer.GetBlendShapeWeight(i).GetHashCode();
+                    }
+                }
                 hash = hash * 31 + sourceBounds.GetHashCode();
                 hash = hash * 31 + sourceToWorld.GetHashCode();
                 hash = hash * 31 + worldToSource.GetHashCode();
@@ -807,11 +931,77 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (_skinningSnapshotValid && _skinningSnapshotHash == hash)
                     return;
                 SkinningRefreshCountForTests++;
-                _cachedSkinningCorrection = ComputeSkinningCorrectionMatrix(
+                Mesh bindingMesh = deformer != null && deformer.SourceMesh != null
+                    ? deformer.SourceMesh
+                    : mesh;
+                Vector3Int gridSize = deformer != null && deformer.EditingSettings != null
+                    ? deformer.EditingSettings.GridSize
+                    : new Vector3Int(2, 2, 2);
+                bool hasPerPointSkinning = _controlPointSkinning.Update(
                     renderer,
+                    bindingMesh,
+                    mesh,
                     sourceBounds,
-                    sourceToWorld,
+                    gridSize,
                     worldToSource);
+                _hasSkinningFallbackBounds = false;
+                _hasSkinningDisplayBounds = false;
+                if (hasPerPointSkinning && _controlPointSkinning.HasPoseBounds)
+                {
+                    int geometryHash = ComputeSkinningReferenceGeometryHash(
+                        renderer,
+                        bindingMesh,
+                        mesh,
+                        sourceBounds,
+                        gridSize,
+                        sourceToWorld,
+                        worldToSource);
+                    if (!_hasSkinningReferenceBounds ||
+                        geometryHash != _skinningReferenceGeometryHash)
+                    {
+                        if (TryCaptureBakedBoundsInSourceLocal(
+                                renderer,
+                                worldToSource,
+                                out Bounds bakedBounds))
+                        {
+                            _skinningReferenceGeometryHash = geometryHash;
+                            _skinningReferenceSampleBounds =
+                                _controlPointSkinning.PosedMeshBounds;
+                            _skinningReferenceBakedBounds = bakedBounds;
+                            _hasSkinningReferenceBounds = true;
+                        }
+                        else
+                        {
+                            _hasSkinningReferenceBounds = false;
+                        }
+                    }
+
+                    if (_hasSkinningReferenceBounds)
+                    {
+                        _skinningDisplayBounds = RemapBounds(
+                            _skinningReferenceBakedBounds,
+                            _skinningReferenceSampleBounds,
+                            _controlPointSkinning.PosedMeshBounds);
+                        _hasSkinningDisplayBounds = true;
+                    }
+                }
+                else if (!hasPerPointSkinning)
+                {
+                    if (TryCaptureBakedBoundsInSourceLocal(
+                            renderer,
+                            worldToSource,
+                            out Bounds fallbackBounds))
+                    {
+                        _skinningFallbackBounds = fallbackBounds;
+                        _hasSkinningFallbackBounds =
+                            IsFinite(_skinningFallbackBounds.center) &&
+                            IsFinite(_skinningFallbackBounds.size) &&
+                            _skinningFallbackBounds.size.sqrMagnitude > 1e-12f;
+                    }
+                }
+                // Retained for serialized/test compatibility only. Display now uses the
+                // per-control-point matrices above instead of a root-bone approximation.
+                _cachedSkinningCorrection = null;
                 _skinningSnapshotHash = hash;
                 _skinningSnapshotValid = true;
             }
@@ -891,6 +1081,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _cachedSkinningRendererDirtyCount = 0;
             _skinningSnapshotValid = false;
             _cachedSkinningCorrection = null;
+            _controlPointSkinning.Reset();
+            _hasSkinningFallbackBounds = false;
+            _hasSkinningReferenceBounds = false;
+            _hasSkinningDisplayBounds = false;
+            if (_skinningFallbackMesh != null)
+            {
+                UnityEngine.Object.DestroyImmediate(_skinningFallbackMesh);
+                _skinningFallbackMesh = null;
+            }
         }
 
         private void OnUndoRedo()
@@ -1064,6 +1263,133 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 default:
                     return null;
             }
+        }
+
+        private int ComputeSkinningReferenceGeometryHash(
+            SkinnedMeshRenderer renderer,
+            Mesh sourceMesh,
+            Mesh poseMesh,
+            Bounds sourceBounds,
+            Vector3Int gridSize,
+            Matrix4x4 sourceToWorld,
+            Matrix4x4 worldToSource)
+        {
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + renderer.GetInstanceID();
+                hash = hash * 31 + EditorUtility.GetDirtyCount(renderer);
+                hash = hash * 31 + sourceMesh.GetInstanceID();
+                hash = hash * 31 + EditorUtility.GetDirtyCount(sourceMesh);
+                hash = hash * 31 + poseMesh.GetInstanceID();
+                hash = hash * 31 + EditorUtility.GetDirtyCount(poseMesh);
+                hash = hash * 31 + sourceBounds.GetHashCode();
+                hash = hash * 31 + gridSize.GetHashCode();
+                hash = hash * 31 + sourceToWorld.GetHashCode();
+                hash = hash * 31 + worldToSource.GetHashCode();
+                hash = hash * 31 + poseMesh.blendShapeCount;
+                for (int i = 0; i < poseMesh.blendShapeCount; i++)
+                {
+                    hash = hash * 31 + renderer.GetBlendShapeWeight(i).GetHashCode();
+                }
+                return hash;
+            }
+        }
+
+        private bool TryCaptureBakedBoundsInSourceLocal(
+            SkinnedMeshRenderer renderer,
+            Matrix4x4 worldToSource,
+            out Bounds bounds)
+        {
+            bounds = default;
+            if (renderer == null)
+            {
+                return false;
+            }
+
+            if (_skinningFallbackMesh == null)
+            {
+                _skinningFallbackMesh = new Mesh
+                {
+                    name = "Lattice Cage Skinning Bounds",
+                    hideFlags = HideFlags.HideAndDontSave
+                };
+            }
+
+            try
+            {
+                renderer.BakeMesh(_skinningFallbackMesh);
+                Matrix4x4 rendererToSource =
+                    worldToSource * renderer.transform.localToWorldMatrix;
+                bounds = TransformBounds(
+                    _skinningFallbackMesh.bounds,
+                    rendererToSource);
+                return IsFinite(bounds.center) &&
+                       IsFinite(bounds.size) &&
+                       bounds.size.sqrMagnitude > 1e-12f;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private static Bounds TransformBounds(Bounds bounds, Matrix4x4 matrix)
+        {
+            Vector3 min = bounds.min;
+            Vector3 max = bounds.max;
+            Bounds transformed = default;
+            bool hasPoint = false;
+            for (int z = 0; z < 2; z++)
+            {
+                for (int y = 0; y < 2; y++)
+                {
+                    for (int x = 0; x < 2; x++)
+                    {
+                        Vector3 point = matrix.MultiplyPoint3x4(new Vector3(
+                            x == 0 ? min.x : max.x,
+                            y == 0 ? min.y : max.y,
+                            z == 0 ? min.z : max.z));
+                        if (!hasPoint)
+                        {
+                            transformed = new Bounds(point, Vector3.zero);
+                            hasPoint = true;
+                        }
+                        else
+                        {
+                            transformed.Encapsulate(point);
+                        }
+                    }
+                }
+            }
+            return transformed;
+        }
+
+        private static Bounds RemapBounds(
+            Bounds referenceBounds,
+            Bounds referenceSampleBounds,
+            Bounds currentSampleBounds)
+        {
+            Vector3 center = MapPointBetweenBounds(
+                referenceBounds.center,
+                referenceSampleBounds,
+                currentSampleBounds);
+            Vector3 size = MapDeltaBetweenBounds(
+                referenceBounds.size,
+                referenceSampleBounds,
+                currentSampleBounds);
+            size = new Vector3(
+                Mathf.Abs(size.x),
+                Mathf.Abs(size.y),
+                Mathf.Abs(size.z));
+            return new Bounds(center, size);
+        }
+
+        private static bool IsFinite(Vector3 value)
+        {
+            return !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
+                   !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
+                   !float.IsNaN(value.z) && !float.IsInfinity(value.z);
         }
 
         /// <summary>
