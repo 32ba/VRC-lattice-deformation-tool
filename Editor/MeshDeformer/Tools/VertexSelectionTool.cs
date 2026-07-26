@@ -95,6 +95,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Vector3 _handleScale = Vector3.one;
         private bool _isTransforming;
         private Vector3[] _preTransformWorldPositions;
+        private bool _preTransformWorldPositionsValid;
         private Vector3[] _proportionalWorldPositions;
         private readonly VertexProportionalInfluenceCache _proportionalInfluenceCache =
             new VertexProportionalInfluenceCache();
@@ -289,6 +290,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void ResetTransformGesture()
         {
             _isTransforming = false;
+            _preTransformWorldPositionsValid = false;
             InvalidateProportionalInfluenceCache();
             _handleRotation = Quaternion.identity;
             _handleScale = Vector3.one;
@@ -515,6 +517,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 _isTransforming = false;
                 _preTransformWorldPositions = null;
+                _preTransformWorldPositionsValid = false;
                 NotifySelectionChanged();
                 SceneView.RepaintAll();
                 evt.Use();
@@ -906,6 +909,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Undo.RecordObject(deformer, GetUndoLabel());
             deformer.EnsureDisplacementCapacity();
             _isTransforming = true;
+            _preTransformWorldPositionsValid = false;
 
             // Freeze world-space positions for proportional distance computations so
             // non-uniform Transform scale and posed skinning remain geometrically exact
@@ -924,6 +928,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     _preTransformWorldPositions[i] = DeformedToWorld(i, matrix);
                 }
 
+                _preTransformWorldPositionsValid = true;
                 _transformInfluenceRevision++;
                 InvalidateProportionalInfluenceCache();
             }
@@ -1133,7 +1138,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             Matrix4x4 matrix = meshTransform.localToWorldMatrix;
-            int sourceRevision = _preTransformWorldPositions != null
+            int sourceRevision = _preTransformWorldPositionsValid
                 ? _transformInfluenceRevision
                 : RefreshCountForTests;
             if (_cachedInfluenceSelectionRevision == s_selectionRevision &&
@@ -1144,7 +1149,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            Vector3[] worldPositions = _preTransformWorldPositions;
+            Vector3[] worldPositions = _preTransformWorldPositionsValid
+                ? _preTransformWorldPositions
+                : null;
             if (worldPositions == null)
             {
                 int count = _deformedVertices.Length;
@@ -1539,6 +1546,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _cachedRuntimeMesh = null;
             _restSpaceConverterCache.Clear();
             _preTransformWorldPositions = null;
+            _preTransformWorldPositionsValid = false;
             InvalidateProportionalInfluenceCache();
             _proportionalInfluenceCache.Clear();
             InvalidatePoseRendererCache();
