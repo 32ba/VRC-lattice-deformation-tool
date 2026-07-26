@@ -1729,7 +1729,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
             VertexSelectionHandler.CurrentTransformMode = (VertexSelectionHandler.TransformMode)modeIndex;
 
-            if (VertexSelectionHandler.CurrentTransformMode == VertexSelectionHandler.TransformMode.Move &&
+            if (LatticeDeformationFeatureFlags.RestSpaceEditing &&
+                VertexSelectionHandler.CurrentTransformMode == VertexSelectionHandler.TransformMode.Move &&
                 deformer != null && deformer.GetComponent<SkinnedMeshRenderer>() != null)
             {
                 SkinnedVertexHelper.StoreMovesInRestSpace = EditorGUILayout.Toggle(
@@ -1826,20 +1827,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
-            using (new GUILayout.HorizontalScope())
+            if (LatticeDeformationFeatureFlags.SymmetricVertexSelection)
             {
-                GUILayout.Label(LatticeLocalization.Content(LocKey.MirrorAxis), GUILayout.Width(75f));
-                int mirrorAxis = GUILayout.Toolbar(
-                    (int)BrushToolHandler.CurrentMirrorAxis,
-                    BrushToolHandler.AxisOptions);
-                mirrorAxis = Mathf.Clamp(mirrorAxis, 0, BrushToolHandler.AxisOptions.Length - 1);
-                BrushToolHandler.CurrentMirrorAxis = (BrushToolHandler.MirrorAxis)mirrorAxis;
-
-                using (new EditorGUI.DisabledScope(VertexSelectionHandler.SelectedVertexCount == 0))
+                using (new GUILayout.HorizontalScope())
                 {
-                    if (GUILayout.Button(ToolIcons.Content(ToolIcons.Mirror, LocKey.Mirror)))
+                    GUILayout.Label(LatticeLocalization.Content(LocKey.MirrorAxis), GUILayout.Width(75f));
+                    int mirrorAxis = GUILayout.Toolbar(
+                        (int)BrushToolHandler.CurrentMirrorAxis,
+                        BrushToolHandler.AxisOptions);
+                    mirrorAxis = Mathf.Clamp(mirrorAxis, 0, BrushToolHandler.AxisOptions.Length - 1);
+                    BrushToolHandler.CurrentMirrorAxis = (BrushToolHandler.MirrorAxis)mirrorAxis;
+
+                    using (new EditorGUI.DisabledScope(VertexSelectionHandler.SelectedVertexCount == 0))
                     {
-                        VertexSelectionHandler.SelectMirrorPartners(deformer, mirrorAxis);
+                        if (GUILayout.Button(ToolIcons.Content(ToolIcons.Mirror, LocKey.Mirror)))
+                        {
+                            VertexSelectionHandler.SelectMirrorPartners(deformer, mirrorAxis);
+                        }
                     }
                 }
             }

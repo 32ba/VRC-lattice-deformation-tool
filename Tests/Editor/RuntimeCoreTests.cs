@@ -411,6 +411,46 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeControlPointEdit_ReusesInterpolationCache()
+        {
+            var go = new GameObject("lattice-control-edit-cache");
+            var mesh = CreateSymmetricQuadMesh("LatticeControlEditCacheMesh");
+            try
+            {
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                go.AddComponent<MeshRenderer>();
+                var deformer = go.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                Assert.That(deformer.Deform(false), Is.Not.Null);
+
+                var cacheField = typeof(LatticeDeformer).GetField(
+                    "_cache",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(cacheField, Is.Not.Null);
+                var cache = (LatticeDeformerCache)cacheField.GetValue(deformer);
+                var warmedEntries = cache.Entries;
+                Assert.That(warmedEntries, Is.Not.Empty);
+
+                var settings = deformer.Settings;
+                settings.SetControlPointLocal(
+                    0,
+                    settings.GetControlPointLocal(0) + Vector3.up * 0.1f);
+                deformer.NotifyDeformationDataChanged();
+
+                Assert.That(deformer.Deform(false), Is.Not.Null);
+                Assert.That(
+                    cache.Entries,
+                    Is.SameAs(warmedEntries),
+                    "Moving a control point must not rebuild per-vertex interpolation weights.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
         public void WeightTransferSettingsData_DefaultAndClone_ReturnIndependentCopies()
         {
             var settings = WeightTransferSettingsData.Default;

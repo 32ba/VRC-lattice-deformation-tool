@@ -2401,13 +2401,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal static void DrawOverlayGUI(LatticeDeformer deformer)
         {
             // Brush Mode toolbar (icon + text)
-            var modeContent = new GUIContent[]
-            {
-                ToolIcons.Content(ToolIcons.Normal, LocKey.Normal),
-                ToolIcons.Content(ToolIcons.Move, LocKey.Move),
-                ToolIcons.Content(ToolIcons.Smooth, LocKey.Smooth),
-                ToolIcons.Content(ToolIcons.Mask, LocKey.Mask),
-            };
+            var modeContent = LatticeDeformationFeatureFlags.VertexMaskEditing
+                ? new[]
+                {
+                    ToolIcons.Content(ToolIcons.Normal, LocKey.Normal),
+                    ToolIcons.Content(ToolIcons.Move, LocKey.Move),
+                    ToolIcons.Content(ToolIcons.Smooth, LocKey.Smooth),
+                    ToolIcons.Content(ToolIcons.Mask, LocKey.Mask),
+                }
+                : new[]
+                {
+                    ToolIcons.Content(ToolIcons.Normal, LocKey.Normal),
+                    ToolIcons.Content(ToolIcons.Move, LocKey.Move),
+                    ToolIcons.Content(ToolIcons.Smooth, LocKey.Smooth),
+                };
             int currentModeIndex = Mathf.Min((int)BrushToolHandler.CurrentBrushMode, modeContent.Length - 1);
             int modeIndex = GUILayout.Toolbar(currentModeIndex, modeContent);
             modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
@@ -2433,7 +2440,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 strengthPercent, 0f, 100f);
             BrushToolHandler.BrushStrength = strengthPercent / 100f;
 
-            if (BrushToolHandler.CurrentBrushMode == BrushToolHandler.BrushMode.Move &&
+            if (LatticeDeformationFeatureFlags.RestSpaceEditing &&
+                BrushToolHandler.CurrentBrushMode == BrushToolHandler.BrushMode.Move &&
                 deformer != null && deformer.GetComponent<SkinnedMeshRenderer>() != null)
             {
                 SkinnedVertexHelper.StoreMovesInRestSpace = EditorGUILayout.Toggle(
@@ -2549,7 +2557,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
                 }
 
-                if (GUILayout.Button(ToolIcons.Content(ToolIcons.Clear, LocKey.ClearMask)))
+                if (LatticeDeformationFeatureFlags.VertexMaskEditing &&
+                    GUILayout.Button(ToolIcons.Content(ToolIcons.Clear, LocKey.ClearMask)))
                 {
                     if (deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush)
                     {

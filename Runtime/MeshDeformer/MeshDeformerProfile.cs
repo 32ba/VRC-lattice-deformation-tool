@@ -170,9 +170,11 @@ namespace Net._32Ba.LatticeDeformationTool
         }
     }
 
+#if LATTICE_DEFORMATION_TOOL_ENABLE_NEXT_RELEASE_FEATURES
     [CreateAssetMenu(
         fileName = "MeshDeformerProfile",
         menuName = "32ba/Lattice Deformation Tool/Deformer Profile")]
+#endif
     public sealed class MeshDeformerProfile : ScriptableObject
     {
         [SerializeField] private List<DeformerGroup> _groups = new List<DeformerGroup>();

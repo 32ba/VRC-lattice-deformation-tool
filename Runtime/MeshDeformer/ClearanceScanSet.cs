@@ -76,9 +76,11 @@ namespace Net._32Ba.LatticeDeformationTool
         }
     }
 
+#if LATTICE_DEFORMATION_TOOL_ENABLE_NEXT_RELEASE_FEATURES
     [CreateAssetMenu(
         fileName = "ClearanceScanSet",
         menuName = "Lattice Deformation Tool/Clearance Scan Set")]
+#endif
     public sealed class ClearanceScanSet : ScriptableObject
     {
         [SerializeField] private List<ClearanceScanCondition> _conditions =

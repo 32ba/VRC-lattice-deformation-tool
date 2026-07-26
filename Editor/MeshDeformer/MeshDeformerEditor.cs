@@ -189,8 +189,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             InitializePendingGridSizes();
             LatticeLocalization.LanguageChanged += OnLanguageChanged;
             ReleaseChecker.OnUpdateCheckCompleted += Repaint;
-            SceneView.duringSceneGui += DrawClearanceHeatmapInScene;
-            Undo.undoRedoPerformed += OnClearanceStateChanged;
+            if (LatticeDeformationFeatureFlags.ClearanceTools)
+            {
+                SceneView.duringSceneGui += DrawClearanceHeatmapInScene;
+                Undo.undoRedoPerformed += OnClearanceStateChanged;
+            }
         }
 
         private void ResolveActiveGroupProperties()
@@ -219,8 +222,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             LatticeLocalization.LanguageChanged -= OnLanguageChanged;
             ReleaseChecker.OnUpdateCheckCompleted -= Repaint;
-            SceneView.duringSceneGui -= DrawClearanceHeatmapInScene;
-            Undo.undoRedoPerformed -= OnClearanceStateChanged;
+            if (LatticeDeformationFeatureFlags.ClearanceTools)
+            {
+                SceneView.duringSceneGui -= DrawClearanceHeatmapInScene;
+                Undo.undoRedoPerformed -= OnClearanceStateChanged;
+            }
             EditorApplication.update -= AdvanceClearanceScan;
             _clearanceScanOperation?.Cancel();
             _clearanceScanOperation?.Dispose();
@@ -673,7 +679,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorGUILayout.Space();
             ReleaseNotificationGUI.Draw();
 
-            DrawProfileSection();
+            if (LatticeDeformationFeatureFlags.DeformerProfiles)
+            {
+                DrawProfileSection();
+            }
 
             using (new EditorGUI.DisabledScope(disableSkinnedField))
             {
@@ -886,7 +895,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ResolveActiveGroupProperties();
 
             DrawBuildOptions();
-            DrawClearanceHeatmapSettings();
+            if (LatticeDeformationFeatureFlags.ClearanceTools)
+            {
+                DrawClearanceHeatmapSettings();
+            }
 
             bool modified = serializedObject.ApplyModifiedProperties();
             if (modified)
@@ -894,7 +906,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 NotifyPropertyChanges();
             }
 
-            DrawValidationDiagnostics();
+            if (LatticeDeformationFeatureFlags.ValidationDiagnostics)
+            {
+                DrawValidationDiagnostics();
+            }
 
             EditorGUILayout.Space();
 
@@ -2214,7 +2229,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         DrawAlignmentSettings();
                     }
 
-                    DrawActiveLayerBlendShapeSection();
+                    if (LatticeDeformationFeatureFlags.AdvancedBlendShapes)
+                    {
+                        DrawActiveLayerBlendShapeSection();
+                    }
 
                     if (serializedObject.ApplyModifiedProperties())
                         NotifyPropertyChanges();
@@ -3245,7 +3263,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (curveProp != null)
                     EditorGUILayout.PropertyField(curveProp, new GUIContent(LatticeLocalization.Tr(LocKey.Curve)));
 
-                if (compositionProp != null)
+                if (LatticeDeformationFeatureFlags.AdvancedBlendShapes && compositionProp != null)
                 {
                     var compositionOptions = new[]
                     {
@@ -3462,16 +3480,26 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     int index = i;
                     string shapeName = blendShapeNames[i];
-                    menu.AddItem(
-                        new GUIContent(
-                            LatticeLocalization.Tr(LocKey.ImportBlendShapeSingleFrame) + "/" + shapeName),
-                        false,
-                        () => ImportBlendShape(deformer, index, false));
-                    menu.AddItem(
-                        new GUIContent(
-                            LatticeLocalization.Tr(LocKey.ImportBlendShapeAllFrames) + "/" + shapeName),
-                        false,
-                        () => ImportBlendShape(deformer, index, true));
+                    if (LatticeDeformationFeatureFlags.AdvancedBlendShapes)
+                    {
+                        menu.AddItem(
+                            new GUIContent(
+                                LatticeLocalization.Tr(LocKey.ImportBlendShapeSingleFrame) + "/" + shapeName),
+                            false,
+                            () => ImportBlendShape(deformer, index, false));
+                        menu.AddItem(
+                            new GUIContent(
+                                LatticeLocalization.Tr(LocKey.ImportBlendShapeAllFrames) + "/" + shapeName),
+                            false,
+                            () => ImportBlendShape(deformer, index, true));
+                    }
+                    else
+                    {
+                        menu.AddItem(
+                            new GUIContent(shapeName),
+                            false,
+                            () => ImportBlendShape(deformer, index, false));
+                    }
                 }
                 menu.ShowAsContext();
             }

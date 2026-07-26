@@ -236,6 +236,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return Task.FromResult<IRenderFilterNode>(null);
             }
 
+            // Only structural changes should replace the node. Interactive layer
+            // changes are applied to the existing preview mesh in OnFrameGroup so
+            // the proxy is never restored to its upstream mesh between drag frames.
             _ = context.Observe(
                 deformer,
                 LatticePreviewState.Create,
@@ -273,6 +276,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             private readonly List<Vector4> _tangentBuffer = new List<Vector4>();
             private readonly BlendShapeCopyBuffers _blendShapeBuffers = new BlendShapeCopyBuffers();
             private int _lastBlendShapeWeightStateHash;
+            private int _lastDeformationDataRevision;
+            private int _lastRuntimeMeshRevision;
             private readonly int _sourceBlendShapeCount;
             private bool _suppressProxySourceBlendShapeWeights;
 
@@ -287,6 +292,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _lastBlendShapeWeightStateHash = ComputeBlendShapeWeightStateHash(
                     _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
                     _deformer != null ? _deformer.SourceMesh : null);
+                _lastDeformationDataRevision = _deformer != null
+                    ? _deformer.DeformationDataRevision
+                    : 0;
+                _lastRuntimeMeshRevision = _deformer != null
+                    ? _deformer.RuntimeMeshRevision
+                    : 0;
 
                 foreach (var (original, proxy) in proxyPairs)
                 {
@@ -328,18 +339,41 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 int currentHash = ComputeBlendShapeWeightStateHash(
                     _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
                     _deformer != null ? _deformer.SourceMesh : null);
-                if (currentHash == _lastBlendShapeWeightStateHash)
+                int currentDeformationDataRevision = _deformer != null
+                    ? _deformer.DeformationDataRevision
+                    : 0;
+                int currentRuntimeMeshRevision = _deformer != null
+                    ? _deformer.RuntimeMeshRevision
+                    : 0;
+                if (currentHash == _lastBlendShapeWeightStateHash &&
+                    currentDeformationDataRevision == _lastDeformationDataRevision &&
+                    currentRuntimeMeshRevision == _lastRuntimeMeshRevision)
                 {
                     if (_suppressProxySourceBlendShapeWeights)
                         SuppressProxySourceBlendShapeWeights();
                     return;
                 }
 
-                if (UpdatePreviewMesh())
+                // Keep the same Mesh instance assigned to every proxy. Replacing the
+                // node here would briefly restore the upstream mesh and visibly drop
+                // active source BlendShapes for one rendered frame.
+                //
+                // Interactive tools call Deform(false) before requesting a repaint.
+                // Reuse that completed runtime mesh instead of running the full
+                // deformation (including normal/bounds recalculation) a second time.
+                bool runtimeMeshWasUpdated =
+                    currentRuntimeMeshRevision != _lastRuntimeMeshRevision;
+                if (UpdatePreviewMesh(runtimeMeshWasUpdated))
                 {
                     _lastBlendShapeWeightStateHash = ComputeBlendShapeWeightStateHash(
                         _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
                         _deformer != null ? _deformer.SourceMesh : null);
+                    _lastDeformationDataRevision = _deformer != null
+                        ? _deformer.DeformationDataRevision
+                        : 0;
+                    _lastRuntimeMeshRevision = _deformer != null
+                        ? _deformer.RuntimeMeshRevision
+                        : 0;
                 }
             }
 
@@ -386,16 +420,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     SuppressProxySourceBlendShapeWeights(target.ProxyRenderer);
             }
 
-            private bool UpdatePreviewMesh()
+            private bool UpdatePreviewMesh(bool reuseRuntimeMesh)
             {
                 if (_deformer == null || _previewMesh == null)
                 {
                     return false;
                 }
 
-                Mesh runtimeMesh;
-                using (s_deformMarker.Auto())
-                    runtimeMesh = _deformer.Deform(false);
+                Mesh runtimeMesh = reuseRuntimeMesh ? _deformer.RuntimeMesh : null;
+                if (runtimeMesh == null)
+                {
+                    using (s_deformMarker.Auto())
+                        runtimeMesh = _deformer.Deform(false);
+                }
                 if (runtimeMesh == null)
                 {
                     return false;
@@ -752,32 +789,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private readonly struct LatticePreviewState : IEquatable<LatticePreviewState>
         {
-            private readonly Vector3Int _gridSize;
-            private readonly Vector3 _boundsCenter;
-            private readonly Vector3 _boundsSize;
-            private readonly LatticeInterpolationMode _interpolation;
-            private readonly bool _useJobs;
-            private readonly int _controlPointHash;
-            private readonly int _controlPointCount;
             private readonly int _sourceMeshId;
+            private readonly int _sourceVertexCount;
+            private readonly int _sourceSubMeshCount;
 
             private LatticePreviewState(
-                Vector3Int gridSize,
-                Bounds bounds,
-                LatticeInterpolationMode interpolation,
-                bool useJobs,
                 int sourceMeshId,
-                int controlHash,
-                int controlCount)
+                int sourceVertexCount,
+                int sourceSubMeshCount)
             {
-                _gridSize = gridSize;
-                _boundsCenter = bounds.center;
-                _boundsSize = bounds.size;
-                _interpolation = interpolation;
-                _useJobs = useJobs;
                 _sourceMeshId = sourceMeshId;
-                _controlPointHash = controlHash;
-                _controlPointCount = controlCount;
+                _sourceVertexCount = sourceVertexCount;
+                _sourceSubMeshCount = sourceSubMeshCount;
             }
 
             public static LatticePreviewState Create(LatticeDeformer deformer)
@@ -787,21 +810,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     return default;
                 }
 
-                var settings = deformer.Settings;
-                settings?.EnsureInitialized();
-                int layeredHash = deformer.ComputeLayeredStateHash();
-                int controlPointCount = settings != null ? settings.ControlPointCount : 0;
-
-                var snapshot = new LatticePreviewState(
-                    settings?.GridSize ?? Vector3Int.zero,
-                    settings?.LocalBounds ?? new Bounds(Vector3.zero, Vector3.zero),
-                    settings?.Interpolation ?? LatticeInterpolationMode.Trilinear,
-                    settings != null,
-                    deformer.SourceMesh != null ? deformer.SourceMesh.GetInstanceID() : 0,
-                    layeredHash,
-                    controlPointCount);
-
-                return snapshot;
+                Mesh sourceMesh = deformer.SourceMesh;
+                return new LatticePreviewState(
+                    sourceMesh != null ? sourceMesh.GetInstanceID() : 0,
+                    sourceMesh != null ? sourceMesh.vertexCount : 0,
+                    sourceMesh != null ? sourceMesh.subMeshCount : 0);
             }
 
             public static bool Equals(LatticePreviewState lhs, LatticePreviewState rhs)
@@ -811,14 +824,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             public bool Equals(LatticePreviewState other)
             {
-                return _gridSize == other._gridSize &&
-                       _boundsCenter == other._boundsCenter &&
-                       _boundsSize == other._boundsSize &&
-                       _interpolation == other._interpolation &&
-                       _useJobs == other._useJobs &&
-                       _sourceMeshId == other._sourceMeshId &&
-                       _controlPointHash == other._controlPointHash &&
-                       _controlPointCount == other._controlPointCount;
+                return _sourceMeshId == other._sourceMeshId &&
+                       _sourceVertexCount == other._sourceVertexCount &&
+                       _sourceSubMeshCount == other._sourceSubMeshCount;
             }
 
             public override bool Equals(object obj)
@@ -828,18 +836,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             public override int GetHashCode()
             {
-                var hash = HashCode.Combine(
-                    _gridSize,
-                    _boundsCenter,
-                    _boundsSize,
-                    (int)_interpolation,
-                    _useJobs,
-                    _sourceMeshId);
-
-                hash = HashCode.Combine(hash, _controlPointHash);
-                hash = HashCode.Combine(hash, _controlPointCount);
-
-                return hash;
+                return HashCode.Combine(
+                    _sourceMeshId,
+                    _sourceVertexCount,
+                    _sourceSubMeshCount);
             }
         }
 
