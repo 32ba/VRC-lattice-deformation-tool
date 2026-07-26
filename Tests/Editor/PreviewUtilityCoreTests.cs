@@ -603,6 +603,66 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeDeformerPreviewFilter_InteractiveEditReusesCompletedRuntimeMesh()
+        {
+            var original = new GameObject("interactive-update-original");
+            var proxy = new GameObject("interactive-update-proxy");
+            var source = CreateBlendShapeMesh(1);
+            IRenderFilterNode node = null;
+            try
+            {
+                var originalRenderer = original.AddComponent<SkinnedMeshRenderer>();
+                originalRenderer.sharedMesh = source;
+                originalRenderer.SetBlendShapeWeight(0, 50f);
+                var deformer = original.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+
+                var proxyRenderer = proxy.AddComponent<SkinnedMeshRenderer>();
+                proxyRenderer.sharedMesh = source;
+                proxyRenderer.SetBlendShapeWeight(0, 50f);
+
+                var generate = typeof(LatticeDeformerPreviewFilter).GetMethod(
+                    "GeneratePreviewMesh",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                Assert.That(generate, Is.Not.Null);
+                var previewMesh = (Mesh)generate.Invoke(null, new object[] { deformer });
+                Assert.That(previewMesh, Is.Not.Null);
+
+                node = CreateLatticePreviewNode(
+                    deformer,
+                    new[] { ((Renderer)originalRenderer, (Renderer)proxyRenderer) },
+                    previewMesh);
+                Vector3 before = previewMesh.vertices[0];
+
+                int brushLayer = deformer.AddLayer("Interactive Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushLayer;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, Vector3.right * 0.25f);
+                deformer.InvalidateCache();
+
+                Assert.That(deformer.Deform(false), Is.Not.Null);
+                int completedRevision = deformer.RuntimeMeshRevision;
+
+                node.OnFrameGroup();
+
+                Assert.That(
+                    deformer.RuntimeMeshRevision,
+                    Is.EqualTo(completedRevision),
+                    "The preview must not repeat a deformation already completed by the interactive tool.");
+                Assert.That(proxyRenderer.sharedMesh, Is.SameAs(previewMesh));
+                Assert.That(previewMesh.vertices[0], Is.EqualTo(before + Vector3.right * 0.25f));
+            }
+            finally
+            {
+                node?.Dispose();
+                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(proxy);
+                Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
         public void LatticeDeformerPreviewFilter_SourceWeightBakesNormalAndTangentDeltas()
         {
             var original = new GameObject("surface-delta-original");

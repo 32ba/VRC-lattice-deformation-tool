@@ -276,7 +276,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             private readonly List<Vector4> _tangentBuffer = new List<Vector4>();
             private readonly BlendShapeCopyBuffers _blendShapeBuffers = new BlendShapeCopyBuffers();
             private int _lastBlendShapeWeightStateHash;
-            private int _lastCacheInvalidationRevision;
+            private int _lastDeformationDataRevision;
+            private int _lastRuntimeMeshRevision;
             private readonly int _sourceBlendShapeCount;
             private bool _suppressProxySourceBlendShapeWeights;
 
@@ -291,8 +292,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _lastBlendShapeWeightStateHash = ComputeBlendShapeWeightStateHash(
                     _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
                     _deformer != null ? _deformer.SourceMesh : null);
-                _lastCacheInvalidationRevision = _deformer != null
-                    ? _deformer.CacheInvalidationRevision
+                _lastDeformationDataRevision = _deformer != null
+                    ? _deformer.DeformationDataRevision
+                    : 0;
+                _lastRuntimeMeshRevision = _deformer != null
+                    ? _deformer.RuntimeMeshRevision
                     : 0;
 
                 foreach (var (original, proxy) in proxyPairs)
@@ -335,11 +339,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 int currentHash = ComputeBlendShapeWeightStateHash(
                     _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
                     _deformer != null ? _deformer.SourceMesh : null);
-                int currentCacheInvalidationRevision = _deformer != null
-                    ? _deformer.CacheInvalidationRevision
+                int currentDeformationDataRevision = _deformer != null
+                    ? _deformer.DeformationDataRevision
+                    : 0;
+                int currentRuntimeMeshRevision = _deformer != null
+                    ? _deformer.RuntimeMeshRevision
                     : 0;
                 if (currentHash == _lastBlendShapeWeightStateHash &&
-                    currentCacheInvalidationRevision == _lastCacheInvalidationRevision)
+                    currentDeformationDataRevision == _lastDeformationDataRevision &&
+                    currentRuntimeMeshRevision == _lastRuntimeMeshRevision)
                 {
                     if (_suppressProxySourceBlendShapeWeights)
                         SuppressProxySourceBlendShapeWeights();
@@ -349,13 +357,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 // Keep the same Mesh instance assigned to every proxy. Replacing the
                 // node here would briefly restore the upstream mesh and visibly drop
                 // active source BlendShapes for one rendered frame.
-                if (UpdatePreviewMesh())
+                //
+                // Interactive tools call Deform(false) before requesting a repaint.
+                // Reuse that completed runtime mesh instead of running the full
+                // deformation (including normal/bounds recalculation) a second time.
+                bool runtimeMeshWasUpdated =
+                    currentRuntimeMeshRevision != _lastRuntimeMeshRevision;
+                if (UpdatePreviewMesh(runtimeMeshWasUpdated))
                 {
                     _lastBlendShapeWeightStateHash = ComputeBlendShapeWeightStateHash(
                         _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
                         _deformer != null ? _deformer.SourceMesh : null);
-                    _lastCacheInvalidationRevision = _deformer != null
-                        ? _deformer.CacheInvalidationRevision
+                    _lastDeformationDataRevision = _deformer != null
+                        ? _deformer.DeformationDataRevision
+                        : 0;
+                    _lastRuntimeMeshRevision = _deformer != null
+                        ? _deformer.RuntimeMeshRevision
                         : 0;
                 }
             }
@@ -403,16 +420,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     SuppressProxySourceBlendShapeWeights(target.ProxyRenderer);
             }
 
-            private bool UpdatePreviewMesh()
+            private bool UpdatePreviewMesh(bool reuseRuntimeMesh)
             {
                 if (_deformer == null || _previewMesh == null)
                 {
                     return false;
                 }
 
-                Mesh runtimeMesh;
-                using (s_deformMarker.Auto())
-                    runtimeMesh = _deformer.Deform(false);
+                Mesh runtimeMesh = reuseRuntimeMesh ? _deformer.RuntimeMesh : null;
+                if (runtimeMesh == null)
+                {
+                    using (s_deformMarker.Auto())
+                        runtimeMesh = _deformer.Deform(false);
+                }
                 if (runtimeMesh == null)
                 {
                     return false;

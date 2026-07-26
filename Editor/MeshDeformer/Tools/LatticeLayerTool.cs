@@ -689,7 +689,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                 settings.RelaxInteriorControlPoints(2);
                             }
 
-                            deformer.InvalidateCache();
+                            // Moving control points changes only the sampled offsets.
+                            // Grid size, bounds, interpolation and source vertices are
+                            // unchanged, so keep the per-vertex interpolation cache and
+                            // persistent NativeArrays alive throughout the drag.
+                            deformer.NotifyDeformationDataChanged();
                             bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
                             deformer.Deform(assignRuntimeMesh);
                             LatticePrefabUtility.MarkModified(deformer);

@@ -829,7 +829,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private string _profileFingerprint;
         [NonSerialized] private bool _blendShapeOutputDirty = true;
         [NonSerialized] private int _runtimeMeshRevision;
-        [NonSerialized] private int _cacheInvalidationRevision;
+        [NonSerialized] private int _deformationDataRevision;
         [NonSerialized] private bool _isEnsuringLayerModelReady;
         [NonSerialized] private bool _hasIncompatibleBrushData;
         [NonSerialized] private List<Vector3> _sourceVertexScratch = new List<Vector3>();
@@ -1298,7 +1298,7 @@ namespace Net._32Ba.LatticeDeformationTool
         public Mesh RuntimeMesh => _runtimeMesh;
 
         internal int RuntimeMeshRevision => _runtimeMeshRevision;
-        internal int CacheInvalidationRevision => _cacheInvalidationRevision;
+        internal int DeformationDataRevision => _deformationDataRevision;
 
         public Mesh SourceMesh => _sourceMesh;
 
@@ -4491,10 +4491,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public void InvalidateCache()
         {
-            unchecked
-            {
-                _cacheInvalidationRevision++;
-            }
+            NotifyDeformationDataChanged();
 
             if (_cache == null)
             {
@@ -4505,6 +4502,14 @@ namespace Net._32Ba.LatticeDeformationTool
             ReleaseDeformationNativeBuffers();
             _lastBlendShapeHash = 0;
             _blendShapeOutputDirty = true;
+        }
+
+        internal void NotifyDeformationDataChanged()
+        {
+            unchecked
+            {
+                _deformationDataRevision++;
+            }
         }
 
         public void InitializeFromSource(bool resetControlPoints)
@@ -5648,42 +5653,51 @@ namespace Net._32Ba.LatticeDeformationTool
             int restVerticesHash,
             LatticeInterpolationMode effectiveInterpolation)
         {
-            if (settings == null || mesh == null || restVertices == null)
+            UnityEngine.Profiling.Profiler.BeginSample(
+                "LatticeDeformer.RebuildInterpolationCache");
+            try
             {
-                return false;
-            }
+                if (settings == null || mesh == null || restVertices == null)
+                {
+                    return false;
+                }
 
-            var gridSize = settings.GridSize;
-            if (gridSize.x < 2 || gridSize.y < 2 || gridSize.z < 2)
+                var gridSize = settings.GridSize;
+                if (gridSize.x < 2 || gridSize.y < 2 || gridSize.z < 2)
+                {
+                    return false;
+                }
+
+                int vertexCount = mesh.vertexCount;
+                if (vertexCount <= 0)
+                {
+                    _cache.Clear();
+                    return false;
+                }
+
+                var bounds = settings.LocalBounds;
+                LatticeCacheEntry[] entries;
+
+                entries = BuildCacheWithJobs(gridSize, bounds, restVertices);
+                float[] bernsteinWeights = effectiveInterpolation == LatticeInterpolationMode.CubicBernstein
+                    ? BuildBernsteinWeightsWithJobs(gridSize, entries)
+                    : Array.Empty<float>();
+
+                _cache.Populate(
+                    gridSize,
+                    bounds,
+                    effectiveInterpolation,
+                    vertexCount,
+                    restVerticesHash,
+                    entries,
+                    restVertices,
+                    bernsteinWeights);
+                return true;
+            }
+            finally
             {
-                return false;
+                UnityEngine.Profiling.Profiler.EndSample();
             }
-
-            int vertexCount = mesh.vertexCount;
-            if (vertexCount <= 0)
-            {
-                _cache.Clear();
-                return false;
-            }
-
-            var bounds = settings.LocalBounds;
-            LatticeCacheEntry[] entries;
-
-            entries = BuildCacheWithJobs(gridSize, bounds, restVertices);
-            float[] bernsteinWeights = effectiveInterpolation == LatticeInterpolationMode.CubicBernstein
-                ? BuildBernsteinWeightsWithJobs(gridSize, entries)
-                : Array.Empty<float>();
-
-            _cache.Populate(
-                gridSize,
-                bounds,
-                effectiveInterpolation,
-                vertexCount,
-                restVerticesHash,
-                entries,
-                restVertices,
-                bernsteinWeights);
-            return true;
         }
 
         private static LatticeInterpolationMode GetEffectiveInterpolation(LatticeAsset settings)
