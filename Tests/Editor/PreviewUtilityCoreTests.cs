@@ -663,6 +663,77 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeDeformerPreviewFilter_DownstreamMeshConsumerIsInvalidatedAfterInteractiveEdit()
+        {
+            var original = new GameObject("downstream-refresh-original");
+            var proxy = new GameObject("downstream-refresh-proxy");
+            var source = CreateBlendShapeMesh(1);
+            var context = new ComputeContext("downstream mesh refresh test");
+            IRenderFilterNode node = null;
+            try
+            {
+                var originalRenderer = original.AddComponent<SkinnedMeshRenderer>();
+                originalRenderer.sharedMesh = source;
+                var deformer = original.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+
+                var proxyRenderer = proxy.AddComponent<SkinnedMeshRenderer>();
+                proxyRenderer.sharedMesh = source;
+
+                var generate = typeof(LatticeDeformerPreviewFilter).GetMethod(
+                    "GeneratePreviewMesh",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                Assert.That(generate, Is.Not.Null);
+                var previewMesh = (Mesh)generate.Invoke(null, new object[] { deformer });
+                Assert.That(previewMesh, Is.Not.Null);
+
+                node = CreateLatticePreviewNode(
+                    deformer,
+                    new[] { ((Renderer)originalRenderer, (Renderer)proxyRenderer) },
+                    previewMesh,
+                    context,
+                    invalidateDownstreamOnDeformationChange: true);
+
+                int brushLayer = deformer.AddLayer("Interactive Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushLayer;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, Vector3.right * 0.25f);
+                deformer.InvalidateCache();
+
+                node.OnFrameGroup();
+
+                Assert.That(context.IsInvalidated, Is.True);
+            }
+            finally
+            {
+                node?.Dispose();
+                context.Invalidate();
+                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(proxy);
+                Object.DestroyImmediate(source);
+            }
+        }
+
+        [TestCase("Anatawa12.AvatarOptimizer", "RemoveMeshByBlendShape", true)]
+        [TestCase("Anatawa12.AvatarOptimizer", "RemoveMeshByMask", true)]
+        [TestCase("Anatawa12.AvatarOptimizer", "RemoveMeshInBox", true)]
+        [TestCase("Anatawa12.AvatarOptimizer", "RemoveMeshByUVTile", true)]
+        [TestCase("Anatawa12.AvatarOptimizer", "MergeSkinnedMesh", false)]
+        [TestCase("Other.Package", "RemoveMeshByBlendShape", false)]
+        public void LatticeDeformerPreviewFilter_AaoMeshRemovalTypeDetection(
+            string typeNamespace,
+            string typeName,
+            bool expected)
+        {
+            Assert.That(
+                LatticeDeformerPreviewFilter.IsAvatarOptimizerMeshRemovalType(
+                    typeNamespace,
+                    typeName),
+                Is.EqualTo(expected));
+        }
+
+        [Test]
         public void LatticeDeformerPreviewFilter_SourceWeightBakesNormalAndTangentDeltas()
         {
             var original = new GameObject("surface-delta-original");
@@ -1643,6 +1714,21 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             IEnumerable<(Renderer original, Renderer proxy)> proxyPairs,
             Mesh previewMesh)
         {
+            return CreateLatticePreviewNode(
+                deformer,
+                proxyPairs,
+                previewMesh,
+                null,
+                invalidateDownstreamOnDeformationChange: false);
+        }
+
+        private static IRenderFilterNode CreateLatticePreviewNode(
+            LatticeDeformer deformer,
+            IEnumerable<(Renderer original, Renderer proxy)> proxyPairs,
+            Mesh previewMesh,
+            ComputeContext context,
+            bool invalidateDownstreamOnDeformationChange)
+        {
             var nodeType = typeof(LatticeDeformerPreviewFilter).GetNestedType(
                 "PreviewNode",
                 BindingFlags.NonPublic);
@@ -1651,7 +1737,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .Single();
             return (IRenderFilterNode)constructor.Invoke(
-                new object[] { deformer, proxyPairs, previewMesh });
+                new object[]
+                {
+                    deformer,
+                    proxyPairs,
+                    previewMesh,
+                    context,
+                    invalidateDownstreamOnDeformationChange
+                });
         }
     }
 }
