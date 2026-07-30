@@ -399,7 +399,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.Tests
                 var constructor = nodeType.GetConstructors(
                     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)[0];
                 node = (IRenderFilterNode)constructor.Invoke(
-                    new object[] { fixture.Deformer, pairs, previewMesh });
+                    new object[] { fixture.Deformer, pairs, previewMesh, null, false });
 
                 Assert.That(proxyRenderer.sharedMesh, Is.SameAs(previewMesh));
                 AssertVector(proxyRenderer.sharedMesh.vertices[0], Vector3.right);

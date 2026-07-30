@@ -262,8 +262,49 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return Task.FromResult<IRenderFilterNode>(null);
             }
 
-            var node = new PreviewNode(deformer, pairList, previewMesh);
+            var node = new PreviewNode(
+                deformer,
+                pairList,
+                previewMesh,
+                context,
+                pairList.Any(pair => RequiresDownstreamMeshRefresh(pair.original)));
             return Task.FromResult<IRenderFilterNode>(node);
+        }
+
+        internal static bool RequiresDownstreamMeshRefresh(Renderer renderer)
+        {
+            if (renderer == null)
+            {
+                return false;
+            }
+
+            foreach (var component in renderer.GetComponents<Component>())
+            {
+                if (component == null)
+                {
+                    continue;
+                }
+
+                Type type = component.GetType();
+                if (IsAvatarOptimizerMeshRemovalType(type.Namespace, type.Name))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        internal static bool IsAvatarOptimizerMeshRemovalType(
+            string typeNamespace,
+            string typeName)
+        {
+            return string.Equals(
+                       typeNamespace,
+                       "Anatawa12.AvatarOptimizer",
+                       StringComparison.Ordinal) &&
+                   typeName != null &&
+                   typeName.StartsWith("RemoveMesh", StringComparison.Ordinal);
         }
 
         private sealed class PreviewNode : IRenderFilterNode
@@ -271,6 +312,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             private readonly LatticeDeformer _deformer;
             private readonly List<Target> _targets = new List<Target>();
             private readonly Mesh _previewMesh;
+            private readonly ComputeContext _invalidationContext;
+            private readonly bool _invalidateDownstreamOnDeformationChange;
             private readonly List<Vector3> _vertexBuffer = new List<Vector3>();
             private readonly List<Vector3> _normalBuffer = new List<Vector3>();
             private readonly List<Vector4> _tangentBuffer = new List<Vector4>();
@@ -281,10 +324,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             private readonly int _sourceBlendShapeCount;
             private bool _suppressProxySourceBlendShapeWeights;
 
-            public PreviewNode(LatticeDeformer deformer, IEnumerable<(Renderer original, Renderer proxy)> proxyPairs, Mesh previewMesh)
+            public PreviewNode(
+                LatticeDeformer deformer,
+                IEnumerable<(Renderer original, Renderer proxy)> proxyPairs,
+                Mesh previewMesh,
+                ComputeContext invalidationContext,
+                bool invalidateDownstreamOnDeformationChange)
             {
                 _deformer = deformer;
                 _previewMesh = previewMesh;
+                _invalidationContext = invalidationContext;
+                _invalidateDownstreamOnDeformationChange =
+                    invalidateDownstreamOnDeformationChange;
                 _previewMesh.MarkDynamic();
                 _sourceBlendShapeCount = _deformer != null && _deformer.SourceMesh != null
                     ? _deformer.SourceMesh.blendShapeCount
@@ -345,9 +396,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 int currentRuntimeMeshRevision = _deformer != null
                     ? _deformer.RuntimeMeshRevision
                     : 0;
+                bool deformationChanged =
+                    currentDeformationDataRevision != _lastDeformationDataRevision ||
+                    currentRuntimeMeshRevision != _lastRuntimeMeshRevision;
                 if (currentHash == _lastBlendShapeWeightStateHash &&
-                    currentDeformationDataRevision == _lastDeformationDataRevision &&
-                    currentRuntimeMeshRevision == _lastRuntimeMeshRevision)
+                    !deformationChanged)
                 {
                     if (_suppressProxySourceBlendShapeWeights)
                         SuppressProxySourceBlendShapeWeights();
@@ -374,6 +427,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     _lastRuntimeMeshRevision = _deformer != null
                         ? _deformer.RuntimeMeshRevision
                         : 0;
+
+                    // AAO's Remove Mesh preview nodes clone their upstream mesh when
+                    // instantiated. Updating our mesh in place therefore cannot update
+                    // their displayed clone. Rebuild the preview graph only for this
+                    // known downstream consumer; the normal interactive path remains
+                    // allocation-free and avoids proxy replacement.
+                    if (deformationChanged &&
+                        _invalidateDownstreamOnDeformationChange)
+                    {
+                        _invalidationContext?.Invalidate();
+                    }
                 }
             }
 
