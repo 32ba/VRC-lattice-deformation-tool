@@ -14,6 +14,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private const string k_PreviewAlignedKey = "Net32Ba.LatticeDeformer.UsePreviewAlignedCage";
         private const string k_DebugAlignKey = "Net32Ba.LatticeDeformer.DebugAlignLogs";
         private static readonly Dictionary<Renderer, ProxyRegistration> s_latestProxyMap = new();
+        private static readonly Dictionary<Renderer, PreviewMeshRegistration> s_previewMeshMap = new();
         private static long s_nextProxyRegistrationGeneration;
         private static int s_proxyMappingRevision;
 
@@ -28,6 +29,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Proxy = proxy;
                 Generation = generation;
                 RestorationMesh = restorationMesh;
+            }
+        }
+
+        private readonly struct PreviewMeshRegistration
+        {
+            internal readonly Mesh Mesh;
+            internal readonly long Generation;
+            internal readonly long ContentRevision;
+
+            internal PreviewMeshRegistration(Mesh mesh, long generation, long contentRevision)
+            {
+                Mesh = mesh;
+                Generation = generation;
+                ContentRevision = contentRevision;
             }
         }
 
@@ -223,6 +238,99 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return RegisterProxy(original, proxy, null, out _);
         }
 
+        internal static long RegisterPreviewMesh(Renderer original, Mesh previewMesh)
+        {
+            if (original == null || previewMesh == null)
+            {
+                return 0;
+            }
+
+            long generation;
+            unchecked
+            {
+                generation = ++s_nextProxyRegistrationGeneration;
+                if (generation == 0)
+                {
+                    generation = ++s_nextProxyRegistrationGeneration;
+                }
+            }
+
+            s_previewMeshMap[original] = new PreviewMeshRegistration(previewMesh, generation, 0);
+            return generation;
+        }
+
+        internal static bool TryGetPreviewMesh(Renderer original, out Mesh previewMesh)
+        {
+            return TryGetPreviewMesh(original, out previewMesh, out _);
+        }
+
+        internal static bool TryGetPreviewMesh(
+            Renderer original,
+            out Mesh previewMesh,
+            out long contentRevision)
+        {
+            previewMesh = null;
+            contentRevision = 0;
+            if (object.ReferenceEquals(original, null) ||
+                !s_previewMeshMap.TryGetValue(original, out var registration))
+            {
+                return false;
+            }
+
+            previewMesh = registration.Mesh;
+            if (previewMesh != null)
+            {
+                contentRevision = registration.ContentRevision;
+                return true;
+            }
+
+            s_previewMeshMap.Remove(original);
+            previewMesh = null;
+            return false;
+        }
+
+        internal static bool MarkPreviewMeshUpdated(
+            Renderer original,
+            Mesh previewMesh,
+            long generation)
+        {
+            if (object.ReferenceEquals(original, null) || generation == 0 ||
+                !s_previewMeshMap.TryGetValue(original, out var registration) ||
+                registration.Generation != generation ||
+                !object.ReferenceEquals(registration.Mesh, previewMesh))
+            {
+                return false;
+            }
+
+            long nextRevision;
+            unchecked
+            {
+                nextRevision = registration.ContentRevision + 1;
+            }
+
+            s_previewMeshMap[original] = new PreviewMeshRegistration(
+                registration.Mesh,
+                registration.Generation,
+                nextRevision);
+            return true;
+        }
+
+        internal static bool ClearPreviewMesh(
+            Renderer original,
+            Mesh previewMesh,
+            long generation)
+        {
+            if (object.ReferenceEquals(original, null) || generation == 0 ||
+                !s_previewMeshMap.TryGetValue(original, out var registration) ||
+                registration.Generation != generation ||
+                !object.ReferenceEquals(registration.Mesh, previewMesh))
+            {
+                return false;
+            }
+
+            return s_previewMeshMap.Remove(original);
+        }
+
         internal static long RegisterProxy(
             Renderer original,
             Renderer proxy,
@@ -270,6 +378,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (s_latestProxyMap.Remove(original))
                 unchecked { s_proxyMappingRevision++; }
+            s_previewMeshMap.Remove(original);
         }
 
         /// <summary>

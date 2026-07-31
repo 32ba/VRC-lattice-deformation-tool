@@ -145,7 +145,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         public ImmutableList<RenderGroup> GetTargetGroups(ComputeContext context)
         {
-            if (!context.Observe(s_previewToggle.IsEnabled))
+            if (!ObservePreviewEnabled(context))
             {
                 return ImmutableList<RenderGroup>.Empty;
             }
@@ -262,13 +262,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return Task.FromResult<IRenderFilterNode>(null);
             }
 
-            var node = new PreviewNode(
-                deformer,
-                pairList,
-                previewMesh,
-                context,
-                pairList.Any(pair => RequiresDownstreamMeshRefresh(pair.original)));
+            var node = new PreviewNode(deformer, pairList, previewMesh);
             return Task.FromResult<IRenderFilterNode>(node);
+        }
+
+        internal static bool ObservePreviewEnabled(ComputeContext context)
+        {
+            return context.Observe(s_previewToggle.IsEnabled);
         }
 
         internal static bool RequiresDownstreamMeshRefresh(Renderer renderer)
@@ -312,8 +312,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             private readonly LatticeDeformer _deformer;
             private readonly List<Target> _targets = new List<Target>();
             private readonly Mesh _previewMesh;
-            private readonly ComputeContext _invalidationContext;
-            private readonly bool _invalidateDownstreamOnDeformationChange;
             private readonly List<Vector3> _vertexBuffer = new List<Vector3>();
             private readonly List<Vector3> _normalBuffer = new List<Vector3>();
             private readonly List<Vector4> _tangentBuffer = new List<Vector4>();
@@ -327,15 +325,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             public PreviewNode(
                 LatticeDeformer deformer,
                 IEnumerable<(Renderer original, Renderer proxy)> proxyPairs,
-                Mesh previewMesh,
-                ComputeContext invalidationContext,
-                bool invalidateDownstreamOnDeformationChange)
+                Mesh previewMesh)
             {
                 _deformer = deformer;
                 _previewMesh = previewMesh;
-                _invalidationContext = invalidationContext;
-                _invalidateDownstreamOnDeformationChange =
-                    invalidateDownstreamOnDeformationChange;
                 _previewMesh.MarkDynamic();
                 _sourceBlendShapeCount = _deformer != null && _deformer.SourceMesh != null
                     ? _deformer.SourceMesh.blendShapeCount
@@ -363,6 +356,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         proxy,
                         observedProxyMesh,
                         out var restorationMesh);
+                    long previewMeshGeneration =
+                        LatticePreviewUtility.RegisterPreviewMesh(original, _previewMesh);
                     var target = new Target
                     {
                         OriginalRenderer = original,
@@ -370,6 +365,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         PreviousProxyMesh = restorationMesh,
                         PreviousProxyBlendShapeWeights = CaptureBlendShapeWeights(proxy),
                         RegistrationGeneration = registrationGeneration,
+                        PreviewMeshGeneration = previewMeshGeneration,
                     };
 
                     ApplyPreviewMesh(target);
@@ -418,6 +414,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     currentRuntimeMeshRevision != _lastRuntimeMeshRevision;
                 if (UpdatePreviewMesh(runtimeMeshWasUpdated))
                 {
+                    foreach (var target in _targets)
+                    {
+                        LatticePreviewUtility.MarkPreviewMeshUpdated(
+                            target.OriginalRenderer,
+                            _previewMesh,
+                            target.PreviewMeshGeneration);
+                    }
+
                     _lastBlendShapeWeightStateHash = ComputeBlendShapeWeightStateHash(
                         _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
                         _deformer != null ? _deformer.SourceMesh : null);
@@ -428,16 +432,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         ? _deformer.RuntimeMeshRevision
                         : 0;
 
-                    // AAO's Remove Mesh preview nodes clone their upstream mesh when
-                    // instantiated. Updating our mesh in place therefore cannot update
-                    // their displayed clone. Rebuild the preview graph only for this
-                    // known downstream consumer; the normal interactive path remains
-                    // allocation-free and avoids proxy replacement.
-                    if (deformationChanged &&
-                        _invalidateDownstreamOnDeformationChange)
-                    {
-                        _invalidationContext?.Invalidate();
-                    }
                 }
             }
 
@@ -445,6 +439,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 foreach (var target in _targets)
                 {
+                    LatticePreviewUtility.ClearPreviewMesh(
+                        target.OriginalRenderer,
+                        _previewMesh,
+                        target.PreviewMeshGeneration);
                     bool restoreWeights = LatticePreviewUtility.IsCurrentProxyRegistration(
                         target.OriginalRenderer,
                         target.ProxyRenderer,
@@ -608,6 +606,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     proxy,
                     observedProxyMesh,
                     out var restorationMesh);
+                long previewMeshGeneration =
+                    LatticePreviewUtility.RegisterPreviewMesh(original, _previewMesh);
                 var target = new Target
                 {
                     OriginalRenderer = original,
@@ -615,6 +615,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     PreviousProxyMesh = restorationMesh,
                     PreviousProxyBlendShapeWeights = CaptureBlendShapeWeights(proxy),
                     RegistrationGeneration = registrationGeneration,
+                    PreviewMeshGeneration = previewMeshGeneration,
                 };
 
                 ApplyPreviewMesh(target);
@@ -630,6 +631,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             public Mesh PreviousProxyMesh;
             public float[] PreviousProxyBlendShapeWeights;
             public long RegistrationGeneration;
+            public long PreviewMeshGeneration;
         }
 
         private static Mesh GeneratePreviewMesh(LatticeDeformer deformer)
@@ -810,7 +812,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private static void CopyBlendShapes(
+        internal static void CopyBlendShapes(
             Mesh source,
             Mesh destination,
             BlendShapeCopyBuffers buffers)
