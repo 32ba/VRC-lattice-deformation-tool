@@ -24,6 +24,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 .Run(LatticeDeformerBakePass.Instance)
                 .PreviewingWith(new LatticeDeformerPreviewFilter())
                 .BeforePlugin("com.anatawa12.avatar-optimizer");
+
+            InPhase(BuildPhase.Optimizing)
+                .AfterPlugin("com.anatawa12.avatar-optimizer")
+                .Run("Mesh Deformer AAO Preview Sync", _ => { })
+                .PreviewingWith(new LatticeDeformerPostAaoPreviewFilter());
         }
     }
 

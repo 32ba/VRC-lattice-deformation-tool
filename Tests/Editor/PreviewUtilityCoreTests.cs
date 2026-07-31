@@ -663,13 +663,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void LatticeDeformerPreviewFilter_DownstreamMeshConsumerIsInvalidatedAfterInteractiveEdit()
+        public void LatticeDeformerPostAaoPreviewFilter_SyncsVerticesWithoutChangingDeletedTopology()
         {
             var original = new GameObject("downstream-refresh-original");
             var proxy = new GameObject("downstream-refresh-proxy");
             var source = CreateBlendShapeMesh(1);
-            var context = new ComputeContext("downstream mesh refresh test");
-            IRenderFilterNode node = null;
+            IRenderFilterNode latticeNode = null;
+            LatticeDeformerPostAaoPreviewFilter.PreviewNode postNode = null;
+            Mesh aaoMesh = null;
+            var context = new ComputeContext("post AAO sync test");
             try
             {
                 var originalRenderer = original.AddComponent<SkinnedMeshRenderer>();
@@ -687,12 +689,21 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var previewMesh = (Mesh)generate.Invoke(null, new object[] { deformer });
                 Assert.That(previewMesh, Is.Not.Null);
 
-                node = CreateLatticePreviewNode(
+                latticeNode = CreateLatticePreviewNode(
                     deformer,
                     new[] { ((Renderer)originalRenderer, (Renderer)proxyRenderer) },
-                    previewMesh,
-                    context,
-                    invalidateDownstreamOnDeformationChange: true);
+                    previewMesh);
+
+                aaoMesh = Object.Instantiate(previewMesh);
+                aaoMesh.triangles = System.Array.Empty<int>();
+                proxyRenderer.sharedMesh = aaoMesh;
+                postNode = new LatticeDeformerPostAaoPreviewFilter.PreviewNode(
+                    deformer,
+                    originalRenderer,
+                    proxyRenderer,
+                    aaoMesh,
+                    context);
+                Vector3 before = postNode.OutputMeshForTests.vertices[0];
 
                 int brushLayer = deformer.AddLayer("Interactive Brush", MeshDeformerLayerType.Brush);
                 deformer.ActiveLayerIndex = brushLayer;
@@ -700,18 +711,48 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.SetDisplacement(0, Vector3.right * 0.25f);
                 deformer.InvalidateCache();
 
-                node.OnFrameGroup();
+                // NDMF may update the downstream node before its upstream node.
+                // The downstream node must not consume the deformer revision while
+                // the registered preview mesh still contains the previous vertices.
+                postNode.OnFrameGroup();
+                Assert.That(postNode.OutputMeshForTests.vertices[0], Is.EqualTo(before));
 
-                Assert.That(context.IsInvalidated, Is.True);
+                latticeNode.OnFrameGroup();
+                postNode.OnFrameGroup();
+                postNode.OnFrame(originalRenderer, proxyRenderer);
+
+                // AAO reassigns its duplicated mesh on every frame. The synchronized
+                // mesh must be that same instance, otherwise AAO hides the edit again.
+                proxyRenderer.sharedMesh = aaoMesh;
+
+                Assert.That(
+                    postNode.OutputMeshForTests.vertices[0],
+                    Is.EqualTo(before + Vector3.right * 0.25f));
+                Assert.That(postNode.OutputMeshForTests, Is.SameAs(aaoMesh));
+                Assert.That(postNode.OutputMeshForTests.triangles, Is.Empty);
+                Assert.That(proxyRenderer.sharedMesh, Is.SameAs(postNode.OutputMeshForTests));
+                Assert.That(context.IsInvalidated, Is.False,
+                    "Interactive edits must not rebuild AAO immediately.");
+
+                typeof(LatticeDeformerPostAaoPreviewFilter.PreviewNode)
+                    .GetField("_scheduledRebuildAt", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.SetValue(postNode, 0d);
+                typeof(LatticeDeformerPostAaoPreviewFilter.PreviewNode)
+                    .GetMethod("OnEditorUpdate", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.Invoke(postNode, null);
+
+                Assert.That(context.IsInvalidated, Is.True,
+                    "AAO should rebuild once after editing settles.");
             }
             finally
             {
-                node?.Dispose();
-                context.Invalidate();
+                postNode?.Dispose();
+                latticeNode?.Dispose();
                 LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
                 Object.DestroyImmediate(original);
                 Object.DestroyImmediate(proxy);
                 Object.DestroyImmediate(source);
+                if (aaoMesh != null) Object.DestroyImmediate(aaoMesh);
             }
         }
 
@@ -1714,21 +1755,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             IEnumerable<(Renderer original, Renderer proxy)> proxyPairs,
             Mesh previewMesh)
         {
-            return CreateLatticePreviewNode(
-                deformer,
-                proxyPairs,
-                previewMesh,
-                null,
-                invalidateDownstreamOnDeformationChange: false);
-        }
-
-        private static IRenderFilterNode CreateLatticePreviewNode(
-            LatticeDeformer deformer,
-            IEnumerable<(Renderer original, Renderer proxy)> proxyPairs,
-            Mesh previewMesh,
-            ComputeContext context,
-            bool invalidateDownstreamOnDeformationChange)
-        {
             var nodeType = typeof(LatticeDeformerPreviewFilter).GetNestedType(
                 "PreviewNode",
                 BindingFlags.NonPublic);
@@ -1737,14 +1763,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .Single();
             return (IRenderFilterNode)constructor.Invoke(
-                new object[]
-                {
-                    deformer,
-                    proxyPairs,
-                    previewMesh,
-                    context,
-                    invalidateDownstreamOnDeformationChange
-                });
+                new object[] { deformer, proxyPairs, previewMesh });
         }
     }
 }
