@@ -4,11 +4,13 @@ name: Test
 #
 # This repository ships a UPM/VPM package, not a Unity project, so the workflow scaffolds a
 # minimal Unity project under ci-project/ and embeds the package into its Packages/ folder.
-# No scripting defines are set on purpose: CI must reflect a clean end-user configuration
+# vrc-get then installs the VRChat SDK and NDMF from their VPM listings, which reproduces the
+# VCC project the package actually targets. The VRChat SDK is required: NDMF treats plugins
+# that declare no platform as VRChat-avatar-only, so the bake pass is skipped as "Incompatible"
+# without it and MeshDeformerValidatorTests fails.
+# No scripting defines are added on purpose - CI must reflect a clean end-user configuration
 # (for example LATTICE_DEFORMATION_TOOL_ENABLE_NEXT_RELEASE_FEATURES must NOT be defined).
-# NDMF is cloned as an embedded package and the precompiled DLLs it ships in Dependencies~
-# (System.Collections.Immutable, 0Harmony, ...) are copied into Assets/Plugins, because without
-# the VRChat SDK nothing else supplies them and the NDMF editor assembly fails to compile.
+# LATTICE_VRCSDK3_AVATAR comes from the asmdef versionDefines and is part of that configuration.
 #
 # Required repository secrets (GameCI unity-test-runner v4):
 #   Unity Personal license  : UNITY_LICENSE (contents of the .ulf activation file), UNITY_EMAIL, UNITY_PASSWORD
@@ -45,19 +47,12 @@ jobs:
         env:
           PACKAGE_NAME: net.32ba.lattice-deformation-tool
           UNITY_VERSION: 2022.3.22f1
-          # NDMF is distributed through VPM, but the upstream repository is also a valid UPM
-          # package (package.json lives at its root and it has no git submodules).
-          # Pinned to 1.14.2: it is the newest stable NDMF tag whose dependency closure still
-          # resolves com.unity.collections to the 1.2.4 declared in this package's package.json.
-          # NDMF 1.14.3 raised that dependency to com.unity.collections 2.1.4.
-          NDMF_VERSION: 1.14.2
         run: |
           set -euo pipefail
           PACKAGE_ROOT="ci-project/Packages/${PACKAGE_NAME}"
-          NDMF_ROOT="ci-project/Packages/nadena.dev.ndmf"
 
           rm -rf ci-project
-          mkdir -p "$PACKAGE_ROOT" ci-project/Assets/Plugins ci-project/ProjectSettings
+          mkdir -p "$PACKAGE_ROOT" ci-project/Assets ci-project/ProjectSettings
 
           # Copy the package as-is, including Tests/, but leave the CI plumbing behind
           rsync -a \
@@ -71,28 +66,9 @@ jobs:
           m_EditorVersion: ${UNITY_VERSION}
           EOF
 
-          # Embed NDMF instead of letting UPM resolve a git URL: cloning here keeps the
-          # resolution deterministic, avoids a second checkout inside the editor, and gives us
-          # access to Dependencies~ (see below), which UPM would hide.
-          git clone --depth 1 --branch "${NDMF_VERSION}" https://github.com/bdunderscore/ndmf.git "$NDMF_ROOT"
-          rm -rf "$NDMF_ROOT/.git"
-
-          # NDMF's asmdefs declare no precompiledReferences; they rely on auto-referenced DLLs
-          # that com.vrchat.base normally provides. This project has no VRChat SDK, so feed the
-          # editor the copies NDMF ships for standalone use. Unity ignores "~" folders inside a
-          # package, hence the copy into Assets/Plugins.
-          NDMF_DEPENDENCIES="$NDMF_ROOT/Dependencies~"
-          DLL_COUNT=$(find "$NDMF_DEPENDENCIES" -maxdepth 1 -name '*.dll' | wc -l)
-          if [ "$DLL_COUNT" -eq 0 ]; then
-            echo "No DLLs found in $NDMF_DEPENDENCIES; NDMF $NDMF_VERSION changed its layout." >&2
-            exit 1
-          fi
-          find "$NDMF_DEPENDENCIES" -maxdepth 1 \( -name '*.dll' -o -name '*.dll.meta' \) \
-            -exec cp -t ci-project/Assets/Plugins/ {} +
-          echo "Copied $DLL_COUNT NDMF dependency DLLs into ci-project/Assets/Plugins."
-
           # com.unity.mathematics / com.unity.burst / com.unity.collections are pulled in from the
-          # Unity registry through the embedded package's own package.json dependencies.
+          # Unity registry through the embedded package's own package.json dependencies, and the
+          # VRChat SDK adds its own registry dependencies the same way.
           # "testables" makes the Test Runner pick up tests that live inside a package.
           cat > ci-project/Packages/manifest.json <<'JSON'
           {
@@ -105,12 +81,49 @@ jobs:
           }
           JSON
 
+          # Start from an empty VPM manifest so vrc-get always sees a valid VCC project
+          cat > ci-project/Packages/vpm-manifest.json <<'JSON'
+          {
+            "dependencies": {},
+            "locked": {}
+          }
+          JSON
+
+      - name: Setup vrc-get
+        uses: anatawa12/sh-actions/setup-vrc-get@1d155c7a26bcd0a54ffd9cb38fd66ab0d32d23cd # master
+
+      # Install the VPM packages a real VCC project would have.
+      # Both versions are pinned so a CI failure always points at this repository.
+      - name: Install VPM Packages
+        env:
+          # Latest stable VRChat SDK. It declares "unity": "2022.3", matching the editor version
+          # VRChat currently targets (https://creators.vrchat.com/sdk/upgrade/current-unity-version/).
+          # com.vrchat.base is pulled in as a vpmDependency of com.vrchat.avatars.
+          VRCHAT_SDK_VERSION: 3.10.4
+          # NDMF 1.14.2 is the revision the suite is validated against. Note that com.vrchat.base
+          # already pulls com.unity.collections 2.1.4, so bumping to 1.14.3 or later no longer
+          # changes the resolved collections version.
+          NDMF_VERSION: 1.14.2
+        run: |
+          set -euo pipefail
+
+          # The VRChat official listing is built into vrc-get; NDMF ships from bd_'s listing.
+          # "|| true" keeps the step idempotent when the repository is already registered.
+          # If packages.vrchat.com ever starts rejecting the runner, setup-vrc-get exposes a
+          # "fix-official-curated-repository" input that switches to direct download links.
+          vrc-get repo add -- https://vpm.nadena.dev/vpm.json || true
+
+          vrc-get install --project ci-project --yes com.vrchat.avatars "$VRCHAT_SDK_VERSION"
+          vrc-get install --project ci-project --yes nadena.dev.ndmf "$NDMF_VERSION"
+
+          vrc-get info project --project ci-project
+
       - name: Cache Library
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ci-project/Library
-          # The workflow file is part of the key because it pins the NDMF revision
-          key: Library-ci-project-${{ hashFiles('ci-project/Packages/manifest.json', 'package.json', '.github/workflows/test.yml') }}
+          # The workflow file is part of the key because it pins the VPM package versions
+          key: Library-ci-project-${{ hashFiles('ci-project/Packages/vpm-manifest.json', 'ci-project/Packages/manifest.json', 'package.json', '.github/workflows/test.yml') }}
           restore-keys: |
             Library-ci-project-
 
@@ -126,9 +139,10 @@ jobs:
           projectPath: ci-project
           testMode: editmode
           artifactsPath: test-artifacts
-          # Restrict the run to the package EditMode assembly. The .vrchat and .coverage test
-          # assemblies are define-constrained and are not compiled in this clean configuration.
-          customParameters: -assemblyNames "net.32ba.lattice-deformation-tool.tests.editor"
+          # Restrict the run to the two package test assemblies; the .coverage one stays
+          # define-constrained out. unity-test-runner expands customParameters unquoted, so the
+          # semicolon-separated list must not carry quotes of its own.
+          customParameters: '-assemblyNames net.32ba.lattice-deformation-tool.tests.editor;net.32ba.lattice-deformation-tool.tests.editor.vrchat'
           # githubToken is intentionally omitted: publishing a check run needs a writable
           # GITHUB_TOKEN, which pull requests from forks do not get.
 
