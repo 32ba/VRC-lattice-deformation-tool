@@ -126,6 +126,62 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void Deform_WarmSeventyThousandVertexBlendShapePathAvoidsVertexSizedManagedAllocation()
+        {
+            const int vertexCount = 70225;
+            var go = new GameObject("warm-blend-shape-deform-allocation");
+            var mesh = new Mesh
+            {
+                name = "WarmBlendShapeDeformAllocationMesh",
+                indexFormat = UnityEngine.Rendering.IndexFormat.UInt32
+            };
+            try
+            {
+                var vertices = new Vector3[vertexCount];
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    vertices[i] = new Vector3((i % 265) * 0.001f, (i / 265) * 0.001f, 0f);
+                }
+                mesh.vertices = vertices;
+                mesh.RecalculateBounds();
+
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                go.AddComponent<MeshRenderer>();
+                var deformer = go.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                deformer.Layers[0].Enabled = false;
+                int brushIndex = deformer.AddLayer("BlendShape Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = brushIndex;
+                deformer.EnsureDisplacementCapacity();
+                deformer.SetDisplacement(0, Vector3.right * 0.01f);
+                deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                typeof(LatticeDeformer).GetField(
+                    "_recalculateNormals", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.SetValue(deformer, false);
+                typeof(LatticeDeformer).GetField(
+                    "_recalculateTangents", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.SetValue(deformer, false);
+
+                Assert.That(deformer.Deform(false), Is.Not.Null);
+                Assert.That(deformer.Deform(false), Is.Not.Null);
+
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                Assert.That(deformer.Deform(false), Is.Not.Null);
+                long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+                TestContext.WriteLine(
+                    $"70k warm BlendShape Deform managed allocation: {ManagedAllocationCounter.Format(allocated)}");
+                ManagedAllocationCounter.AssertLessThan(allocated, 64 * 1024,
+                    "A warm BlendShape edit must not allocate full-size vertex delta arrays.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
         public void BrushCapacity_InvalidMaskDoesNotAllocateDisplacements()
         {
             var layer = new LatticeLayer();
@@ -442,6 +498,54 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     cache.Entries,
                     Is.SameAs(warmedEntries),
                     "Moving a control point must not rebuild per-vertex interpolation weights.");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void DifferentLatticeSettings_ReuseIndependentInterpolationCacheSlots()
+        {
+            var go = new GameObject("multi-lattice-interpolation-cache");
+            var mesh = CreateSymmetricQuadMesh("MultiLatticeInterpolationCacheMesh");
+            try
+            {
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                go.AddComponent<MeshRenderer>();
+                var deformer = go.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+
+                var firstSettings = deformer.Layers[0].Settings;
+                int secondLayerIndex = deformer.AddLayer("Different lattice");
+                var secondSettings = deformer.Layers[secondLayerIndex].Settings;
+                secondSettings.GridSize = new Vector3Int(4, 3, 3);
+
+                Assert.That(deformer.Deform(false), Is.Not.Null);
+
+                var slotsField = typeof(LatticeDeformer).GetField(
+                    "_cacheSlots",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(slotsField, Is.Not.Null);
+                var slots = (List<LatticeDeformerCache>)slotsField.GetValue(deformer);
+                Assert.That(slots, Has.Count.EqualTo(2));
+
+                var firstCache = slots.Single(slot => slot.GridSize == firstSettings.GridSize);
+                var secondCache = slots.Single(slot => slot.GridSize == secondSettings.GridSize);
+                var firstEntries = firstCache.Entries;
+                var secondEntries = secondCache.Entries;
+
+                Assert.That(deformer.Deform(false), Is.Not.Null);
+                Assert.That(firstCache.Entries, Is.SameAs(firstEntries));
+                Assert.That(secondCache.Entries, Is.SameAs(secondEntries));
+                Assert.That(slots, Has.Count.EqualTo(2));
+
+                deformer.InvalidateCache();
+                Assert.That(slots, Is.Empty);
+                Assert.That(firstCache.Entries, Is.Empty);
+                Assert.That(secondCache.Entries, Is.Empty);
             }
             finally
             {

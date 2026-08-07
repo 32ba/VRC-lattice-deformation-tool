@@ -43,7 +43,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (!forceCheck && !ShouldCheckForUpdates())
             {
-                Debug.Log($"[LatticeDeformationTool] Skipping update check: checked within the last {CheckIntervalHours:0} hours for this project.");
                 return;
             }
 
@@ -107,16 +106,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 LatestVersion = latest;
                 string current = GetCurrentVersion();
-                EditorPrefs.SetString(GetLastCheckKey(), DateTime.Now.ToBinary().ToString());
+                EditorPrefs.SetString(GetLastCheckKey(), DateTime.UtcNow.ToBinary().ToString());
 
                 if (VersionUtility.IsNewerVersion(current, latest))
                 {
                     HasNewVersion = true;
                     Debug.Log($"[LatticeDeformationTool] New version available: {current} -> {latest}");
-                }
-                else
-                {
-                    Debug.Log($"[LatticeDeformationTool] Package is up to date: {current}");
                 }
             }
             catch (Exception ex)
@@ -193,7 +188,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return true;
             }
 
-            return ShouldCheckForUpdates(stored, DateTime.Now);
+            return ShouldCheckForUpdates(stored, DateTime.UtcNow);
         }
 
         internal static bool ShouldCheckForUpdates(string stored, DateTime now)
@@ -205,8 +200,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (long.TryParse(stored, out long binary))
             {
-                var last = DateTime.FromBinary(binary);
-                return (now - last).TotalHours >= CheckIntervalHours;
+                var lastUtc = DateTime.FromBinary(binary).ToUniversalTime();
+                var nowUtc = now.ToUniversalTime();
+                return (nowUtc - lastUtc).TotalHours >= CheckIntervalHours;
             }
 
             return true;
