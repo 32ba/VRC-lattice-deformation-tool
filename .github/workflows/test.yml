@@ -1,0 +1,122 @@
+name: Test
+
+# Runs the EditMode test suite (Tests/Editor) on every pull request and on pushes to master.
+#
+# This repository ships a UPM/VPM package, not a Unity project, so the workflow scaffolds a
+# minimal Unity project under ci-project/ and embeds the package into its Packages/ folder.
+# No scripting defines are set on purpose: CI must reflect a clean end-user configuration
+# (for example LATTICE_DEFORMATION_TOOL_ENABLE_NEXT_RELEASE_FEATURES must NOT be defined).
+#
+# Required repository secrets (GameCI unity-test-runner v4):
+#   Unity Personal license  : UNITY_LICENSE (contents of the .ulf activation file), UNITY_EMAIL, UNITY_PASSWORD
+#   Unity Professional plan : UNITY_SERIAL instead of UNITY_LICENSE, plus UNITY_EMAIL and UNITY_PASSWORD
+# See https://game.ci/docs/github/activation for how to generate the .ulf activation file.
+# When the secrets are missing, unity-test-runner fails the job with its own activation error.
+#
+# TODO: This workflow has never been executed; the Unity license secrets above still have to be
+# created on the repository before the first run can succeed.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # Run the package EditMode tests inside a scaffolded Unity project
+  editmode:
+    name: EditMode Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+
+      # Checkout Local Repository
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Build the smallest Unity project that can host the package and discover its tests
+      - name: Scaffold Unity Test Project
+        env:
+          PACKAGE_NAME: net.32ba.lattice-deformation-tool
+          UNITY_VERSION: 2022.3.22f1
+        run: |
+          set -euo pipefail
+          PACKAGE_ROOT="ci-project/Packages/${PACKAGE_NAME}"
+
+          rm -rf ci-project
+          mkdir -p "$PACKAGE_ROOT" ci-project/Assets ci-project/ProjectSettings
+
+          # Copy the package as-is, including Tests/, but leave the CI plumbing behind
+          rsync -a \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude 'ci-project/' \
+            ./ "$PACKAGE_ROOT"/
+
+          # Unity generates every other ProjectSettings asset on first import
+          cat > ci-project/ProjectSettings/ProjectVersion.txt <<EOF
+          m_EditorVersion: ${UNITY_VERSION}
+          EOF
+
+          # NDMF is distributed through VPM, but the upstream repository is also installable as a
+          # UPM git package (package.json lives at its root and it has no git submodules).
+          # Pinned to 1.14.2: it is the newest stable NDMF tag whose dependency closure still
+          # resolves com.unity.collections to the 1.2.4 declared in this package's package.json.
+          # NDMF 1.14.3 raised that dependency to com.unity.collections 2.1.4.
+          # com.unity.mathematics / com.unity.burst / com.unity.collections are pulled in from the
+          # Unity registry through the embedded package's own package.json dependencies.
+          # "testables" makes the Test Runner pick up tests that live inside a package.
+          cat > ci-project/Packages/manifest.json <<'JSON'
+          {
+            "dependencies": {
+              "com.unity.test-framework": "1.4.5",
+              "nadena.dev.ndmf": "https://github.com/bdunderscore/ndmf.git#1.14.2"
+            },
+            "testables": [
+              "net.32ba.lattice-deformation-tool"
+            ]
+          }
+          JSON
+
+          # Keep an empty Assets/ folder in place for Unity
+          touch ci-project/Assets/.gitkeep
+
+      - name: Cache Library
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ci-project/Library
+          key: Library-ci-project-${{ hashFiles('ci-project/Packages/manifest.json', 'package.json') }}
+          restore-keys: |
+            Library-ci-project-
+
+      - name: Run EditMode Tests
+        id: tests
+        uses: game-ci/unity-test-runner@0ff419b913a3630032cbe0de48a0099b5a9f0ed9 # v4.3.1
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 2022.3.22f1
+          projectPath: ci-project
+          testMode: editmode
+          artifactsPath: test-artifacts
+          # Restrict the run to the package EditMode assembly. The .vrchat and .coverage test
+          # assemblies are define-constrained and are not compiled in this clean configuration.
+          customParameters: -assemblyNames "net.32ba.lattice-deformation-tool.tests.editor"
+          # githubToken is intentionally omitted: publishing a check run needs a writable
+          # GITHUB_TOKEN, which pull requests from forks do not get.
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: editmode-test-results
+          path: ${{ steps.tests.outputs.artifactsPath }}
+          if-no-files-found: warn
