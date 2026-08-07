@@ -192,8 +192,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (LatticeDeformationFeatureFlags.ClearanceTools)
             {
                 SceneView.duringSceneGui += DrawClearanceHeatmapInScene;
-                Undo.undoRedoPerformed += OnClearanceStateChanged;
             }
+            Undo.undoRedoPerformed += OnClearanceStateChanged;
         }
 
         private void ResolveActiveGroupProperties()
@@ -225,8 +225,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (LatticeDeformationFeatureFlags.ClearanceTools)
             {
                 SceneView.duringSceneGui -= DrawClearanceHeatmapInScene;
-                Undo.undoRedoPerformed -= OnClearanceStateChanged;
             }
+            Undo.undoRedoPerformed -= OnClearanceStateChanged;
             EditorApplication.update -= AdvanceClearanceScan;
             _clearanceScanOperation?.Cancel();
             _clearanceScanOperation?.Dispose();
