@@ -275,6 +275,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests
             string folder = "Assets/__LegacyBrushAutoStageEvent_" + Guid.NewGuid().ToString("N");
             string copy = folder + "/legacy-brush.prefab";
             IDisposable scope = null;
+            IDisposable sceneViews = CloseSceneViews();
             try
             {
                 AssetDatabase.CreateFolder("Assets", folder.Substring("Assets/".Length));
@@ -283,6 +284,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests
 
                 scope = LegacyBrushDeformerAutoMigration.EnableEventExecutionForTests();
                 PrefabStage stage = PrefabStageUtility.OpenPrefab(copy);
+                yield return null;
                 yield return WaitUntil(
                     () => stage != null &&
                           stage.prefabContentsRoot.GetComponentInChildren<LatticeDeformer>(true) != null,
@@ -294,6 +296,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests
                         stage.prefabContentsRoot.GetComponentInChildren<LatticeDeformer>(true)),
                     Is.EqualTo(1));
                 StageUtility.GoBackToPreviousStage();
+                yield return null;
                 yield return WaitUntil(
                     () => PrefabHasMigratedTarget(copy),
                     "Closing the Prefab Stage did not persist the automatic migration");
@@ -315,6 +318,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests
                 }
                 AssetDatabase.DeleteAsset(folder);
                 AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                sceneViews.Dispose();
             }
         }
 
@@ -1178,6 +1182,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests
             Assert.Fail(failure);
         }
 
+        private static IDisposable CloseSceneViews()
+        {
+            return new ClosedSceneViewsScope();
+        }
+
         private static BrushDeformer FindSingleLegacy(Scene scene)
         {
             if (!scene.IsValid() || !scene.isLoaded) return null;
@@ -1359,6 +1368,32 @@ namespace Net._32Ba.LatticeDeformationTool.Tests
         private static bool AreBitExact(float left, float right)
         {
             return BitConverter.SingleToInt32Bits(left) == BitConverter.SingleToInt32Bits(right);
+        }
+
+        // Unity's PrefabStage.DelayedFraming races the stage initialization window and logs an internal
+        // exception when a Prefab Stage is reopened quickly, so no SceneView may exist during the test.
+        private sealed class ClosedSceneViewsScope : IDisposable
+        {
+            private readonly bool _closedAny;
+
+            internal ClosedSceneViewsScope()
+            {
+                var views = SceneView.sceneViews
+                    .Cast<SceneView>()
+                    .Where(view => view != null)
+                    .ToArray();
+                foreach (var view in views)
+                {
+                    view.Close();
+                }
+                _closedAny = views.Length > 0;
+            }
+
+            public void Dispose()
+            {
+                if (!_closedAny) return;
+                EditorWindow.GetWindow<SceneView>();
+            }
         }
 
         private sealed class Fixture : IDisposable
