@@ -310,6 +310,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private sealed class PreviewNode : IRenderFilterNode
         {
             private readonly LatticeDeformer _deformer;
+            private readonly SkinnedMeshRenderer _sourceSkinnedRenderer;
             private readonly List<Target> _targets = new List<Target>();
             private readonly Mesh _previewMesh;
             private readonly List<Vector3> _vertexBuffer = new List<Vector3>();
@@ -328,13 +329,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Mesh previewMesh)
             {
                 _deformer = deformer;
+                _sourceSkinnedRenderer = _deformer != null
+                    ? _deformer.GetComponent<SkinnedMeshRenderer>()
+                    : null;
                 _previewMesh = previewMesh;
                 _previewMesh.MarkDynamic();
                 _sourceBlendShapeCount = _deformer != null && _deformer.SourceMesh != null
                     ? _deformer.SourceMesh.blendShapeCount
                     : 0;
                 _lastBlendShapeWeightStateHash = ComputeBlendShapeWeightStateHash(
-                    _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
+                    _sourceSkinnedRenderer,
                     _deformer != null ? _deformer.SourceMesh : null);
                 _lastDeformationDataRevision = _deformer != null
                     ? _deformer.DeformationDataRevision
@@ -384,7 +388,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             public void OnFrameGroup()
             {
                 int currentHash = ComputeBlendShapeWeightStateHash(
-                    _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
+                    _sourceSkinnedRenderer,
                     _deformer != null ? _deformer.SourceMesh : null);
                 int currentDeformationDataRevision = _deformer != null
                     ? _deformer.DeformationDataRevision
@@ -423,7 +427,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
 
                     _lastBlendShapeWeightStateHash = ComputeBlendShapeWeightStateHash(
-                        _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
+                        _sourceSkinnedRenderer,
                         _deformer != null ? _deformer.SourceMesh : null);
                     _lastDeformationDataRevision = _deformer != null
                         ? _deformer.DeformationDataRevision
@@ -456,7 +460,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         RestoreProxyBlendShapeWeights(
                             target.ProxyRenderer,
                             target.PreviousProxyBlendShapeWeights,
-                            _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
+                            _sourceSkinnedRenderer,
                             _deformer != null ? _deformer.SourceMesh : null);
                 }
 
@@ -518,7 +522,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     {
                         BakeCurrentSourceBlendShapeSurfaceDeltas(
                             _deformer.SourceMesh,
-                            _deformer.GetComponent<SkinnedMeshRenderer>(),
+                            _sourceSkinnedRenderer,
                             _normalBuffer,
                             _tangentBuffer,
                             _blendShapeBuffers);
@@ -570,9 +574,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             private void SynchronizeProxySourceBlendShapeWeights()
             {
-                var original = _deformer != null
-                    ? _deformer.GetComponent<SkinnedMeshRenderer>()
-                    : null;
+                var original = _sourceSkinnedRenderer;
                 if (original == null) return;
                 for (int targetIndex = 0; targetIndex < _targets.Count; targetIndex++)
                 {
@@ -589,10 +591,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             private Target EnsureTarget(Renderer original, Renderer proxy)
             {
-                var existing = _targets.FirstOrDefault(t => t.ProxyRenderer == proxy);
-                if (existing != null)
+                for (int i = 0; i < _targets.Count; i++)
                 {
-                    return existing;
+                    var existing = _targets[i];
+                    if (existing != null && existing.ProxyRenderer == proxy)
+                    {
+                        return existing;
+                    }
                 }
 
                 if (original == null || proxy == null)
