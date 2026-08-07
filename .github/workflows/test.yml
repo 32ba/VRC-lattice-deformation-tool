@@ -69,11 +69,46 @@ jobs:
           # com.unity.mathematics / com.unity.burst / com.unity.collections are pulled in from the
           # Unity registry through the embedded package's own package.json dependencies, and the
           # VRChat SDK adds its own registry dependencies the same way.
+          # The com.unity.modules.* entries are the 31 built-in modules Unity 2022.3 writes into a
+          # new project's manifest. They have to be spelled out: the VRChat SDK and its
+          # com.unity.xr.oculus dependency assume they are present and fail to compile without
+          # androidjni, video and physics2d.
           # "testables" makes the Test Runner pick up tests that live inside a package.
           cat > ci-project/Packages/manifest.json <<'JSON'
           {
             "dependencies": {
-              "com.unity.test-framework": "1.4.5"
+              "com.unity.test-framework": "1.4.5",
+              "com.unity.modules.ai": "1.0.0",
+              "com.unity.modules.androidjni": "1.0.0",
+              "com.unity.modules.animation": "1.0.0",
+              "com.unity.modules.assetbundle": "1.0.0",
+              "com.unity.modules.audio": "1.0.0",
+              "com.unity.modules.cloth": "1.0.0",
+              "com.unity.modules.director": "1.0.0",
+              "com.unity.modules.imageconversion": "1.0.0",
+              "com.unity.modules.imgui": "1.0.0",
+              "com.unity.modules.jsonserialize": "1.0.0",
+              "com.unity.modules.particlesystem": "1.0.0",
+              "com.unity.modules.physics": "1.0.0",
+              "com.unity.modules.physics2d": "1.0.0",
+              "com.unity.modules.screencapture": "1.0.0",
+              "com.unity.modules.terrain": "1.0.0",
+              "com.unity.modules.terrainphysics": "1.0.0",
+              "com.unity.modules.tilemap": "1.0.0",
+              "com.unity.modules.ui": "1.0.0",
+              "com.unity.modules.uielements": "1.0.0",
+              "com.unity.modules.umbra": "1.0.0",
+              "com.unity.modules.unityanalytics": "1.0.0",
+              "com.unity.modules.unitywebrequest": "1.0.0",
+              "com.unity.modules.unitywebrequestassetbundle": "1.0.0",
+              "com.unity.modules.unitywebrequestaudio": "1.0.0",
+              "com.unity.modules.unitywebrequesttexture": "1.0.0",
+              "com.unity.modules.unitywebrequestwww": "1.0.0",
+              "com.unity.modules.vehicles": "1.0.0",
+              "com.unity.modules.video": "1.0.0",
+              "com.unity.modules.vr": "1.0.0",
+              "com.unity.modules.wind": "1.0.0",
+              "com.unity.modules.xr": "1.0.0"
             },
             "testables": [
               "net.32ba.lattice-deformation-tool"
