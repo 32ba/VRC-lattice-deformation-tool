@@ -296,6 +296,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 ### CI
 
 - `.github/workflows/test.yml` が pull request と master への push で EditMode テストを実行する。GameCI の `unity-test-runner` が Unity 2022.3.22f1 で `ci-project/` を組み立て、Scripting Define なしのクリーン構成で `net.32ba.lattice-deformation-tool.tests.editor` のみを走らせる
+- NDMF は固定タグを shallow clone して embedded package として配置し、`Dependencies~/` の DLL（`System.Collections.Immutable.dll`、`0Harmony.dll` など）を `Assets/Plugins/` にコピーする。VRChat SDK がない環境ではこれらを供給するものが他にないため、省くと NDMF のコンパイルが失敗する
 - 実行には repository secrets `UNITY_LICENSE`（Personal の .ulf、Pro の場合は代わりに `UNITY_SERIAL`）、`UNITY_EMAIL`、`UNITY_PASSWORD` が必要
 - ローカルで define 付き環境のみを確認して済ませないこと。CI と同じくクリーン構成で通ることを前提にテストを書く
 

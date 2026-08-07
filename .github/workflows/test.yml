@@ -6,15 +6,15 @@ name: Test
 # minimal Unity project under ci-project/ and embeds the package into its Packages/ folder.
 # No scripting defines are set on purpose: CI must reflect a clean end-user configuration
 # (for example LATTICE_DEFORMATION_TOOL_ENABLE_NEXT_RELEASE_FEATURES must NOT be defined).
+# NDMF is cloned as an embedded package and the precompiled DLLs it ships in Dependencies~
+# (System.Collections.Immutable, 0Harmony, ...) are copied into Assets/Plugins, because without
+# the VRChat SDK nothing else supplies them and the NDMF editor assembly fails to compile.
 #
 # Required repository secrets (GameCI unity-test-runner v4):
 #   Unity Personal license  : UNITY_LICENSE (contents of the .ulf activation file), UNITY_EMAIL, UNITY_PASSWORD
 #   Unity Professional plan : UNITY_SERIAL instead of UNITY_LICENSE, plus UNITY_EMAIL and UNITY_PASSWORD
 # See https://game.ci/docs/github/activation for how to generate the .ulf activation file.
 # When the secrets are missing, unity-test-runner fails the job with its own activation error.
-#
-# TODO: This workflow has never been executed; the Unity license secrets above still have to be
-# created on the repository before the first run can succeed.
 
 on:
   pull_request:
@@ -45,12 +45,19 @@ jobs:
         env:
           PACKAGE_NAME: net.32ba.lattice-deformation-tool
           UNITY_VERSION: 2022.3.22f1
+          # NDMF is distributed through VPM, but the upstream repository is also a valid UPM
+          # package (package.json lives at its root and it has no git submodules).
+          # Pinned to 1.14.2: it is the newest stable NDMF tag whose dependency closure still
+          # resolves com.unity.collections to the 1.2.4 declared in this package's package.json.
+          # NDMF 1.14.3 raised that dependency to com.unity.collections 2.1.4.
+          NDMF_VERSION: 1.14.2
         run: |
           set -euo pipefail
           PACKAGE_ROOT="ci-project/Packages/${PACKAGE_NAME}"
+          NDMF_ROOT="ci-project/Packages/nadena.dev.ndmf"
 
           rm -rf ci-project
-          mkdir -p "$PACKAGE_ROOT" ci-project/Assets ci-project/ProjectSettings
+          mkdir -p "$PACKAGE_ROOT" ci-project/Assets/Plugins ci-project/ProjectSettings
 
           # Copy the package as-is, including Tests/, but leave the CI plumbing behind
           rsync -a \
@@ -64,19 +71,33 @@ jobs:
           m_EditorVersion: ${UNITY_VERSION}
           EOF
 
-          # NDMF is distributed through VPM, but the upstream repository is also installable as a
-          # UPM git package (package.json lives at its root and it has no git submodules).
-          # Pinned to 1.14.2: it is the newest stable NDMF tag whose dependency closure still
-          # resolves com.unity.collections to the 1.2.4 declared in this package's package.json.
-          # NDMF 1.14.3 raised that dependency to com.unity.collections 2.1.4.
+          # Embed NDMF instead of letting UPM resolve a git URL: cloning here keeps the
+          # resolution deterministic, avoids a second checkout inside the editor, and gives us
+          # access to Dependencies~ (see below), which UPM would hide.
+          git clone --depth 1 --branch "${NDMF_VERSION}" https://github.com/bdunderscore/ndmf.git "$NDMF_ROOT"
+          rm -rf "$NDMF_ROOT/.git"
+
+          # NDMF's asmdefs declare no precompiledReferences; they rely on auto-referenced DLLs
+          # that com.vrchat.base normally provides. This project has no VRChat SDK, so feed the
+          # editor the copies NDMF ships for standalone use. Unity ignores "~" folders inside a
+          # package, hence the copy into Assets/Plugins.
+          NDMF_DEPENDENCIES="$NDMF_ROOT/Dependencies~"
+          DLL_COUNT=$(find "$NDMF_DEPENDENCIES" -maxdepth 1 -name '*.dll' | wc -l)
+          if [ "$DLL_COUNT" -eq 0 ]; then
+            echo "No DLLs found in $NDMF_DEPENDENCIES; NDMF $NDMF_VERSION changed its layout." >&2
+            exit 1
+          fi
+          find "$NDMF_DEPENDENCIES" -maxdepth 1 \( -name '*.dll' -o -name '*.dll.meta' \) \
+            -exec cp -t ci-project/Assets/Plugins/ {} +
+          echo "Copied $DLL_COUNT NDMF dependency DLLs into ci-project/Assets/Plugins."
+
           # com.unity.mathematics / com.unity.burst / com.unity.collections are pulled in from the
           # Unity registry through the embedded package's own package.json dependencies.
           # "testables" makes the Test Runner pick up tests that live inside a package.
           cat > ci-project/Packages/manifest.json <<'JSON'
           {
             "dependencies": {
-              "com.unity.test-framework": "1.4.5",
-              "nadena.dev.ndmf": "https://github.com/bdunderscore/ndmf.git#1.14.2"
+              "com.unity.test-framework": "1.4.5"
             },
             "testables": [
               "net.32ba.lattice-deformation-tool"
@@ -84,14 +105,12 @@ jobs:
           }
           JSON
 
-          # Keep an empty Assets/ folder in place for Unity
-          touch ci-project/Assets/.gitkeep
-
       - name: Cache Library
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ci-project/Library
-          key: Library-ci-project-${{ hashFiles('ci-project/Packages/manifest.json', 'package.json') }}
+          # The workflow file is part of the key because it pins the NDMF revision
+          key: Library-ci-project-${{ hashFiles('ci-project/Packages/manifest.json', 'package.json', '.github/workflows/test.yml') }}
           restore-keys: |
             Library-ci-project-
 
