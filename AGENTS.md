@@ -298,6 +298,8 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `.github/workflows/test.yml` が pull request と master への push で EditMode テストを実行する。GameCI の `unity-test-runner` が Unity 2022.3.22f1 で `ci-project/` を組み立て、`net.32ba.lattice-deformation-tool.tests.editor` と `...tests.editor.vrchat` を走らせる
 - `ci-project/` には vrc-get で VRChat SDK（`com.vrchat.avatars`）と NDMF を VPM から導入し、実際の VCC プロジェクトを再現する。バージョンは workflow 内で固定。VRChat SDK がないと NDMF がプラグインを VRChat アバター専用とみなして bake pass を Incompatible でスキップするため、`MeshDeformerValidatorTests` が失敗する
 - Scripting Define は追加しない。`LATTICE_VRCSDK3_AVATAR` は asmdef の versionDefines 由来なのでクリーン構成のまま有効になる
+- VRChat SDK の `EnvConfig` は起動時に API Compatibility Level と Scripting Define Symbols を書き換えてスクリプト再コンパイルを要求する。バッチモードのテスト実行中は assembly reload がロックされているためこの要求は保留のままとなり、`EditorApplication.isCompiling` がテスト実行中ずっと true になる。Editor のアイドル状態を待つ遅延処理を書くときはこの前提を壊さないこと
+- `EnvConfig` は `PlayerSettings.legacyClampBlendShapeWeights` も true に強制する。BlendShape の重み 100 超の挙動に依存するテストは、テスト内で当該設定を明示して復元すること
 - 実行には repository secrets `UNITY_LICENSE`（Personal の .ulf、Pro の場合は代わりに `UNITY_SERIAL`）、`UNITY_EMAIL`、`UNITY_PASSWORD` が必要
 - ローカルで define 付き環境のみを確認して済ませないこと。CI と同じくクリーン構成で通ることを前提にテストを書く
 

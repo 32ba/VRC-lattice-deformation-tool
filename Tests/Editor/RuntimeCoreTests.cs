@@ -2228,6 +2228,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var gameObject = new GameObject("BlendShape Extrapolation");
             var source = CreateBlendShapeMesh("BlendShape Extrapolation Source");
             var baked = new Mesh();
+            // PlayerSettings.legacyClampBlendShapeWeights decides whether BakeMesh clamps the
+            // weight to the last frame instead of extrapolating past it, so the reference value
+            // this test compares against is project-wide state. The VRChat SDK forces it on, which
+            // would make BakeMesh report the clamped delta. Pin it to the extrapolating mode this
+            // test is about and restore the project value afterwards.
+            bool legacyClampBlendShapeWeights = UnityEditor.PlayerSettings.legacyClampBlendShapeWeights;
+            UnityEditor.PlayerSettings.legacyClampBlendShapeWeights = false;
             try
             {
                 var renderer = gameObject.AddComponent<SkinnedMeshRenderer>();
@@ -2244,6 +2251,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
             finally
             {
+                UnityEditor.PlayerSettings.legacyClampBlendShapeWeights = legacyClampBlendShapeWeights;
                 UnityEngine.Object.DestroyImmediate(baked);
                 UnityEngine.Object.DestroyImmediate(source);
                 UnityEngine.Object.DestroyImmediate(gameObject);
