@@ -1,0 +1,211 @@
+name: Test
+
+# Runs the EditMode test suite (Tests/Editor) on every pull request and on pushes to master.
+#
+# This repository ships a UPM/VPM package, not a Unity project, so the workflow scaffolds a
+# minimal Unity project under ci-project/ and embeds the package into its Packages/ folder.
+# vrc-get then installs the VRChat SDK and NDMF from their VPM listings, which reproduces the
+# VCC project the package actually targets. The VRChat SDK is required: NDMF treats plugins
+# that declare no platform as VRChat-avatar-only, so the bake pass is skipped as "Incompatible"
+# without it and MeshDeformerValidatorTests fails.
+# No scripting defines are added on purpose - CI must reflect a clean end-user configuration
+# (for example LATTICE_DEFORMATION_TOOL_ENABLE_NEXT_RELEASE_FEATURES must NOT be defined).
+# LATTICE_VRCSDK3_AVATAR comes from the asmdef versionDefines and is part of that configuration.
+#
+# Required repository secrets (GameCI unity-test-runner v4):
+#   Unity Personal license  : UNITY_LICENSE (contents of the .ulf activation file), UNITY_EMAIL, UNITY_PASSWORD
+#   Unity Professional plan : UNITY_SERIAL instead of UNITY_LICENSE, plus UNITY_EMAIL and UNITY_PASSWORD
+# See https://game.ci/docs/github/activation for how to generate the .ulf activation file.
+# When the secrets are missing, unity-test-runner fails the job with its own activation error.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # Run the package EditMode tests inside a scaffolded Unity project
+  editmode:
+    name: EditMode Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+
+      # Checkout Local Repository
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Build the smallest Unity project that can host the package and discover its tests
+      - name: Scaffold Unity Test Project
+        env:
+          PACKAGE_NAME: net.32ba.lattice-deformation-tool
+          UNITY_VERSION: 2022.3.22f1
+        run: |
+          set -euo pipefail
+          PACKAGE_ROOT="ci-project/Packages/${PACKAGE_NAME}"
+
+          rm -rf ci-project
+          mkdir -p "$PACKAGE_ROOT" ci-project/Assets ci-project/ProjectSettings
+
+          # Copy the package as-is, including Tests/, but leave the CI plumbing behind
+          rsync -a \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude 'ci-project/' \
+            ./ "$PACKAGE_ROOT"/
+
+          # Unity generates every other ProjectSettings asset on first import
+          cat > ci-project/ProjectSettings/ProjectVersion.txt <<EOF
+          m_EditorVersion: ${UNITY_VERSION}
+          EOF
+
+          # com.unity.mathematics / com.unity.burst / com.unity.collections are pulled in from the
+          # Unity registry through the embedded package's own package.json dependencies, and the
+          # VRChat SDK adds its own registry dependencies the same way.
+          # The com.unity.modules.* entries are the 31 built-in modules Unity 2022.3 writes into a
+          # new project's manifest. They have to be spelled out: the VRChat SDK and its
+          # com.unity.xr.oculus dependency assume they are present and fail to compile without
+          # androidjni, video and physics2d.
+          # "testables" makes the Test Runner pick up tests that live inside a package.
+          cat > ci-project/Packages/manifest.json <<'JSON'
+          {
+            "dependencies": {
+              "com.unity.test-framework": "1.4.5",
+              "com.unity.modules.ai": "1.0.0",
+              "com.unity.modules.androidjni": "1.0.0",
+              "com.unity.modules.animation": "1.0.0",
+              "com.unity.modules.assetbundle": "1.0.0",
+              "com.unity.modules.audio": "1.0.0",
+              "com.unity.modules.cloth": "1.0.0",
+              "com.unity.modules.director": "1.0.0",
+              "com.unity.modules.imageconversion": "1.0.0",
+              "com.unity.modules.imgui": "1.0.0",
+              "com.unity.modules.jsonserialize": "1.0.0",
+              "com.unity.modules.particlesystem": "1.0.0",
+              "com.unity.modules.physics": "1.0.0",
+              "com.unity.modules.physics2d": "1.0.0",
+              "com.unity.modules.screencapture": "1.0.0",
+              "com.unity.modules.terrain": "1.0.0",
+              "com.unity.modules.terrainphysics": "1.0.0",
+              "com.unity.modules.tilemap": "1.0.0",
+              "com.unity.modules.ui": "1.0.0",
+              "com.unity.modules.uielements": "1.0.0",
+              "com.unity.modules.umbra": "1.0.0",
+              "com.unity.modules.unityanalytics": "1.0.0",
+              "com.unity.modules.unitywebrequest": "1.0.0",
+              "com.unity.modules.unitywebrequestassetbundle": "1.0.0",
+              "com.unity.modules.unitywebrequestaudio": "1.0.0",
+              "com.unity.modules.unitywebrequesttexture": "1.0.0",
+              "com.unity.modules.unitywebrequestwww": "1.0.0",
+              "com.unity.modules.vehicles": "1.0.0",
+              "com.unity.modules.video": "1.0.0",
+              "com.unity.modules.vr": "1.0.0",
+              "com.unity.modules.wind": "1.0.0",
+              "com.unity.modules.xr": "1.0.0"
+            },
+            "testables": [
+              "net.32ba.lattice-deformation-tool"
+            ]
+          }
+          JSON
+
+          # Start from an empty VPM manifest so vrc-get always sees a valid VCC project
+          cat > ci-project/Packages/vpm-manifest.json <<'JSON'
+          {
+            "dependencies": {},
+            "locked": {}
+          }
+          JSON
+
+      - name: Setup vrc-get
+        uses: anatawa12/sh-actions/setup-vrc-get@1d155c7a26bcd0a54ffd9cb38fd66ab0d32d23cd # master
+
+      # Install the VPM packages a real VCC project would have.
+      # Both versions are pinned so a CI failure always points at this repository.
+      - name: Install VPM Packages
+        env:
+          # Latest stable VRChat SDK. It declares "unity": "2022.3", matching the editor version
+          # VRChat currently targets (https://creators.vrchat.com/sdk/upgrade/current-unity-version/).
+          # com.vrchat.base is pulled in as a vpmDependency of com.vrchat.avatars.
+          VRCHAT_SDK_VERSION: 3.10.4
+          # NDMF 1.14.2 is the revision the suite is validated against. Note that com.vrchat.base
+          # already pulls com.unity.collections 2.1.4, so bumping to 1.14.3 or later no longer
+          # changes the resolved collections version.
+          NDMF_VERSION: 1.14.2
+        run: |
+          set -euo pipefail
+
+          # The VRChat official listing is built into vrc-get; NDMF ships from bd_'s listing.
+          # "|| true" keeps the step idempotent when the repository is already registered.
+          # If packages.vrchat.com ever starts rejecting the runner, setup-vrc-get exposes a
+          # "fix-official-curated-repository" input that switches to direct download links.
+          vrc-get repo add -- https://vpm.nadena.dev/vpm.json || true
+
+          vrc-get install --project ci-project --yes com.vrchat.avatars "$VRCHAT_SDK_VERSION"
+          vrc-get install --project ci-project --yes nadena.dev.ndmf "$NDMF_VERSION"
+
+          vrc-get info project --project ci-project
+
+      - name: Cache Library
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ci-project/Library
+          # The workflow file is part of the key because it pins the VPM package versions
+          key: Library-ci-project-${{ hashFiles('ci-project/Packages/vpm-manifest.json', 'ci-project/Packages/manifest.json', 'package.json', '.github/workflows/test.yml') }}
+          restore-keys: |
+            Library-ci-project-
+
+      # The first time the VRChat SDK loads it rewrites the API compatibility level and the
+      # scripting define symbols, and each rewrite queues a script compilation. A test run keeps
+      # assembly reloading locked for its whole duration, so those compilations stay pending:
+      # EditorApplication.isCompiling never clears and Unity refuses to leave Prefab Mode or swap
+      # scenes ("Compiling must finish before you can exit Prefab Mode"). ProjectSettings.asset is
+      # not part of the Library cache, so this happens on every run. Burn one throwaway run with a
+      # single side-effect-free test to settle the project; the real run below then starts with
+      # nothing pending. Verified locally: a second Editor session logs no compilation requests.
+      - name: Settle Project Settings
+        uses: game-ci/unity-test-runner@0ff419b913a3630032cbe0de48a0099b5a9f0ed9 # v4.3.1
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 2022.3.22f1
+          projectPath: ci-project
+          testMode: editmode
+          artifactsPath: warmup-artifacts
+          customParameters: '-assemblyNames net.32ba.lattice-deformation-tool.tests.editor -testFilter Net._32Ba.LatticeDeformationTool.Editor.Tests.LatticeDeformationFeatureFlagsTests'
+
+      - name: Run EditMode Tests
+        id: tests
+        uses: game-ci/unity-test-runner@0ff419b913a3630032cbe0de48a0099b5a9f0ed9 # v4.3.1
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 2022.3.22f1
+          projectPath: ci-project
+          testMode: editmode
+          artifactsPath: test-artifacts
+          # Restrict the run to the two package test assemblies; the .coverage one stays
+          # define-constrained out. unity-test-runner expands customParameters unquoted, so the
+          # semicolon-separated list must not carry quotes of its own.
+          customParameters: '-assemblyNames net.32ba.lattice-deformation-tool.tests.editor;net.32ba.lattice-deformation-tool.tests.editor.vrchat'
+          # githubToken is intentionally omitted: publishing a check run needs a writable
+          # GITHUB_TOKEN, which pull requests from forks do not get.
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: editmode-test-results
+          path: ${{ steps.tests.outputs.artifactsPath }}
+          if-no-files-found: warn

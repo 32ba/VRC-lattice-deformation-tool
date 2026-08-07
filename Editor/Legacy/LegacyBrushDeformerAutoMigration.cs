@@ -257,9 +257,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorApplication.delayCall -= RunPending;
             EditorApplication.update -= RunPending;
             s_scheduled = false;
+            // s_allowBatchExecution is only set by EnableEventExecutionForTests, which exists so a
+            // batch mode run can drive this chain deterministically. Such a run keeps assembly
+            // reloading locked for its whole duration, so any script compilation requested at
+            // startup (the VRChat SDK requests one when it rewrites the API compatibility level and
+            // the scripting define symbols) stays pending and isCompiling never clears. Deferring
+            // would then never end, so the test scope opts out of waiting for the Editor to idle.
             if (EditorApplication.isPlayingOrWillChangePlaymode ||
-                EditorApplication.isCompiling ||
-                EditorApplication.isUpdating)
+                (!s_allowBatchExecution &&
+                 (EditorApplication.isCompiling || EditorApplication.isUpdating)))
             {
                 Schedule();
                 return;
