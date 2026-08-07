@@ -23,12 +23,26 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             internal readonly Renderer Proxy;
             internal readonly long Generation;
             internal readonly Mesh RestorationMesh;
+            internal readonly Renderer CageProxy;
+            internal readonly long CageGeneration;
 
             internal ProxyRegistration(Renderer proxy, long generation, Mesh restorationMesh)
+                : this(proxy, generation, restorationMesh, proxy, generation)
+            {
+            }
+
+            internal ProxyRegistration(
+                Renderer proxy,
+                long generation,
+                Mesh restorationMesh,
+                Renderer cageProxy,
+                long cageGeneration)
             {
                 Proxy = proxy;
                 Generation = generation;
                 RestorationMesh = restorationMesh;
+                CageProxy = cageProxy;
+                CageGeneration = cageGeneration;
             }
         }
 
@@ -43,6 +57,47 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Mesh = mesh;
                 Generation = generation;
                 ContentRevision = contentRevision;
+            }
+        }
+
+        /// <summary>
+        /// A downstream preview node may temporarily replace the proxy selected by an
+        /// upstream node. Keeping the previous registration in the token lets the
+        /// downstream node restore it without invalidating the upstream node's owner
+        /// generation.
+        /// </summary>
+        internal readonly struct ProxyOverrideToken
+        {
+            internal readonly Renderer Original;
+            internal readonly Renderer Proxy;
+            internal readonly long Generation;
+            internal readonly bool HasPrevious;
+            internal readonly Renderer PreviousProxy;
+            internal readonly long PreviousGeneration;
+            internal readonly Mesh PreviousRestorationMesh;
+            internal readonly Renderer PreviousCageProxy;
+            internal readonly long PreviousCageGeneration;
+
+            internal ProxyOverrideToken(
+                Renderer original,
+                Renderer proxy,
+                long generation,
+                bool hasPrevious,
+                Renderer previousProxy,
+                long previousGeneration,
+                Mesh previousRestorationMesh,
+                Renderer previousCageProxy,
+                long previousCageGeneration)
+            {
+                Original = original;
+                Proxy = proxy;
+                Generation = generation;
+                HasPrevious = hasPrevious;
+                PreviousProxy = previousProxy;
+                PreviousGeneration = previousGeneration;
+                PreviousRestorationMesh = previousRestorationMesh;
+                PreviousCageProxy = previousCageProxy;
+                PreviousCageGeneration = previousCageGeneration;
             }
         }
 
@@ -367,6 +422,159 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return generation;
         }
 
+        /// <summary>
+        /// Registers a downstream proxy as a candidate while preserving the cage proxy
+        /// committed by the upstream preview node. The candidate becomes visible to
+        /// editor tools only after <see cref="CommitProxyOverride"/> confirms that its
+        /// output has actually been assigned.
+        /// </summary>
+        internal static bool RegisterProxyOverride(
+            Renderer original,
+            Renderer proxy,
+            Mesh observedProxyMesh,
+            out Mesh restorationMesh,
+            out ProxyOverrideToken token)
+        {
+            restorationMesh = observedProxyMesh;
+            token = default;
+            if (original == null || proxy == null)
+            {
+                return false;
+            }
+
+            bool hasPrevious = s_latestProxyMap.TryGetValue(original, out var previous);
+            if (hasPrevious && previous.Proxy == null)
+            {
+                if (previous.CageProxy != null)
+                {
+                    // A candidate can be destroyed before OnFrame while the previously
+                    // committed cage proxy is still valid. Preserve that committed
+                    // frame as the predecessor of the replacement candidate.
+                    previous = new ProxyRegistration(
+                        previous.CageProxy,
+                        previous.CageGeneration,
+                        previous.RestorationMesh);
+                }
+                else
+                {
+                    s_latestProxyMap.Remove(original);
+                    unchecked { s_proxyMappingRevision++; }
+                    hasPrevious = false;
+                }
+            }
+
+            if (hasPrevious && object.ReferenceEquals(previous.Proxy, proxy))
+            {
+                restorationMesh = previous.RestorationMesh;
+                return false;
+            }
+
+            long generation;
+            unchecked
+            {
+                generation = ++s_nextProxyRegistrationGeneration;
+                if (generation == 0)
+                {
+                    generation = ++s_nextProxyRegistrationGeneration;
+                }
+            }
+
+            s_latestProxyMap[original] = new ProxyRegistration(
+                proxy,
+                generation,
+                restorationMesh,
+                hasPrevious ? previous.CageProxy : null,
+                hasPrevious ? previous.CageGeneration : 0);
+            token = new ProxyOverrideToken(
+                original,
+                proxy,
+                generation,
+                hasPrevious,
+                hasPrevious ? previous.Proxy : null,
+                hasPrevious ? previous.Generation : 0,
+                hasPrevious ? previous.RestorationMesh : null,
+                hasPrevious ? previous.CageProxy : null,
+                hasPrevious ? previous.CageGeneration : 0);
+            return true;
+        }
+
+        /// <summary>
+        /// Atomically promotes the latest downstream candidate after its output mesh is
+        /// assigned to the renderer. Repeated or stale commits are ignored.
+        /// </summary>
+        internal static bool CommitProxyOverride(ProxyOverrideToken token)
+        {
+            if (object.ReferenceEquals(token.Original, null) ||
+                token.Generation == 0 ||
+                !s_latestProxyMap.TryGetValue(token.Original, out var current) ||
+                current.Generation != token.Generation ||
+                !object.ReferenceEquals(current.Proxy, token.Proxy))
+            {
+                return false;
+            }
+
+            if (current.CageGeneration == token.Generation &&
+                object.ReferenceEquals(current.CageProxy, token.Proxy))
+            {
+                return true;
+            }
+
+            s_latestProxyMap[token.Original] = new ProxyRegistration(
+                current.Proxy,
+                current.Generation,
+                current.RestorationMesh,
+                current.Proxy,
+                current.Generation);
+            unchecked { s_proxyMappingRevision++; }
+            return true;
+        }
+
+        /// <summary>
+        /// Restores the registration replaced by <see cref="RegisterProxyOverride"/>
+        /// only when the override is still the current owner.
+        /// </summary>
+        internal static bool ClearProxyOverride(ProxyOverrideToken token)
+        {
+            if (object.ReferenceEquals(token.Original, null) ||
+                token.Generation == 0 ||
+                !s_latestProxyMap.TryGetValue(token.Original, out var current) ||
+                current.Generation != token.Generation ||
+                !object.ReferenceEquals(current.Proxy, token.Proxy))
+            {
+                return false;
+            }
+
+            bool cageChanged = current.CageGeneration != token.PreviousCageGeneration ||
+                               !object.ReferenceEquals(
+                                   current.CageProxy,
+                                   token.PreviousCageProxy);
+
+            if (token.HasPrevious &&
+                (token.PreviousProxy != null || token.PreviousCageProxy != null))
+            {
+                Renderer restoredProxy = token.PreviousProxy != null
+                    ? token.PreviousProxy
+                    : token.PreviousCageProxy;
+                long restoredGeneration = token.PreviousProxy != null
+                    ? token.PreviousGeneration
+                    : token.PreviousCageGeneration;
+                s_latestProxyMap[token.Original] = new ProxyRegistration(
+                    restoredProxy,
+                    restoredGeneration,
+                    token.PreviousRestorationMesh,
+                    token.PreviousCageProxy,
+                    token.PreviousCageGeneration);
+            }
+            else
+            {
+                s_latestProxyMap.Remove(token.Original);
+            }
+
+            if (cageChanged)
+                unchecked { s_proxyMappingRevision++; }
+            return true;
+        }
+
         internal static void ClearProxy(Renderer original)
         {
             // A destroyed UnityEngine.Object compares equal to null, but its managed
@@ -435,10 +643,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return false;
             }
 
-            proxy = registration.Proxy;
+            proxy = registration.CageProxy;
             if (proxy != null)
             {
                 return true;
+            }
+
+            // A live downstream candidate may intentionally have no committed cage
+            // proxy yet. Keep its ownership entry so it can be committed by OnFrame.
+            if (registration.Proxy != null)
+            {
+                proxy = null;
+                return false;
             }
 
             // Do not retain entries whose proxy was destroyed without a normal node
@@ -461,6 +677,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (TryGetRegisteredProxy(original, out proxy) && proxy != null)
             {
                 return true;
+            }
+
+            // A registered downstream candidate deliberately suppresses the NDMF
+            // fallback until it is committed; otherwise a fresh lookup could expose
+            // the candidate before the cached revision changes.
+            if (HasRegisteredProxy(original))
+            {
+                proxy = null;
+                return false;
             }
 
             return NDMFPreviewProxyUtility.TryGetProxyRenderer(original, out proxy);
