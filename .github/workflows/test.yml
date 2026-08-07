@@ -162,6 +162,27 @@ jobs:
           restore-keys: |
             Library-ci-project-
 
+      # The first time the VRChat SDK loads it rewrites the API compatibility level and the
+      # scripting define symbols, and each rewrite queues a script compilation. A test run keeps
+      # assembly reloading locked for its whole duration, so those compilations stay pending:
+      # EditorApplication.isCompiling never clears and Unity refuses to leave Prefab Mode or swap
+      # scenes ("Compiling must finish before you can exit Prefab Mode"). ProjectSettings.asset is
+      # not part of the Library cache, so this happens on every run. Burn one throwaway run with a
+      # single side-effect-free test to settle the project; the real run below then starts with
+      # nothing pending. Verified locally: a second Editor session logs no compilation requests.
+      - name: Settle Project Settings
+        uses: game-ci/unity-test-runner@0ff419b913a3630032cbe0de48a0099b5a9f0ed9 # v4.3.1
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          unityVersion: 2022.3.22f1
+          projectPath: ci-project
+          testMode: editmode
+          artifactsPath: warmup-artifacts
+          customParameters: '-assemblyNames net.32ba.lattice-deformation-tool.tests.editor -testFilter Net._32Ba.LatticeDeformationTool.Editor.Tests.LatticeDeformationFeatureFlagsTests'
+
       - name: Run EditMode Tests
         id: tests
         uses: game-ci/unity-test-runner@0ff419b913a3630032cbe0de48a0099b5a9f0ed9 # v4.3.1

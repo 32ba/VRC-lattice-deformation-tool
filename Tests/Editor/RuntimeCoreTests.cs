@@ -2228,13 +2228,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var gameObject = new GameObject("BlendShape Extrapolation");
             var source = CreateBlendShapeMesh("BlendShape Extrapolation Source");
             var baked = new Mesh();
-            // PlayerSettings.legacyClampBlendShapeWeights decides whether BakeMesh clamps the
-            // weight to the last frame instead of extrapolating past it, so the reference value
-            // this test compares against is project-wide state. The VRChat SDK forces it on, which
-            // would make BakeMesh report the clamped delta. Pin it to the extrapolating mode this
-            // test is about and restore the project value afterwards.
-            bool legacyClampBlendShapeWeights = UnityEditor.PlayerSettings.legacyClampBlendShapeWeights;
-            UnityEditor.PlayerSettings.legacyClampBlendShapeWeights = false;
             try
             {
                 var renderer = gameObject.AddComponent<SkinnedMeshRenderer>();
@@ -2246,12 +2239,28 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     "EvaluateBlendShapeVertexDelta", source, 0, 150f);
                 Vector3 unityDelta = baked.vertices[0] - source.vertices[0];
 
-                Assert.That(evaluated[0].x, Is.EqualTo(unityDelta.x).Within(1e-5f));
                 Assert.That(evaluated[0].x, Is.EqualTo(2f).Within(1e-5f));
+
+                // BakeMesh stops extrapolating past the last frame when
+                // PlayerSettings.legacyClampBlendShapeWeights is on. Unity latches that flag the
+                // first time a BlendShape is baked in an Editor session and ignores every later
+                // write, and the VRChat SDK turns it on from EditorApplication.update while the
+                // Editor starts, so a project that has the SDK installed can only ever observe the
+                // clamped result. Assert whichever result the current project must produce.
+                if (UnityEditor.PlayerSettings.legacyClampBlendShapeWeights)
+                {
+                    Assert.That(
+                        unityDelta.x,
+                        Is.EqualTo(1f).Within(1e-5f),
+                        "With the legacy clamp on, Unity must report the last frame unchanged.");
+                }
+                else
+                {
+                    Assert.That(evaluated[0].x, Is.EqualTo(unityDelta.x).Within(1e-5f));
+                }
             }
             finally
             {
-                UnityEditor.PlayerSettings.legacyClampBlendShapeWeights = legacyClampBlendShapeWeights;
                 UnityEngine.Object.DestroyImmediate(baked);
                 UnityEngine.Object.DestroyImmediate(source);
                 UnityEngine.Object.DestroyImmediate(gameObject);
