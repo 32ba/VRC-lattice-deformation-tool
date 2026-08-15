@@ -515,13 +515,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // point is bound to the closest source triangle and uses its interpolated
             // bone weights, so the cage follows the same non-uniform pose as the mesh.
             bool hasControlPointSkinning = _controlPointSkinning.IsValid;
-            bool normalizeSkinnedBounds =
-                hasControlPointSkinning &&
-                _hasSkinningDisplayBounds &&
-                !AreBoundsApproximatelyEqual(
-                    _controlPointSkinning.PosedControlBounds,
-                    _skinningDisplayBounds,
-                    k_BoundsTolerance);
+            // Per-control-point skinning already evaluates the same bone and bind-pose
+            // matrices as the renderer. BakeMesh can disagree with that rendered pose
+            // after hierarchy/scale adjustments, so never remap a valid skinned cage
+            // back to the BakeMesh bounds.
+            bool normalizeSkinnedBounds = false;
 
             // Per-point skinning already includes bone placement and scale. Applying a
             // second bounds or root offset correction would double-transform the cage.

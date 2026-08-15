@@ -213,7 +213,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
         [UnityTest]
         [Category("GraphicsE2E")]
-        public IEnumerator SkinnedBlendShapeBounds_CageMatchesCurrentlyRenderedVertices()
+        public IEnumerator SkinnedShapeAndScale_CageFollowsRenderedControlPoints()
         {
             if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
             {
@@ -231,8 +231,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             armatureObject.transform.SetParent(avatarRoot.transform, false);
             var boneObject = new GameObject("skinned-cage-bounds-e2e-bone");
             boneObject.transform.SetParent(armatureObject.transform, false);
-            var source = CreateSkinnedBoundsRegressionMesh(
-                boneObject.transform.worldToLocalMatrix * original.transform.localToWorldMatrix);
+            Matrix4x4 bindPose =
+                boneObject.transform.worldToLocalMatrix * original.transform.localToWorldMatrix;
+            var source = CreateSkinnedBoundsRegressionMesh(bindPose);
             LatticeToolHandler handler = null;
             SceneView sceneView = null;
             bool previousPreviewAlignedCage = LatticePreviewUtility.UsePreviewAlignedCage;
@@ -275,7 +276,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Bounds renderedBounds = GetBakedVertexWorldBounds(
                     renderer,
                     out Bounds conservativeReportedBounds);
-                Bounds cageBounds = GetPointBounds(handler.GetLastCageHandlePositionsForTests());
+                Vector3[] cagePositions = handler.GetLastCageHandlePositionsForTests();
 
                 Assert.That(
                     Mathf.Max(
@@ -285,17 +286,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     "The fixture must reproduce Unity's conservative BakeMesh bounds: " +
                     "an unused large BlendShape frame must make Mesh.bounds disagree with " +
                     "the vertices rendered after the active Shape Changer and scale edits.");
-
-                Assert.That(
-                    Vector3.Distance(cageBounds.center, renderedBounds.center),
-                    Is.LessThanOrEqualTo(1e-4f),
-                    "The cage center must match the vertices rendered at the current BlendShape weights, " +
-                    "not the conservative bounds reported by BakeMesh.");
-                Assert.That(
-                    Vector3.Distance(cageBounds.size, renderedBounds.size),
-                    Is.LessThanOrEqualTo(1e-4f),
-                    "The cage size must match the vertices rendered at the current BlendShape weights. " +
-                    "An unused large BlendShape frame must not enlarge the cage.");
+                AssertCageCornersFollowRenderedShape(
+                    cagePositions,
+                    deformer.EditingSettings,
+                    boneObject.transform.localToWorldMatrix * bindPose);
             }
             finally
             {
@@ -552,15 +546,53 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             return transformed;
         }
 
-        private static Bounds GetPointBounds(Vector3[] points)
+        private static void AssertCageCornersFollowRenderedShape(
+            Vector3[] cagePositions,
+            LatticeAsset settings,
+            Matrix4x4 skinnedLocalToWorld)
         {
-            Assert.That(points, Is.Not.Empty);
-            var bounds = new Bounds(points[0], Vector3.zero);
-            for (int i = 1; i < points.Length; i++)
+            Vector3Int gridSize = settings.GridSize;
+            int controlCount = gridSize.x * gridSize.y * gridSize.z;
+            bool includesInterior = cagePositions.Length == controlCount;
+            int drawnIndex = 0;
+            float maximumError = 0f;
+
+            for (int controlIndex = 0; controlIndex < controlCount; controlIndex++)
             {
-                bounds.Encapsulate(points[i]);
+                int x = controlIndex % gridSize.x;
+                int y = (controlIndex / gridSize.x) % gridSize.y;
+                int z = controlIndex / (gridSize.x * gridSize.y);
+                bool onBoundary =
+                    x == 0 || x == gridSize.x - 1 ||
+                    y == 0 || y == gridSize.y - 1 ||
+                    z == 0 || z == gridSize.z - 1;
+                if (!onBoundary && !includesInterior)
+                {
+                    continue;
+                }
+
+                bool isCorner =
+                    (x == 0 || x == gridSize.x - 1) &&
+                    (y == 0 || y == gridSize.y - 1) &&
+                    (z == 0 || z == gridSize.z - 1);
+                if (isCorner)
+                {
+                    Vector3 sourcePoint = settings.GetControlPointLocal(controlIndex);
+                    Vector3 expected = skinnedLocalToWorld.MultiplyPoint3x4(sourcePoint);
+                    maximumError = Mathf.Max(
+                        maximumError,
+                        Vector3.Distance(cagePositions[drawnIndex], expected));
+                }
+                drawnIndex++;
             }
-            return bounds;
+
+            Assert.That(
+                maximumError,
+                Is.LessThanOrEqualTo(1e-4f),
+                "Every cage corner must follow its corresponding source point through " +
+                "the same bone and bind-pose matrices as the rendered mesh. The lattice " +
+                "was initialized from the active Shape Changer geometry, so remapping it " +
+                "to a disagreeing BakeMesh snapshot must not move the cage.");
         }
 
         private static Mesh GeneratePreviewMesh(LatticeDeformer deformer)
@@ -658,11 +690,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var activeShapeDeltas = new Vector3[vertices.Length];
             for (int i = 0; i < activeShapeDeltas.Length; i++)
             {
-                Vector3 vertex = vertices[i];
-                activeShapeDeltas[i] = new Vector3(
-                    vertex.y * 0.18f,
-                    0.08f + vertex.x * 0.12f,
-                    vertex.x * vertex.y * 0.3f);
+                activeShapeDeltas[i] = GetActiveShapeDelta(vertices[i]);
             }
             mesh.AddBlendShapeFrame(
                 "ShapeChangerActive",
@@ -683,6 +711,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 null,
                 null);
             return mesh;
+        }
+
+        private static Vector3 GetActiveShapeDelta(Vector3 vertex)
+        {
+            return new Vector3(
+                vertex.y * 0.18f,
+                0.08f + vertex.x * 0.12f,
+                vertex.x * vertex.y * 0.3f);
         }
     }
 }
