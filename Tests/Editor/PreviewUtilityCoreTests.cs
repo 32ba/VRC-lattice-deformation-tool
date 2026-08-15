@@ -110,6 +110,29 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void NDMFPreviewProxyUtility_TryBuildPair_SkipsDestroyedUnityObjects()
+        {
+            var destroyed = new GameObject("destroyed-preview-map-entry");
+            var proxy = new GameObject("live-preview-map-entry");
+            proxy.AddComponent<MeshRenderer>();
+
+            try
+            {
+                Object.DestroyImmediate(destroyed);
+
+                Assert.That(
+                    NDMFPreviewProxyUtility.TryBuildPair(destroyed, proxy, out var pair),
+                    Is.False);
+                Assert.That(pair.Item1, Is.Null);
+                Assert.That(pair.Item2, Is.Null);
+            }
+            finally
+            {
+                Object.DestroyImmediate(proxy);
+            }
+        }
+
+        [Test]
         public void NDMFPreviewProxyUtility_FakeSessionMembersAndMethods_AreEnumerated()
         {
             var original = new GameObject("original");
