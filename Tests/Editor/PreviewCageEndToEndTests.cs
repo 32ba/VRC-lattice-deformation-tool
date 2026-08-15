@@ -309,6 +309,119 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
+        [UnityTest]
+        [Category("GraphicsE2E")]
+        public IEnumerator TopologyChangedSkinnedProxy_WithReorderedBones_UsesRemappedProxySkinning()
+        {
+            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
+            {
+                Assert.Ignore("Scene View cage E2E requires a graphics device.");
+            }
+
+            var avatarRoot = new GameObject("topology-mismatch-cage-e2e-avatar");
+            var original = new GameObject("topology-mismatch-cage-e2e-original");
+            var proxy = new GameObject("topology-mismatch-cage-e2e-aao-proxy");
+            original.transform.SetParent(avatarRoot.transform, false);
+            proxy.transform.SetParent(avatarRoot.transform, false);
+            original.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+            proxy.transform.localRotation = original.transform.localRotation;
+
+            var stableBone = new GameObject("topology-mismatch-stable-bone");
+            var scaledBone = new GameObject("topology-mismatch-scaled-bone");
+            stableBone.transform.SetParent(avatarRoot.transform, false);
+            scaledBone.transform.SetParent(avatarRoot.transform, false);
+
+            Matrix4x4 stableBindPose =
+                stableBone.transform.worldToLocalMatrix * original.transform.localToWorldMatrix;
+            Matrix4x4 scaledBindPose =
+                scaledBone.transform.worldToLocalMatrix * original.transform.localToWorldMatrix;
+            Mesh source = CreateBoneReorderMesh(
+                extraVertex: false,
+                boneIndex: 0,
+                new[] { stableBindPose, scaledBindPose });
+            Mesh proxyMesh = CreateBoneReorderMesh(
+                extraVertex: true,
+                boneIndex: 1,
+                new[] { scaledBindPose, stableBindPose });
+            LatticeToolHandler handler = null;
+            SceneView sceneView = null;
+            bool previousPreviewAlignedCage = LatticePreviewUtility.UsePreviewAlignedCage;
+
+            try
+            {
+                var originalRenderer = original.AddComponent<SkinnedMeshRenderer>();
+                originalRenderer.sharedMesh = source;
+                originalRenderer.bones = new[] { stableBone.transform, scaledBone.transform };
+                originalRenderer.rootBone = stableBone.transform;
+
+                var proxyRenderer = proxy.AddComponent<SkinnedMeshRenderer>();
+                proxyRenderer.sharedMesh = proxyMesh;
+                proxyRenderer.bones = new[] { scaledBone.transform, stableBone.transform };
+                proxyRenderer.rootBone = stableBone.transform;
+
+                // Simulate a scale-adjusted bone after AAO has rebuilt and reordered its
+                // renderer arrays. The proxy mesh remaps the stable source bone to index
+                // 1, while the source mesh still uses index 0.
+                scaledBone.transform.localPosition = new Vector3(5f, 0f, 0f);
+                scaledBone.transform.localScale = new Vector3(0.02f, 1f, 1f);
+
+                var deformer = original.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                deformer.AlignMode = LatticeDeformer.LatticeAlignMode.Mode3_BoundsRemap;
+
+                LatticePreviewUtility.UsePreviewAlignedCage = true;
+                LatticePreviewUtility.RegisterProxy(originalRenderer, proxyRenderer);
+                handler = new LatticeToolHandler
+                {
+                    CaptureCageFramesForTests = true,
+                };
+                handler.Activate(deformer);
+
+                sceneView = EditorWindow.GetWindow<SceneView>();
+                sceneView.Show();
+                SceneView.duringSceneGui += DrawCage;
+                yield return WaitForNextCageRepaint(handler, sceneView);
+                AssertCageFrame(handler);
+
+                Bounds renderedBounds = GetBakedVertexWorldBounds(
+                    proxyRenderer,
+                    out _);
+                Vector3[] cagePositions = handler.GetLastCageHandlePositionsForTests();
+                var cageBounds = new Bounds(cagePositions[0], Vector3.zero);
+                for (int i = 1; i < cagePositions.Length; i++)
+                {
+                    cageBounds.Encapsulate(cagePositions[i]);
+                }
+
+                Assert.That(
+                    Vector3.Distance(cageBounds.center, renderedBounds.center),
+                    Is.LessThanOrEqualTo(1e-3f),
+                    "The cage must stay on the rendered AAO proxy instead of following a differently indexed bone.");
+                Assert.That(
+                    Vector3.Distance(cageBounds.size, renderedBounds.size),
+                    Is.LessThanOrEqualTo(1e-3f),
+                    "A topology-changing proxy must keep its remapped vertices, weights, and bones together.");
+            }
+            finally
+            {
+                SceneView.duringSceneGui -= DrawCage;
+                LatticePreviewUtility.UsePreviewAlignedCage = previousPreviewAlignedCage;
+                handler?.Deactivate();
+                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
+                Object.DestroyImmediate(avatarRoot);
+                Object.DestroyImmediate(source);
+                Object.DestroyImmediate(proxyMesh);
+            }
+
+            void DrawCage(SceneView view)
+            {
+                if (view == sceneView && Event.current != null)
+                {
+                    handler.OnToolGUI(view, original.GetComponent<LatticeDeformer>());
+                }
+            }
+        }
+
         private sealed class CageFrameMonitor
         {
             private readonly List<string> _violations = new List<string>();
@@ -710,6 +823,60 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 unusedFrameDeltas,
                 null,
                 null);
+            return mesh;
+        }
+
+        private static Mesh CreateBoneReorderMesh(
+            bool extraVertex,
+            int boneIndex,
+            Matrix4x4[] bindPoses)
+        {
+            var vertices = new List<Vector3>
+            {
+                new Vector3(-0.5f, -0.25f, -0.1f),
+                new Vector3(0.5f, -0.25f, -0.1f),
+                new Vector3(-0.5f, 0.25f, -0.1f),
+                new Vector3(0.5f, 0.25f, -0.1f),
+                new Vector3(-0.5f, -0.25f, 0.1f),
+                new Vector3(0.5f, -0.25f, 0.1f),
+                new Vector3(-0.5f, 0.25f, 0.1f),
+                new Vector3(0.5f, 0.25f, 0.1f),
+            };
+            if (extraVertex)
+            {
+                vertices.Add(Vector3.zero);
+            }
+
+            var boneWeights = new BoneWeight[vertices.Count];
+            for (int i = 0; i < boneWeights.Length; i++)
+            {
+                boneWeights[i] = new BoneWeight
+                {
+                    boneIndex0 = boneIndex,
+                    weight0 = 1f,
+                };
+            }
+
+            var mesh = new Mesh
+            {
+                name = extraVertex
+                    ? "Topology Changed AAO Proxy Mesh"
+                    : "Topology Mismatch Source Mesh",
+                vertices = vertices.ToArray(),
+                triangles = new[]
+                {
+                    0, 2, 1, 1, 2, 3,
+                    4, 5, 6, 5, 7, 6,
+                    0, 1, 4, 1, 5, 4,
+                    2, 6, 3, 3, 6, 7,
+                    0, 4, 2, 2, 4, 6,
+                    1, 3, 5, 3, 7, 5,
+                },
+                boneWeights = boneWeights,
+                bindposes = bindPoses,
+            };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
             return mesh;
         }
 

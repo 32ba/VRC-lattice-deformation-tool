@@ -170,13 +170,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var poseVertices = poseMesh.vertices;
             var poseWeights = poseMesh.boneWeights;
             if (poseVertices == null ||
-                poseVertices.Length != vertices.Length ||
+                poseVertices.Length == 0 ||
                 poseWeights == null ||
                 poseWeights.Length != poseVertices.Length)
             {
-                poseVertices = vertices;
-                poseWeights = boneWeights;
+                return false;
             }
+            // A topology-changing preview processor such as AAO may rebuild both the
+            // vertices and the renderer's bone array. Always keep the proxy positions,
+            // weights, bind poses, and bones together. Falling back to source weights
+            // would interpret their indices against an unrelated proxy bone array.
             var vertexSamples = BuildVertexSamples(poseVertices, poseWeights);
             ApplyBlendShapes(renderer, poseMesh, vertexSamples);
             int index = 0;
