@@ -109,6 +109,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly LatticeControlPointSkinning _controlPointSkinning =
             new LatticeControlPointSkinning();
         private Mesh _skinningFallbackMesh;
+        private readonly List<Vector3> _skinningBakedVertices = new List<Vector3>();
+        private readonly List<int> _skinningTopologyIndices = new List<int>();
         private Bounds _skinningFallbackBounds;
         private bool _hasSkinningFallbackBounds;
         private int _skinningReferenceGeometryHash;
@@ -1167,6 +1169,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     {
                         if (TryCaptureBakedBoundsInSourceLocal(
                                 renderer,
+                                mesh,
                                 worldToSource,
                                 out Bounds bakedBounds))
                         {
@@ -1195,6 +1198,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     if (TryCaptureBakedBoundsInSourceLocal(
                             renderer,
+                            mesh,
                             worldToSource,
                             out Bounds fallbackBounds))
                     {
@@ -1512,6 +1516,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private bool TryCaptureBakedBoundsInSourceLocal(
             SkinnedMeshRenderer renderer,
+            Mesh topologyMesh,
             Matrix4x4 worldToSource,
             out Bounds bounds)
         {
@@ -1533,10 +1538,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             try
             {
                 renderer.BakeMesh(_skinningFallbackMesh);
+                _skinningBakedVertices.Clear();
+                _skinningFallbackMesh.GetVertices(_skinningBakedVertices);
+                if (_skinningBakedVertices.Count == 0)
+                {
+                    return false;
+                }
+
                 Matrix4x4 rendererToSource =
                     worldToSource * renderer.transform.localToWorldMatrix;
-                bounds = TransformBounds(
-                    _skinningFallbackMesh.bounds,
+                bounds = CalculateTransformedReferencedBounds(
+                    topologyMesh,
+                    _skinningBakedVertices,
                     rendererToSource);
                 return IsFinite(bounds.center) &&
                        IsFinite(bounds.size) &&
@@ -1548,35 +1561,54 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private static Bounds TransformBounds(Bounds bounds, Matrix4x4 matrix)
+        private Bounds CalculateTransformedReferencedBounds(
+            Mesh topologyMesh,
+            List<Vector3> vertices,
+            Matrix4x4 matrix)
         {
-            Vector3 min = bounds.min;
-            Vector3 max = bounds.max;
-            Bounds transformed = default;
+            Bounds bounds = default;
             bool hasPoint = false;
-            for (int z = 0; z < 2; z++)
+
+            if (topologyMesh != null && topologyMesh.vertexCount == vertices.Count)
             {
-                for (int y = 0; y < 2; y++)
+                int subMeshCount = Mathf.Max(1, topologyMesh.subMeshCount);
+                for (int subMesh = 0; subMesh < subMeshCount; subMesh++)
                 {
-                    for (int x = 0; x < 2; x++)
+                    _skinningTopologyIndices.Clear();
+                    topologyMesh.GetIndices(_skinningTopologyIndices, subMesh);
+                    for (int i = 0; i < _skinningTopologyIndices.Count; i++)
                     {
-                        Vector3 point = matrix.MultiplyPoint3x4(new Vector3(
-                            x == 0 ? min.x : max.x,
-                            y == 0 ? min.y : max.y,
-                            z == 0 ? min.z : max.z));
+                        int vertexIndex = _skinningTopologyIndices[i];
+                        if (vertexIndex < 0 || vertexIndex >= vertices.Count)
+                        {
+                            continue;
+                        }
+
+                        Vector3 point = matrix.MultiplyPoint3x4(vertices[vertexIndex]);
                         if (!hasPoint)
                         {
-                            transformed = new Bounds(point, Vector3.zero);
+                            bounds = new Bounds(point, Vector3.zero);
                             hasPoint = true;
                         }
                         else
                         {
-                            transformed.Encapsulate(point);
+                            bounds.Encapsulate(point);
                         }
                     }
                 }
             }
-            return transformed;
+
+            if (hasPoint)
+            {
+                return bounds;
+            }
+
+            bounds = new Bounds(matrix.MultiplyPoint3x4(vertices[0]), Vector3.zero);
+            for (int i = 1; i < vertices.Count; i++)
+            {
+                bounds.Encapsulate(matrix.MultiplyPoint3x4(vertices[i]));
+            }
+            return bounds;
         }
 
         private static Bounds RemapBounds(

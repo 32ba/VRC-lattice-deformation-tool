@@ -211,6 +211,110 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
+        [UnityTest]
+        [Category("GraphicsE2E")]
+        public IEnumerator SkinnedBlendShapeBounds_CageMatchesCurrentlyRenderedVertices()
+        {
+            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
+            {
+                Assert.Ignore("Scene View cage E2E requires a graphics device.");
+            }
+
+            var avatarRoot = new GameObject("skinned-cage-bounds-e2e-avatar");
+            avatarRoot.transform.localScale = Vector3.one * 1.1f;
+
+            var original = new GameObject("skinned-cage-bounds-e2e-renderer");
+            original.transform.SetParent(avatarRoot.transform, false);
+            original.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+
+            var armatureObject = new GameObject("skinned-cage-bounds-e2e-armature");
+            armatureObject.transform.SetParent(avatarRoot.transform, false);
+            var boneObject = new GameObject("skinned-cage-bounds-e2e-bone");
+            boneObject.transform.SetParent(armatureObject.transform, false);
+            var source = CreateSkinnedBoundsRegressionMesh(
+                boneObject.transform.worldToLocalMatrix * original.transform.localToWorldMatrix);
+            LatticeToolHandler handler = null;
+            SceneView sceneView = null;
+            bool previousPreviewAlignedCage = LatticePreviewUtility.UsePreviewAlignedCage;
+
+            try
+            {
+                LatticePreviewUtility.UsePreviewAlignedCage = false;
+                var renderer = original.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = source;
+                renderer.rootBone = boneObject.transform;
+                renderer.bones = new[] { boneObject.transform };
+                renderer.SetBlendShapeWeight(0, 40f);
+                renderer.SetBlendShapeWeight(1, 0f);
+
+                // Reproduce the combined result of an active MA Shape Changer and
+                // accumulated Scale Adjuster-style hierarchy/bone edits. The bind pose
+                // remains the original one while the current rendered pose changes.
+                armatureObject.transform.localRotation = Quaternion.Euler(-6f, 11f, 4f);
+                armatureObject.transform.localScale = new Vector3(0.95f, 1.08f, 1.03f);
+                boneObject.transform.localPosition = new Vector3(0.08f, 0.12f, -0.04f);
+                boneObject.transform.localRotation = Quaternion.Euler(12f, -18f, 7f);
+                boneObject.transform.localScale = new Vector3(1.25f, 0.82f, 1.12f);
+
+                var deformer = original.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+
+                handler = new LatticeToolHandler
+                {
+                    CaptureCageFramesForTests = true,
+                };
+                handler.Activate(deformer);
+
+                sceneView = EditorWindow.GetWindow<SceneView>();
+                sceneView.Show();
+                SceneView.duringSceneGui += DrawCage;
+
+                yield return WaitForNextCageRepaint(handler, sceneView);
+                AssertCageFrame(handler);
+
+                Bounds renderedBounds = GetBakedVertexWorldBounds(
+                    renderer,
+                    out Bounds conservativeReportedBounds);
+                Bounds cageBounds = GetPointBounds(handler.GetLastCageHandlePositionsForTests());
+
+                Assert.That(
+                    Mathf.Max(
+                        Vector3.Distance(conservativeReportedBounds.center, renderedBounds.center),
+                        Vector3.Distance(conservativeReportedBounds.size, renderedBounds.size)),
+                    Is.GreaterThan(0.5f),
+                    "The fixture must reproduce Unity's conservative BakeMesh bounds: " +
+                    "an unused large BlendShape frame must make Mesh.bounds disagree with " +
+                    "the vertices rendered after the active Shape Changer and scale edits.");
+
+                Assert.That(
+                    Vector3.Distance(cageBounds.center, renderedBounds.center),
+                    Is.LessThanOrEqualTo(1e-4f),
+                    "The cage center must match the vertices rendered at the current BlendShape weights, " +
+                    "not the conservative bounds reported by BakeMesh.");
+                Assert.That(
+                    Vector3.Distance(cageBounds.size, renderedBounds.size),
+                    Is.LessThanOrEqualTo(1e-4f),
+                    "The cage size must match the vertices rendered at the current BlendShape weights. " +
+                    "An unused large BlendShape frame must not enlarge the cage.");
+            }
+            finally
+            {
+                SceneView.duringSceneGui -= DrawCage;
+                LatticePreviewUtility.UsePreviewAlignedCage = previousPreviewAlignedCage;
+                handler?.Deactivate();
+                Object.DestroyImmediate(avatarRoot);
+                Object.DestroyImmediate(source);
+            }
+
+            void DrawCage(SceneView view)
+            {
+                if (view == sceneView && Event.current != null)
+                {
+                    handler.OnToolGUI(view, original.GetComponent<LatticeDeformer>());
+                }
+            }
+        }
+
         private sealed class CageFrameMonitor
         {
             private readonly List<string> _violations = new List<string>();
@@ -396,6 +500,69 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             mesh.RecalculateBounds();
         }
 
+        private static Bounds GetBakedVertexWorldBounds(
+            SkinnedMeshRenderer renderer,
+            out Bounds reportedWorldBounds)
+        {
+            var baked = new Mesh();
+            try
+            {
+                renderer.BakeMesh(baked);
+                reportedWorldBounds = TransformBounds(
+                    baked.bounds,
+                    renderer.transform.localToWorldMatrix);
+                Vector3[] vertices = baked.vertices;
+                Assert.That(vertices, Is.Not.Empty);
+                var bounds = new Bounds(
+                    renderer.transform.TransformPoint(vertices[0]),
+                    Vector3.zero);
+                for (int i = 1; i < vertices.Length; i++)
+                {
+                    bounds.Encapsulate(renderer.transform.TransformPoint(vertices[i]));
+                }
+                return bounds;
+            }
+            finally
+            {
+                Object.DestroyImmediate(baked);
+            }
+        }
+
+        private static Bounds TransformBounds(Bounds bounds, Matrix4x4 matrix)
+        {
+            Vector3 min = bounds.min;
+            Vector3 max = bounds.max;
+            var corners = new[]
+            {
+                new Vector3(min.x, min.y, min.z),
+                new Vector3(max.x, min.y, min.z),
+                new Vector3(min.x, max.y, min.z),
+                new Vector3(max.x, max.y, min.z),
+                new Vector3(min.x, min.y, max.z),
+                new Vector3(max.x, min.y, max.z),
+                new Vector3(min.x, max.y, max.z),
+                new Vector3(max.x, max.y, max.z),
+            };
+
+            var transformed = new Bounds(matrix.MultiplyPoint3x4(corners[0]), Vector3.zero);
+            for (int i = 1; i < corners.Length; i++)
+            {
+                transformed.Encapsulate(matrix.MultiplyPoint3x4(corners[i]));
+            }
+            return transformed;
+        }
+
+        private static Bounds GetPointBounds(Vector3[] points)
+        {
+            Assert.That(points, Is.Not.Empty);
+            var bounds = new Bounds(points[0], Vector3.zero);
+            for (int i = 1; i < points.Length; i++)
+            {
+                bounds.Encapsulate(points[i]);
+            }
+            return bounds;
+        }
+
         private static Mesh GeneratePreviewMesh(LatticeDeformer deformer)
         {
             var generate = typeof(LatticeDeformerPreviewFilter).GetMethod(
@@ -443,6 +610,78 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             };
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private static Mesh CreateSkinnedBoundsRegressionMesh(Matrix4x4 bindPose)
+        {
+            var vertices = new[]
+            {
+                new Vector3(-0.5f, -0.25f, -0.1f),
+                new Vector3(0.5f, -0.25f, -0.1f),
+                new Vector3(-0.5f, 0.25f, -0.1f),
+                new Vector3(0.5f, 0.25f, -0.1f),
+                new Vector3(-0.5f, -0.25f, 0.1f),
+                new Vector3(0.5f, -0.25f, 0.1f),
+                new Vector3(-0.5f, 0.25f, 0.1f),
+                new Vector3(0.5f, 0.25f, 0.1f),
+            };
+            var boneWeights = new BoneWeight[vertices.Length];
+            for (int i = 0; i < boneWeights.Length; i++)
+            {
+                boneWeights[i] = new BoneWeight
+                {
+                    boneIndex0 = 0,
+                    weight0 = 1f,
+                };
+            }
+
+            var mesh = new Mesh
+            {
+                name = "Skinned Cage Bounds E2E Source",
+                vertices = vertices,
+                triangles = new[]
+                {
+                    0, 2, 1, 1, 2, 3,
+                    4, 5, 6, 5, 7, 6,
+                    0, 1, 4, 1, 5, 4,
+                    2, 6, 3, 3, 6, 7,
+                    0, 4, 2, 2, 4, 6,
+                    1, 3, 5, 3, 7, 5,
+                },
+                boneWeights = boneWeights,
+                bindposes = new[] { bindPose },
+            };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+
+            var activeShapeDeltas = new Vector3[vertices.Length];
+            for (int i = 0; i < activeShapeDeltas.Length; i++)
+            {
+                Vector3 vertex = vertices[i];
+                activeShapeDeltas[i] = new Vector3(
+                    vertex.y * 0.18f,
+                    0.08f + vertex.x * 0.12f,
+                    vertex.x * vertex.y * 0.3f);
+            }
+            mesh.AddBlendShapeFrame(
+                "ShapeChangerActive",
+                100f,
+                activeShapeDeltas,
+                null,
+                null);
+
+            var unusedFrameDeltas = new Vector3[vertices.Length];
+            for (int i = 0; i < unusedFrameDeltas.Length; i++)
+            {
+                unusedFrameDeltas[i] = new Vector3(2f, 5f, -3f);
+            }
+            mesh.AddBlendShapeFrame(
+                "UnusedLargeFrame",
+                100f,
+                unusedFrameDeltas,
+                null,
+                null);
             return mesh;
         }
     }
