@@ -13,6 +13,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     [ExcludeFromCodeCoverage]
     internal sealed class LatticeToolHandler
     {
+        internal readonly struct CageFrameSnapshot
+        {
+            internal CageFrameSnapshot(
+                int sequence,
+                bool interactionActive,
+                int proxyMappingRevision,
+                Renderer proxyRenderer,
+                Vector3[] handlePositions)
+            {
+                Sequence = sequence;
+                InteractionActive = interactionActive;
+                ProxyMappingRevision = proxyMappingRevision;
+                ProxyRenderer = proxyRenderer;
+                HandlePositions = handlePositions;
+            }
+
+            internal int Sequence { get; }
+            internal bool InteractionActive { get; }
+            internal int ProxyMappingRevision { get; }
+            internal Renderer ProxyRenderer { get; }
+            internal Vector3[] HandlePositions { get; }
+        }
+
+        internal static event Action<CageFrameSnapshot> CageFrameRendered;
+
         internal enum MirrorAxis
         {
             X = 0,
@@ -60,6 +85,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private LatticeDeformer _activeDeformer;
         private Vector3[] _worldPositions = Array.Empty<Vector3>();
+        private Vector3[] _lastCageHandlePositionsForTests = Array.Empty<Vector3>();
         private readonly HashSet<int> _processedIndices = new HashSet<int>();
         private Renderer _cachedSourceRenderer;
         private Renderer _cachedProxyRenderer;
@@ -102,6 +128,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal int ProxyBoundsRefreshCountForTests { get; private set; }
         internal int SkinningRefreshCountForTests { get; private set; }
         internal Bounds ProxyMeshBoundsForTests => _cachedProxyMeshBounds;
+        internal bool CaptureCageFramesForTests { get; set; }
+        internal int CageRepaintCountForTests { get; private set; }
+        internal int LastCageHandleCountForTests { get; private set; }
+
+        internal Vector3[] GetLastCageHandlePositionsForTests()
+        {
+            var positions = new Vector3[LastCageHandleCountForTests];
+            Array.Copy(_lastCageHandlePositionsForTests, positions, positions.Length);
+            return positions;
+        }
 
         static LatticeToolHandler()
         {
@@ -603,6 +639,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             var handleColor = new Color(0.2f, 0.8f, 1f, 0.9f);
             var mirrorPartnerColor = new Color(1f, 0.5f, 0.2f, 0.9f);
+            int drawnHandleCount = 0;
+            bool isRepaint = currentEvent != null && currentEvent.type == EventType.Repaint;
+            bool publishRepaint = isRepaint && CageFrameRendered != null;
+            bool captureRepaint = isRepaint && (CaptureCageFramesForTests || publishRepaint);
+            if (captureRepaint && _lastCageHandlePositionsForTests.Length < controlCount)
+            {
+                _lastCageHandlePositionsForTests = new Vector3[controlCount];
+            }
 
             s_selectedControls.RemoveWhere(idx => idx < 0 || idx >= controlCount);
 
@@ -620,6 +664,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 var worldPosition = worldPositions[index];
                 float handleSize = HandleUtility.GetHandleSize(worldPosition) * 0.08f;
+                if (captureRepaint)
+                {
+                    _lastCageHandlePositionsForTests[drawnHandleCount] = worldPosition;
+                }
 
                 bool isSelected = s_selectedControls.Contains(index);
                 bool isMirrorPartner = false;
@@ -629,6 +677,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
 
                 Handles.color = isSelected ? Color.yellow : isMirrorPartner ? mirrorPartnerColor : handleColor;
+                drawnHandleCount++;
 
                 bool additive = false;
                 var handleEvent = Event.current;
@@ -658,6 +707,28 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (ShowIndices)
                 {
                     Handles.Label(worldPosition, $" {index}");
+                }
+            }
+
+            // A Repaint event is the frame in which CubeHandleCap emits the visible
+            // control boxes. Keep this small observation seam so integration tests can
+            // verify that a preview graph handoff never produces an empty or displaced
+            // cage frame without relying on fragile pixel comparisons.
+            if (captureRepaint)
+            {
+                LastCageHandleCountForTests = drawnHandleCount;
+                CageRepaintCountForTests++;
+
+                if (publishRepaint)
+                {
+                    var positions = new Vector3[drawnHandleCount];
+                    Array.Copy(_lastCageHandlePositionsForTests, positions, drawnHandleCount);
+                    CageFrameRendered?.Invoke(new CageFrameSnapshot(
+                        CageRepaintCountForTests,
+                        interactionActive,
+                        LatticePreviewUtility.ProxyMappingRevision,
+                        proxyRenderer,
+                        positions));
                 }
             }
 
