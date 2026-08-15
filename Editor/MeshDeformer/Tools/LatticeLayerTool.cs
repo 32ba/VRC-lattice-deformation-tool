@@ -129,6 +129,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int _cachedPoseRendererDirtyCount;
         internal int ProxyBoundsRefreshCountForTests { get; private set; }
         internal int SkinningRefreshCountForTests { get; private set; }
+        internal int ControlPointBindingRefreshCountForTests =>
+            _controlPointSkinning.BindingRefreshCountForTests;
         internal Bounds ProxyMeshBoundsForTests => _cachedProxyMeshBounds;
         internal bool CaptureCageFramesForTests { get; set; }
         internal int CageRepaintCountForTests { get; private set; }
@@ -1300,7 +1302,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _cachedSkinningRendererDirtyCount = 0;
             _skinningSnapshotValid = false;
             _cachedSkinningCorrection = null;
-            _controlPointSkinning.Reset();
+            // hierarchyChanged/projectChanged also fire for transient in-place preview
+            // mesh updates. Keep the surface-to-bone binding in that case; Update()
+            // will rebuild it if the renderer, mesh identity, topology, bounds, or grid
+            // actually changes. Activation/deactivation still performs a full reset.
+            if (resetProxyResolution)
+            {
+                _controlPointSkinning.Reset();
+            }
             _hasSkinningFallbackBounds = false;
             _hasSkinningReferenceBounds = false;
             _hasSkinningDisplayBounds = false;

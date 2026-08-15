@@ -422,6 +422,113 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
+        [UnityTest]
+        [Category("GraphicsE2E")]
+        public IEnumerator BlendShapeWeightChange_DoesNotRebindOrJitterActiveLatticeCage()
+        {
+            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
+            {
+                Assert.Ignore("Scene View cage E2E requires a graphics device.");
+            }
+
+            var root = new GameObject("blend-shape-cage-e2e-root");
+            var proxy = new GameObject("blend-shape-cage-e2e-preview-proxy");
+            proxy.transform.SetParent(root.transform, false);
+            var bone0 = new GameObject("blend-shape-cage-e2e-bone-0");
+            var bone1 = new GameObject("blend-shape-cage-e2e-bone-1");
+            bone0.transform.SetParent(root.transform, false);
+            bone1.transform.SetParent(root.transform, false);
+            bone1.transform.localPosition = new Vector3(2f, 0f, 0f);
+            Mesh source = CreateBlendShapeBindingRegressionMesh();
+            IRenderFilterNode previewNode = null;
+            LatticeToolHandler handler = null;
+            SceneView sceneView = null;
+            bool previousPreviewAlignedCage = LatticePreviewUtility.UsePreviewAlignedCage;
+
+            try
+            {
+                var renderer = root.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = source;
+                renderer.bones = new[] { bone0.transform, bone1.transform };
+                renderer.rootBone = bone0.transform;
+                renderer.SetBlendShapeWeight(0, 0f);
+
+                var deformer = root.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+
+                var proxyRenderer = proxy.AddComponent<SkinnedMeshRenderer>();
+                proxyRenderer.sharedMesh = source;
+                proxyRenderer.bones = new[] { bone0.transform, bone1.transform };
+                proxyRenderer.rootBone = bone0.transform;
+                Mesh previewMesh = GeneratePreviewMesh(deformer);
+                Assert.That(previewMesh, Is.Not.Null);
+                previewNode = CreateLatticePreviewNode(
+                    deformer,
+                    renderer,
+                    proxyRenderer,
+                    previewMesh);
+                LatticePreviewUtility.UsePreviewAlignedCage = true;
+
+                handler = new LatticeToolHandler
+                {
+                    CaptureCageFramesForTests = true,
+                };
+                handler.Activate(deformer);
+
+                sceneView = EditorWindow.GetWindow<SceneView>();
+                sceneView.Show();
+                SceneView.duringSceneGui += DrawCage;
+
+                yield return WaitForNextCageRepaint(handler, sceneView);
+                AssertCageFrame(handler);
+                Vector3[] weightZero = handler.GetLastCageHandlePositionsForTests();
+                int initialBindingRefreshes = handler.ControlPointBindingRefreshCountForTests;
+                int initialPreviewMeshId = proxyRenderer.sharedMesh.GetInstanceID();
+
+                renderer.SetBlendShapeWeight(0, 100f);
+                EditorUtility.SetDirty(renderer);
+                previewNode.OnFrameGroup();
+                Assert.That(proxyRenderer.GetBlendShapeWeight(0), Is.Zero);
+                yield return WaitForNextCageRepaint(handler, sceneView);
+                Assert.That(proxyRenderer.sharedMesh.GetInstanceID(), Is.EqualTo(initialPreviewMeshId));
+                Assert.That(
+                    handler.ControlPointBindingRefreshCountForTests,
+                    Is.EqualTo(initialBindingRefreshes),
+                    "In-place BlendShape preview updates must retain the established control-point bindings.");
+                AssertCageFrameEquals(
+                    handler,
+                    weightZero,
+                    "Changing a BlendShape must not choose new bone bindings for lattice control points.");
+
+                renderer.SetBlendShapeWeight(0, 0f);
+                EditorUtility.SetDirty(renderer);
+                previewNode.OnFrameGroup();
+                yield return WaitForNextCageRepaint(handler, sceneView);
+                AssertCageFrameEquals(
+                    handler,
+                    weightZero,
+                    "Returning the BlendShape weight must not make the cage snap back.");
+            }
+            finally
+            {
+                SceneView.duringSceneGui -= DrawCage;
+                LatticePreviewUtility.UsePreviewAlignedCage = previousPreviewAlignedCage;
+                handler?.Deactivate();
+                previewNode?.Dispose();
+                LatticePreviewUtility.ClearProxy(root.GetComponent<Renderer>());
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(source);
+            }
+
+            void DrawCage(SceneView view)
+            {
+                if (view == sceneView && Event.current != null)
+                {
+                    handler.OnToolGUI(view, root.GetComponent<LatticeDeformer>());
+                }
+            }
+        }
+
         private sealed class CageFrameMonitor
         {
             private readonly List<string> _violations = new List<string>();
@@ -877,6 +984,32 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             };
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private static Mesh CreateBlendShapeBindingRegressionMesh()
+        {
+            var mesh = new Mesh
+            {
+                name = "BlendShape Cage Binding Regression Mesh",
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 },
+                boneWeights = new[]
+                {
+                    new BoneWeight { boneIndex0 = 0, weight0 = 1f },
+                    new BoneWeight { boneIndex0 = 1, weight0 = 1f },
+                    new BoneWeight { boneIndex0 = 0, weight0 = 1f },
+                },
+                bindposes = new[] { Matrix4x4.identity, Matrix4x4.identity },
+            };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            mesh.AddBlendShapeFrame(
+                "MoveBindingAcrossBoneBoundary",
+                100f,
+                new[] { Vector3.left * 10f, Vector3.left * 0.5f, Vector3.zero },
+                null,
+                null);
             return mesh;
         }
 
