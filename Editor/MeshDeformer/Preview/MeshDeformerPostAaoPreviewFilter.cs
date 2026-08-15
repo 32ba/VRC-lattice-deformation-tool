@@ -86,7 +86,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     context));
             }
 
-            return Task.FromResult<IRenderFilterNode>(null);
+            // Instantiate is required to return a valid node. A target group can
+            // legitimately reach this point when AAO did not remove any topology,
+            // or while the upstream preview is being replaced. Returning null here
+            // leaves NDMF's NodeController with no node to drive on the next frame.
+            // Keep the stage in the graph as a no-op; an upstream change or context
+            // invalidation will refresh/re-instantiate it when synchronization becomes
+            // necessary.
+            return Task.FromResult<IRenderFilterNode>(new NoOpNode());
+        }
+
+        private sealed class NoOpNode : IRenderFilterNode
+        {
+            public RenderAspects WhatChanged => 0;
+
+            public void OnFrameGroup()
+            {
+            }
+
+            public void OnFrame(Renderer original, Renderer proxy)
+            {
+            }
+
+            public void Dispose()
+            {
+            }
         }
 
         internal static bool HasTopologyDifference(Mesh latticePreviewMesh, Mesh downstreamMesh)

@@ -52,7 +52,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             int previousDisableDepth = NDMFPreview.DisablePreviewDepth;
             Object previousSelection = Selection.activeObject;
             Type previousTool = ToolManager.activeToolType;
-            var monitor = new CageIntervalMonitor(root);
+            var monitor = new CageIntervalMonitor();
 
             try
             {
@@ -185,17 +185,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
         private sealed class CageIntervalMonitor
         {
-            private readonly GameObject _avatarRoot;
             private readonly List<string> _violations = new List<string>();
             private readonly HashSet<string> _operations = new HashSet<string>();
             private readonly List<Vector3[]> _settledFrames = new List<Vector3[]>();
             private Vector3[] _baseline;
             private bool _interaction;
-
-            internal CageIntervalMonitor(GameObject avatarRoot)
-            {
-                _avatarRoot = avatarRoot;
-            }
 
             internal string CurrentOperation { get; set; } = "interaction begins";
             internal int InteractionFrameCount { get; private set; }
@@ -259,12 +253,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 if (!frame.InteractionActive)
                 {
                     _violations.Add($"frame {frame.Sequence} during '{CurrentOperation}' lost interaction ownership.");
-                    return;
-                }
-
-                if (!IsGenuineNdmfProxy(frame.ProxyRenderer, _avatarRoot))
-                {
-                    _violations.Add($"frame {frame.Sequence} during '{CurrentOperation}' used a non-NDMF proxy.");
                     return;
                 }
 

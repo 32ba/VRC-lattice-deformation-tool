@@ -757,6 +757,61 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeDeformerPostAaoPreviewFilter_NoTopologyDifferenceReturnsValidNoOpNode()
+        {
+            var original = new GameObject("post-aao-noop-original");
+            var proxy = new GameObject("post-aao-noop-proxy");
+            var source = CreateBlendShapeMesh(0);
+            IRenderFilterNode latticeNode = null;
+            IRenderFilterNode postNode = null;
+            try
+            {
+                var originalRenderer = original.AddComponent<SkinnedMeshRenderer>();
+                originalRenderer.sharedMesh = source;
+                var deformer = original.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+
+                var proxyRenderer = proxy.AddComponent<SkinnedMeshRenderer>();
+                proxyRenderer.sharedMesh = source;
+
+                var generate = typeof(LatticeDeformerPreviewFilter).GetMethod(
+                    "GeneratePreviewMesh",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                Assert.That(generate, Is.Not.Null);
+                var previewMesh = (Mesh)generate.Invoke(null, new object[] { deformer });
+                Assert.That(previewMesh, Is.Not.Null);
+
+                latticeNode = CreateLatticePreviewNode(
+                    deformer,
+                    new[] { ((Renderer)originalRenderer, (Renderer)proxyRenderer) },
+                    previewMesh);
+
+                var filter = new LatticeDeformerPostAaoPreviewFilter();
+                postNode = filter.Instantiate(
+                        RenderGroup.For(originalRenderer),
+                        new[] { ((Renderer)originalRenderer, (Renderer)proxyRenderer) },
+                        new ComputeContext("post AAO no-op contract test"))
+                    .GetAwaiter()
+                    .GetResult();
+
+                Assert.That(postNode, Is.Not.Null,
+                    "IRenderFilter.Instantiate must always return a node for a target group.");
+                Assert.That(postNode.WhatChanged, Is.EqualTo((RenderAspects)0));
+                Assert.DoesNotThrow(() => postNode.OnFrameGroup());
+                Assert.DoesNotThrow(() => postNode.OnFrame(originalRenderer, proxyRenderer));
+            }
+            finally
+            {
+                postNode?.Dispose();
+                latticeNode?.Dispose();
+                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(proxy);
+                Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
         public void LatticeDeformerPostAaoPreviewFilter_UsesFinalProxyForCageAlignment()
         {
             var original = new GameObject("post-aao-proxy-original");
