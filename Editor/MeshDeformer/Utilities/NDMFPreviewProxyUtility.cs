@@ -245,6 +245,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         [ExcludeFromCodeCoverage]
         private static Renderer ExtractRenderer(object obj)
         {
+            // Destroyed Unity objects remain non-null as managed objects and can still be
+            // present in NDMF's reflected preview maps until the session is rebuilt.
+            // Calling GetComponent on such a stale GameObject/Component throws instead of
+            // behaving like a missing proxy, so filter it before pattern matching.
+            if (obj is UnityEngine.Object unityObject && unityObject == null)
+            {
+                return null;
+            }
+
             switch (obj)
             {
                 case Renderer r:

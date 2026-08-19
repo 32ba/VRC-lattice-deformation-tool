@@ -27,13 +27,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private readonly struct VertexSample
         {
-            internal readonly int VertexIndex;
             internal readonly Vector3 Position;
             internal readonly BoneWeight BoneWeight;
 
-            internal VertexSample(int vertexIndex, Vector3 position, BoneWeight boneWeight)
+            internal VertexSample(Vector3 position, BoneWeight boneWeight)
             {
-                VertexIndex = vertexIndex;
                 Position = position;
                 BoneWeight = boneWeight;
             }
@@ -69,7 +67,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             int bindingHash = ComputeBindingHash(
-                renderer,
                 sourceMesh,
                 poseMesh,
                 sourceBounds,
@@ -77,7 +74,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (!_bindingValid || bindingHash != _bindingHash)
             {
                 _bindingValid = BuildBindings(
-                    renderer,
                     sourceMesh,
                     poseMesh,
                     sourceBounds,
@@ -147,7 +143,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
 
         private bool BuildBindings(
-            SkinnedMeshRenderer renderer,
             Mesh sourceMesh,
             Mesh poseMesh,
             Bounds bounds,
@@ -170,15 +165,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var poseVertices = poseMesh.vertices;
             var poseWeights = poseMesh.boneWeights;
             if (poseVertices == null ||
-                poseVertices.Length != vertices.Length ||
+                poseVertices.Length == 0 ||
                 poseWeights == null ||
                 poseWeights.Length != poseVertices.Length)
             {
-                poseVertices = vertices;
-                poseWeights = boneWeights;
+                return false;
             }
+            // A topology-changing preview processor such as AAO may rebuild both the
+            // vertices and the renderer's bone array. Always keep the proxy positions,
+            // weights, bind poses, and bones together. Falling back to source weights
+            // would interpret their indices against an unrelated proxy bone array.
             var vertexSamples = BuildVertexSamples(poseVertices, poseWeights);
-            ApplyBlendShapes(renderer, poseMesh, vertexSamples);
             int index = 0;
             for (int z = 0; z < nz; z++)
             {
@@ -352,114 +349,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 int vertexIndex = sorted[i];
                 samples[i] = new VertexSample(
-                    vertexIndex,
                     vertices[vertexIndex],
                     boneWeights[vertexIndex]);
             }
 
             return samples;
-        }
-
-        private static void ApplyBlendShapes(
-            SkinnedMeshRenderer renderer,
-            Mesh mesh,
-            VertexSample[] samples)
-        {
-            if (renderer == null ||
-                mesh == null ||
-                samples == null ||
-                samples.Length == 0 ||
-                mesh.blendShapeCount == 0)
-            {
-                return;
-            }
-
-            int vertexCount = mesh.vertexCount;
-            var deltaVertices = new Vector3[vertexCount];
-            var deltaNormals = new Vector3[vertexCount];
-            var deltaTangents = new Vector3[vertexCount];
-            var lowerSampleDeltas = new Vector3[samples.Length];
-
-            for (int shape = 0; shape < mesh.blendShapeCount; shape++)
-            {
-                float weight = renderer.GetBlendShapeWeight(shape);
-                if (!IsFinite(weight) || Mathf.Abs(weight) <= 1e-5f)
-                {
-                    continue;
-                }
-
-                int frameCount = mesh.GetBlendShapeFrameCount(shape);
-                if (frameCount <= 0)
-                {
-                    continue;
-                }
-
-                int lowerFrame = 0;
-                int upperFrame = 0;
-                float t = 0f;
-                float firstWeight = mesh.GetBlendShapeFrameWeight(shape, 0);
-                if (weight <= firstWeight || frameCount == 1)
-                {
-                    t = Mathf.Abs(firstWeight) > Mathf.Epsilon
-                        ? weight / firstWeight
-                        : 0f;
-                }
-                else
-                {
-                    lowerFrame = frameCount - 1;
-                    upperFrame = lowerFrame;
-                    t = 1f;
-                    for (int frame = 1; frame < frameCount; frame++)
-                    {
-                        float upperWeight = mesh.GetBlendShapeFrameWeight(shape, frame);
-                        if (weight <= upperWeight)
-                        {
-                            lowerFrame = frame - 1;
-                            upperFrame = frame;
-                            float lowerWeight = mesh.GetBlendShapeFrameWeight(shape, lowerFrame);
-                            t = Mathf.Abs(upperWeight - lowerWeight) > Mathf.Epsilon
-                                ? Mathf.InverseLerp(lowerWeight, upperWeight, weight)
-                                : 0f;
-                            break;
-                        }
-                    }
-                }
-
-                mesh.GetBlendShapeFrameVertices(
-                    shape,
-                    lowerFrame,
-                    deltaVertices,
-                    deltaNormals,
-                    deltaTangents);
-                for (int i = 0; i < samples.Length; i++)
-                {
-                    lowerSampleDeltas[i] = deltaVertices[samples[i].VertexIndex];
-                }
-
-                if (upperFrame != lowerFrame)
-                {
-                    mesh.GetBlendShapeFrameVertices(
-                        shape,
-                        upperFrame,
-                        deltaVertices,
-                        deltaNormals,
-                        deltaTangents);
-                }
-
-                for (int i = 0; i < samples.Length; i++)
-                {
-                    Vector3 delta = upperFrame == lowerFrame
-                        ? lowerSampleDeltas[i] * t
-                        : Vector3.LerpUnclamped(
-                            lowerSampleDeltas[i],
-                            deltaVertices[samples[i].VertexIndex],
-                            t);
-                    samples[i] = new VertexSample(
-                        samples[i].VertexIndex,
-                        samples[i].Position + delta,
-                        samples[i].BoneWeight);
-                }
-            }
         }
 
         private static bool TrySkinVertex(
@@ -687,7 +581,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
 
         private static int ComputeBindingHash(
-            SkinnedMeshRenderer renderer,
             Mesh sourceMesh,
             Mesh poseMesh,
             Bounds bounds,
@@ -701,14 +594,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 hash = hash * 31 + sourceMesh.vertexCount;
                 hash = hash * 31 + sourceMesh.subMeshCount;
                 hash = hash * 31 + poseMesh.GetInstanceID();
-                hash = hash * 31 + EditorUtility.GetDirtyCount(poseMesh);
                 hash = hash * 31 + poseMesh.vertexCount;
-                int blendShapeCount = poseMesh.blendShapeCount;
-                hash = hash * 31 + blendShapeCount;
-                for (int i = 0; i < blendShapeCount; i++)
-                {
-                    hash = hash * 31 + renderer.GetBlendShapeWeight(i).GetHashCode();
-                }
+                // Preview meshes are updated in place while source BlendShape weights
+                // animate. Their vertices and dirty count change every frame, but the
+                // vertex-to-bone relationship does not. Rebinding here makes control
+                // points jump between nearby bones while a shape slider is dragged.
                 hash = hash * 31 + bounds.GetHashCode();
                 hash = hash * 31 + gridSize.GetHashCode();
                 return hash;

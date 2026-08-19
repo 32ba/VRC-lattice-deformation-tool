@@ -86,7 +86,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     context));
             }
 
-            return Task.FromResult<IRenderFilterNode>(null);
+            // Instantiate is required to return a valid node. A target group can
+            // legitimately reach this point when AAO did not remove any topology,
+            // or while the upstream preview is being replaced. Returning null here
+            // leaves NDMF's NodeController with no node to drive on the next frame.
+            // Keep the stage in the graph as a no-op; an upstream change or context
+            // invalidation will refresh/re-instantiate it when synchronization becomes
+            // necessary.
+            return Task.FromResult<IRenderFilterNode>(new NoOpNode());
+        }
+
+        private sealed class NoOpNode : IRenderFilterNode
+        {
+            public RenderAspects WhatChanged => 0;
+
+            public void OnFrameGroup()
+            {
+            }
+
+            public void OnFrame(Renderer original, Renderer proxy)
+            {
+            }
+
+            public void Dispose()
+            {
+            }
         }
 
         internal static bool HasTopologyDifference(Mesh latticePreviewMesh, Mesh downstreamMesh)
@@ -118,7 +142,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             private readonly LatticeDeformer _deformer;
             private readonly Renderer _original;
+            private readonly Renderer _proxy;
             private readonly Mesh _outputMesh;
+            private readonly Mesh _restorationMesh;
             private readonly ComputeContext _context;
             private readonly List<Vector3> _vertices = new();
             private readonly List<Vector3> _normals = new();
@@ -129,6 +155,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             private long _lastPreviewMeshContentRevision;
             private double _scheduledRebuildAt = -1d;
             private bool _editorUpdateSubscribed;
+            private readonly LatticePreviewUtility.ProxyOverrideToken _proxyOverrideToken;
+            private readonly bool _ownsProxyOverride;
 
             internal PreviewNode(
                 LatticeDeformer deformer,
@@ -139,6 +167,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 _deformer = deformer;
                 _original = original;
+                _proxy = proxy;
                 _context = context;
                 // AAO's preview node assigns its duplicated mesh back to the proxy on
                 // every OnFrame call. A separate downstream mesh is therefore replaced
@@ -153,7 +182,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     out _,
                     out _lastPreviewMeshContentRevision);
 
-                LatticeDeformerPreviewFilter.AssignRendererMesh(proxy, _outputMesh);
+                Mesh restorationMesh;
+                LatticePreviewUtility.ProxyOverrideToken proxyOverrideToken;
+                _ownsProxyOverride = LatticePreviewUtility.RegisterProxyOverride(
+                    original,
+                    proxy,
+                    upstreamMesh,
+                    out restorationMesh,
+                    out proxyOverrideToken);
+                _restorationMesh = restorationMesh;
+                _proxyOverrideToken = proxyOverrideToken;
             }
 
             internal Mesh OutputMeshForTests => _outputMesh;
@@ -201,12 +239,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (proxy != null && _outputMesh != null)
                 {
                     LatticeDeformerPreviewFilter.AssignRendererMesh(proxy, _outputMesh);
+                    if (_ownsProxyOverride)
+                    {
+                        LatticePreviewUtility.CommitProxyOverride(_proxyOverrideToken);
+                    }
                 }
             }
 
             public void Dispose()
             {
                 UnsubscribeEditorUpdate();
+                if (_ownsProxyOverride &&
+                    LatticePreviewUtility.ClearProxyOverride(_proxyOverrideToken))
+                {
+                    LatticeDeformerPreviewFilter.AssignRendererMesh(_proxy, _restorationMesh);
+                }
             }
 
             private int CurrentBlendShapeWeightStateHash()

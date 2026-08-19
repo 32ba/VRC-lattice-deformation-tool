@@ -13,6 +13,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     [ExcludeFromCodeCoverage]
     internal sealed class LatticeToolHandler
     {
+        internal readonly struct CageFrameSnapshot
+        {
+            internal CageFrameSnapshot(
+                int sequence,
+                bool interactionActive,
+                int proxyMappingRevision,
+                Renderer proxyRenderer,
+                Vector3[] handlePositions)
+            {
+                Sequence = sequence;
+                InteractionActive = interactionActive;
+                ProxyMappingRevision = proxyMappingRevision;
+                ProxyRenderer = proxyRenderer;
+                HandlePositions = handlePositions;
+            }
+
+            internal int Sequence { get; }
+            internal bool InteractionActive { get; }
+            internal int ProxyMappingRevision { get; }
+            internal Renderer ProxyRenderer { get; }
+            internal Vector3[] HandlePositions { get; }
+        }
+
+        internal static event Action<CageFrameSnapshot> CageFrameRendered;
+
         internal enum MirrorAxis
         {
             X = 0,
@@ -60,11 +85,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private LatticeDeformer _activeDeformer;
         private Vector3[] _worldPositions = Array.Empty<Vector3>();
+        private Vector3[] _lastCageHandlePositionsForTests = Array.Empty<Vector3>();
         private readonly HashSet<int> _processedIndices = new HashSet<int>();
         private Renderer _cachedSourceRenderer;
         private Renderer _cachedProxyRenderer;
         private bool _proxyResolved;
         private int _cachedProxyMappingRevision = -1;
+        private Renderer _pendingProxyRenderer;
+        private int _pendingProxyMappingRevision = -1;
+        private bool _proxyAlignmentSnapshotValid;
+        private Matrix4x4 _proxyAlignmentProxyToWorld;
+        private Matrix4x4 _proxyAlignmentWorldToProxy;
+        private Quaternion _proxyAlignmentRotation;
+        private Vector3 _proxyAlignmentScale;
+        private Bounds _proxyAlignmentMeshBounds;
+        private Bounds _proxyAlignmentRendererBounds;
+        private Vector3 _proxyAlignmentRootOffsetWorld;
         private bool _proxySnapshotValid;
         private int _proxySnapshotHash;
         private Bounds _cachedProxyMeshBounds;
@@ -73,6 +109,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly LatticeControlPointSkinning _controlPointSkinning =
             new LatticeControlPointSkinning();
         private Mesh _skinningFallbackMesh;
+        private readonly List<Vector3> _skinningBakedVertices = new List<Vector3>();
+        private readonly List<int> _skinningTopologyIndices = new List<int>();
         private Bounds _skinningFallbackBounds;
         private bool _hasSkinningFallbackBounds;
         private int _skinningReferenceGeometryHash;
@@ -91,7 +129,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int _cachedPoseRendererDirtyCount;
         internal int ProxyBoundsRefreshCountForTests { get; private set; }
         internal int SkinningRefreshCountForTests { get; private set; }
+        internal int ControlPointBindingRefreshCountForTests =>
+            _controlPointSkinning.BindingRefreshCountForTests;
         internal Bounds ProxyMeshBoundsForTests => _cachedProxyMeshBounds;
+        internal bool CaptureCageFramesForTests { get; set; }
+        internal int CageRepaintCountForTests { get; private set; }
+        internal int LastCageHandleCountForTests { get; private set; }
+
+        internal Vector3[] GetLastCageHandlePositionsForTests()
+        {
+            var positions = new Vector3[LastCageHandleCountForTests];
+            Array.Copy(_lastCageHandlePositionsForTests, positions, positions.Length);
+            return positions;
+        }
 
         static LatticeToolHandler()
         {
@@ -219,6 +269,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal void Activate(LatticeDeformer deformer)
         {
+            InvalidateProxyCache(true);
             _activeDeformer = deformer;
             s_previousPivotRotation = Tools.pivotRotation;
             Tools.pivotRotation = PivotRotation.Local;
@@ -233,7 +284,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Undo.undoRedoPerformed -= OnUndoRedo;
             EditorApplication.hierarchyChanged -= InvalidateProxyCache;
             EditorApplication.projectChanged -= InvalidateProxyCache;
-            InvalidateProxyCache();
+            InvalidateProxyCache(true);
             ClearSelection();
             if (s_previousPivotRotation.HasValue)
             {
@@ -291,43 +342,77 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             var sourceTransform = deformer.MeshTransform;
             deformer.TryGetComponent<Renderer>(out var srcRenderer);
-            Renderer proxyRenderer = ResolveProxyRenderer(srcRenderer);
+            var currentEvent = Event.current;
+            bool interactionActive = IsCageInteractionActive(currentEvent);
+            Renderer proxyRenderer = ResolveProxyRenderer(srcRenderer, interactionActive);
+
+            // Capture a fresh live transform when a new drag starts. If AAO has
+            // temporarily removed the proxy, retain the last snapshot instead of
+            // falling back to the source transform for one or more frames.
+            if (currentEvent != null && currentEvent.type == EventType.MouseDown &&
+                proxyRenderer != null)
+            {
+                _proxyAlignmentSnapshotValid = false;
+            }
 
             var useProxy = LatticePreviewUtility.UsePreviewAlignedCage &&
                            srcRenderer != null &&
-                           proxyRenderer != null;
-
-            var proxyTransform = useProxy ? proxyRenderer.transform : sourceTransform;
+                           (proxyRenderer != null || _proxyAlignmentSnapshotValid);
 
             var sourceToWorld = sourceTransform != null ? sourceTransform.localToWorldMatrix : Matrix4x4.identity;
             var worldToSource = sourceTransform != null ? sourceTransform.worldToLocalMatrix : Matrix4x4.identity;
-            var proxyToWorld = proxyTransform != null ? proxyTransform.localToWorldMatrix : Matrix4x4.identity;
-            var worldToProxy = proxyTransform != null ? proxyTransform.worldToLocalMatrix : Matrix4x4.identity;
-            var sourceToProxy = worldToProxy * sourceToWorld;
-            var proxyToSource = worldToSource * proxyToWorld;
+            var proxyToWorld = useProxy && proxyRenderer != null
+                ? proxyRenderer.transform.localToWorldMatrix
+                : sourceToWorld;
+            var worldToProxy = useProxy && proxyRenderer != null
+                ? proxyRenderer.transform.worldToLocalMatrix
+                : worldToSource;
+            var proxyRotation = useProxy && proxyRenderer != null
+                ? proxyRenderer.transform.rotation
+                : Quaternion.identity;
+            var proxyScale = useProxy && proxyRenderer != null
+                ? proxyRenderer.transform.lossyScale
+                : Vector3.one;
 
             var sourceBounds = settings.LocalBounds;
-            var skinningTarget = (useProxy ? proxyRenderer as SkinnedMeshRenderer : null) ??
-                                 srcRenderer as SkinnedMeshRenderer;
-            UpdateSkinningSnapshotIfNeeded(
-                deformer,
-                skinningTarget,
-                sourceBounds,
-                sourceToWorld,
-                worldToSource);
             Bounds proxyBoundsMesh = sourceBounds;
             Bounds proxyBoundsRenderer = sourceBounds;
-            if (useProxy)
+            bool useFrozenAlignment = useProxy && _proxyAlignmentSnapshotValid &&
+                                      (interactionActive || proxyRenderer == null);
+            if (useFrozenAlignment)
             {
-                UpdateProxySnapshotIfNeeded(
+                proxyToWorld = _proxyAlignmentProxyToWorld;
+                worldToProxy = _proxyAlignmentWorldToProxy;
+                proxyRotation = _proxyAlignmentRotation;
+                proxyScale = _proxyAlignmentScale;
+                proxyBoundsMesh = _proxyAlignmentMeshBounds;
+                proxyBoundsRenderer = _proxyAlignmentRendererBounds;
+            }
+            else
+            {
+                var skinningTarget = (useProxy ? proxyRenderer as SkinnedMeshRenderer : null) ??
+                                     srcRenderer as SkinnedMeshRenderer;
+                UpdateSkinningSnapshotIfNeeded(
                     deformer,
-                    proxyRenderer,
+                    skinningTarget,
                     sourceBounds,
                     sourceToWorld,
                     worldToSource);
-                proxyBoundsMesh = _cachedProxyMeshBounds;
-                proxyBoundsRenderer = _cachedProxyRendererBounds;
+
+                if (useProxy && proxyRenderer != null)
+                {
+                    UpdateProxySnapshotIfNeeded(
+                        deformer,
+                        proxyRenderer,
+                        sourceBounds,
+                        sourceToWorld,
+                        worldToSource);
+                    proxyBoundsMesh = _cachedProxyMeshBounds;
+                    proxyBoundsRenderer = _cachedProxyRendererBounds;
+                }
             }
+            var sourceToProxy = worldToProxy * sourceToWorld;
+            var proxyToSource = worldToSource * proxyToWorld;
             // Both helpers already return proxy-local bounds. Dividing by lossyScale here
             // would apply the transform scale a second time and shrink/enlarge the cage.
             var proxyBoundsLocal = useProxy ? ChooseLargerBounds(proxyBoundsMesh, proxyBoundsRenderer) : sourceBounds;
@@ -398,12 +483,29 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             // Root bone/world offset (affects Skinned meshes when armature position differs)
-            Vector3 rootOffsetWorld = Vector3.zero;
-            if (useProxy && srcRenderer is SkinnedMeshRenderer srcSkinned && proxyRenderer is SkinnedMeshRenderer proxySkinned)
+            Vector3 rootOffsetWorld = useFrozenAlignment
+                ? _proxyAlignmentRootOffsetWorld
+                : Vector3.zero;
+            if (!useFrozenAlignment && useProxy &&
+                srcRenderer is SkinnedMeshRenderer srcSkinned &&
+                proxyRenderer is SkinnedMeshRenderer proxySkinned)
             {
                 var srcRoot = srcSkinned.rootBone != null ? srcSkinned.rootBone : srcRenderer.transform;
                 var proxyRoot = proxySkinned.rootBone != null ? proxySkinned.rootBone : proxyRenderer.transform;
                 rootOffsetWorld = proxyRoot.position - srcRoot.position;
+            }
+
+            if (useProxy && interactionActive && !_proxyAlignmentSnapshotValid &&
+                proxyRenderer != null)
+            {
+                _proxyAlignmentSnapshotValid = true;
+                _proxyAlignmentProxyToWorld = proxyToWorld;
+                _proxyAlignmentWorldToProxy = worldToProxy;
+                _proxyAlignmentRotation = proxyRotation;
+                _proxyAlignmentScale = proxyScale;
+                _proxyAlignmentMeshBounds = proxyBoundsMesh;
+                _proxyAlignmentRendererBounds = proxyBoundsRenderer;
+                _proxyAlignmentRootOffsetWorld = rootOffsetWorld;
             }
             var rootOffsetProxyLocal = useProxy ? worldToProxy.MultiplyVector(rootOffsetWorld) : Vector3.zero;
             if (needBoundsMap)
@@ -415,13 +517,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // point is bound to the closest source triangle and uses its interpolated
             // bone weights, so the cage follows the same non-uniform pose as the mesh.
             bool hasControlPointSkinning = _controlPointSkinning.IsValid;
-            bool normalizeSkinnedBounds =
-                hasControlPointSkinning &&
-                _hasSkinningDisplayBounds &&
-                !AreBoundsApproximatelyEqual(
-                    _controlPointSkinning.PosedControlBounds,
-                    _skinningDisplayBounds,
-                    k_BoundsTolerance);
+            // Per-control-point skinning already evaluates the same bone and bind-pose
+            // matrices as the renderer. BakeMesh can disagree with that rendered pose
+            // after hierarchy/scale adjustments, so never remap a valid skinned cage
+            // back to the BakeMesh bounds.
+            bool normalizeSkinnedBounds = false;
 
             // Per-point skinning already includes bone placement and scale. Applying a
             // second bounds or root offset correction would double-transform the cage.
@@ -443,7 +543,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (LatticePreviewUtility.DebugAlignLogs && useProxy)
             {
                 LatticePreviewUtility.LogAlign("Bounds",
-                    $"mode={mode}, sourceBounds={FormatBounds(sourceBounds)}, proxyBoundsLocal={FormatBounds(proxyBoundsLocal)}, needBoundsMap={needBoundsMap}, proxyTooBig={proxyTooBig}, hasManualAdjust={hasManualAdjust}, srcScale={(sourceTransform != null ? sourceTransform.lossyScale : Vector3.one)}, proxyScale={(proxyTransform != null ? proxyTransform.lossyScale : Vector3.one)}, rootOffsetWorld={rootOffsetWorld}, centerOffsetProxyLocal=({centerOffsetProxyLocal.x:F4},{centerOffsetProxyLocal.y:F4},{centerOffsetProxyLocal.z:F4})");
+                    $"mode={mode}, sourceBounds={FormatBounds(sourceBounds)}, proxyBoundsLocal={FormatBounds(proxyBoundsLocal)}, needBoundsMap={needBoundsMap}, proxyTooBig={proxyTooBig}, hasManualAdjust={hasManualAdjust}, srcScale={(sourceTransform != null ? sourceTransform.lossyScale : Vector3.one)}, proxyScale={proxyScale}, rootOffsetWorld={rootOffsetWorld}, centerOffsetProxyLocal=({centerOffsetProxyLocal.x:F4},{centerOffsetProxyLocal.y:F4},{centerOffsetProxyLocal.z:F4})");
             }
             var gridSize = settings.GridSize;
             int nx = Mathf.Max(1, gridSize.x);
@@ -487,7 +587,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         proxyLocal += rootOffsetProxyLocal + centerOffsetProxyLocal;
                         proxyLocal = Vector3.Scale(proxyLocal, LatticePreviewUtility.GetManualScaleProxy(deformer));
 
-                        worldPositions[index] = proxyTransform != null ? proxyTransform.TransformPoint(proxyLocal) : proxyLocal;
+                        worldPositions[index] = proxyToWorld.MultiplyPoint3x4(proxyLocal);
                     }
                 }
             }
@@ -506,7 +606,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var mirrorScale = LatticePreviewUtility.GetManualScaleProxy(deformer);
                 mirrorBounds.size = Vector3.Scale(mirrorBounds.size, mirrorScale);
                 mirrorBounds.center += centerOffsetProxyLocal;
-                DrawMirrorPlane(mirrorBounds, proxyTransform);
+                DrawMirrorPlane(mirrorBounds, proxyToWorld);
             }
 
             var cageColor = new Color(1f, 1f, 1f, 0.8f);
@@ -541,6 +641,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             var handleColor = new Color(0.2f, 0.8f, 1f, 0.9f);
             var mirrorPartnerColor = new Color(1f, 0.5f, 0.2f, 0.9f);
+            int drawnHandleCount = 0;
+            bool isRepaint = currentEvent != null && currentEvent.type == EventType.Repaint;
+            bool publishRepaint = isRepaint && CageFrameRendered != null;
+            bool captureRepaint = isRepaint && (CaptureCageFramesForTests || publishRepaint);
+            if (captureRepaint && _lastCageHandlePositionsForTests.Length < controlCount)
+            {
+                _lastCageHandlePositionsForTests = new Vector3[controlCount];
+            }
 
             s_selectedControls.RemoveWhere(idx => idx < 0 || idx >= controlCount);
 
@@ -558,6 +666,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 var worldPosition = worldPositions[index];
                 float handleSize = HandleUtility.GetHandleSize(worldPosition) * 0.08f;
+                if (captureRepaint)
+                {
+                    _lastCageHandlePositionsForTests[drawnHandleCount] = worldPosition;
+                }
 
                 bool isSelected = s_selectedControls.Contains(index);
                 bool isMirrorPartner = false;
@@ -567,12 +679,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
 
                 Handles.color = isSelected ? Color.yellow : isMirrorPartner ? mirrorPartnerColor : handleColor;
+                drawnHandleCount++;
 
                 bool additive = false;
-                var currentEvent = Event.current;
-                if (currentEvent != null)
+                var handleEvent = Event.current;
+                if (handleEvent != null)
                 {
-                    additive = currentEvent.shift || currentEvent.control || currentEvent.command;
+                    additive = handleEvent.shift || handleEvent.control || handleEvent.command;
                 }
 
                 if (Handles.Button(worldPosition, Quaternion.identity, handleSize, handleSize, Handles.CubeHandleCap))
@@ -599,6 +712,28 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
+            // A Repaint event is the frame in which CubeHandleCap emits the visible
+            // control boxes. Keep this small observation seam so integration tests can
+            // verify that a preview graph handoff never produces an empty or displaced
+            // cage frame without relying on fragile pixel comparisons.
+            if (captureRepaint)
+            {
+                LastCageHandleCountForTests = drawnHandleCount;
+                CageRepaintCountForTests++;
+
+                if (publishRepaint)
+                {
+                    var positions = new Vector3[drawnHandleCount];
+                    Array.Copy(_lastCageHandlePositionsForTests, positions, drawnHandleCount);
+                    CageFrameRendered?.Invoke(new CageFrameSnapshot(
+                        CageRepaintCountForTests,
+                        interactionActive,
+                        LatticePreviewUtility.ProxyMappingRevision,
+                        proxyRenderer,
+                        positions));
+                }
+            }
+
             if (s_selectedControls.Count > 0)
             {
                 Vector3 pivot = Vector3.zero;
@@ -616,7 +751,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 else
                 {
                     EditorGUI.BeginChangeCheck();
-                    var handleRotation = proxyTransform != null ? proxyTransform.rotation : Quaternion.identity;
+                    var handleRotation = useProxy ? proxyRotation : Quaternion.identity;
                     var newPivot = Handles.PositionHandle(pivot, handleRotation);
                     if (EditorGUI.EndChangeCheck())
                     {
@@ -625,9 +760,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         {
                             Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.MoveLatticeControls));
 
-                            var deltaProxy = proxyTransform != null
-                                ? proxyTransform.InverseTransformVector(delta)
-                                : delta;
+                            var deltaProxy = worldToProxy.MultiplyVector(delta);
                             _processedIndices.Clear();
 
                             foreach (var selectedIndex in s_selectedControls)
@@ -638,9 +771,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                 }
 
                                 var newWorldPosition = worldPositions[selectedIndex] + delta;
-                                var proxyLocal = proxyTransform != null
-                                ? proxyTransform.InverseTransformPoint(newWorldPosition)
-                                : newWorldPosition;
+                                var proxyLocal = worldToProxy.MultiplyPoint3x4(newWorldPosition);
                                 // remove manual scale before mapping back
                                 var scaleProxy = LatticePreviewUtility.GetManualScaleProxy(deformer);
                                 proxyLocal = new Vector3(
@@ -819,19 +950,96 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal Renderer ResolveProxyRenderer(Renderer sourceRenderer)
         {
+            return ResolveProxyRenderer(sourceRenderer, false);
+        }
+
+        internal Renderer ResolveProxyRenderer(Renderer sourceRenderer, bool interactionActive)
+        {
             int mappingRevision = LatticePreviewUtility.ProxyMappingRevision;
-            if (_proxyResolved && ReferenceEquals(_cachedSourceRenderer, sourceRenderer) &&
-                _cachedProxyMappingRevision == mappingRevision)
+            if (!_proxyResolved || !ReferenceEquals(_cachedSourceRenderer, sourceRenderer))
+            {
+                _cachedSourceRenderer = sourceRenderer;
+                _cachedProxyRenderer = null;
+                if (sourceRenderer != null)
+                    LatticePreviewUtility.TryGetPreviewProxy(sourceRenderer, out _cachedProxyRenderer);
+                _proxyResolved = true;
+                _cachedProxyMappingRevision = mappingRevision;
+                _proxySnapshotValid = false;
+                _proxyAlignmentSnapshotValid = false;
+                ResetPendingProxyResolution();
+                return _cachedProxyRenderer;
+            }
+
+            if (_cachedProxyMappingRevision == mappingRevision)
                 return _cachedProxyRenderer;
 
-            _cachedSourceRenderer = sourceRenderer;
-            _cachedProxyRenderer = null;
+            Renderer candidate = null;
             if (sourceRenderer != null)
-                LatticePreviewUtility.TryGetPreviewProxy(sourceRenderer, out _cachedProxyRenderer);
-            _proxyResolved = true;
+                LatticePreviewUtility.TryGetPreviewProxy(sourceRenderer, out candidate);
+
+            if (ReferenceEquals(candidate, _cachedProxyRenderer))
+            {
+                _cachedProxyMappingRevision = mappingRevision;
+                ResetPendingProxyResolution();
+                return _cachedProxyRenderer;
+            }
+
+            // A preview rebuild can unregister its proxy for a short interval.
+            // Keep the last renderer (or its captured alignment) during an active
+            // interaction instead of letting the cage fall back to source space.
+            if (candidate == null && (interactionActive || _proxyAlignmentSnapshotValid))
+            {
+                ResetPendingProxyResolution();
+                return _cachedProxyRenderer;
+            }
+
+            // Outside the active tool, retain the historical immediate lookup
+            // semantics used by utility tests and non-interactive callers.
+            if (_activeDeformer == null)
+            {
+                CommitProxyResolution(candidate, mappingRevision);
+                return _cachedProxyRenderer;
+            }
+
+            _pendingProxyRenderer = candidate;
+            _pendingProxyMappingRevision = mappingRevision;
+
+            // Post-AAO candidates increment the mapping revision only after their
+            // output is displayed. While a handle owns the interaction, retain the
+            // committed cage frame and coalesce any further candidates to the latest.
+            if (interactionActive)
+                return _cachedProxyRenderer;
+
+            CommitProxyResolution(_pendingProxyRenderer, _pendingProxyMappingRevision);
+            return _cachedProxyRenderer;
+        }
+
+        private void CommitProxyResolution(Renderer proxyRenderer, int mappingRevision)
+        {
+            _cachedProxyRenderer = proxyRenderer;
             _cachedProxyMappingRevision = mappingRevision;
             _proxySnapshotValid = false;
-            return _cachedProxyRenderer;
+            _proxyAlignmentSnapshotValid = false;
+            ResetPendingProxyResolution();
+        }
+
+        private void ResetPendingProxyResolution()
+        {
+            _pendingProxyRenderer = null;
+            _pendingProxyMappingRevision = -1;
+        }
+
+        private static bool IsCageInteractionActive(Event currentEvent)
+        {
+            if (GUIUtility.hotControl != 0)
+                return true;
+
+            if (currentEvent == null)
+                return false;
+
+            return currentEvent.type == EventType.MouseDown ||
+                   currentEvent.type == EventType.MouseDrag ||
+                   currentEvent.type == EventType.MouseUp;
         }
 
         internal void UpdateProxySnapshotIfNeeded(
@@ -961,6 +1169,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     {
                         if (TryCaptureBakedBoundsInSourceLocal(
                                 renderer,
+                                mesh,
                                 worldToSource,
                                 out Bounds bakedBounds))
                         {
@@ -989,6 +1198,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     if (TryCaptureBakedBoundsInSourceLocal(
                             renderer,
+                            mesh,
                             worldToSource,
                             out Bounds fallbackBounds))
                     {
@@ -1068,10 +1278,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void InvalidateProxyCache()
         {
-            _cachedSourceRenderer = null;
-            _cachedProxyRenderer = null;
-            _cachedProxyMappingRevision = -1;
-            _proxyResolved = false;
+            InvalidateProxyCache(false);
+        }
+
+        private void InvalidateProxyCache(bool resetProxyResolution)
+        {
+            if (resetProxyResolution)
+            {
+                _cachedSourceRenderer = null;
+                _cachedProxyRenderer = null;
+                _cachedProxyMappingRevision = -1;
+                _proxyResolved = false;
+                _proxyAlignmentSnapshotValid = false;
+                ResetPendingProxyResolution();
+            }
+
             _proxySnapshotValid = false;
             _cachedPoseRenderer = null;
             _cachedPoseBones = null;
@@ -1081,7 +1302,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _cachedSkinningRendererDirtyCount = 0;
             _skinningSnapshotValid = false;
             _cachedSkinningCorrection = null;
-            _controlPointSkinning.Reset();
+            // hierarchyChanged/projectChanged also fire for transient in-place preview
+            // mesh updates. Keep the surface-to-bone binding in that case; Update()
+            // will rebuild it if the renderer, mesh identity, topology, bounds, or grid
+            // actually changes. Activation/deactivation still performs a full reset.
+            if (resetProxyResolution)
+            {
+                _controlPointSkinning.Reset();
+            }
             _hasSkinningFallbackBounds = false;
             _hasSkinningReferenceBounds = false;
             _hasSkinningDisplayBounds = false;
@@ -1106,7 +1334,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             LatticePreviewUtility.RequestSceneRepaint();
         }
 
-        private static void DrawMirrorPlane(Bounds bounds, Transform meshTransform)
+        private static void DrawMirrorPlane(Bounds bounds, Matrix4x4 meshToWorld)
         {
             var size = bounds.size;
             if (size == Vector3.zero)
@@ -1141,12 +1369,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             localCorners[2] = centerLocal - axisA - axisB;
             localCorners[3] = centerLocal - axisA + axisB;
 
-            if (meshTransform != null)
+            for (int i = 0; i < localCorners.Length; i++)
             {
-                for (int i = 0; i < localCorners.Length; i++)
-                {
-                    localCorners[i] = meshTransform.TransformPoint(localCorners[i]);
-                }
+                localCorners[i] = meshToWorld.MultiplyPoint3x4(localCorners[i]);
             }
 
             var fillColor = new Color(0.3f, 0.6f, 1f, 0.3f);
@@ -1298,6 +1523,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private bool TryCaptureBakedBoundsInSourceLocal(
             SkinnedMeshRenderer renderer,
+            Mesh topologyMesh,
             Matrix4x4 worldToSource,
             out Bounds bounds)
         {
@@ -1319,10 +1545,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             try
             {
                 renderer.BakeMesh(_skinningFallbackMesh);
+                _skinningBakedVertices.Clear();
+                _skinningFallbackMesh.GetVertices(_skinningBakedVertices);
+                if (_skinningBakedVertices.Count == 0)
+                {
+                    return false;
+                }
+
                 Matrix4x4 rendererToSource =
                     worldToSource * renderer.transform.localToWorldMatrix;
-                bounds = TransformBounds(
-                    _skinningFallbackMesh.bounds,
+                bounds = CalculateTransformedReferencedBounds(
+                    topologyMesh,
+                    _skinningBakedVertices,
                     rendererToSource);
                 return IsFinite(bounds.center) &&
                        IsFinite(bounds.size) &&
@@ -1334,35 +1568,54 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private static Bounds TransformBounds(Bounds bounds, Matrix4x4 matrix)
+        private Bounds CalculateTransformedReferencedBounds(
+            Mesh topologyMesh,
+            List<Vector3> vertices,
+            Matrix4x4 matrix)
         {
-            Vector3 min = bounds.min;
-            Vector3 max = bounds.max;
-            Bounds transformed = default;
+            Bounds bounds = default;
             bool hasPoint = false;
-            for (int z = 0; z < 2; z++)
+
+            if (topologyMesh != null && topologyMesh.vertexCount == vertices.Count)
             {
-                for (int y = 0; y < 2; y++)
+                int subMeshCount = Mathf.Max(1, topologyMesh.subMeshCount);
+                for (int subMesh = 0; subMesh < subMeshCount; subMesh++)
                 {
-                    for (int x = 0; x < 2; x++)
+                    _skinningTopologyIndices.Clear();
+                    topologyMesh.GetIndices(_skinningTopologyIndices, subMesh);
+                    for (int i = 0; i < _skinningTopologyIndices.Count; i++)
                     {
-                        Vector3 point = matrix.MultiplyPoint3x4(new Vector3(
-                            x == 0 ? min.x : max.x,
-                            y == 0 ? min.y : max.y,
-                            z == 0 ? min.z : max.z));
+                        int vertexIndex = _skinningTopologyIndices[i];
+                        if (vertexIndex < 0 || vertexIndex >= vertices.Count)
+                        {
+                            continue;
+                        }
+
+                        Vector3 point = matrix.MultiplyPoint3x4(vertices[vertexIndex]);
                         if (!hasPoint)
                         {
-                            transformed = new Bounds(point, Vector3.zero);
+                            bounds = new Bounds(point, Vector3.zero);
                             hasPoint = true;
                         }
                         else
                         {
-                            transformed.Encapsulate(point);
+                            bounds.Encapsulate(point);
                         }
                     }
                 }
             }
-            return transformed;
+
+            if (hasPoint)
+            {
+                return bounds;
+            }
+
+            bounds = new Bounds(matrix.MultiplyPoint3x4(vertices[0]), Vector3.zero);
+            for (int i = 1; i < vertices.Count; i++)
+            {
+                bounds.Encapsulate(matrix.MultiplyPoint3x4(vertices[i]));
+            }
+            return bounds;
         }
 
         private static Bounds RemapBounds(

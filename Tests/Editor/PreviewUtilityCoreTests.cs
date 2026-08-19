@@ -110,6 +110,29 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void NDMFPreviewProxyUtility_TryBuildPair_SkipsDestroyedUnityObjects()
+        {
+            var destroyed = new GameObject("destroyed-preview-map-entry");
+            var proxy = new GameObject("live-preview-map-entry");
+            proxy.AddComponent<MeshRenderer>();
+
+            try
+            {
+                Object.DestroyImmediate(destroyed);
+
+                Assert.That(
+                    NDMFPreviewProxyUtility.TryBuildPair(destroyed, proxy, out var pair),
+                    Is.False);
+                Assert.That(pair.Item1, Is.Null);
+                Assert.That(pair.Item2, Is.Null);
+            }
+            finally
+            {
+                Object.DestroyImmediate(proxy);
+            }
+        }
+
+        [Test]
         public void NDMFPreviewProxyUtility_FakeSessionMembersAndMethods_AreEnumerated()
         {
             var original = new GameObject("original");
@@ -753,6 +776,279 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Object.DestroyImmediate(proxy);
                 Object.DestroyImmediate(source);
                 if (aaoMesh != null) Object.DestroyImmediate(aaoMesh);
+            }
+        }
+
+        [Test]
+        public void LatticeDeformerPostAaoPreviewFilter_NoTopologyDifferenceReturnsValidNoOpNode()
+        {
+            var original = new GameObject("post-aao-noop-original");
+            var proxy = new GameObject("post-aao-noop-proxy");
+            var source = CreateBlendShapeMesh(0);
+            IRenderFilterNode latticeNode = null;
+            IRenderFilterNode postNode = null;
+            try
+            {
+                var originalRenderer = original.AddComponent<SkinnedMeshRenderer>();
+                originalRenderer.sharedMesh = source;
+                var deformer = original.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+
+                var proxyRenderer = proxy.AddComponent<SkinnedMeshRenderer>();
+                proxyRenderer.sharedMesh = source;
+
+                var generate = typeof(LatticeDeformerPreviewFilter).GetMethod(
+                    "GeneratePreviewMesh",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                Assert.That(generate, Is.Not.Null);
+                var previewMesh = (Mesh)generate.Invoke(null, new object[] { deformer });
+                Assert.That(previewMesh, Is.Not.Null);
+
+                latticeNode = CreateLatticePreviewNode(
+                    deformer,
+                    new[] { ((Renderer)originalRenderer, (Renderer)proxyRenderer) },
+                    previewMesh);
+
+                var filter = new LatticeDeformerPostAaoPreviewFilter();
+                postNode = filter.Instantiate(
+                        RenderGroup.For(originalRenderer),
+                        new[] { ((Renderer)originalRenderer, (Renderer)proxyRenderer) },
+                        new ComputeContext("post AAO no-op contract test"))
+                    .GetAwaiter()
+                    .GetResult();
+
+                Assert.That(postNode, Is.Not.Null,
+                    "IRenderFilter.Instantiate must always return a node for a target group.");
+                Assert.That(postNode.WhatChanged, Is.EqualTo((RenderAspects)0));
+                Assert.DoesNotThrow(() => postNode.OnFrameGroup());
+                Assert.DoesNotThrow(() => postNode.OnFrame(originalRenderer, proxyRenderer));
+            }
+            finally
+            {
+                postNode?.Dispose();
+                latticeNode?.Dispose();
+                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(proxy);
+                Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
+        public void LatticeDeformerPostAaoPreviewFilter_UsesFinalProxyForCageAlignment()
+        {
+            var original = new GameObject("post-aao-proxy-original");
+            var preAaoProxy = new GameObject("post-aao-proxy-pre");
+            var postAaoProxy = new GameObject("post-aao-proxy-post");
+            var source = CreateBlendShapeMesh(0);
+            var previewMesh = Object.Instantiate(source);
+            var downstreamMesh = Object.Instantiate(source);
+            LatticeDeformerPostAaoPreviewFilter.PreviewNode postNode = null;
+            try
+            {
+                var originalFilter = original.AddComponent<MeshFilter>();
+                originalFilter.sharedMesh = source;
+                var originalRenderer = original.AddComponent<MeshRenderer>();
+                var deformer = original.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+
+                var preAaoFilter = preAaoProxy.AddComponent<MeshFilter>();
+                preAaoFilter.sharedMesh = previewMesh;
+                var preAaoRenderer = preAaoProxy.AddComponent<MeshRenderer>();
+
+                var postAaoFilter = postAaoProxy.AddComponent<MeshFilter>();
+                postAaoFilter.sharedMesh = downstreamMesh;
+                var postAaoRenderer = postAaoProxy.AddComponent<MeshRenderer>();
+                postAaoProxy.transform.position = new Vector3(3f, 0f, 0f);
+
+                LatticePreviewUtility.RegisterProxy(
+                    originalRenderer,
+                    preAaoRenderer,
+                    previewMesh,
+                    out _);
+                LatticePreviewUtility.RegisterPreviewMesh(originalRenderer, previewMesh);
+                int upstreamMappingRevision = LatticePreviewUtility.ProxyMappingRevision;
+
+                postNode = new LatticeDeformerPostAaoPreviewFilter.PreviewNode(
+                    deformer,
+                    originalRenderer,
+                    postAaoRenderer,
+                    downstreamMesh,
+                    new ComputeContext("post AAO cage alignment test"));
+
+                Assert.That(
+                    LatticePreviewUtility.ProxyMappingRevision,
+                    Is.EqualTo(upstreamMappingRevision),
+                    "Candidate registration must not publish a cage-frame change.");
+
+                Assert.That(
+                    LatticePreviewUtility.TryGetPreviewProxy(originalRenderer, out var activeProxy),
+                    Is.True);
+                Assert.That(
+                    activeProxy,
+                    Is.SameAs(preAaoRenderer),
+                    "A downstream proxy must remain a candidate until its output is displayed.");
+
+                var handler = new LatticeToolHandler();
+                Assert.That(
+                    handler.ResolveProxyRenderer(originalRenderer),
+                    Is.SameAs(preAaoRenderer));
+
+                postNode.OnFrame(originalRenderer, postAaoRenderer);
+
+                Assert.That(
+                    LatticePreviewUtility.ProxyMappingRevision,
+                    Is.EqualTo(upstreamMappingRevision + 1),
+                    "Displaying the candidate must publish exactly one cage-frame change.");
+                postNode.OnFrame(originalRenderer, postAaoRenderer);
+                Assert.That(
+                    LatticePreviewUtility.ProxyMappingRevision,
+                    Is.EqualTo(upstreamMappingRevision + 1),
+                    "Repeated display callbacks must not republish the same cage frame.");
+
+                Assert.That(
+                    LatticePreviewUtility.TryGetPreviewProxy(originalRenderer, out activeProxy),
+                    Is.True);
+                Assert.That(
+                    activeProxy,
+                    Is.SameAs(postAaoRenderer),
+                    "The displayed post-AAO proxy must become the committed cage proxy.");
+                Assert.That(
+                    handler.ResolveProxyRenderer(originalRenderer),
+                    Is.SameAs(postAaoRenderer),
+                    "The lattice tool must resolve the committed post-AAO proxy.");
+
+                postNode.Dispose();
+                postNode = null;
+                Assert.That(
+                    LatticePreviewUtility.TryGetPreviewProxy(originalRenderer, out var restoredProxy),
+                    Is.True);
+                Assert.That(
+                    restoredProxy,
+                    Is.SameAs(preAaoRenderer),
+                    "Disposing the downstream node must restore the upstream registration.");
+            }
+            finally
+            {
+                postNode?.Dispose();
+                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(preAaoProxy);
+                Object.DestroyImmediate(postAaoProxy);
+                Object.DestroyImmediate(source);
+                Object.DestroyImmediate(previewMesh);
+                Object.DestroyImmediate(downstreamMesh);
+            }
+        }
+
+        [Test]
+        public void LatticeToolProxyCache_CommitsLatestDisplayedProxyOnceAfterInteractionEnds()
+        {
+            var original = new GameObject("stable-proxy-original");
+            var preAaoProxy = new GameObject("stable-proxy-pre");
+            var postAaoProxy = new GameObject("stable-proxy-post");
+            var finalAaoProxy = new GameObject("stable-proxy-final");
+            var source = CreateBlendShapeMesh(0);
+            var previewMesh = Object.Instantiate(source);
+            var downstreamMesh = Object.Instantiate(source);
+            var finalDownstreamMesh = Object.Instantiate(source);
+            LatticeDeformerPostAaoPreviewFilter.PreviewNode postNode = null;
+            LatticeDeformerPostAaoPreviewFilter.PreviewNode finalNode = null;
+            LatticeToolHandler handler = null;
+            try
+            {
+                original.AddComponent<MeshFilter>().sharedMesh = source;
+                var originalRenderer = original.AddComponent<MeshRenderer>();
+                var deformer = original.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+
+                preAaoProxy.AddComponent<MeshFilter>().sharedMesh = previewMesh;
+                var preAaoRenderer = preAaoProxy.AddComponent<MeshRenderer>();
+                postAaoProxy.AddComponent<MeshFilter>().sharedMesh = downstreamMesh;
+                var postAaoRenderer = postAaoProxy.AddComponent<MeshRenderer>();
+                postAaoProxy.transform.position = new Vector3(3f, 0f, 0f);
+                finalAaoProxy.AddComponent<MeshFilter>().sharedMesh = finalDownstreamMesh;
+                var finalAaoRenderer = finalAaoProxy.AddComponent<MeshRenderer>();
+                finalAaoProxy.transform.position = new Vector3(5f, 0f, 0f);
+
+                LatticePreviewUtility.RegisterProxy(
+                    originalRenderer,
+                    preAaoRenderer,
+                    previewMesh,
+                    out _);
+                LatticePreviewUtility.RegisterPreviewMesh(originalRenderer, previewMesh);
+
+                handler = new LatticeToolHandler();
+                handler.Activate(deformer);
+                Assert.That(
+                    handler.ResolveProxyRenderer(originalRenderer),
+                    Is.SameAs(preAaoRenderer));
+
+                postNode = new LatticeDeformerPostAaoPreviewFilter.PreviewNode(
+                    deformer,
+                    originalRenderer,
+                    postAaoRenderer,
+                    downstreamMesh,
+                    new ComputeContext("stable AAO cage alignment test"));
+
+                Assert.That(
+                    handler.ResolveProxyRenderer(originalRenderer, false),
+                    Is.SameAs(preAaoRenderer),
+                    "An undisplayed downstream proxy must not replace the cage frame.");
+
+                postNode.OnFrame(originalRenderer, postAaoRenderer);
+
+                Assert.That(
+                    handler.ResolveProxyRenderer(originalRenderer, true),
+                    Is.SameAs(preAaoRenderer),
+                    "A displayed replacement must not move the cage during interaction.");
+
+                finalNode = new LatticeDeformerPostAaoPreviewFilter.PreviewNode(
+                    deformer,
+                    originalRenderer,
+                    finalAaoRenderer,
+                    finalDownstreamMesh,
+                    new ComputeContext("final AAO cage alignment test"));
+                finalNode.OnFrame(originalRenderer, finalAaoRenderer);
+
+                Assert.That(
+                    handler.ResolveProxyRenderer(originalRenderer, true),
+                    Is.SameAs(preAaoRenderer),
+                    "Intermediate displayed proxies must be coalesced during interaction.");
+
+                Assert.That(
+                    handler.ResolveProxyRenderer(originalRenderer, false),
+                    Is.SameAs(finalAaoRenderer),
+                    "The latest displayed proxy must be adopted once interaction ends.");
+
+                finalNode.Dispose();
+                finalNode = null;
+                Assert.That(
+                    LatticePreviewUtility.TryGetPreviewProxy(originalRenderer, out var restoredProxy),
+                    Is.True);
+                Assert.That(restoredProxy, Is.SameAs(postAaoRenderer));
+
+                postNode.Dispose();
+                postNode = null;
+                Assert.That(
+                    LatticePreviewUtility.TryGetPreviewProxy(originalRenderer, out restoredProxy),
+                    Is.True);
+                Assert.That(restoredProxy, Is.SameAs(preAaoRenderer));
+            }
+            finally
+            {
+                handler?.Deactivate();
+                finalNode?.Dispose();
+                postNode?.Dispose();
+                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(preAaoProxy);
+                Object.DestroyImmediate(postAaoProxy);
+                Object.DestroyImmediate(finalAaoProxy);
+                Object.DestroyImmediate(source);
+                Object.DestroyImmediate(previewMesh);
+                Object.DestroyImmediate(downstreamMesh);
+                Object.DestroyImmediate(finalDownstreamMesh);
             }
         }
 

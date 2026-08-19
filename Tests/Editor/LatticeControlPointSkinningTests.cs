@@ -155,6 +155,128 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
+        [Test]
+        public void Update_TopologyChangedProxyUsesItsRemappedWeightsAndBonesTogether()
+        {
+            var root = new GameObject("Root");
+            var bone0 = new GameObject("Bone0");
+            var bone1 = new GameObject("Bone1");
+            var sourceMesh = CreateTwoBoneTriangle();
+            var proxyMesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up, Vector3.one },
+                triangles = new[] { 0, 1, 2 },
+                boneWeights = new[]
+                {
+                    new BoneWeight { boneIndex0 = 1, weight0 = 1f },
+                    new BoneWeight { boneIndex0 = 1, weight0 = 1f },
+                    new BoneWeight { boneIndex0 = 1, weight0 = 1f },
+                    new BoneWeight { boneIndex0 = 1, weight0 = 1f }
+                },
+                bindposes = new[] { Matrix4x4.identity, Matrix4x4.identity }
+            };
+            try
+            {
+                bone0.transform.SetParent(root.transform, false);
+                bone1.transform.SetParent(root.transform, false);
+                bone1.transform.localPosition = new Vector3(5f, 0f, 0f);
+                bone1.transform.localScale = new Vector3(0.02f, 1f, 1f);
+
+                var renderer = root.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = proxyMesh;
+                renderer.bones = new[] { bone1.transform, bone0.transform };
+                renderer.rootBone = bone0.transform;
+
+                var cache = new LatticeControlPointSkinning();
+                Assert.That(
+                    cache.Update(
+                        renderer,
+                        sourceMesh,
+                        proxyMesh,
+                        sourceMesh.bounds,
+                        new Vector3Int(2, 2, 1),
+                        root.transform.worldToLocalMatrix),
+                    Is.True);
+                Assert.That(cache.IsValid, Is.True);
+
+                Vector3 neutral = sourceMesh.bounds.min;
+                Assert.That(cache.TryTransformPoint(0, neutral, out Vector3 displayed), Is.True);
+                AssertVector(displayed, neutral);
+
+                var displayedDelta = new Vector3(0.1f, 0f, 0f);
+                Assert.That(cache.TryInverseTransformVector(0, displayedDelta, out Vector3 storedDelta), Is.True);
+                AssertVector(storedDelta, displayedDelta);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(bone0);
+                Object.DestroyImmediate(bone1);
+                Object.DestroyImmediate(sourceMesh);
+                Object.DestroyImmediate(proxyMesh);
+            }
+        }
+
+        [Test]
+        public void Update_BlendShapeWeightChangeKeepsExistingControlPointBindings()
+        {
+            var root = new GameObject("Root");
+            var bone0 = new GameObject("Bone0");
+            var bone1 = new GameObject("Bone1");
+            var mesh = CreateTwoBoneTriangle();
+            mesh.AddBlendShapeFrame(
+                "MoveBindingAcrossBoneBoundary",
+                100f,
+                new[] { Vector3.left * 10f, Vector3.left, Vector3.zero },
+                null,
+                null);
+            try
+            {
+                bone0.transform.SetParent(root.transform, false);
+                bone1.transform.SetParent(root.transform, false);
+                bone1.transform.localPosition = new Vector3(2f, 0f, 0f);
+
+                var renderer = root.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = mesh;
+                renderer.bones = new[] { bone0.transform, bone1.transform };
+                renderer.rootBone = bone0.transform;
+
+                var cache = new LatticeControlPointSkinning();
+                Assert.That(
+                    cache.Update(
+                        renderer,
+                        mesh,
+                        mesh,
+                        mesh.bounds,
+                        new Vector3Int(2, 2, 1),
+                        root.transform.worldToLocalMatrix),
+                    Is.True);
+                int bindingRefreshes = cache.BindingRefreshCountForTests;
+                Assert.That(cache.TryTransformPoint(0, Vector3.zero, out Vector3 before), Is.True);
+
+                renderer.SetBlendShapeWeight(0, 100f);
+                Assert.That(
+                    cache.Update(
+                        renderer,
+                        mesh,
+                        mesh,
+                        mesh.bounds,
+                        new Vector3Int(2, 2, 1),
+                        root.transform.worldToLocalMatrix),
+                    Is.True);
+                Assert.That(cache.BindingRefreshCountForTests, Is.EqualTo(bindingRefreshes));
+                Assert.That(cache.TryTransformPoint(0, Vector3.zero, out Vector3 after), Is.True);
+                AssertVector(after, before);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(bone0);
+                Object.DestroyImmediate(bone1);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
         private static Mesh CreateTwoBoneTriangle()
         {
             var mesh = new Mesh
