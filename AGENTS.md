@@ -21,6 +21,15 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 └── package.json         # VPM パッケージ定義
 ```
 
+`Runtime/MeshDeformer/LatticeDeformer.cs` はシリアライズ対象フィールドと公開API、変形本体を保持し、
+公開リリース移行チェーンは `LatticeDeformer.Migration.cs`、BlendShape生成・合成処理は
+`LatticeDeformer.BlendShapes.cs` の partial class に分離している。元の `.cs` と `.meta` は
+MonoBehaviour のスクリプトGUIDを維持するため移動・改名しない。
+
+`Editor/MeshDeformer/MeshDeformerEditor.cs` はInspectorの基本構造、Group、Layer、
+BlendShape UIを保持し、Clearance Heatmap、Scan、Fit Correction、QA ReportのUIとScene描画は
+`LatticeDeformerEditor.cs` の partial class に分離している。
+
 ### 統合 EditorTool アーキテクチャ
 
 Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`EditorTool`）から 3 つのハンドラに委譲する構成:
@@ -334,7 +343,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `nadena.dev.ndmf` >= 1.9.0 (VPM)
 - `com.unity.mathematics` 1.2.6
 - `com.unity.burst` 1.8.12
-- `com.unity.collections` 1.2.4
+- `com.unity.collections` 2.1.4
 
 ## Codex へのルール
 

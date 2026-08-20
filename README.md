@@ -25,6 +25,11 @@ English documentation: [README_en.md](README_en.md)
   - レイヤーやグループの複製、コピー＆ペースト、並べ替えと、レイヤーの左右分割・反転に対応
 - **Vertex Mask**: 保護する頂点を塗り、Brush とレイヤー合成の変形量を制限
 - **BlendShape**: 既存 BlendShape を Brush レイヤーへ読み込み、グループまたはレイヤーを新しい BlendShape として出力
+- **Clearance Heatmap**: 参照 Renderer との距離を色分けし、貫通深度と不足距離を集計
+- **Clearance Scan**: AnimationClip、BlendShape、Transform の複数条件を順に評価し、条件ごとの統計と最悪条件を記録
+- **Fit Correction**: Clearance の不足量から、制約付きの補正用 Brush Layer を生成
+- **QA Report**: Heatmap または Scan の結果を共有用の JSON と Markdown へ出力
+- **Profile**: Group、Layer、Mask、Brush変位、BlendShape出力設定を複数コンポーネントで共有
 - **Mesh rebuild**: 法線、タンジェント、Bounds、SkinnedMesh の Bone Weight を必要に応じて再計算
 - **NDMF Preview / Bake**: Preview 中はプロキシ Mesh で確認し、アバターまたはワールドのビルド時にだけ変形を適用
 
@@ -88,10 +93,30 @@ English documentation: [README_en.md](README_en.md)
 
 直接変形する Group と BlendShape 出力する Group は同じコンポーネント内で併用できます。
 
+### 4. 複数ポーズのクリアランスを確認して補正
+
+1. **Clearance Heatmap** で参照 Renderer、Query Mode、警告距離、目標距離を設定します。
+2. 複数のポーズや BlendShape 状態を検査する場合は `ClearanceScanSet` を作成し、Conditionを評価します。
+3. Scan結果から問題のあるConditionをSceneへ再適用し、対象範囲と最大移動量を指定して **Fit Correction** を生成します。
+4. 生成されたBrush Layerを確認し、必要ならMask、境界固定、平滑化、対称補正の制約を調整します。
+5. **QA Report** からJSONとMarkdownを同じフォルダへ出力し、しきい値とCondition統計を共有します。
+
+HeatmapとScanは検出専用であり、Mesh、Layer、BlendShapeを変更しません。
+Fit Correctionは補正結果を新しいBrush Layerとして追加し、Source Meshや既存Layerを書き換えません。
+
+## 100%を超えるSource BlendShapeの制約
+
+VRChat SDKを導入したUnityプロジェクトでは、Unity側のBlendShape評価が最終フレームでクランプされます。
+一方、このパッケージがPreviewとBakeでSource BlendShapeを頂点へ焼き込む処理は、最終フレームを超えるウェイトを線形外挿します。
+
+そのため、Source BlendShapeのウェイトが最終フレームのウェイトを超える場合、Unityの通常表示と本パッケージのPreviewまたはBake結果が一致しないことがあります。
+この制約を避けるには、LatticeDeformerのSource Meshで使用するBlendShapeウェイトを最終フレーム以下に収めてください。
+
 ## データの扱い
 
 - Source Mesh アセットへ頂点変更を書き戻しません。
 - 変形データは `LatticeDeformer` の Group / Layer としてシーンまたは Prefab に保存されます。
+- `MeshDeformerProfile` を使うと変形設定を共有できます。Profile適用時は頂点数とTopologyを検査し、不一致なら適用を中止します。
 - NDMF Preview は表示用のプロキシ Mesh を利用し、終了時に上流の Mesh 表示へ戻します。
 - 旧 `BrushDeformer` は Inspector の明示的な移行操作で Brush Layer へコピーできます。移行後の旧コンポーネントは無効なバックアップとして保持されます。
 

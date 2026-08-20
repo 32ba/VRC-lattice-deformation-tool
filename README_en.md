@@ -25,6 +25,11 @@ Use it for fitting clothing, hair, and accessories, manually correcting intersec
   - Duplicate, copy and paste, or reorder layers and groups; split and flip individual layers
 - **Vertex Mask**: Paint protected vertices to limit Brush edits and layer contributions
 - **BlendShapes**: Import an existing BlendShape as a Brush layer and output a group or layer as a new BlendShape
+- **Clearance Heatmap**: Color-code distance from a reference Renderer and summarize penetration depth and clearance deficits
+- **Clearance Scan**: Evaluate multiple AnimationClip, BlendShape, and Transform conditions and record per-condition statistics and the worst condition
+- **Fit Correction**: Generate a constrained corrective Brush Layer from measured clearance deficits
+- **QA Report**: Export Heatmap or Scan results as shareable JSON and Markdown files
+- **Profile**: Share Groups, Layers, Masks, Brush displacements, and BlendShape output settings across components
 - **Mesh rebuild**: Optionally recalculate normals, tangents, bounds, and SkinnedMesh bone weights
 - **NDMF Preview / Bake**: Inspect changes on a proxy Mesh and apply them only during an avatar or world build
 
@@ -88,10 +93,30 @@ Penetration visualization is an editing aid based on an approximate test. It is 
 
 Groups that deform vertices directly and Groups that output BlendShapes can coexist on the same component.
 
+### 4. Check and correct clearance across multiple poses
+
+1. Configure the reference Renderer, Query Mode, warning distance, and target distance under **Clearance Heatmap**.
+2. To inspect multiple poses or BlendShape states, create a `ClearanceScanSet` and evaluate its Conditions.
+3. Reapply a problematic Condition to the Scene, choose the correction scope and maximum movement, then generate a **Fit Correction**.
+4. Inspect the generated Brush Layer and adjust constraints such as Mask, boundary pinning, smoothing, and symmetry when needed.
+5. Use **QA Report** to export JSON and Markdown files containing thresholds and per-Condition statistics.
+
+Heatmap and Scan only inspect the result; they do not modify the Mesh, Layers, or BlendShapes.
+Fit Correction adds a new corrective Brush Layer without changing the Source Mesh or existing Layers.
+
+## Source BlendShapes above 100%
+
+In a Unity project with the VRChat SDK installed, Unity clamps BlendShape evaluation at the last frame.
+The source-geometry path used by this package for Preview and Bake instead linearly extrapolates weights beyond the last Source BlendShape frame.
+
+As a result, Unity's normal rendering can differ from this package's Preview or Bake when a Source BlendShape weight exceeds its last frame weight.
+Keep Source BlendShape weights at or below their last frame weight on meshes used by `LatticeDeformer` to avoid this mismatch.
+
 ## Data behavior
 
 - Vertex changes are never written back to the Source Mesh asset.
 - Deformation data is stored in the scene or Prefab as Groups and Layers on `LatticeDeformer`.
+- `MeshDeformerProfile` can share deformation settings. Profile application validates vertex counts and topology and stops without modifying the component when they do not match.
 - NDMF Preview uses a display proxy and restores the upstream Mesh display when preview ends.
 - A legacy `BrushDeformer` can be copied into a Brush Layer with the explicit Inspector migration action. The legacy component is retained as a disabled backup.
 

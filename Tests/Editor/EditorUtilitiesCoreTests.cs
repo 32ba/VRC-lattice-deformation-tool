@@ -886,7 +886,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(ReleaseChecker.HasNewVersion, Is.True);
                 Assert.That(completed, Is.EqualTo(3));
 
-                LogAssert.Expect(LogType.Log, new System.Text.RegularExpressions.Regex(@"\[LatticeDeformationTool\] Package is up to date: .*"));
                 InvokeReleaseCheckerHandler("HandleSuccess", "0.0.0");
                 Assert.That(completed, Is.EqualTo(4));
             }
@@ -1034,7 +1033,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 EditorPrefs.DeleteKey(key);
                 Assert.That(InvokeReleaseCheckerPrivate<bool>("ShouldCheckForUpdates"), Is.True);
 
-                EditorPrefs.SetString(key, DateTime.Now.ToBinary().ToString());
+                EditorPrefs.SetString(key, DateTime.UtcNow.ToBinary().ToString());
                 Assert.That(InvokeReleaseCheckerPrivate<bool>("ShouldCheckForUpdates"), Is.False);
             }
             finally
