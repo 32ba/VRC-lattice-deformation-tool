@@ -154,7 +154,7 @@ jobs:
           # If packages.vrchat.com ever starts rejecting the runner, setup-vrc-get exposes a
           # "fix-official-curated-repository" input that switches to direct download links.
           vrc-get repo add -- https://vpm.nadena.dev/vpm.json || true
-          vrc-get repo add -- https://anatawa12.github.io/vpm-repository/vpm.json || true
+          vrc-get repo add -- https://vpm.anatawa12.com/vpm.json || true
 
           vrc-get install --project ci-project --yes com.vrchat.avatars "$VRCHAT_SDK_VERSION"
           vrc-get install --project ci-project --yes nadena.dev.ndmf "$NDMF_VERSION"
