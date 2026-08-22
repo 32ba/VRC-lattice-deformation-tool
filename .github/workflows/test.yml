@@ -4,10 +4,10 @@ name: Test
 #
 # This repository ships a UPM/VPM package, not a Unity project, so the workflow scaffolds a
 # minimal Unity project under ci-project/ and embeds the package into its Packages/ folder.
-# vrc-get then installs the VRChat SDK and NDMF from their VPM listings, which reproduces the
-# VCC project the package actually targets. The VRChat SDK is required: NDMF treats plugins
-# that declare no platform as VRChat-avatar-only, so the bake pass is skipped as "Incompatible"
-# without it and MeshDeformerValidatorTests fails.
+# vrc-get then installs the VRChat SDK, NDMF, and Avatar Optimizer from their VPM listings,
+# which reproduces the VCC project the package actually targets. The VRChat SDK is required:
+# NDMF treats plugins that declare no platform as VRChat-avatar-only, so the bake pass is
+# skipped as "Incompatible" without it and MeshDeformerValidatorTests fails.
 # No scripting defines are added on purpose - CI must reflect a clean end-user configuration
 # (for example LATTICE_DEFORMATION_TOOL_ENABLE_NEXT_RELEASE_FEATURES must NOT be defined).
 # LATTICE_VRCSDK3_AVATAR comes from the asmdef versionDefines and is part of that configuration.
@@ -128,7 +128,7 @@ jobs:
         uses: anatawa12/sh-actions/setup-vrc-get@1d155c7a26bcd0a54ffd9cb38fd66ab0d32d23cd # master
 
       # Install the VPM packages a real VCC project would have.
-      # Both versions are pinned so a CI failure always points at this repository.
+      # All versions are pinned so a CI failure always points at this repository.
       - name: Install VPM Packages
         env:
           # Latest stable VRChat SDK. It declares "unity": "2022.3", matching the editor version
@@ -139,17 +139,26 @@ jobs:
           # already pulls com.unity.collections 2.1.4, so bumping to 1.14.3 or later no longer
           # changes the resolved collections version.
           NDMF_VERSION: 1.14.2
+          # Avatar Optimizer registers its own NDMF render filters and bake passes, so having it
+          # installed keeps CI on the same plugin set as the VCC projects this package targets.
+          # RealPreviewPipelineEndToEndTests also requires its RemoveMeshInBox component; that
+          # E2E still skips under -nographics, but the surrounding suite must compile against a
+          # real AAO layout instead of silently passing in an environment no user has.
+          AVATAR_OPTIMIZER_VERSION: 1.9.17
         run: |
           set -euo pipefail
 
-          # The VRChat official listing is built into vrc-get; NDMF ships from bd_'s listing.
-          # "|| true" keeps the step idempotent when the repository is already registered.
+          # The VRChat official listing is built into vrc-get; NDMF ships from bd_'s listing and
+          # Avatar Optimizer from anatawa12's listing.
+          # "|| true" keeps each step idempotent when the repository is already registered.
           # If packages.vrchat.com ever starts rejecting the runner, setup-vrc-get exposes a
           # "fix-official-curated-repository" input that switches to direct download links.
           vrc-get repo add -- https://vpm.nadena.dev/vpm.json || true
+          vrc-get repo add -- https://anatawa12.github.io/vpm-repository/vpm.json || true
 
           vrc-get install --project ci-project --yes com.vrchat.avatars "$VRCHAT_SDK_VERSION"
           vrc-get install --project ci-project --yes nadena.dev.ndmf "$NDMF_VERSION"
+          vrc-get install --project ci-project --yes com.anatawa12.avatar-optimizer "$AVATAR_OPTIMIZER_VERSION"
 
           vrc-get info project --project ci-project
 
