@@ -33,6 +33,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SerializedProperty _skinnedRendererProp;
         private SerializedProperty _meshFilterProp;
         private SerializedProperty _recalcNormalsProp;
+        private SerializedProperty _normalsModeProp;
         private SerializedProperty _recalcTangentsProp;
         private SerializedProperty _recalcBoundsProp;
         private SerializedProperty _recalcBoneWeightsProp;
@@ -147,6 +148,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _skinnedRendererProp = serializedObject.FindProperty("_skinnedMeshRenderer");
             _meshFilterProp = serializedObject.FindProperty("_meshFilter");
             _recalcNormalsProp = serializedObject.FindProperty("_recalculateNormals");
+            _normalsModeProp = serializedObject.FindProperty("_normalsRecalculationMode");
             _recalcTangentsProp = serializedObject.FindProperty("_recalculateTangents");
             _recalcBoundsProp = serializedObject.FindProperty("_recalculateBounds");
             _recalcBoneWeightsProp = serializedObject.FindProperty("_recalculateBoneWeights");
@@ -2648,6 +2650,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         _recalcTangentsProp.boolValue = GUILayout.Toggle(_recalcTangentsProp.boolValue, LatticeLocalization.Tr(LocKey.Tangents));
                     if (_recalcBoundsProp != null)
                         _recalcBoundsProp.boolValue = GUILayout.Toggle(_recalcBoundsProp.boolValue, LatticeLocalization.Tr(LocKey.Bounds));
+                }
+
+                if (_recalcNormalsProp != null && _recalcNormalsProp.boolValue && _normalsModeProp != null)
+                {
+                    // Unknown serialized enum values must retain the legacy behavior.
+                    int normalsMode = Mathf.Clamp(_normalsModeProp.enumValueIndex, 0, 1);
+                    _normalsModeProp.enumValueIndex = EditorGUILayout.Popup(
+                        LatticeLocalization.Content(LocKey.NormalsMode),
+                        normalsMode,
+                        new[]
+                        {
+                            LatticeLocalization.Content(LocKey.NormalsLegacyUnityRecalculate),
+                            LatticeLocalization.Content(LocKey.NormalsPreserveSourceSmoothing)
+                        });
                 }
 
                 // Bone weight recalculation (only for SkinnedMeshRenderer)

@@ -1020,6 +1020,18 @@ msgstr "法线"
 msgid "net.32ba.lattice-deformation-tool.localization.normals.tooltip"
 msgstr "重新计算光如何从变形表面反射。"
 
+msgid "net.32ba.lattice-deformation-tool.localization.normals-mode"
+msgstr "法线重计算模式"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals-mode.tooltip"
+msgstr "选择传统Unity计算，或根据原始平滑跨UV接缝保持法线。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals-legacy-unity-recalculate"
+msgstr "传统Unity重计算"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals-preserve-source-smoothing"
+msgstr "保持原始平滑"
+
 msgid "net.32ba.lattice-deformation-tool.localization.tangents"
 msgstr "切线"
 

@@ -240,6 +240,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         // Mesh Rebuild Options
         internal const string MeshRebuildOptions = "net.32ba.lattice-deformation-tool.localization.mesh-rebuild-options";
         internal const string Normals = "net.32ba.lattice-deformation-tool.localization.normals";
+        internal const string NormalsMode = "net.32ba.lattice-deformation-tool.localization.normals-mode";
+        internal const string NormalsLegacyUnityRecalculate = "net.32ba.lattice-deformation-tool.localization.normals-legacy-unity-recalculate";
+        internal const string NormalsPreserveSourceSmoothing = "net.32ba.lattice-deformation-tool.localization.normals-preserve-source-smoothing";
         internal const string Tangents = "net.32ba.lattice-deformation-tool.localization.tangents";
         internal const string Bounds = "net.32ba.lattice-deformation-tool.localization.bounds";
         internal const string RecalculateBoneWeights = "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights";

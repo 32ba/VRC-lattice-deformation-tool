@@ -24,6 +24,12 @@ namespace Net._32Ba.LatticeDeformationTool
         OutputAsBlendShape = 1
     }
 
+    public enum NormalsRecalculationMode
+    {
+        LegacyUnityRecalculate = 0,
+        PreserveSourceSmoothing = 1
+    }
+
     public enum ClearanceHeatmapDisplayMode
     {
         PenetrationOnly = 0,
@@ -775,6 +781,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private SkinnedMeshRenderer _skinnedMeshRenderer;
         [SerializeField] private MeshFilter _meshFilter;
         [SerializeField] private bool _recalculateNormals = true;
+        [SerializeField] private NormalsRecalculationMode _normalsRecalculationMode = NormalsRecalculationMode.LegacyUnityRecalculate;
         [SerializeField] private bool _recalculateTangents = false;
         [SerializeField] private bool _recalculateBounds = true;
         [SerializeField] private bool _recalculateBoneWeights = false;
@@ -1411,6 +1418,12 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             get => _recalculateBoneWeights;
             set => _recalculateBoneWeights = value;
+        }
+
+        public NormalsRecalculationMode NormalsMode
+        {
+            get => _normalsRecalculationMode;
+            set => _normalsRecalculationMode = value;
         }
 
         public BlendShapeOutputMode BlendShapeOutput
@@ -2110,6 +2123,7 @@ namespace Net._32Ba.LatticeDeformationTool
             hash = HashCode.Combine(hash, _activeGroupIndex);
             hash = HashCode.Combine(hash, (gameObject.name ?? "").GetHashCode());
             hash = HashCode.Combine(hash, _recalculateNormals);
+            hash = HashCode.Combine(hash, (int)_normalsRecalculationMode);
             hash = HashCode.Combine(hash, _recalculateTangents);
             hash = HashCode.Combine(hash, _recalculateBounds);
 
@@ -2496,6 +2510,7 @@ namespace Net._32Ba.LatticeDeformationTool
                     HashVertices(finalVertices),
                     bakedBlendShapeHash,
                     _recalculateNormals,
+                    _normalsRecalculationMode,
                     _recalculateTangents,
                     _legacyPublishedBlendShapeSemantics);
                 if (_blendShapeOutputDirty || blendShapeHash != _lastBlendShapeHash)
@@ -2539,7 +2554,14 @@ namespace Net._32Ba.LatticeDeformationTool
 
             if (_recalculateNormals)
             {
-                mesh.RecalculateNormals();
+                if (_normalsRecalculationMode == NormalsRecalculationMode.PreserveSourceSmoothing)
+                {
+                    mesh.SetNormals(SeamAwareMeshNormalCalculator.Calculate(mesh, _sourceMesh));
+                }
+                else
+                {
+                    mesh.RecalculateNormals();
+                }
             }
             else
             {
@@ -3974,10 +3996,11 @@ namespace Net._32Ba.LatticeDeformationTool
                 candidateDeltaTangents = _recalculateTangents ? new Vector3[candidates.Length][] : null;
                 for (int candidate = 0; candidate < candidates.Length; candidate++)
                 {
-                    CalculateGeneratedSurfaceDeltas(
+                    CalculateGeneratedSurfaceDeltasWithNormalsMode(
                         mesh,
                         baseVertices,
                         candidates[candidate],
+                        _normalsRecalculationMode,
                         _recalculateNormals,
                         _recalculateTangents,
                         out var normals,
@@ -4018,10 +4041,11 @@ namespace Net._32Ba.LatticeDeformationTool
                 Vector3[] frameTangents;
                 if (recomputeComposedSurfaceDeltas)
                 {
-                    CalculateGeneratedSurfaceDeltas(
+                    CalculateGeneratedSurfaceDeltasWithNormalsMode(
                         mesh,
                         baseVertices,
                         frameDeltas,
+                        _normalsRecalculationMode,
                         _recalculateNormals,
                         _recalculateTangents,
                         out frameNormals,
@@ -4108,10 +4132,34 @@ namespace Net._32Ba.LatticeDeformationTool
             return result;
         }
 
+        // Kept with the original name and seven-argument signature for existing
+        // editor reflection callers and compatibility tests. The legacy mode is
+        // intentionally fixed here so old callers retain their exact behavior.
         private static void CalculateGeneratedSurfaceDeltas(
             Mesh template,
             Vector3[] baseVertices,
             Vector3[] deltas,
+            bool includeNormals,
+            bool includeTangents,
+            out Vector3[] deltaNormals,
+            out Vector3[] deltaTangents)
+        {
+            CalculateGeneratedSurfaceDeltasWithNormalsMode(
+                template,
+                baseVertices,
+                deltas,
+                NormalsRecalculationMode.LegacyUnityRecalculate,
+                includeNormals,
+                includeTangents,
+                out deltaNormals,
+                out deltaTangents);
+        }
+
+        private static void CalculateGeneratedSurfaceDeltasWithNormalsMode(
+            Mesh template,
+            Vector3[] baseVertices,
+            Vector3[] deltas,
+            NormalsRecalculationMode normalsMode,
             bool includeNormals,
             bool includeTangents,
             out Vector3[] deltaNormals,
@@ -4144,8 +4192,8 @@ namespace Net._32Ba.LatticeDeformationTool
 
                 if (includeNormals)
                 {
-                    baseMesh.RecalculateNormals();
-                    targetMesh.RecalculateNormals();
+                    RecalculateSurfaceNormals(baseMesh, template, normalsMode);
+                    RecalculateSurfaceNormals(targetMesh, template, normalsMode);
 
                     var baseNormals = baseMesh.normals;
                     var targetNormals = targetMesh.normals;
@@ -4162,8 +4210,8 @@ namespace Net._32Ba.LatticeDeformationTool
 
                 if (includeTangents)
                 {
-                    baseMesh.RecalculateNormals();
-                    targetMesh.RecalculateNormals();
+                    RecalculateSurfaceNormals(baseMesh, template, normalsMode);
+                    RecalculateSurfaceNormals(targetMesh, template, normalsMode);
                     baseMesh.RecalculateTangents();
                     targetMesh.RecalculateTangents();
 
@@ -4187,6 +4235,21 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 DestroyTemporaryMesh(baseMesh);
                 DestroyTemporaryMesh(targetMesh);
+            }
+        }
+
+        private static void RecalculateSurfaceNormals(
+            Mesh mesh,
+            Mesh sourceMesh,
+            NormalsRecalculationMode normalsMode)
+        {
+            if (normalsMode == NormalsRecalculationMode.PreserveSourceSmoothing)
+            {
+                mesh.SetNormals(SeamAwareMeshNormalCalculator.Calculate(mesh, sourceMesh));
+            }
+            else
+            {
+                mesh.RecalculateNormals();
             }
         }
 

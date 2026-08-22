@@ -1020,6 +1020,18 @@ msgstr "노멀"
 msgid "net.32ba.lattice-deformation-tool.localization.normals.tooltip"
 msgstr "변형된 표면에서 빛이 반사되는 방식을 다시 계산합니다."
 
+msgid "net.32ba.lattice-deformation-tool.localization.normals-mode"
+msgstr "노멀 재계산 모드"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals-mode.tooltip"
+msgstr "기존 Unity 계산 또는 UV 심을 가로질러 원본 스무딩을 유지하는 계산을 선택합니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals-legacy-unity-recalculate"
+msgstr "기존 Unity 재계산"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals-preserve-source-smoothing"
+msgstr "원본 스무딩 유지"
+
 msgid "net.32ba.lattice-deformation-tool.localization.tangents"
 msgstr "탄젠트"
 
