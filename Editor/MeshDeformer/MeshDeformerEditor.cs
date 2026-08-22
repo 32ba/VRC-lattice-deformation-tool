@@ -666,6 +666,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void DrawTopSection()
         {
+            // The Inspector can repaint once more after the inspected object was
+            // destroyed (e.g. closing a Prefab Stage); bail out before touching it.
+            if (target == null) return;
+
             AutoAssignLocalRendererReferences();
             serializedObject.Update();
             ResolveActiveGroupProperties();
@@ -893,6 +897,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void DrawBottomSection()
         {
+            if (target == null) return;
+
             serializedObject.Update();
             ResolveActiveGroupProperties();
 
@@ -2215,7 +2221,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 imgui.onGUIHandler = () =>
                 {
-                    if (target is not LatticeDeformer deformer) return;
+                    if (target is not LatticeDeformer deformer || deformer == null) return;
                     serializedObject.Update();
 
                     if (isBrush)
@@ -2390,7 +2396,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             foreach (var obj in targets)
             {
-                if (obj is LatticeDeformer deformer)
+                // A type pattern alone does not apply Unity's fake-null check, so a
+                // destroyed target (e.g. closed Prefab Stage while selected) must be
+                // filtered explicitly before any component access.
+                if (obj is LatticeDeformer deformer && deformer != null)
                 {
                     yield return deformer;
                 }
@@ -3250,6 +3259,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void DrawGroupBlendShapeSection(int groupIndex)
         {
+            // This runs from an IMGUIContainer inside a list item, which can repaint
+            // once more after the inspected object was destroyed.
+            if (target == null) return;
+
             serializedObject.Update();
             if (_groupsProp == null || groupIndex < 0 || groupIndex >= _groupsProp.arraySize) return;
 
