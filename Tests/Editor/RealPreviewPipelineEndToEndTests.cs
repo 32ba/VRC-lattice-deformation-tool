@@ -48,7 +48,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             SceneView sceneView = null;
             bool holdInteraction = false;
             int ownedHotControl = 0;
-            bool previewWasEnabled = PreviewSession.Current != null;
+            bool previewWasEnabled = IsPreviewUiEnabled();
             int previousDisableDepth = NDMFPreview.DisablePreviewDepth;
             Object previousSelection = Selection.activeObject;
             Type previousTool = ToolManager.activeToolType;
@@ -60,7 +60,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 InitializeRemoveMeshInBox(removeMeshInBox, new Vector3(-0.75f, 0f, 0f));
 
                 NDMFPreview.DisablePreviewDepth = 0;
-                if (PreviewSession.Current == null)
+                if (PreviewSession.Current == null && !previewWasEnabled)
                 {
                     Assert.That(EditorApplication.ExecuteMenuItem(EnablePreviewMenu), Is.True,
                         "The E2E must enable the same global preview session used by the Scene View.");
@@ -157,7 +157,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Selection.activeObject = previousSelection;
 
                 NDMFPreview.DisablePreviewDepth = previousDisableDepth;
-                if (!previewWasEnabled && PreviewSession.Current != null && previousDisableDepth == 0)
+                // The menu item is a toggle: only flip it back when this test was the
+                // one that enabled it, otherwise the restore would disable previews.
+                if (!previewWasEnabled)
                     EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
 
                 LatticePreviewUtility.ClearProxy(sourceRenderer);
@@ -307,6 +309,18 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
 
             Assert.Fail(failure);
+        }
+
+        /// <summary>
+        /// Reads NDMF's "Enable Previews" toggle. The menu item is a toggle, so tests
+        /// must consult this state instead of inferring it from PreviewSession.Current,
+        /// which is also null while an already-enabled session is still being built.
+        /// </summary>
+        private static bool IsPreviewUiEnabled()
+        {
+            return typeof(NDMFPreview)
+                .GetProperty("EnablePreviewsUI", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)
+                ?.GetValue(null) is bool enabled && enabled;
         }
 
         private static bool IsGenuineAaoOutput(Renderer proxy, Mesh source, GameObject avatarRoot)

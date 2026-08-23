@@ -76,7 +76,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static MirrorAxis s_mirrorAxis = MirrorAxis.X;
         private static MirrorBehavior s_mirrorBehavior = MirrorBehavior.Mirrored;
         private static bool s_occludeWithSceneGeometry = true;
-        private static PivotRotation? s_previousPivotRotation;
         private static Vector3Int s_lastGridSize = Vector3Int.one;
         private static readonly Vector3[] s_mirrorPlaneCorners = new Vector3[4];
 
@@ -271,8 +270,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             InvalidateProxyCache(true);
             _activeDeformer = deformer;
-            s_previousPivotRotation = Tools.pivotRotation;
-            Tools.pivotRotation = PivotRotation.Local;
             Undo.undoRedoPerformed += OnUndoRedo;
             EditorApplication.hierarchyChanged += InvalidateProxyCache;
             EditorApplication.projectChanged += InvalidateProxyCache;
@@ -286,11 +283,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorApplication.projectChanged -= InvalidateProxyCache;
             InvalidateProxyCache(true);
             ClearSelection();
-            if (s_previousPivotRotation.HasValue)
-            {
-                Tools.pivotRotation = s_previousPivotRotation.Value;
-                s_previousPivotRotation = null;
-            }
             _activeDeformer = null;
         }
 
@@ -299,11 +291,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (Event.current != null && Event.current.commandName == "UndoRedoPerformed")
             {
                 return;
-            }
-
-            if (Tools.pivotRotation != PivotRotation.Local)
-            {
-                Tools.pivotRotation = PivotRotation.Local;
             }
 
             if (deformer.ActiveLayerType != MeshDeformerLayerType.Lattice)

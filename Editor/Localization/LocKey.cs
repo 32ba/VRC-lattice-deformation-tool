@@ -94,7 +94,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string SelectedFormat = "net.32ba.lattice-deformation-tool.localization.selected-format";
         internal const string SelectedControlsFormat = "net.32ba.lattice-deformation-tool.localization.selected-controls-format";
         internal const string GlobalSpaceDisabled = "net.32ba.lattice-deformation-tool.localization.global-space-disabled";
-
         // Lattice Grid
         internal const string CurrentGridDivisions = "net.32ba.lattice-deformation-tool.localization.current-grid-divisions";
         internal const string PendingGridDivisions = "net.32ba.lattice-deformation-tool.localization.pending-grid-divisions";
@@ -129,7 +128,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string ClearAllDisplacements = "net.32ba.lattice-deformation-tool.localization.clear-all-displacements";
         internal const string ClearActiveLayerDisplacements = "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements";
         internal const string BackfaceCulling = "net.32ba.lattice-deformation-tool.localization.backface-culling";
-        internal const string AltScrollHint = "net.32ba.lattice-deformation-tool.localization.alt-scroll-hint";
         internal const string Mask = "net.32ba.lattice-deformation-tool.localization.mask";
         internal const string ClearMask = "net.32ba.lattice-deformation-tool.localization.clear-mask";
         internal const string ClearAll = "net.32ba.lattice-deformation-tool.localization.clear-all";
@@ -232,14 +230,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string Center = "net.32ba.lattice-deformation-tool.localization.center";
         internal const string LastSelected = "net.32ba.lattice-deformation-tool.localization.last-selected";
         internal const string SelectedVerticesFormat = "net.32ba.lattice-deformation-tool.localization.selected-vertices-format";
-        internal const string WERHint = "net.32ba.lattice-deformation-tool.localization.wer-hint";
-        internal const string AltScrollProportionalHint = "net.32ba.lattice-deformation-tool.localization.alt-scroll-proportional-hint";
-        internal const string ShiftDragPrecision = "net.32ba.lattice-deformation-tool.localization.shift-drag-precision";
-        internal const string ZTogglePivot = "net.32ba.lattice-deformation-tool.localization.z-toggle-pivot";
-
         // Mesh Rebuild Options
         internal const string MeshRebuildOptions = "net.32ba.lattice-deformation-tool.localization.mesh-rebuild-options";
         internal const string Normals = "net.32ba.lattice-deformation-tool.localization.normals";
+        internal const string NormalsMode = "net.32ba.lattice-deformation-tool.localization.normals-mode";
+        internal const string NormalsLegacyUnityRecalculate = "net.32ba.lattice-deformation-tool.localization.normals-legacy-unity-recalculate";
+        internal const string NormalsPreserveSourceSmoothing = "net.32ba.lattice-deformation-tool.localization.normals-preserve-source-smoothing";
         internal const string Tangents = "net.32ba.lattice-deformation-tool.localization.tangents";
         internal const string Bounds = "net.32ba.lattice-deformation-tool.localization.bounds";
         internal const string RecalculateBoneWeights = "net.32ba.lattice-deformation-tool.localization.recalculate-bone-weights";
