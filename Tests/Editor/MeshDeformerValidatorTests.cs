@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -6,6 +7,7 @@ using nadena.dev.ndmf;
 using nadena.dev.ndmf.preview;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
+using Unity.Collections;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -43,6 +45,25 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 new[] { Vector3.forward, Vector3.zero, Vector3.zero, Vector3.zero },
                 null,
                 null);
+            mesh.bindposes = Enumerable.Repeat(Matrix4x4.identity, 5).ToArray();
+            var bonesPerVertex = new NativeArray<byte>(new byte[] { 5, 1, 1, 1 }, Allocator.Temp);
+            var boneWeights = new NativeArray<BoneWeight1>(8, Allocator.Temp);
+            try
+            {
+                for (int index = 0; index < 5; index++)
+                {
+                    boneWeights[index] = new BoneWeight1 { boneIndex = index, weight = 0.2f };
+                }
+                boneWeights[5] = new BoneWeight1 { boneIndex = 0, weight = 1f };
+                boneWeights[6] = new BoneWeight1 { boneIndex = 1, weight = 1f };
+                boneWeights[7] = new BoneWeight1 { boneIndex = 2, weight = 1f };
+                mesh.SetBoneWeights(bonesPerVertex, boneWeights);
+            }
+            finally
+            {
+                boneWeights.Dispose();
+                bonesPerVertex.Dispose();
+            }
             mesh.UploadMeshData(true);
             try
             {
@@ -73,6 +94,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(result, Is.Not.Null);
                 Assert.That(result.vertexCount, Is.EqualTo(mesh.vertexCount));
                 Assert.That(result.blendShapeCount, Is.EqualTo(mesh.blendShapeCount));
+                using (NativeArray<byte> resultBonesPerVertex = result.GetBonesPerVertex())
+                using (NativeArray<BoneWeight1> resultBoneWeights = result.GetAllBoneWeights())
+                {
+                    Assert.That(resultBonesPerVertex[0], Is.EqualTo(5),
+                        "The Editor readable copy must preserve more than four bone weights per vertex.");
+                    Assert.That(resultBoneWeights.Length, Is.EqualTo(8));
+                }
 
                 var initializedField = typeof(LatticeDeformer).GetField(
                     "_hasInitializedFromSource", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -83,6 +111,71 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 Object.DestroyImmediate(gameObject);
                 Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void ImportedNonReadableSource_DeformUsesTemporaryReadableCopy()
+        {
+            const string testDirectory = "Assets/LatticeDeformerReadWriteDisabledTest";
+            const string meshPath = testDirectory + "/source.obj";
+            var gameObject = new GameObject("Imported Non-readable Source");
+            Mesh result = null;
+            try
+            {
+                if (AssetDatabase.IsValidFolder(testDirectory))
+                {
+                    AssetDatabase.DeleteAsset(testDirectory);
+                }
+
+                Directory.CreateDirectory(testDirectory);
+                File.WriteAllText(
+                    meshPath,
+                    "v 0 0 0\n" +
+                    "v 1 0 0\n" +
+                    "v 0 1 0\n" +
+                    "v 1 1 0\n" +
+                    "f 1 3 2\n" +
+                    "f 2 3 4\n");
+                AssetDatabase.ImportAsset(meshPath, ImportAssetOptions.ForceSynchronousImport);
+
+                var importer = (ModelImporter)AssetImporter.GetAtPath(meshPath);
+                importer.isReadable = true;
+                importer.SaveAndReimport();
+
+                var mesh = AssetDatabase.LoadAllAssetsAtPath(meshPath).OfType<Mesh>().First();
+                var filter = gameObject.AddComponent<MeshFilter>();
+                filter.sharedMesh = mesh;
+                gameObject.AddComponent<MeshRenderer>();
+                var deformer = gameObject.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+
+                importer = (ModelImporter)AssetImporter.GetAtPath(meshPath);
+                importer.isReadable = false;
+                importer.SaveAndReimport();
+                mesh = AssetDatabase.LoadAllAssetsAtPath(meshPath).OfType<Mesh>().First();
+                filter.sharedMesh = mesh;
+
+                var sourceMeshField = typeof(LatticeDeformer).GetField(
+                    "_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(sourceMeshField, Is.Not.Null);
+                sourceMeshField.SetValue(deformer, mesh);
+
+                Assert.That(mesh.isReadable, Is.False);
+                Assert.DoesNotThrow(() => result = deformer.Deform(false));
+                Assert.That(result, Is.Not.Null);
+                Assert.That(result.vertexCount, Is.EqualTo(mesh.vertexCount));
+                Assert.That(deformer.SourceMesh, Is.SameAs(mesh),
+                    "The temporary readable copy must not replace the imported source asset.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(gameObject);
+                if (result != null)
+                {
+                    Object.DestroyImmediate(result);
+                }
+                AssetDatabase.DeleteAsset(testDirectory);
             }
         }
 
