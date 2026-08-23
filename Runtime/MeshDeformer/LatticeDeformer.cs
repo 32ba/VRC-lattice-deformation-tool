@@ -781,7 +781,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private SkinnedMeshRenderer _skinnedMeshRenderer;
         [SerializeField] private MeshFilter _meshFilter;
         [SerializeField] private bool _recalculateNormals = true;
-        [SerializeField] private NormalsRecalculationMode _normalsRecalculationMode = NormalsRecalculationMode.LegacyUnityRecalculate;
+        [SerializeField] private NormalsRecalculationMode _normalsRecalculationMode = NormalsRecalculationMode.PreserveSourceSmoothing;
         [SerializeField] private bool _recalculateTangents = false;
         [SerializeField] private bool _recalculateBounds = true;
         [SerializeField] private bool _recalculateBoneWeights = false;
