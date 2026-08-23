@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Unity.Collections;
 using UnityEditor;
 using UnityEngine;
 using Unity.Profiling;
@@ -102,6 +101,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string RestSpaceConversionUnsafe = "MDV017";
         internal const string PreviewBakeTargetMismatch = "MDV018";
         internal const string NullGroupOrLayer = "MDV019";
+        // MDV020 is retired. Unity keeps imported mesh data available to Editor
+        // APIs even when the importer reports Read/Write disabled, so blocking
+        // NDMF Preview/Bake on Mesh.isReadable was a false positive.
         internal const string SourceMeshNotReadable = "MDV020";
         internal const string InvalidBrushData = "MDV021";
         internal const string InvalidMaskData = "MDV022";
@@ -131,13 +133,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Add(results, MissingSourceMesh, MeshDeformerDiagnosticSeverity.Error, deformer,
                     "The target renderer has no source mesh.", property: "sharedMesh");
                 return results;
-            }
-
-            if (!currentMesh.isReadable)
-            {
-                Add(results, SourceMeshNotReadable, MeshDeformerDiagnosticSeverity.Error, deformer,
-                    "The source mesh has Read/Write disabled. Enable Read/Write so deformation can read its vertex and BlendShape data.",
-                    property: "sharedMesh");
             }
 
             var serializedSource = serialized.FindProperty("_serializedSourceMesh")?.objectReferenceValue as Mesh;
@@ -171,12 +166,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ValidateGroups(deformer, currentMesh, results);
             ValidateProfile(deformer, results);
             ValidateClearance(deformer, renderer, results);
-            // Rest-space conversion reads bone weights and bind poses through CPU-only
-            // Mesh array getters. MDV020 is already the fail-closed result here.
-            if (currentMesh.isReadable)
-            {
-                ValidateRestSpace(deformer, renderer, results);
-            }
+            ValidateRestSpace(deformer, renderer, results);
             return results;
         }
 
@@ -576,27 +566,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     int hash = 17;
                     hash = hash * 31 + mesh.vertexCount;
                     hash = hash * 31 + mesh.subMeshCount;
-                    using Mesh.MeshDataArray meshDataArray = Mesh.AcquireReadOnlyMeshData(mesh);
-                    Mesh.MeshData data = meshDataArray[0];
-                    bool use16Bit = mesh.indexFormat == UnityEngine.Rendering.IndexFormat.UInt16;
-                    NativeArray<ushort> indices16 = use16Bit
-                        ? data.GetIndexData<ushort>()
-                        : default;
-                    NativeArray<uint> indices32 = !use16Bit
-                        ? data.GetIndexData<uint>()
-                        : default;
                     for (int subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
                     {
-                        UnityEngine.Rendering.SubMeshDescriptor descriptor = data.GetSubMesh(subMesh);
-                        hash = hash * 31 + (int)descriptor.topology;
-                        hash = hash * 31 + descriptor.indexCount;
-                        int end = descriptor.indexStart + descriptor.indexCount;
-                        for (int index = descriptor.indexStart; index < end; index++)
+                        int[] indices = mesh.GetIndices(subMesh, applyBaseVertex: true);
+                        hash = hash * 31 + (int)mesh.GetTopology(subMesh);
+                        hash = hash * 31 + indices.Length;
+                        for (int index = 0; index < indices.Length; index++)
                         {
-                            int value = use16Bit
-                                ? indices16[index] + descriptor.baseVertex
-                                : unchecked((int)indices32[index]) + descriptor.baseVertex;
-                            hash = hash * 31 + value;
+                            hash = hash * 31 + indices[index];
                         }
                     }
                     return hash;

@@ -2347,7 +2347,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 return null;
             }
 
-            if (_sourceMesh == null || !_sourceMesh.isReadable)
+            if (!CanReadSourceMeshData(_sourceMesh))
             {
                 UnityEngine.Profiling.Profiler.EndSample();
                 return null;
@@ -4369,7 +4369,7 @@ namespace Net._32Ba.LatticeDeformationTool
             bakedBlendShapeWeights = null;
             bakedBlendShapeHash = 0;
 
-            if (_sourceMesh == null || !_sourceMesh.isReadable)
+            if (!CanReadSourceMeshData(_sourceMesh))
             {
                 return null;
             }
@@ -4439,6 +4439,22 @@ namespace Net._32Ba.LatticeDeformationTool
             bakedBlendShapeWeights = weights;
             bakedBlendShapeHash = hash;
             return vertices;
+        }
+
+        private static bool CanReadSourceMeshData(Mesh mesh)
+        {
+            if (mesh == null)
+            {
+                return false;
+            }
+
+#if UNITY_EDITOR
+            // The Editor retains imported mesh data and permits the managed Mesh
+            // getters even when the importer-facing isReadable flag is false.
+            return true;
+#else
+            return mesh.isReadable;
+#endif
         }
 
         private void EnsureManagedDeformationBuffers(int vertexCount)
@@ -4581,11 +4597,10 @@ namespace Net._32Ba.LatticeDeformationTool
             EnsureSettings();
             if (_sourceMesh == null) return;
 
-            // Adding/enabling the component must remain safe for imported meshes whose
-            // Read/Write flag is disabled. Deformation fails closed until it is enabled;
-            // initialization can use the serialized Mesh bounds without touching CPU
-            // vertex/index buffers.
-            var sourceVertices = _sourceMesh.isReadable
+            // Unity keeps imported mesh data accessible in the Editor even when the
+            // importer reports Read/Write disabled. Player builds still fail closed
+            // through CanReadSourceMeshData when no CPU copy exists.
+            var sourceVertices = CanReadSourceMeshData(_sourceMesh)
                 ? BuildCurrentSourceVertices(out _, out _, out _)
                 : null;
             var meshBounds = CalculateReferencedBounds(_sourceMesh, sourceVertices, _sourceMesh.bounds);
@@ -4619,10 +4634,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             _settings = CloneSettings(GetPrimaryLayerSettings());
-            // Keep automatic initialization pending when only the coarse serialized
-            // bounds were available. A later mesh reimport with Read/Write enabled can
-            // then rebuild referenced-vertex and active-BlendShape bounds.
-            _hasInitializedFromSource = _sourceMesh.isReadable;
+            _hasInitializedFromSource = CanReadSourceMeshData(_sourceMesh);
             InvalidateCache();
 
 #if UNITY_EDITOR
@@ -4901,27 +4913,14 @@ namespace Net._32Ba.LatticeDeformationTool
                     int hash = 17;
                     hash = hash * 31 + mesh.vertexCount;
                     hash = hash * 31 + mesh.subMeshCount;
-                    using Mesh.MeshDataArray meshDataArray = Mesh.AcquireReadOnlyMeshData(mesh);
-                    Mesh.MeshData data = meshDataArray[0];
-                    bool use16Bit = mesh.indexFormat == UnityEngine.Rendering.IndexFormat.UInt16;
-                    NativeArray<ushort> indices16 = use16Bit
-                        ? data.GetIndexData<ushort>()
-                        : default;
-                    NativeArray<uint> indices32 = !use16Bit
-                        ? data.GetIndexData<uint>()
-                        : default;
                     for (int subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
                     {
-                        UnityEngine.Rendering.SubMeshDescriptor descriptor = data.GetSubMesh(subMesh);
-                        hash = hash * 31 + (int)descriptor.topology;
-                        hash = hash * 31 + descriptor.indexCount;
-                        int end = descriptor.indexStart + descriptor.indexCount;
-                        for (int index = descriptor.indexStart; index < end; index++)
+                        int[] indices = mesh.GetIndices(subMesh, applyBaseVertex: true);
+                        hash = hash * 31 + (int)mesh.GetTopology(subMesh);
+                        hash = hash * 31 + indices.Length;
+                        for (int index = 0; index < indices.Length; index++)
                         {
-                            int value = use16Bit
-                                ? indices16[index] + descriptor.baseVertex
-                                : unchecked((int)indices32[index]) + descriptor.baseVertex;
-                            hash = hash * 31 + value;
+                            hash = hash * 31 + indices[index];
                         }
                     }
                     return hash;
@@ -4965,10 +4964,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private void TryAutoConfigureSettings()
         {
-            // Reset performs the one safe coarse-bounds initialization for an unreadable
-            // mesh. Do not repeat it from accessors/validation while Read/Write is disabled;
-            // keep the pending flag so a later readable reimport can perform the full pass.
-            if (_sourceMesh == null || !_sourceMesh.isReadable)
+            if (!CanReadSourceMeshData(_sourceMesh))
             {
                 return;
             }
