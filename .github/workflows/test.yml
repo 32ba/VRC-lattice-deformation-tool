@@ -211,6 +211,17 @@ jobs:
           # githubToken is intentionally omitted: publishing a check run needs a writable
           # GITHUB_TOKEN, which pull requests from forks do not get.
 
+      # Keep GraphicsE2E in the main EditMode run to avoid another Unity startup. Fail closed if
+      # a graphics-less environment turns any of these required Scene View tests into Ignored.
+      - name: Verify GraphicsE2E Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -RequiredCategory GraphicsE2E
+          -RequiredCategoryCount 5
+
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
