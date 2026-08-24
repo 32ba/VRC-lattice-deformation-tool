@@ -827,6 +827,9 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private LatticeDeformerCache _cache = new LatticeDeformerCache();
         [NonSerialized] private Mesh _runtimeMesh;
         [NonSerialized] private Mesh _sourceMesh;
+#if UNITY_EDITOR
+        [NonSerialized] private Mesh _editorReadableSourceMeshOverride;
+#endif
         [NonSerialized] private int _lastBlendShapeHash;
         [NonSerialized] private int _lastBakedBlendShapeHash;
         [NonSerialized] private List<DeformerGroup> _profileGroups;
@@ -2340,6 +2343,149 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public Mesh Deform(bool assignToRenderer = true)
         {
+#if UNITY_EDITOR
+            Mesh originalSourceMesh = _sourceMesh;
+            Mesh readableSourceMesh = null;
+            if (originalSourceMesh != null && !originalSourceMesh.isReadable)
+            {
+                // Imported meshes keep their CPU-side data in the Editor even when
+                // Read/Write is disabled, but the original asset still rejects the
+                // managed vertex getters. Instantiating it gives this deformation a
+                // non-asset working copy whose full mesh data can be read without
+                // changing the importer's Read/Write setting.
+                readableSourceMesh = CreateEditorReadableSourceMesh(originalSourceMesh);
+                _editorReadableSourceMeshOverride = readableSourceMesh;
+                _sourceMesh = readableSourceMesh;
+            }
+
+            try
+            {
+                return DeformReadableSource(assignToRenderer);
+            }
+            finally
+            {
+                _editorReadableSourceMeshOverride = null;
+                _sourceMesh = originalSourceMesh;
+                if (readableSourceMesh != null)
+                {
+                    DestroyImmediate(readableSourceMesh);
+                }
+            }
+#else
+            return DeformReadableSource(assignToRenderer);
+#endif
+        }
+
+#if UNITY_EDITOR
+        private static Mesh CreateEditorReadableSourceMesh(Mesh sourceMesh)
+        {
+            var readableMesh = new Mesh();
+            readableMesh.name = sourceMesh.name;
+            readableMesh.hideFlags = HideFlags.HideAndDontSave;
+
+            // NDMF may hand this component a cloned imported mesh whose managed
+            // getters no longer have a CPU copy. MeshUtility can still read its
+            // vertex and index buffers in the Editor, so copy those buffers into
+            // a new readable Mesh without touching the imported asset.
+            using Mesh.MeshDataArray sourceDataArray = UnityEditor.MeshUtility.AcquireReadOnlyMeshData(sourceMesh);
+            Mesh.MeshData sourceData = sourceDataArray[0];
+            Mesh.MeshDataArray writableDataArray = Mesh.AllocateWritableMeshData(1);
+            bool writableDataApplied = false;
+            try
+            {
+                Mesh.MeshData writableData = writableDataArray[0];
+                var attributes = new List<UnityEngine.Rendering.VertexAttributeDescriptor>();
+                foreach (UnityEngine.Rendering.VertexAttribute attribute in
+                         Enum.GetValues(typeof(UnityEngine.Rendering.VertexAttribute)))
+                {
+                    if (sourceData.HasVertexAttribute(attribute))
+                    {
+                        attributes.Add(new UnityEngine.Rendering.VertexAttributeDescriptor(
+                            attribute,
+                            sourceData.GetVertexAttributeFormat(attribute),
+                            sourceData.GetVertexAttributeDimension(attribute),
+                            sourceData.GetVertexAttributeStream(attribute)));
+                    }
+                }
+
+                attributes.Sort((left, right) =>
+                {
+                    int streamOrder = left.stream.CompareTo(right.stream);
+                    return streamOrder != 0
+                        ? streamOrder
+                        : sourceData.GetVertexAttributeOffset(left.attribute)
+                            .CompareTo(sourceData.GetVertexAttributeOffset(right.attribute));
+                });
+
+                writableData.SetVertexBufferParams(sourceData.vertexCount, attributes.ToArray());
+                for (int stream = 0; stream < sourceData.vertexBufferCount; stream++)
+                {
+                    NativeArray<byte> sourceBuffer = sourceData.GetVertexData<byte>(stream);
+                    NativeArray<byte> destinationBuffer = writableData.GetVertexData<byte>(stream);
+                    sourceBuffer.CopyTo(destinationBuffer);
+                }
+
+                NativeArray<byte> sourceIndices = sourceData.GetIndexData<byte>();
+                int indexElementSize = sourceData.indexFormat == UnityEngine.Rendering.IndexFormat.UInt16
+                    ? sizeof(ushort)
+                    : sizeof(uint);
+                writableData.SetIndexBufferParams(
+                    sourceIndices.Length / indexElementSize,
+                    sourceData.indexFormat);
+                sourceIndices.CopyTo(writableData.GetIndexData<byte>());
+
+                writableData.subMeshCount = sourceData.subMeshCount;
+                for (int subMesh = 0; subMesh < sourceData.subMeshCount; subMesh++)
+                {
+                    writableData.SetSubMesh(
+                        subMesh,
+                        sourceData.GetSubMesh(subMesh),
+                        UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds |
+                        UnityEngine.Rendering.MeshUpdateFlags.DontValidateIndices);
+                }
+
+                Mesh.ApplyAndDisposeWritableMeshData(
+                    writableDataArray,
+                    readableMesh,
+                    UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds |
+                    UnityEngine.Rendering.MeshUpdateFlags.DontValidateIndices);
+                writableDataApplied = true;
+
+                readableMesh.bounds = sourceMesh.bounds;
+                Matrix4x4[] bindPoses = sourceMesh.bindposes;
+                if (bindPoses != null && bindPoses.Length > 0)
+                {
+                    readableMesh.bindposes = bindPoses;
+                }
+
+                using NativeArray<byte> bonesPerVertex = sourceMesh.GetBonesPerVertex();
+                using NativeArray<BoneWeight1> boneWeights = sourceMesh.GetAllBoneWeights();
+                if (bonesPerVertex.Length == sourceMesh.vertexCount && boneWeights.Length > 0)
+                {
+                    readableMesh.SetBoneWeights(bonesPerVertex, boneWeights);
+                }
+
+                CopyBlendShapes(sourceMesh, readableMesh);
+            }
+            catch
+            {
+                DestroyImmediate(readableMesh);
+                throw;
+            }
+            finally
+            {
+                if (!writableDataApplied)
+                {
+                    writableDataArray.Dispose();
+                }
+            }
+
+            return readableMesh;
+        }
+#endif
+
+        private Mesh DeformReadableSource(bool assignToRenderer)
+        {
             UnityEngine.Profiling.Profiler.BeginSample("LatticeDeformer.Deform");
             if (!EnsureLayerModelReady())
             {
@@ -2347,7 +2493,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 return null;
             }
 
-            if (_sourceMesh == null || !_sourceMesh.isReadable)
+            if (!CanReadSourceMeshData(_sourceMesh))
             {
                 UnityEngine.Profiling.Profiler.EndSample();
                 return null;
@@ -4369,7 +4515,7 @@ namespace Net._32Ba.LatticeDeformationTool
             bakedBlendShapeWeights = null;
             bakedBlendShapeHash = 0;
 
-            if (_sourceMesh == null || !_sourceMesh.isReadable)
+            if (!CanReadSourceMeshData(_sourceMesh))
             {
                 return null;
             }
@@ -4439,6 +4585,22 @@ namespace Net._32Ba.LatticeDeformationTool
             bakedBlendShapeWeights = weights;
             bakedBlendShapeHash = hash;
             return vertices;
+        }
+
+        private static bool CanReadSourceMeshData(Mesh mesh)
+        {
+            if (mesh == null)
+            {
+                return false;
+            }
+
+#if UNITY_EDITOR
+            // The Editor retains imported mesh data and permits the managed Mesh
+            // getters even when the importer-facing isReadable flag is false.
+            return true;
+#else
+            return mesh.isReadable;
+#endif
         }
 
         private void EnsureManagedDeformationBuffers(int vertexCount)
@@ -4581,11 +4743,10 @@ namespace Net._32Ba.LatticeDeformationTool
             EnsureSettings();
             if (_sourceMesh == null) return;
 
-            // Adding/enabling the component must remain safe for imported meshes whose
-            // Read/Write flag is disabled. Deformation fails closed until it is enabled;
-            // initialization can use the serialized Mesh bounds without touching CPU
-            // vertex/index buffers.
-            var sourceVertices = _sourceMesh.isReadable
+            // Unity keeps imported mesh data accessible in the Editor even when the
+            // importer reports Read/Write disabled. Player builds still fail closed
+            // through CanReadSourceMeshData when no CPU copy exists.
+            var sourceVertices = CanReadSourceMeshData(_sourceMesh)
                 ? BuildCurrentSourceVertices(out _, out _, out _)
                 : null;
             var meshBounds = CalculateReferencedBounds(_sourceMesh, sourceVertices, _sourceMesh.bounds);
@@ -4619,10 +4780,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             _settings = CloneSettings(GetPrimaryLayerSettings());
-            // Keep automatic initialization pending when only the coarse serialized
-            // bounds were available. A later mesh reimport with Read/Write enabled can
-            // then rebuild referenced-vertex and active-BlendShape bounds.
-            _hasInitializedFromSource = _sourceMesh.isReadable;
+            _hasInitializedFromSource = CanReadSourceMeshData(_sourceMesh);
             InvalidateCache();
 
 #if UNITY_EDITOR
@@ -4856,6 +5014,13 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private void CacheSourceMesh()
         {
+#if UNITY_EDITOR
+            if (_editorReadableSourceMeshOverride != null)
+            {
+                _sourceMesh = _editorReadableSourceMeshOverride;
+                return;
+            }
+#endif
             Mesh nextSource = GetSharedSourceMesh();
 
             if (_runtimeMesh != null && ReferenceEquals(_runtimeMesh, nextSource))
@@ -4901,7 +5066,16 @@ namespace Net._32Ba.LatticeDeformationTool
                     int hash = 17;
                     hash = hash * 31 + mesh.vertexCount;
                     hash = hash * 31 + mesh.subMeshCount;
+#if UNITY_EDITOR
+                    // Mesh.AcquireReadOnlyMeshData and the managed index getters still
+                    // enforce the importer Read/Write flag. MeshUtility is the Editor
+                    // path which can inspect imported mesh data without changing that
+                    // flag, and also works for meshes produced by earlier NDMF passes.
+                    using Mesh.MeshDataArray meshDataArray = UnityEditor.MeshUtility.AcquireReadOnlyMeshData(mesh);
+#else
+                    if (!mesh.isReadable) return 0;
                     using Mesh.MeshDataArray meshDataArray = Mesh.AcquireReadOnlyMeshData(mesh);
+#endif
                     Mesh.MeshData data = meshDataArray[0];
                     bool use16Bit = mesh.indexFormat == UnityEngine.Rendering.IndexFormat.UInt16;
                     NativeArray<ushort> indices16 = use16Bit
@@ -4965,10 +5139,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private void TryAutoConfigureSettings()
         {
-            // Reset performs the one safe coarse-bounds initialization for an unreadable
-            // mesh. Do not repeat it from accessors/validation while Read/Write is disabled;
-            // keep the pending flag so a later readable reimport can perform the full pass.
-            if (_sourceMesh == null || !_sourceMesh.isReadable)
+            if (!CanReadSourceMeshData(_sourceMesh))
             {
                 return;
             }

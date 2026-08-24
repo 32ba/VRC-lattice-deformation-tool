@@ -194,7 +194,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (pairList.Count == 0)
             {
-                return Task.FromResult<IRenderFilterNode>(null);
+                return Task.FromResult<IRenderFilterNode>(new NoOpNode());
             }
 
             var deformer = pairList
@@ -223,7 +223,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (deformer == null)
             {
-                return Task.FromResult<IRenderFilterNode>(null);
+                return Task.FromResult<IRenderFilterNode>(new NoOpNode());
             }
 
             var evaluationPair = pairList.FirstOrDefault(pair =>
@@ -233,7 +233,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             MeshDeformerValidator.Log(diagnostics);
             if (MeshDeformerValidator.HasErrors(diagnostics))
             {
-                return Task.FromResult<IRenderFilterNode>(null);
+                return Task.FromResult<IRenderFilterNode>(new NoOpNode());
             }
 
             // Only structural changes should replace the node. Interactive layer
@@ -259,7 +259,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var previewMesh = GeneratePreviewMesh(deformer);
             if (previewMesh == null)
             {
-                return Task.FromResult<IRenderFilterNode>(null);
+                return Task.FromResult<IRenderFilterNode>(new NoOpNode());
             }
 
             var node = new PreviewNode(deformer, pairList, previewMesh);
@@ -621,6 +621,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 ApplyPreviewMesh(target);
                 _targets.Add(target);
                 return target;
+            }
+        }
+
+        private sealed class NoOpNode : IRenderFilterNode
+        {
+            public RenderAspects WhatChanged => 0;
+
+            public void OnFrame(Renderer original, Renderer proxy)
+            {
+            }
+
+            public void OnFrameGroup()
+            {
+            }
+
+            public void Dispose()
+            {
             }
         }
 

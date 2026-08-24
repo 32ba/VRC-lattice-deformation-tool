@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -6,6 +7,7 @@ using nadena.dev.ndmf;
 using nadena.dev.ndmf.preview;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
+using Unity.Collections;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -33,14 +35,39 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void NonReadableSourceMesh_TopologyValidationDoesNotUseReadableOnlyApis()
+        public void NonReadableSourceMesh_EditorPreviewAndBakeRemainSupported()
         {
             var gameObject = new GameObject("Non-readable Source");
             var mesh = CreateMesh("Non-readable Mesh");
-            var readableMesh = CreateMesh("Readable Retry Mesh");
+            mesh.AddBlendShapeFrame(
+                "Probe",
+                100f,
+                new[] { Vector3.forward, Vector3.zero, Vector3.zero, Vector3.zero },
+                null,
+                null);
+            mesh.bindposes = Enumerable.Repeat(Matrix4x4.identity, 5).ToArray();
+            var bonesPerVertex = new NativeArray<byte>(new byte[] { 5, 1, 1, 1 }, Allocator.Temp);
+            var boneWeights = new NativeArray<BoneWeight1>(8, Allocator.Temp);
+            try
+            {
+                for (int index = 0; index < 5; index++)
+                {
+                    boneWeights[index] = new BoneWeight1 { boneIndex = index, weight = 0.2f };
+                }
+                boneWeights[5] = new BoneWeight1 { boneIndex = 0, weight = 1f };
+                boneWeights[6] = new BoneWeight1 { boneIndex = 1, weight = 1f };
+                boneWeights[7] = new BoneWeight1 { boneIndex = 2, weight = 1f };
+                mesh.SetBoneWeights(bonesPerVertex, boneWeights);
+            }
+            finally
+            {
+                boneWeights.Dispose();
+                bonesPerVertex.Dispose();
+            }
             mesh.UploadMeshData(true);
             try
             {
+                Assert.That(mesh.isReadable, Is.False);
                 var filter = gameObject.AddComponent<MeshFilter>();
                 filter.sharedMesh = mesh;
                 gameObject.AddComponent<MeshRenderer>();
@@ -48,45 +75,112 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 Assert.DoesNotThrow(deformer.Reset);
                 Assert.That(deformer.EditingSettings.LocalBounds, Is.EqualTo(mesh.bounds));
+                var topologyHashField = typeof(LatticeDeformer).GetField(
+                    "_serializedSourceTopologyHash", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(topologyHashField, Is.Not.Null);
+                Assert.That((int)topologyHashField.GetValue(deformer), Is.Not.Zero,
+                    "Editor topology hashing must remain available without Read/Write.");
+
                 IReadOnlyList<MeshDeformerDiagnostic> diagnostics = null;
                 Assert.DoesNotThrow(() => diagnostics = MeshDeformerValidator.Validate(deformer));
                 Assert.That(diagnostics.Any(d => d.Code == MeshDeformerValidator.SourceMeshChanged),
                     Is.False);
                 Assert.That(diagnostics.Any(d => d.Code == MeshDeformerValidator.SourceMeshNotReadable),
-                    Is.True);
-                Assert.That(LatticeDeformerBakePass.ValidateBeforeBake(deformer), Is.False);
-                Assert.DoesNotThrow(() => Assert.That(deformer.Deform(false), Is.Null));
+                    Is.False);
+                Assert.That(LatticeDeformerBakePass.ValidateBeforeBake(deformer), Is.True);
+
+                Mesh result = null;
+                Assert.DoesNotThrow(() => result = deformer.Deform(false));
+                Assert.That(result, Is.Not.Null);
+                Assert.That(result.vertexCount, Is.EqualTo(mesh.vertexCount));
+                Assert.That(result.blendShapeCount, Is.EqualTo(mesh.blendShapeCount));
+                using (NativeArray<byte> resultBonesPerVertex = result.GetBonesPerVertex())
+                using (NativeArray<BoneWeight1> resultBoneWeights = result.GetAllBoneWeights())
+                {
+                    Assert.That(resultBonesPerVertex[0], Is.EqualTo(5),
+                        "The Editor readable copy must preserve more than four bone weights per vertex.");
+                    Assert.That(resultBoneWeights.Length, Is.EqualTo(8));
+                }
 
                 var initializedField = typeof(LatticeDeformer).GetField(
                     "_hasInitializedFromSource", BindingFlags.Instance | BindingFlags.NonPublic);
                 Assert.That(initializedField, Is.Not.Null);
-                Assert.That(initializedField.GetValue(deformer), Is.False,
-                    "Initialization must remain pending until readable vertex data is available.");
-
-                var pendingSettings = deformer.EditingSettings;
-                Vector3 customizedPoint = pendingSettings.GetControlPointLocal(0) + Vector3.right;
-                pendingSettings.SetControlPointLocal(0, customizedPoint);
-                InvokePrivate(deformer, "TryAutoConfigureSettings");
-                InvokePrivate(deformer, "TryAutoConfigureSettings");
-                Assert.That(pendingSettings.GetControlPointLocal(0), Is.EqualTo(customizedPoint),
-                    "Pending auto-configuration must not repeatedly reset unreadable mesh payloads.");
-                Assert.That(initializedField.GetValue(deformer), Is.False);
-
-                filter.sharedMesh = readableMesh;
-                InvokePrivate(deformer, "CacheSourceMesh");
-                InvokePrivate(deformer, "TryAutoConfigureSettings");
                 Assert.That(initializedField.GetValue(deformer), Is.True);
             }
             finally
             {
                 Object.DestroyImmediate(gameObject);
                 Object.DestroyImmediate(mesh);
-                Object.DestroyImmediate(readableMesh);
             }
         }
 
         [Test]
-        public void NonReadableSkinnedMesh_RestSpaceValidationReturnsMdv020WithoutThrowing()
+        public void ImportedNonReadableSource_DeformUsesTemporaryReadableCopy()
+        {
+            const string testDirectory = "Assets/LatticeDeformerReadWriteDisabledTest";
+            const string meshPath = testDirectory + "/source.obj";
+            var gameObject = new GameObject("Imported Non-readable Source");
+            Mesh result = null;
+            try
+            {
+                if (AssetDatabase.IsValidFolder(testDirectory))
+                {
+                    AssetDatabase.DeleteAsset(testDirectory);
+                }
+
+                Directory.CreateDirectory(testDirectory);
+                File.WriteAllText(
+                    meshPath,
+                    "v 0 0 0\n" +
+                    "v 1 0 0\n" +
+                    "v 0 1 0\n" +
+                    "v 1 1 0\n" +
+                    "f 1 3 2\n" +
+                    "f 2 3 4\n");
+                AssetDatabase.ImportAsset(meshPath, ImportAssetOptions.ForceSynchronousImport);
+
+                var importer = (ModelImporter)AssetImporter.GetAtPath(meshPath);
+                importer.isReadable = true;
+                importer.SaveAndReimport();
+
+                var mesh = AssetDatabase.LoadAllAssetsAtPath(meshPath).OfType<Mesh>().First();
+                var filter = gameObject.AddComponent<MeshFilter>();
+                filter.sharedMesh = mesh;
+                gameObject.AddComponent<MeshRenderer>();
+                var deformer = gameObject.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+
+                importer = (ModelImporter)AssetImporter.GetAtPath(meshPath);
+                importer.isReadable = false;
+                importer.SaveAndReimport();
+                mesh = AssetDatabase.LoadAllAssetsAtPath(meshPath).OfType<Mesh>().First();
+                filter.sharedMesh = mesh;
+
+                var sourceMeshField = typeof(LatticeDeformer).GetField(
+                    "_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(sourceMeshField, Is.Not.Null);
+                sourceMeshField.SetValue(deformer, mesh);
+
+                Assert.That(mesh.isReadable, Is.False);
+                Assert.DoesNotThrow(() => result = deformer.Deform(false));
+                Assert.That(result, Is.Not.Null);
+                Assert.That(result.vertexCount, Is.EqualTo(mesh.vertexCount));
+                Assert.That(deformer.SourceMesh, Is.SameAs(mesh),
+                    "The temporary readable copy must not replace the imported source asset.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(gameObject);
+                if (result != null)
+                {
+                    Object.DestroyImmediate(result);
+                }
+                AssetDatabase.DeleteAsset(testDirectory);
+            }
+        }
+
+        [Test]
+        public void NonReadableSkinnedMesh_RestSpaceValidationStillRuns()
         {
             var gameObject = new GameObject("Non-readable Skinned Source");
             var mesh = CreateMesh("Non-readable Skinned Mesh");
@@ -100,9 +194,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.DoesNotThrow(deformer.Reset);
                 IReadOnlyList<MeshDeformerDiagnostic> diagnostics = null;
                 Assert.DoesNotThrow(() => diagnostics = MeshDeformerValidator.Validate(deformer));
-                Assert.That(diagnostics.Any(d => d.Code == MeshDeformerValidator.SourceMeshNotReadable), Is.True);
-                Assert.That(diagnostics.Any(d => d.Code == MeshDeformerValidator.RestSpaceConversionUnsafe), Is.False);
-                Assert.That(LatticeDeformerBakePass.ValidateBeforeBake(deformer), Is.False);
+                Assert.That(diagnostics.Any(d => d.Code == MeshDeformerValidator.SourceMeshNotReadable), Is.False);
+                Assert.That(diagnostics.Any(d => d.Code == MeshDeformerValidator.RestSpaceConversionUnsafe), Is.True);
+                Assert.That(LatticeDeformerBakePass.ValidateBeforeBake(deformer), Is.True);
+                Assert.That(deformer.Deform(false), Is.Not.Null);
             }
             finally
             {
@@ -127,7 +222,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void NdmfPreviewInstantiate_ErrorReturnsNoNodeAndDoesNotMutateProxy()
+        public void NdmfPreviewInstantiate_ErrorReturnsNoOpNodeAndDoesNotMutateProxy()
         {
             using var fixture = CreateFixture("NDMF Preview E2E");
             CorruptBrushLength(fixture.Deformer, 1);
@@ -154,8 +249,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     LogAssert.ignoreFailingMessages = previousIgnore;
                 }
 
-                Assert.That(node, Is.Null);
+                Assert.That(node, Is.Not.Null);
+                Assert.That(node.WhatChanged, Is.EqualTo((RenderAspects)0));
+                Assert.DoesNotThrow(() => node.OnFrame(fixture.Renderer, proxyRenderer));
+                Assert.DoesNotThrow(node.OnFrameGroup);
                 Assert.That(proxyRenderer.GetComponent<MeshFilter>().sharedMesh, Is.SameAs(proxyMesh));
+                Assert.DoesNotThrow(node.Dispose);
             }
             finally
             {
@@ -602,14 +701,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             serialized.FindProperty("_profile").objectReferenceValue = profile;
             serialized.FindProperty("_dataSource").enumValueIndex = (int)DeformerDataSource.Profile;
             serialized.ApplyModifiedPropertiesWithoutUndo();
-        }
-
-        private static object InvokePrivate(object target, string methodName)
-        {
-            var method = target.GetType().GetMethod(
-                methodName, BindingFlags.Instance | BindingFlags.NonPublic);
-            Assert.That(method, Is.Not.Null);
-            return method.Invoke(target, null);
         }
 
         private static Fixture CreateFixture(string name, bool addSourceBlendShape = false)
