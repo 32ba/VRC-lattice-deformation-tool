@@ -653,6 +653,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static Mesh GeneratePreviewMesh(LatticeDeformer deformer)
         {
+            Mesh previewMesh = null;
             try
             {
                 deformer.InvalidateCache();
@@ -662,14 +663,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     return null;
                 }
 
-                var previewMesh = UnityEngine.Object.Instantiate(runtimeMesh);
+                previewMesh = UnityEngine.Object.Instantiate(runtimeMesh);
                 previewMesh.name = runtimeMesh.name + " (Preview)";
                 previewMesh.hideFlags = HideFlags.HideAndDontSave;
                 previewMesh.UploadMeshData(false);
                 return previewMesh;
             }
-            catch
+            catch (Exception exception)
             {
+                if (previewMesh != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(previewMesh);
+                }
+                Debug.LogException(exception, deformer);
                 return null;
             }
         }
