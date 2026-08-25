@@ -77,6 +77,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             new ProfilerMarker("Clearance.QueryPoint.Nearest");
         private static readonly ProfilerMarker s_closedPointMarker =
             new ProfilerMarker("Clearance.QueryPoint.ClosedSign");
+        private static readonly Vector3[] s_insideRayDirections =
+        {
+            new Vector3(1f, 0.37139067f, 0.5291327f).normalized,
+            new Vector3(-0.347f, 1f, 0.613f).normalized,
+            new Vector3(0.271f, -0.419f, 1f).normalized
+        };
 
         internal int TriangleCount => _triangles.Length;
         internal int TraversalStackSize => _workspace.TraversalStack.Length;
@@ -124,6 +130,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             float determinantSign = localToWorld.determinant < 0f ? -1f : 1f;
             var triangles = new List<TriangleData>(indices.Length / 3);
             var edgeUseCounts = new Dictionary<ulong, int>();
+            int[] topologyVertexIds = BuildTopologyVertexIds(vertices, localToWorld);
 
             for (int triangleIndex = 0; triangleIndex + 2 < indices.Length; triangleIndex += 3)
             {
@@ -160,9 +167,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     n0,
                     n1,
                     n2));
-                IncrementEdge(edgeUseCounts, i0, i1);
-                IncrementEdge(edgeUseCounts, i1, i2);
-                IncrementEdge(edgeUseCounts, i2, i0);
+                IncrementEdge(edgeUseCounts, topologyVertexIds[i0], topologyVertexIds[i1]);
+                IncrementEdge(edgeUseCounts, topologyVertexIds[i1], topologyVertexIds[i2]);
+                IncrementEdge(edgeUseCounts, topologyVertexIds[i2], topologyVertexIds[i0]);
             }
 
             if (triangles.Count == 0) return false;
@@ -358,7 +365,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private bool IsPointInside(Vector3 point, QueryWorkspace workspace, out int triangleTests)
         {
             triangleTests = 0;
-            var direction = new Vector3(1f, 0.37139067f, 0.5291327f).normalized;
+            int insideVotes = 0;
+            for (int directionIndex = 0; directionIndex < s_insideRayDirections.Length; directionIndex++)
+            {
+                if (IsPointInsideAlongRay(point, s_insideRayDirections[directionIndex], workspace, out int tests))
+                    insideVotes++;
+                triangleTests += tests;
+            }
+            return insideVotes >= 2;
+        }
+
+        private bool IsPointInsideAlongRay(
+            Vector3 point,
+            Vector3 direction,
+            QueryWorkspace workspace,
+            out int triangleTests)
+        {
+            triangleTests = 0;
             List<float> hits = workspace.RayHits;
             hits.Clear();
             int[] stack = workspace.TraversalStack;
@@ -397,6 +420,46 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
             return (uniqueHits & 1) != 0;
+        }
+
+        private static int[] BuildTopologyVertexIds(Vector3[] vertices, Matrix4x4 localToWorld)
+        {
+            var ids = new int[vertices.Length];
+            var map = new Dictionary<QuantizedTopologyPosition, int>();
+            int nextId = 0;
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                Vector3 world = localToWorld.MultiplyPoint3x4(vertices[i]);
+                var key = new QuantizedTopologyPosition(world);
+                if (!map.TryGetValue(key, out int id))
+                {
+                    id = nextId++;
+                    map.Add(key, id);
+                }
+                ids[i] = id;
+            }
+            return ids;
+        }
+
+        private readonly struct QuantizedTopologyPosition : IEquatable<QuantizedTopologyPosition>
+        {
+            private const double Scale = 100000.0;
+            private readonly long _x;
+            private readonly long _y;
+            private readonly long _z;
+
+            internal QuantizedTopologyPosition(Vector3 value)
+            {
+                _x = (long)Math.Round(value.x * Scale);
+                _y = (long)Math.Round(value.y * Scale);
+                _z = (long)Math.Round(value.z * Scale);
+            }
+
+            public bool Equals(QuantizedTopologyPosition other) =>
+                _x == other._x && _y == other._y && _z == other._z;
+            public override bool Equals(object obj) =>
+                obj is QuantizedTopologyPosition other && Equals(other);
+            public override int GetHashCode() => HashCode.Combine(_x, _y, _z);
         }
 
         private static int BuildNode(
