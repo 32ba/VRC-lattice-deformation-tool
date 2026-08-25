@@ -523,7 +523,13 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            _brushDisplacements[index] += delta;
+            Vector3 candidate = _brushDisplacements[index] + delta;
+            if (!IsFinite(candidate.x) || !IsFinite(candidate.y) || !IsFinite(candidate.z))
+            {
+                return;
+            }
+
+            _brushDisplacements[index] = candidate;
         }
 
         public float[] VertexMask
@@ -737,6 +743,26 @@ namespace Net._32Ba.LatticeDeformationTool
     public class LatticeDeformer : MonoBehaviour
     {
         public static bool SuppressRestoreOnDisable { get; set; } = false;
+        private static int s_suppressRestoreScopeDepth;
+        internal static bool IsRestoreSuppressed => SuppressRestoreOnDisable || s_suppressRestoreScopeDepth > 0;
+
+        internal static IDisposable SuppressRestoreScope()
+        {
+            s_suppressRestoreScopeDepth++;
+            return new RestoreSuppressionScope();
+        }
+
+        private sealed class RestoreSuppressionScope : IDisposable
+        {
+            private bool _disposed;
+
+            public void Dispose()
+            {
+                if (_disposed) return;
+                _disposed = true;
+                s_suppressRestoreScopeDepth = Math.Max(0, s_suppressRestoreScopeDepth - 1);
+            }
+        }
 
         public enum LatticeAlignMode
         {
@@ -837,6 +863,11 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private List<DeformerGroup> _readOnlyGroupSource;
         [NonSerialized] private ReadOnlyCollection<DeformerGroup> _readOnlyGroups;
         [NonSerialized] private string _profileFingerprint;
+        [NonSerialized] private int _profileContentRevision = int.MinValue;
+        [NonSerialized] private MeshDeformerProfile _compatibilityProfile;
+        [NonSerialized] private Mesh _compatibilityMesh;
+        [NonSerialized] private int _compatibilityProfileRevision = int.MinValue;
+        [NonSerialized] private ProfileCompatibilityStatus _cachedProfileCompatibility = ProfileCompatibilityStatus.InsufficientMetadata;
         [NonSerialized] private bool _blendShapeOutputDirty = true;
         [NonSerialized] private int _runtimeMeshRevision;
         [NonSerialized] private int _deformationDataRevision;
@@ -907,6 +938,19 @@ namespace Net._32Ba.LatticeDeformationTool
                 Composition = composition;
                 Candidates = candidates;
                 CandidateWeights = candidateWeights;
+            }
+        }
+
+        private readonly struct ProfilerSampleScope : IDisposable
+        {
+            internal ProfilerSampleScope(string name)
+            {
+                UnityEngine.Profiling.Profiler.BeginSample(name);
+            }
+
+            public void Dispose()
+            {
+                UnityEngine.Profiling.Profiler.EndSample();
             }
         }
 
@@ -996,6 +1040,8 @@ namespace Net._32Ba.LatticeDeformationTool
                     _groups?.Clear();
                 }
                 _profileFingerprint = null;
+                _profileContentRevision = int.MinValue;
+                _compatibilityProfile = null;
                 EnsureGroups();
                 InvalidateCache();
             }
@@ -1018,6 +1064,8 @@ namespace Net._32Ba.LatticeDeformationTool
                     _groups?.Clear();
                 }
                 _profileFingerprint = null;
+                _profileContentRevision = int.MinValue;
+                _compatibilityProfile = null;
                 EnsureGroups();
                 InvalidateCache();
             }
@@ -1033,6 +1081,8 @@ namespace Net._32Ba.LatticeDeformationTool
             _profileGroups = null;
             _blockedProfileGroups = null;
             _profileFingerprint = null;
+            _profileContentRevision = int.MinValue;
+            _compatibilityProfile = null;
             EnsureGroups();
             InvalidateCache();
             return true;
@@ -1050,6 +1100,8 @@ namespace Net._32Ba.LatticeDeformationTool
             _profileGroups = null;
             _blockedProfileGroups = null;
             _profileFingerprint = null;
+            _profileContentRevision = int.MinValue;
+            _compatibilityProfile = null;
             EnsureGroups();
             InvalidateCache();
             return true;
@@ -1146,6 +1198,7 @@ namespace Net._32Ba.LatticeDeformationTool
             group.Name = string.IsNullOrWhiteSpace(groupName) ? GenerateNextGroupName() : groupName;
             groups.Add(group);
             _activeGroupIndex = groups.Count - 1;
+            InvalidateCache();
             return _activeGroupIndex;
         }
 
@@ -1161,6 +1214,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 _activeGroupIndex = Mathf.Min(index, groups.Count - 1);
             else if (_activeGroupIndex > index)
                 _activeGroupIndex--;
+            InvalidateCache();
             return true;
         }
 
@@ -1553,14 +1607,22 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             if (!EnsureGroups()) return;
             if (TryGetActiveLayer(out var layer) && layer.Type == MeshDeformerLayerType.Brush)
+            {
+                Vector3 before = layer.GetBrushDisplacement(index);
                 layer.SetBrushDisplacement(index, displacement);
+                if (layer.GetBrushDisplacement(index) != before) NotifyDeformationDataChanged();
+            }
         }
 
         public void AddDisplacement(int index, Vector3 delta)
         {
             if (!EnsureGroups()) return;
             if (TryGetActiveLayer(out var layer) && layer.Type == MeshDeformerLayerType.Brush)
+            {
+                Vector3 before = layer.GetBrushDisplacement(index);
                 layer.AddBrushDisplacement(index, delta);
+                if (layer.GetBrushDisplacement(index) != before) NotifyDeformationDataChanged();
+            }
         }
 
         public Vector3 GetDisplacement(int index)
@@ -1574,8 +1636,11 @@ namespace Net._32Ba.LatticeDeformationTool
         public void ClearDisplacements()
         {
             if (!EnsureGroups()) return;
-            if (TryGetActiveLayer(out var layer) && layer.Type == MeshDeformerLayerType.Brush)
+            if (TryGetActiveLayer(out var layer) && layer.Type == MeshDeformerLayerType.Brush && layer.HasBrushDisplacements())
+            {
                 layer.ClearBrushDisplacements();
+                NotifyDeformationDataChanged();
+            }
         }
 
         // ── Layer management (operates on ActiveGroup) ──────────────
@@ -1602,6 +1667,7 @@ namespace Net._32Ba.LatticeDeformationTool
             if (layerType == MeshDeformerLayerType.Brush)
                 EnsureDisplacementCapacity();
 
+            InvalidateCache();
             return group.ActiveLayerIndex;
         }
 
@@ -1635,6 +1701,7 @@ namespace Net._32Ba.LatticeDeformationTool
             int insertAt = Mathf.Clamp(index + 1, 0, layers.Count);
             layers.Insert(insertAt, duplicate);
             group.ActiveLayerIndex = insertAt;
+            InvalidateCache();
             return group.ActiveLayerIndex;
         }
 
@@ -1647,6 +1714,7 @@ namespace Net._32Ba.LatticeDeformationTool
             var layers = group.LayersList;
             layers.Add(layer);
             group.ActiveLayerIndex = layers.Count - 1;
+            InvalidateCache();
             return group.ActiveLayerIndex;
         }
 
@@ -1668,6 +1736,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 group.ActiveLayerIndex = Mathf.Min(index, layers.Count - 1);
             else if (active > index)
                 group.ActiveLayerIndex = active - 1;
+            InvalidateCache();
             return true;
         }
 
@@ -1693,6 +1762,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 group.ActiveLayerIndex = active - 1;
             else if (index > active && targetIndex <= active)
                 group.ActiveLayerIndex = active + 1;
+            InvalidateCache();
             return true;
         }
 
@@ -1726,6 +1796,7 @@ namespace Net._32Ba.LatticeDeformationTool
             group.LayersList.Add(layer);
             int addedIndex = group.LayersList.Count - 1;
             group.ActiveLayerIndex = addedIndex;
+            InvalidateCache();
             return addedIndex;
         }
 
@@ -1798,6 +1869,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
             _groups.Add(group);
             _activeGroupIndex = _groups.Count - 1;
+            InvalidateCache();
             return _activeGroupIndex;
         }
 
@@ -1881,6 +1953,8 @@ namespace Net._32Ba.LatticeDeformationTool
                     }
                 }
             }
+
+            InvalidateCache();
         }
 
         /// <summary>
@@ -2001,6 +2075,8 @@ namespace Net._32Ba.LatticeDeformationTool
                     }
                 }
             }
+
+            InvalidateCache();
         }
 
         private static int[] BuildBrushMirrorMap(Vector3[] vertices, int axis)
@@ -2320,7 +2396,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            if (SuppressRestoreOnDisable)
+            if (IsRestoreSuppressed)
             {
                 ReleaseRuntimeMesh();
                 return;
@@ -2332,7 +2408,7 @@ namespace Net._32Ba.LatticeDeformationTool
         private void OnDestroy()
         {
             ReleaseDeformationNativeBuffers();
-            if (SuppressRestoreOnDisable)
+            if (IsRestoreSuppressed)
             {
                 ReleaseRuntimeMesh();
                 return;
@@ -2486,16 +2562,14 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private Mesh DeformReadableSource(bool assignToRenderer)
         {
-            UnityEngine.Profiling.Profiler.BeginSample("LatticeDeformer.Deform");
+            using var deformationProfile = new ProfilerSampleScope("LatticeDeformer.Deform");
             if (!EnsureLayerModelReady())
             {
-                UnityEngine.Profiling.Profiler.EndSample();
                 return null;
             }
 
             if (!CanReadSourceMeshData(_sourceMesh))
             {
-                UnityEngine.Profiling.Profiler.EndSample();
                 return null;
             }
 
@@ -2503,7 +2577,6 @@ namespace Net._32Ba.LatticeDeformationTool
 #line hidden
             if (!EnsureAllBrushLayerDisplacementCapacity(_sourceMesh.vertexCount))
             {
-                UnityEngine.Profiling.Profiler.EndSample();
                 return null;
             }
 #line default
@@ -2514,7 +2587,6 @@ namespace Net._32Ba.LatticeDeformationTool
                 out var bakedBlendShapeHash);
             if (sourceVertices == null || sourceVertices.Length == 0)
             {
-                UnityEngine.Profiling.Profiler.EndSample();
                 return null;
             }
 
@@ -2523,19 +2595,17 @@ namespace Net._32Ba.LatticeDeformationTool
 #line hidden
             if (!EnsureAllBrushLayerDisplacementCapacity(vertexCount))
             {
-                UnityEngine.Profiling.Profiler.EndSample();
                 return null;
             }
 #line default
 
             // Do not instantiate or assign a runtime mesh until every serialized
             // vertex-indexed payload has passed compatibility validation.
-            var mesh = AcquireRuntimeMesh(assignToRenderer);
+            var mesh = AcquireRuntimeMesh(false);
             // A validated non-null source always yields an instantiated runtime mesh.
 #line hidden
             if (mesh == null)
             {
-                UnityEngine.Profiling.Profiler.EndSample();
                 return null;
             }
 #line default
@@ -2661,7 +2731,7 @@ namespace Net._32Ba.LatticeDeformationTool
                     _legacyPublishedBlendShapeSemantics);
                 if (_blendShapeOutputDirty || blendShapeHash != _lastBlendShapeHash)
                 {
-                    UnityEngine.Profiling.Profiler.BeginSample("LatticeDeformer.RebuildBlendShapes");
+                    using var rebuildBlendShapesProfile = new ProfilerSampleScope("LatticeDeformer.RebuildBlendShapes");
                     _lastBlendShapeHash = blendShapeHash;
 
                     mesh.ClearBlendShapes();
@@ -2674,8 +2744,7 @@ namespace Net._32Ba.LatticeDeformationTool
                         AddGeneratedBlendShapeFrames(mesh, shapeName, finalVertices, generated);
                     }
                     _blendShapeOutputDirty = false;
-                    UnityEngine.Profiling.Profiler.EndSample();
-                }
+                    }
             }
             else
             {
@@ -2742,7 +2811,6 @@ namespace Net._32Ba.LatticeDeformationTool
                 _runtimeMeshRevision++;
             }
 
-            UnityEngine.Profiling.Profiler.EndSample();
             return mesh;
         }
 
@@ -4969,10 +5037,11 @@ namespace Net._32Ba.LatticeDeformationTool
                 return _groups;
             }
 
-            if (EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch)
+            if (GetCachedProfileCompatibility() == ProfileCompatibilityStatus.TopologyMismatch)
             {
                 _profileGroups = null;
                 _profileFingerprint = null;
+                _profileContentRevision = int.MinValue;
                 if (_blockedProfileGroups == null)
                 {
                     _blockedProfileGroups = new List<DeformerGroup>
@@ -4992,18 +5061,37 @@ namespace Net._32Ba.LatticeDeformationTool
                 _groups.Clear();
             }
 
-            string fingerprint = _profile.GetContentFingerprint();
-            if (_profileGroups == null || !string.Equals(_profileFingerprint, fingerprint, StringComparison.Ordinal))
+            int revision = _profile.ContentRevision;
+            if (_profileGroups == null || _profileContentRevision != revision)
             {
                 var payload = _profile.CreateIndependentPayload();
                 _profileGroups = payload.Groups;
                 _blockedProfileGroups = null;
                 _activeGroupIndex = payload.ActiveGroupIndex;
-                _profileFingerprint = fingerprint;
+                _profileContentRevision = revision;
+                _profileFingerprint = null;
                 InvalidateCache();
             }
 
             return _profileGroups;
+        }
+
+        private ProfileCompatibilityStatus GetCachedProfileCompatibility()
+        {
+            if (_profile == null) return ProfileCompatibilityStatus.InsufficientMetadata;
+            Mesh mesh = GetCompatibilitySourceMesh();
+            int revision = _profile.ContentRevision;
+            if (!ReferenceEquals(_compatibilityProfile, _profile) ||
+                !ReferenceEquals(_compatibilityMesh, mesh) ||
+                _compatibilityProfileRevision != revision)
+            {
+                _cachedProfileCompatibility = _profile.EvaluateCompatibility(mesh);
+                _compatibilityProfile = _profile;
+                _compatibilityMesh = mesh;
+                _compatibilityProfileRevision = revision;
+            }
+
+            return _cachedProfileCompatibility;
         }
 
         // Legacy compat — still called from EnsureLayerModelReady before group migration
