@@ -129,8 +129,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Matrix4x4 normalMatrix = localToWorld.inverse.transpose;
             float determinantSign = localToWorld.determinant < 0f ? -1f : 1f;
             var triangles = new List<TriangleData>(indices.Length / 3);
-            var edgeUseCounts = new Dictionary<ulong, int>();
-            int[] topologyVertexIds = BuildTopologyVertexIds(vertices, localToWorld);
+            var validTopologyIndices = new List<int>(indices.Length);
 
             for (int triangleIndex = 0; triangleIndex + 2 < indices.Length; triangleIndex += 3)
             {
@@ -167,22 +166,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     n0,
                     n1,
                     n2));
-                IncrementEdge(edgeUseCounts, topologyVertexIds[i0], topologyVertexIds[i1]);
-                IncrementEdge(edgeUseCounts, topologyVertexIds[i1], topologyVertexIds[i2]);
-                IncrementEdge(edgeUseCounts, topologyVertexIds[i2], topologyVertexIds[i0]);
+                validTopologyIndices.Add(i0);
+                validTopologyIndices.Add(i1);
+                validTopologyIndices.Add(i2);
             }
 
             if (triangles.Count == 0) return false;
 
-            bool isClosed = edgeUseCounts.Count > 0;
-            foreach (int useCount in edgeUseCounts.Values)
-            {
-                if (useCount != 2)
-                {
-                    isClosed = false;
-                    break;
-                }
-            }
+            bool isClosed = TopologySeamUtility.IsClosedSurface(vertices, validTopologyIndices);
 
             TriangleData[] triangleArray = triangles.ToArray();
             var order = new int[triangleArray.Length];
@@ -420,46 +411,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
             return (uniqueHits & 1) != 0;
-        }
-
-        private static int[] BuildTopologyVertexIds(Vector3[] vertices, Matrix4x4 localToWorld)
-        {
-            var ids = new int[vertices.Length];
-            var map = new Dictionary<QuantizedTopologyPosition, int>();
-            int nextId = 0;
-            for (int i = 0; i < vertices.Length; i++)
-            {
-                Vector3 world = localToWorld.MultiplyPoint3x4(vertices[i]);
-                var key = new QuantizedTopologyPosition(world);
-                if (!map.TryGetValue(key, out int id))
-                {
-                    id = nextId++;
-                    map.Add(key, id);
-                }
-                ids[i] = id;
-            }
-            return ids;
-        }
-
-        private readonly struct QuantizedTopologyPosition : IEquatable<QuantizedTopologyPosition>
-        {
-            private const double Scale = 100000.0;
-            private readonly long _x;
-            private readonly long _y;
-            private readonly long _z;
-
-            internal QuantizedTopologyPosition(Vector3 value)
-            {
-                _x = (long)Math.Round(value.x * Scale);
-                _y = (long)Math.Round(value.y * Scale);
-                _z = (long)Math.Round(value.z * Scale);
-            }
-
-            public bool Equals(QuantizedTopologyPosition other) =>
-                _x == other._x && _y == other._y && _z == other._z;
-            public override bool Equals(object obj) =>
-                obj is QuantizedTopologyPosition other && Equals(other);
-            public override int GetHashCode() => HashCode.Combine(_x, _y, _z);
         }
 
         private static int BuildNode(

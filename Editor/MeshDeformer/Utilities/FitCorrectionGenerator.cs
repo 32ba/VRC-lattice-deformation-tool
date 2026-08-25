@@ -445,20 +445,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 adjacency[vertex] = new List<int>();
 
             Vector3[] vertices = mesh != null ? mesh.vertices : Array.Empty<Vector3>();
-            int[] topologyIds = BuildTopologyVertexIds(vertices);
-            var topologyMembers = new Dictionary<int, List<int>>();
-            for (int vertex = 0; vertex < topologyIds.Length; vertex++)
-            {
-                if (!topologyMembers.TryGetValue(topologyIds[vertex], out var members))
-                {
-                    members = new List<int>();
-                    topologyMembers.Add(topologyIds[vertex], members);
-                }
-                members.Add(vertex);
-            }
-
             int[] triangles = mesh != null ? mesh.triangles : Array.Empty<int>();
-            var edgeCounts = new Dictionary<ulong, int>();
             for (int triangle = 0; triangle + 2 < triangles.Length; triangle += 3)
             {
                 int a = triangles[triangle];
@@ -470,60 +457,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 AddNeighbor(adjacency, a, b);
                 AddNeighbor(adjacency, b, c);
                 AddNeighbor(adjacency, c, a);
-                CountEdge(edgeCounts, topologyIds[a], topologyIds[b]);
-                CountEdge(edgeCounts, topologyIds[b], topologyIds[c]);
-                CountEdge(edgeCounts, topologyIds[c], topologyIds[a]);
             }
 
-            foreach (var edge in edgeCounts)
-            {
-                if (edge.Value != 1) continue;
-                int topologyA = (int)(edge.Key >> 32);
-                int topologyB = (int)(edge.Key & uint.MaxValue);
-                if (topologyMembers.TryGetValue(topologyA, out var membersA))
-                    for (int i = 0; i < membersA.Count; i++) boundaryVertices[membersA[i]] = true;
-                if (topologyMembers.TryGetValue(topologyB, out var membersB))
-                    for (int i = 0; i < membersB.Count; i++) boundaryVertices[membersB[i]] = true;
-            }
-        }
-
-        private static int[] BuildTopologyVertexIds(Vector3[] vertices)
-        {
-            var ids = new int[vertices?.Length ?? 0];
-            var map = new Dictionary<FitTopologyPosition, int>();
-            int nextId = 0;
-            for (int i = 0; i < ids.Length; i++)
-            {
-                var key = new FitTopologyPosition(vertices[i]);
-                if (!map.TryGetValue(key, out int id))
-                {
-                    id = nextId++;
-                    map.Add(key, id);
-                }
-                ids[i] = id;
-            }
-            return ids;
-        }
-
-        private readonly struct FitTopologyPosition : IEquatable<FitTopologyPosition>
-        {
-            private const double Scale = 100000.0;
-            private readonly long _x;
-            private readonly long _y;
-            private readonly long _z;
-
-            internal FitTopologyPosition(Vector3 value)
-            {
-                _x = (long)Math.Round(value.x * Scale);
-                _y = (long)Math.Round(value.y * Scale);
-                _z = (long)Math.Round(value.z * Scale);
-            }
-
-            public bool Equals(FitTopologyPosition other) =>
-                _x == other._x && _y == other._y && _z == other._z;
-            public override bool Equals(object obj) =>
-                obj is FitTopologyPosition other && Equals(other);
-            public override int GetHashCode() => HashCode.Combine(_x, _y, _z);
+            TopologySeamUtility.MarkOpenBoundaryVertices(vertices, triangles, boundaryVertices);
         }
 
         private static void AddNeighbor(List<int>[] adjacency, int a, int b)
@@ -531,15 +467,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (a == b) return;
             if (!adjacency[a].Contains(b)) adjacency[a].Add(b);
             if (!adjacency[b].Contains(a)) adjacency[b].Add(a);
-        }
-
-        private static void CountEdge(Dictionary<ulong, int> counts, int a, int b)
-        {
-            uint min = (uint)Mathf.Min(a, b);
-            uint max = (uint)Mathf.Max(a, b);
-            ulong key = ((ulong)min << 32) | max;
-            counts.TryGetValue(key, out int count);
-            counts[key] = count + 1;
         }
 
         private static void SmoothDisplacements(

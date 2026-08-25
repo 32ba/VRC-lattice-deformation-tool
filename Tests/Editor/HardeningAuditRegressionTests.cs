@@ -112,6 +112,166 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
+        [Test]
+        public void PublicBrushFacade_TinyMutationAndClearUseExactRevisionSemantics()
+        {
+            var go = new GameObject("tiny-revision-test");
+            var mesh = CreateSimpleTriangle();
+            try
+            {
+                go.AddComponent<MeshFilter>().sharedMesh = mesh;
+                go.AddComponent<MeshRenderer>();
+                var deformer = go.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                int layer = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = layer;
+                deformer.EnsureDisplacementCapacity();
+
+                int beforeSet = deformer.DeformationDataRevision;
+                deformer.SetDisplacement(0, new Vector3(1e-7f, 0f, 0f));
+                Assert.That(deformer.DeformationDataRevision, Is.Not.EqualTo(beforeSet));
+
+                int beforeClear = deformer.DeformationDataRevision;
+                deformer.ClearDisplacements();
+                Assert.That(deformer.GetDisplacement(0), Is.EqualTo(Vector3.zero));
+                Assert.That(deformer.DeformationDataRevision, Is.Not.EqualTo(beforeClear));
+
+                int afterClear = deformer.DeformationDataRevision;
+                deformer.ClearDisplacements();
+                Assert.That(deformer.DeformationDataRevision, Is.EqualTo(afterClear));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void ProfileNestedMutation_RefreshesIndependentInstanceCopy()
+        {
+            var mesh = CreateSimpleTriangle();
+            var sourceGo = new GameObject("profile-source");
+            var targetGo = new GameObject("profile-target");
+            var profile = ScriptableObject.CreateInstance<MeshDeformerProfile>();
+            try
+            {
+                var source = CreateSimpleDeformer(sourceGo, mesh);
+                int brush = source.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                source.ActiveLayerIndex = brush;
+                source.EnsureDisplacementCapacity();
+                source.SetDisplacement(0, Vector3.up);
+                profile.Capture(source.Groups, source.ActiveGroupIndex, mesh);
+
+                var target = CreateSimpleDeformer(targetGo, mesh);
+                Assert.That(target.UseProfile(profile), Is.True);
+                Assert.That(target.Groups[0].Enabled, Is.True);
+
+                profile.Groups[0].Enabled = false;
+                Assert.That(target.Groups[0].Enabled, Is.False);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(profile);
+                UnityEngine.Object.DestroyImmediate(sourceGo);
+                UnityEngine.Object.DestroyImmediate(targetGo);
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void ProfileCompatibility_RechecksMeshMutatedInPlace()
+        {
+            var mesh = CreateSimpleTriangle();
+            var sourceGo = new GameObject("compat-source");
+            var targetGo = new GameObject("compat-target");
+            var profile = ScriptableObject.CreateInstance<MeshDeformerProfile>();
+            try
+            {
+                var source = CreateSimpleDeformer(sourceGo, mesh);
+                profile.Capture(source.Groups, source.ActiveGroupIndex, mesh);
+                var target = CreateSimpleDeformer(targetGo, mesh);
+                Assert.That(target.UseProfile(profile), Is.True);
+                Assert.That(target.GroupCount, Is.GreaterThan(0));
+
+                mesh.triangles = new[] { 0, 2, 1 };
+                Assert.That(target.EvaluateProfileCompatibility(), Is.EqualTo(ProfileCompatibilityStatus.TopologyMismatch));
+                Assert.That(target.Groups[0].Name, Is.EqualTo("Incompatible Profile"));
+                Assert.That(target.Groups[0].Enabled, Is.False);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(profile);
+                UnityEngine.Object.DestroyImmediate(sourceGo);
+                UnityEngine.Object.DestroyImmediate(targetGo);
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void ClosedMesh_CoincidentDoubleSidedSheetRemainsOpen()
+        {
+            var mesh = CreateDoubleSidedSheet();
+            try
+            {
+                Assert.That(ClearanceQuery.TryCreate(mesh, Matrix4x4.identity, out var query), Is.True);
+                Assert.That(query.IsClosedSurface, Is.False);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void FitTopology_NearbyOpenComponentsKeepTheirBoundaries()
+        {
+            var vertices = new[]
+            {
+                new Vector3(0f, 0f, 0f), new Vector3(1f, 0f, 0f), new Vector3(0f, 1f, 0f),
+                new Vector3(0f, 0f, 5e-6f), new Vector3(1f, 0f, 5e-6f), new Vector3(0f, 1f, 5e-6f)
+            };
+            var triangles = new[] { 0, 1, 2, 3, 4, 5 };
+            var boundaries = new bool[vertices.Length];
+
+            TopologySeamUtility.MarkOpenBoundaryVertices(vertices, triangles, boundaries);
+
+            Assert.That(boundaries, Is.All.True);
+        }
+
+        private static LatticeDeformer CreateSimpleDeformer(GameObject go, Mesh mesh)
+        {
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>();
+            var deformer = go.AddComponent<LatticeDeformer>();
+            deformer.Reset();
+            return deformer;
+        }
+
+        private static Mesh CreateSimpleTriangle()
+        {
+            var mesh = new Mesh();
+            mesh.vertices = new[] { Vector3.zero, Vector3.right, Vector3.up };
+            mesh.triangles = new[] { 0, 1, 2 };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private static Mesh CreateDoubleSidedSheet()
+        {
+            var mesh = new Mesh();
+            mesh.vertices = new[]
+            {
+                Vector3.zero, Vector3.right, Vector3.up,
+                Vector3.zero, Vector3.right, Vector3.up
+            };
+            mesh.triangles = new[] { 0, 1, 2, 3, 5, 4 };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
         private static Mesh CreateIndexedCube()
         {
             var mesh = new Mesh();

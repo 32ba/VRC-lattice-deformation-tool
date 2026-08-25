@@ -1610,7 +1610,8 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 Vector3 before = layer.GetBrushDisplacement(index);
                 layer.SetBrushDisplacement(index, displacement);
-                if (layer.GetBrushDisplacement(index) != before) NotifyDeformationDataChanged();
+                Vector3 after = layer.GetBrushDisplacement(index);
+                if (!ExactlyEqual(before, after)) NotifyDeformationDataChanged();
             }
         }
 
@@ -1621,8 +1622,14 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 Vector3 before = layer.GetBrushDisplacement(index);
                 layer.AddBrushDisplacement(index, delta);
-                if (layer.GetBrushDisplacement(index) != before) NotifyDeformationDataChanged();
+                Vector3 after = layer.GetBrushDisplacement(index);
+                if (!ExactlyEqual(before, after)) NotifyDeformationDataChanged();
             }
+        }
+
+        private static bool ExactlyEqual(Vector3 left, Vector3 right)
+        {
+            return left.x == right.x && left.y == right.y && left.z == right.z;
         }
 
         public Vector3 GetDisplacement(int index)
@@ -1636,10 +1643,22 @@ namespace Net._32Ba.LatticeDeformationTool
         public void ClearDisplacements()
         {
             if (!EnsureGroups()) return;
-            if (TryGetActiveLayer(out var layer) && layer.Type == MeshDeformerLayerType.Brush && layer.HasBrushDisplacements())
+            if (TryGetActiveLayer(out var layer) && layer.Type == MeshDeformerLayerType.Brush)
             {
+                Vector3[] displacements = layer.BrushDisplacements;
+                bool changed = false;
+                for (int i = 0; i < displacements.Length; i++)
+                {
+                    Vector3 value = displacements[i];
+                    if (value.x != 0f || value.y != 0f || value.z != 0f)
+                    {
+                        changed = true;
+                        break;
+                    }
+                }
+
                 layer.ClearBrushDisplacements();
-                NotifyDeformationDataChanged();
+                if (changed) NotifyDeformationDataChanged();
             }
         }
 
@@ -5037,7 +5056,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 return _groups;
             }
 
-            if (GetCachedProfileCompatibility() == ProfileCompatibilityStatus.TopologyMismatch)
+            if (EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch)
             {
                 _profileGroups = null;
                 _profileFingerprint = null;
@@ -5061,37 +5080,20 @@ namespace Net._32Ba.LatticeDeformationTool
                 _groups.Clear();
             }
 
-            int revision = _profile.ContentRevision;
-            if (_profileGroups == null || _profileContentRevision != revision)
+            string fingerprint = _profile.GetContentFingerprint();
+            if (_profileGroups == null ||
+                !string.Equals(_profileFingerprint, fingerprint, StringComparison.Ordinal))
             {
                 var payload = _profile.CreateIndependentPayload();
                 _profileGroups = payload.Groups;
                 _blockedProfileGroups = null;
                 _activeGroupIndex = payload.ActiveGroupIndex;
-                _profileContentRevision = revision;
-                _profileFingerprint = null;
+                _profileFingerprint = fingerprint;
+                _profileContentRevision = _profile.ContentRevision;
                 InvalidateCache();
             }
 
             return _profileGroups;
-        }
-
-        private ProfileCompatibilityStatus GetCachedProfileCompatibility()
-        {
-            if (_profile == null) return ProfileCompatibilityStatus.InsufficientMetadata;
-            Mesh mesh = GetCompatibilitySourceMesh();
-            int revision = _profile.ContentRevision;
-            if (!ReferenceEquals(_compatibilityProfile, _profile) ||
-                !ReferenceEquals(_compatibilityMesh, mesh) ||
-                _compatibilityProfileRevision != revision)
-            {
-                _cachedProfileCompatibility = _profile.EvaluateCompatibility(mesh);
-                _compatibilityProfile = _profile;
-                _compatibilityMesh = mesh;
-                _compatibilityProfileRevision = revision;
-            }
-
-            return _cachedProfileCompatibility;
         }
 
         // Legacy compat — still called from EnsureLayerModelReady before group migration
