@@ -7,7 +7,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 {
     internal static class TopologySeamUtility
     {
-        private readonly struct PositionKey : IEquatable<PositionKey>
+        private const float k_DegenerateNormalSquared = 1e-12f;
+        private const float k_OppositeFaceNormalDot = -0.9999f;
+
+        private readonly struct PositionKey : IEquatable<PositionKey>, IComparable<PositionKey>
         {
             private readonly int _x;
             private readonly int _y;
@@ -22,76 +25,102 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             private static int FloatBits(float value)
             {
-                if (value == 0f) return 0;
-                return BitConverter.ToInt32(BitConverter.GetBytes(value), 0);
+                // Treat signed zero as the same geometric coordinate.
+                return value == 0f ? 0 : BitConverter.SingleToInt32Bits(value);
+            }
+
+            public int CompareTo(PositionKey other)
+            {
+                int comparison = _x.CompareTo(other._x);
+                if (comparison != 0) return comparison;
+                comparison = _y.CompareTo(other._y);
+                return comparison != 0 ? comparison : _z.CompareTo(other._z);
             }
 
             public bool Equals(PositionKey other) =>
                 _x == other._x && _y == other._y && _z == other._z;
-            public override bool Equals(object obj) => obj is PositionKey other && Equals(other);
+
+            public override bool Equals(object obj) =>
+                obj is PositionKey other && Equals(other);
+
             public override int GetHashCode() => HashCode.Combine(_x, _y, _z);
         }
 
-        private readonly struct TriangleKey : IEquatable<TriangleKey>
+        private readonly struct GeometricEdgeKey : IEquatable<GeometricEdgeKey>
         {
-            private readonly int _a;
-            private readonly int _b;
-            private readonly int _c;
+            private readonly PositionKey _a;
+            private readonly PositionKey _b;
 
-            internal TriangleKey(int a, int b, int c)
+            internal GeometricEdgeKey(PositionKey from, PositionKey to)
             {
-                if (a > b) Swap(ref a, ref b);
-                if (b > c) Swap(ref b, ref c);
-                if (a > b) Swap(ref a, ref b);
-                _a = a;
-                _b = b;
-                _c = c;
+                if (from.CompareTo(to) <= 0)
+                {
+                    _a = from;
+                    _b = to;
+                }
+                else
+                {
+                    _a = to;
+                    _b = from;
+                }
             }
 
-            private static void Swap(ref int left, ref int right)
-            {
-                int temporary = left;
-                left = right;
-                right = temporary;
-            }
+            public bool Equals(GeometricEdgeKey other) =>
+                _a.Equals(other._a) && _b.Equals(other._b);
 
-            public bool Equals(TriangleKey other) =>
-                _a == other._a && _b == other._b && _c == other._c;
-            public override bool Equals(object obj) => obj is TriangleKey other && Equals(other);
-            public override int GetHashCode() => HashCode.Combine(_a, _b, _c);
+            public override bool Equals(object obj) =>
+                obj is GeometricEdgeKey other && Equals(other);
+
+            public override int GetHashCode() => HashCode.Combine(_a, _b);
         }
 
-        private sealed class EdgeStats
+        private readonly struct HalfEdge
         {
-            internal int Count;
-            internal int Forward;
-            internal int Reverse;
-            internal int A;
-            internal int B;
+            internal readonly int FromIndex;
+            internal readonly int ToIndex;
+            internal readonly PositionKey FromPosition;
+            internal readonly PositionKey ToPosition;
+            internal readonly Vector3 FaceNormal;
+
+            internal HalfEdge(
+                int fromIndex,
+                int toIndex,
+                Vector3 fromPosition,
+                Vector3 toPosition,
+                Vector3 faceNormal)
+            {
+                FromIndex = fromIndex;
+                ToIndex = toIndex;
+                FromPosition = new PositionKey(fromPosition);
+                ToPosition = new PositionKey(toPosition);
+                FaceNormal = faceNormal;
+            }
+
+            internal bool IsReverseIndexEdge(HalfEdge other) =>
+                FromIndex == other.ToIndex && ToIndex == other.FromIndex;
+
+            internal bool IsReverseGeometricEdge(HalfEdge other) =>
+                FromPosition.Equals(other.ToPosition) &&
+                ToPosition.Equals(other.FromPosition);
         }
 
         private sealed class Topology
         {
-            internal Dictionary<int, List<int>> Members;
-            internal Dictionary<ulong, EdgeStats> Edges;
-            internal bool HasDuplicateTriangle;
+            internal readonly int TriangleCount;
+            internal readonly List<HalfEdge> UnmatchedEdges;
+
+            internal Topology(int triangleCount, List<HalfEdge> unmatchedEdges)
+            {
+                TriangleCount = triangleCount;
+                UnmatchedEdges = unmatchedEdges;
+            }
         }
 
         internal static bool IsClosedSurface(Vector3[] vertices, IReadOnlyList<int> indices)
         {
-            Topology topology;
-            if (!TryBuild(vertices, indices, out topology) ||
-                topology.HasDuplicateTriangle || topology.Edges.Count == 0)
-            {
-                return false;
-            }
-
-            foreach (EdgeStats edge in topology.Edges.Values)
-            {
-                if (edge.Count != 2 || edge.Forward != 1 || edge.Reverse != 1)
-                    return false;
-            }
-            return true;
+            return TryBuild(vertices, indices, out Topology topology) &&
+                   topology.TriangleCount > 0 &&
+                   topology.UnmatchedEdges.Count == 0;
         }
 
         internal static void MarkOpenBoundaryVertices(
@@ -99,55 +128,38 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             IReadOnlyList<int> indices,
             bool[] boundaryVertices)
         {
-            Topology topology;
             if (boundaryVertices == null || vertices == null ||
                 boundaryVertices.Length < vertices.Length ||
-                !TryBuild(vertices, indices, out topology))
+                !TryBuild(vertices, indices, out Topology topology))
             {
                 return;
             }
 
-            if (topology.HasDuplicateTriangle)
+            for (int edgeIndex = 0; edgeIndex < topology.UnmatchedEdges.Count; edgeIndex++)
             {
-                MarkRawOpenBoundaryVertices(indices, boundaryVertices, vertices.Length);
-                return;
-            }
-
-            foreach (EdgeStats edge in topology.Edges.Values)
-            {
-                if (edge.Count != 1) continue;
-                MarkMembers(topology.Members, edge.A, boundaryVertices);
-                MarkMembers(topology.Members, edge.B, boundaryVertices);
+                HalfEdge edge = topology.UnmatchedEdges[edgeIndex];
+                boundaryVertices[edge.FromIndex] = true;
+                boundaryVertices[edge.ToIndex] = true;
             }
         }
 
-        private static bool TryBuild(Vector3[] vertices, IReadOnlyList<int> indices, out Topology topology)
+        private static bool TryBuild(
+            Vector3[] vertices,
+            IReadOnlyList<int> indices,
+            out Topology topology)
         {
             topology = null;
-            if (vertices == null || indices == null || vertices.Length == 0 || indices.Count < 3)
-                return false;
-
-            var logicalIds = new int[vertices.Length];
-            var positionIds = new Dictionary<PositionKey, int>();
-            var members = new Dictionary<int, List<int>>();
-            int nextId = 0;
-            for (int vertex = 0; vertex < vertices.Length; vertex++)
+            if (vertices == null || indices == null ||
+                vertices.Length == 0 || indices.Count < 3)
             {
-                var key = new PositionKey(vertices[vertex]);
-                int id;
-                if (!positionIds.TryGetValue(key, out id))
-                {
-                    id = nextId++;
-                    positionIds.Add(key, id);
-                    members.Add(id, new List<int>());
-                }
-                logicalIds[vertex] = id;
-                members[id].Add(vertex);
+                return false;
             }
 
-            var edges = new Dictionary<ulong, EdgeStats>();
-            var triangles = new HashSet<TriangleKey>();
-            bool duplicateTriangle = false;
+            // First preserve the source index topology. Only raw boundary half-edges are
+            // eligible for attribute-seam reconciliation; globally welding equal positions
+            // would incorrectly connect overlapping but independent surfaces.
+            var rawEdges = new Dictionary<ulong, List<HalfEdge>>();
+            int triangleCount = 0;
             for (int index = 0; index + 2 < indices.Count; index += 3)
             {
                 int i0 = indices[index];
@@ -156,86 +168,120 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if ((uint)i0 >= (uint)vertices.Length ||
                     (uint)i1 >= (uint)vertices.Length ||
                     (uint)i2 >= (uint)vertices.Length)
+                {
                     continue;
+                }
 
-                int a = logicalIds[i0];
-                int b = logicalIds[i1];
-                int c = logicalIds[i2];
-                if (a == b || b == c || c == a) continue;
-                if (!triangles.Add(new TriangleKey(a, b, c))) duplicateTriangle = true;
-                AddEdge(edges, a, b);
-                AddEdge(edges, b, c);
-                AddEdge(edges, c, a);
-            }
-
-            topology = new Topology
-            {
-                Members = members,
-                Edges = edges,
-                HasDuplicateTriangle = duplicateTriangle
-            };
-            return edges.Count > 0;
-        }
-
-        private static void AddEdge(Dictionary<ulong, EdgeStats> edges, int from, int to)
-        {
-            uint min = (uint)Math.Min(from, to);
-            uint max = (uint)Math.Max(from, to);
-            ulong key = ((ulong)min << 32) | max;
-            EdgeStats stats;
-            if (!edges.TryGetValue(key, out stats))
-            {
-                stats = new EdgeStats { A = (int)min, B = (int)max };
-                edges.Add(key, stats);
-            }
-            stats.Count++;
-            if (from < to) stats.Forward++; else stats.Reverse++;
-        }
-
-        private static void MarkMembers(
-            Dictionary<int, List<int>> members,
-            int logicalId,
-            bool[] boundaryVertices)
-        {
-            List<int> vertices;
-            if (!members.TryGetValue(logicalId, out vertices)) return;
-            for (int i = 0; i < vertices.Count; i++) boundaryVertices[vertices[i]] = true;
-        }
-
-        private static void MarkRawOpenBoundaryVertices(
-            IReadOnlyList<int> indices,
-            bool[] boundaryVertices,
-            int vertexCount)
-        {
-            var counts = new Dictionary<ulong, int>();
-            for (int index = 0; index + 2 < indices.Count; index += 3)
-            {
-                int a = indices[index];
-                int b = indices[index + 1];
-                int c = indices[index + 2];
-                if ((uint)a >= (uint)vertexCount || (uint)b >= (uint)vertexCount || (uint)c >= (uint)vertexCount)
+                Vector3 a = vertices[i0];
+                Vector3 b = vertices[i1];
+                Vector3 c = vertices[i2];
+                if (!IsFinite(a) || !IsFinite(b) || !IsFinite(c))
+                {
                     continue;
-                CountRawEdge(counts, a, b);
-                CountRawEdge(counts, b, c);
-                CountRawEdge(counts, c, a);
+                }
+
+                Vector3 faceNormal = Vector3.Cross(b - a, c - a);
+                if (!IsFinite(faceNormal) ||
+                    faceNormal.sqrMagnitude <= k_DegenerateNormalSquared)
+                {
+                    continue;
+                }
+
+                faceNormal.Normalize();
+                triangleCount++;
+                AddRawEdge(rawEdges, new HalfEdge(i0, i1, a, b, faceNormal));
+                AddRawEdge(rawEdges, new HalfEdge(i1, i2, b, c, faceNormal));
+                AddRawEdge(rawEdges, new HalfEdge(i2, i0, c, a, faceNormal));
             }
 
-            foreach (KeyValuePair<ulong, int> edge in counts)
+            if (triangleCount == 0)
             {
-                if (edge.Value != 1) continue;
-                boundaryVertices[(int)(edge.Key >> 32)] = true;
-                boundaryVertices[(int)(edge.Key & uint.MaxValue)] = true;
+                return false;
             }
+
+            var seamCandidates =
+                new Dictionary<GeometricEdgeKey, List<HalfEdge>>();
+            var unmatchedEdges = new List<HalfEdge>();
+
+            foreach (List<HalfEdge> rawGroup in rawEdges.Values)
+            {
+                if (rawGroup.Count == 2 &&
+                    rawGroup[0].IsReverseIndexEdge(rawGroup[1]) &&
+                    CanJoinFaces(rawGroup[0], rawGroup[1]))
+                {
+                    continue;
+                }
+
+                if (rawGroup.Count == 1)
+                {
+                    AddSeamCandidate(seamCandidates, rawGroup[0]);
+                    continue;
+                }
+
+                // Same-direction pairs and non-manifold raw edges are not valid
+                // manifold adjacency. Keep every endpoint visible as a boundary.
+                unmatchedEdges.AddRange(rawGroup);
+            }
+
+            foreach (List<HalfEdge> seamGroup in seamCandidates.Values)
+            {
+                if (seamGroup.Count == 2 &&
+                    seamGroup[0].IsReverseGeometricEdge(seamGroup[1]) &&
+                    CanJoinFaces(seamGroup[0], seamGroup[1]))
+                {
+                    continue;
+                }
+
+                unmatchedEdges.AddRange(seamGroup);
+            }
+
+            topology = new Topology(triangleCount, unmatchedEdges);
+            return true;
         }
 
-        private static void CountRawEdge(Dictionary<ulong, int> counts, int a, int b)
+        private static bool CanJoinFaces(HalfEdge first, HalfEdge second)
         {
-            uint min = (uint)Math.Min(a, b);
-            uint max = (uint)Math.Max(a, b);
+            float normalDot = Vector3.Dot(first.FaceNormal, second.FaceNormal);
+            return !float.IsNaN(normalDot) &&
+                   !float.IsInfinity(normalDot) &&
+                   normalDot > k_OppositeFaceNormalDot;
+        }
+
+        private static void AddRawEdge(
+            Dictionary<ulong, List<HalfEdge>> edges,
+            HalfEdge edge)
+        {
+            uint min = (uint)Math.Min(edge.FromIndex, edge.ToIndex);
+            uint max = (uint)Math.Max(edge.FromIndex, edge.ToIndex);
             ulong key = ((ulong)min << 32) | max;
-            int count;
-            counts.TryGetValue(key, out count);
-            counts[key] = count + 1;
+            if (!edges.TryGetValue(key, out List<HalfEdge> group))
+            {
+                group = new List<HalfEdge>(2);
+                edges.Add(key, group);
+            }
+
+            group.Add(edge);
+        }
+
+        private static void AddSeamCandidate(
+            Dictionary<GeometricEdgeKey, List<HalfEdge>> candidates,
+            HalfEdge edge)
+        {
+            var key = new GeometricEdgeKey(edge.FromPosition, edge.ToPosition);
+            if (!candidates.TryGetValue(key, out List<HalfEdge> group))
+            {
+                group = new List<HalfEdge>(2);
+                candidates.Add(key, group);
+            }
+
+            group.Add(edge);
+        }
+
+        private static bool IsFinite(Vector3 value)
+        {
+            return !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
+                   !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
+                   !float.IsNaN(value.z) && !float.IsInfinity(value.z);
         }
     }
 }
