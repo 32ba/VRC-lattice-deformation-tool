@@ -49,9 +49,6 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, HideInInspector]
         private int _serializationVersion;
 
-
-
-
         public Vector3Int GridSize
         {
             get => _gridSize;
@@ -61,18 +58,34 @@ namespace Net._32Ba.LatticeDeformationTool
         public Bounds LocalBounds
         {
             get => _localBounds;
-            set => _localBounds = value;
+            set
+            {
+                if (!IsFinite(value.center) || !IsFinite(value.size))
+                {
+                    throw new ArgumentOutOfRangeException(nameof(value), "Bounds must contain only finite values.");
+                }
+
+                _localBounds = value;
+            }
         }
 
         public LatticeInterpolationMode Interpolation
         {
             get => _interpolation;
-            set => _interpolation = value;
+            set
+            {
+                if (!IsKnownInterpolation(value))
+                {
+                    throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown lattice interpolation mode.");
+                }
+
+                _interpolation = value;
+            }
         }
 
         public bool UseJobsAndBurst => true;
 
-        public int ControlPointCount => _gridSize.x * _gridSize.y * _gridSize.z;
+        public int ControlPointCount => TryGetControlPointCount(_gridSize, out int count) ? count : 0;
 
         public System.ReadOnlySpan<Vector3> ControlPointsLocal => _controlPointsLocal ?? System.Array.Empty<Vector3>();
 
@@ -194,28 +207,38 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
+            if (!TryGetControlPointCount(newGridSize, out int newCount))
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(newGridSize),
+                    newGridSize,
+                    "Grid dimensions exceed the supported control point count.");
+            }
+
             var oldGrid = _gridSize;
             var oldPoints = _controlPointsLocal;
-            bool hasExistingPoints = oldPoints != null && oldPoints.Length == oldGrid.x * oldGrid.y * oldGrid.z;
+            bool hasExistingPoints = oldPoints != null &&
+                                     TryGetControlPointCount(oldGrid, out int oldCount) &&
+                                     oldPoints.Length == oldCount;
 
-            _gridSize = newGridSize;
-
-            int newCount = ControlPointCount;
+            // Build the complete replacement before committing either serialized field.
+            // Allocation or resampling failures therefore leave the old lattice intact.
             var newPoints = new Vector3[newCount];
 
-            if (hasExistingPoints && oldGrid.x > 0 && oldGrid.y > 0 && oldGrid.z > 0)
+            if (hasExistingPoints)
             {
-                ResampleControlPointsWithJobs(oldPoints, oldGrid, _gridSize, newPoints);
+                ResampleControlPointsWithJobs(oldPoints, oldGrid, newGridSize, newPoints);
             }
             else
 #line hidden
             {
                 // This fallback is asserted directly by RuntimeCoreTests; Unity's
                 // coverage instrumentation does not emit hits for this Jobs-adjacent branch.
-                PopulateNeutralControlPoints(_localBounds.min, _localBounds.size, _gridSize, newPoints);
+                PopulateNeutralControlPoints(_localBounds.min, _localBounds.size, newGridSize, newPoints);
             }
 #line default
 
+            _gridSize = newGridSize;
             _controlPointsLocal = newPoints;
         }
 
@@ -234,6 +257,11 @@ namespace Net._32Ba.LatticeDeformationTool
             if (_controlPointsLocal == null || index < 0 || index >= _controlPointsLocal.Length)
             {
                 return;
+            }
+
+            if (!IsFinite(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), "Control points must contain only finite values.");
             }
 
             _controlPointsLocal[index] = value;
@@ -442,22 +470,35 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private bool TryGetExpectedControlPointCount(out int expected)
         {
-            expected = 0;
-            if (_gridSize.x < k_MinAxisResolution ||
-                _gridSize.y < k_MinAxisResolution ||
-                _gridSize.z < k_MinAxisResolution)
+            return TryGetControlPointCount(_gridSize, out expected);
+        }
+
+        private static bool TryGetControlPointCount(Vector3Int grid, out int count)
+        {
+            count = 0;
+            if (grid.x < k_MinAxisResolution ||
+                grid.y < k_MinAxisResolution ||
+                grid.z < k_MinAxisResolution)
             {
                 return false;
             }
 
-            long count = (long)_gridSize.x * _gridSize.y * _gridSize.z;
-            if (count <= 0 || count > int.MaxValue)
+            try
+            {
+                long xy = checked((long)grid.x * grid.y);
+                long total = checked(xy * grid.z);
+                if (total <= 0 || total > int.MaxValue)
+                {
+                    return false;
+                }
+
+                count = (int)total;
+                return true;
+            }
+            catch (OverflowException)
             {
                 return false;
             }
-
-            expected = (int)count;
-            return true;
         }
 
         private static int Index(Vector3Int grid, int x, int y, int z)
@@ -519,8 +560,12 @@ namespace Net._32Ba.LatticeDeformationTool
                 throw new ArgumentNullException(nameof(target));
             }
 
-            int expectedSourceCount = sourceGrid.x * sourceGrid.y * sourceGrid.z;
-            int expectedTargetCount = targetGrid.x * targetGrid.y * targetGrid.z;
+            // ResizeGrid validates production lattice dimensions before this helper is
+            // reached. Keep the helper's historical defensive contract for reflection
+            // tests and malformed empty buffers: an invalid grid maps to a zero expected
+            // count, then the existing buffer mismatch checks decide whether to reject it.
+            TryGetControlPointCount(sourceGrid, out int expectedSourceCount);
+            TryGetControlPointCount(targetGrid, out int expectedTargetCount);
 
             if (expectedSourceCount != sourcePoints.Length)
             {
@@ -552,8 +597,6 @@ namespace Net._32Ba.LatticeDeformationTool
 
             targetNative.CopyToManaged(target);
         }
-
-
 
         [BurstCompile]
         [ExcludeFromCodeCoverage]
@@ -642,20 +685,15 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            _gridSize.x = Math.Max(k_MinAxisResolution, _gridSize.x);
-            _gridSize.y = Math.Max(k_MinAxisResolution, _gridSize.y);
-            _gridSize.z = Math.Max(k_MinAxisResolution, _gridSize.z);
-
-            int expected = ControlPointCount;
-            if (expected <= 0)
+            Vector3Int normalizedGrid = new Vector3Int(
+                Math.Max(k_MinAxisResolution, _gridSize.x),
+                Math.Max(k_MinAxisResolution, _gridSize.y),
+                Math.Max(k_MinAxisResolution, _gridSize.z));
+            if (!TryGetControlPointCount(normalizedGrid, out int expected))
             {
-                _controlPointsLocal = Array.Empty<Vector3>();
-                if (_serializationVersion < k_CurrentSerializationVersion)
-                {
-                    _serializationVersion = k_CurrentSerializationVersion;
-                }
                 return;
             }
+            _gridSize = normalizedGrid;
 
             bool sizeChanged = _controlPointsLocal == null || _controlPointsLocal.Length != expected;
             if (sizeChanged)
@@ -710,8 +748,8 @@ namespace Net._32Ba.LatticeDeformationTool
             Vector3Int grid,
             Vector3[] target)
         {
-            int expected = grid.x * grid.y * grid.z;
-            if (target == null || target.Length != expected || expected == 0)
+            if (!TryGetControlPointCount(grid, out int expected) ||
+                target == null || target.Length != expected || expected == 0)
             {
                 throw new ArgumentException("Target array does not match grid dimensions.", nameof(target));
             }
@@ -732,7 +770,6 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        
         void ISerializationCallbackReceiver.OnBeforeSerialize()
         {
         }
@@ -743,4 +780,3 @@ namespace Net._32Ba.LatticeDeformationTool
         }
     }
 }
-

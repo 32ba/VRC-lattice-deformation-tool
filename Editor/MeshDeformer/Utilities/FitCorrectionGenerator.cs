@@ -444,8 +444,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             for (int vertex = 0; vertex < vertexCount; vertex++)
                 adjacency[vertex] = new List<int>();
 
+            Vector3[] vertices = mesh != null ? mesh.vertices : Array.Empty<Vector3>();
             int[] triangles = mesh != null ? mesh.triangles : Array.Empty<int>();
-            var edgeCounts = new Dictionary<ulong, int>();
             for (int triangle = 0; triangle + 2 < triangles.Length; triangle += 3)
             {
                 int a = triangles[triangle];
@@ -457,19 +457,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 AddNeighbor(adjacency, a, b);
                 AddNeighbor(adjacency, b, c);
                 AddNeighbor(adjacency, c, a);
-                CountEdge(edgeCounts, a, b);
-                CountEdge(edgeCounts, b, c);
-                CountEdge(edgeCounts, c, a);
             }
 
-            foreach (var edge in edgeCounts)
-            {
-                if (edge.Value != 1) continue;
-                int a = (int)(edge.Key >> 32);
-                int b = (int)(edge.Key & uint.MaxValue);
-                boundaryVertices[a] = true;
-                boundaryVertices[b] = true;
-            }
+            TopologySeamUtility.MarkOpenBoundaryVertices(vertices, triangles, boundaryVertices);
         }
 
         private static void AddNeighbor(List<int>[] adjacency, int a, int b)
@@ -477,15 +467,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (a == b) return;
             if (!adjacency[a].Contains(b)) adjacency[a].Add(b);
             if (!adjacency[b].Contains(a)) adjacency[b].Add(a);
-        }
-
-        private static void CountEdge(Dictionary<ulong, int> counts, int a, int b)
-        {
-            uint min = (uint)Mathf.Min(a, b);
-            uint max = (uint)Mathf.Max(a, b);
-            ulong key = ((ulong)min << 32) | max;
-            counts.TryGetValue(key, out int count);
-            counts[key] = count + 1;
         }
 
         private static void SmoothDisplacements(

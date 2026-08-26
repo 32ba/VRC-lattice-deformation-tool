@@ -77,6 +77,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             new ProfilerMarker("Clearance.QueryPoint.Nearest");
         private static readonly ProfilerMarker s_closedPointMarker =
             new ProfilerMarker("Clearance.QueryPoint.ClosedSign");
+        private static readonly Vector3[] s_insideRayDirections =
+        {
+            new Vector3(1f, 0.37139067f, 0.5291327f).normalized,
+            new Vector3(-0.347f, 1f, 0.613f).normalized,
+            new Vector3(0.271f, -0.419f, 1f).normalized
+        };
 
         internal int TriangleCount => _triangles.Length;
         internal int TraversalStackSize => _workspace.TraversalStack.Length;
@@ -123,7 +129,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Matrix4x4 normalMatrix = localToWorld.inverse.transpose;
             float determinantSign = localToWorld.determinant < 0f ? -1f : 1f;
             var triangles = new List<TriangleData>(indices.Length / 3);
-            var edgeUseCounts = new Dictionary<ulong, int>();
+            var validTopologyIndices = new List<int>(indices.Length);
 
             for (int triangleIndex = 0; triangleIndex + 2 < indices.Length; triangleIndex += 3)
             {
@@ -160,22 +166,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     n0,
                     n1,
                     n2));
-                IncrementEdge(edgeUseCounts, i0, i1);
-                IncrementEdge(edgeUseCounts, i1, i2);
-                IncrementEdge(edgeUseCounts, i2, i0);
+                validTopologyIndices.Add(i0);
+                validTopologyIndices.Add(i1);
+                validTopologyIndices.Add(i2);
             }
 
             if (triangles.Count == 0) return false;
 
-            bool isClosed = edgeUseCounts.Count > 0;
-            foreach (int useCount in edgeUseCounts.Values)
-            {
-                if (useCount != 2)
-                {
-                    isClosed = false;
-                    break;
-                }
-            }
+            bool isClosed = TopologySeamUtility.IsClosedSurface(vertices, validTopologyIndices);
 
             TriangleData[] triangleArray = triangles.ToArray();
             var order = new int[triangleArray.Length];
@@ -358,7 +356,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private bool IsPointInside(Vector3 point, QueryWorkspace workspace, out int triangleTests)
         {
             triangleTests = 0;
-            var direction = new Vector3(1f, 0.37139067f, 0.5291327f).normalized;
+            int insideVotes = 0;
+            for (int directionIndex = 0; directionIndex < s_insideRayDirections.Length; directionIndex++)
+            {
+                if (IsPointInsideAlongRay(point, s_insideRayDirections[directionIndex], workspace, out int tests))
+                    insideVotes++;
+                triangleTests += tests;
+            }
+            return insideVotes >= 2;
+        }
+
+        private bool IsPointInsideAlongRay(
+            Vector3 point,
+            Vector3 direction,
+            QueryWorkspace workspace,
+            out int triangleTests)
+        {
+            triangleTests = 0;
             List<float> hits = workspace.RayHits;
             hits.Clear();
             int[] stack = workspace.TraversalStack;

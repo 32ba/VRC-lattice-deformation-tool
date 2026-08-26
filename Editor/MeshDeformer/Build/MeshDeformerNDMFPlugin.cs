@@ -53,19 +53,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     $"Mesh Deformer validation failed for '{invalidName}'. See MDV diagnostic codes in the Editor log.");
             }
 
-            bool previousSuppressRestore = LatticeDeformer.SuppressRestoreOnDisable;
-            try
+            using (LatticeDeformer.SuppressRestoreScope())
             {
-                LatticeDeformer.SuppressRestoreOnDisable = true;
-
                 foreach (var deformer in deformers)
                 {
                     ProcessValidatedDeformer(context, deformer);
                 }
-            }
-            finally
-            {
-                LatticeDeformer.SuppressRestoreOnDisable = previousSuppressRestore;
             }
         }
 
@@ -108,52 +101,70 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             var ownerName = skinnedMesh != null ? skinnedMesh.name : meshFilter != null ? meshFilter.name : deformer.name;
 
-            var exportMesh = Object.Instantiate(bakedMesh);
-            if (!string.IsNullOrEmpty(ownerName))
+            Mesh exportMesh = null;
+            bool ownershipTransferred = false;
+            try
             {
-                exportMesh.name = ownerName + "_MeshDeformed";
-            }
-
-            // Recalculate bone weights if enabled and using SkinnedMeshRenderer
-            if (deformer.RecalculateBoneWeights && skinnedMesh != null && sourceMesh.boneWeights != null && sourceMesh.boneWeights.Length > 0)
-            {
-                var settingsData = deformer.WeightTransferSettings;
-                var settings = new WeightTransferSettings
+                exportMesh = Object.Instantiate(bakedMesh);
+                if (!string.IsNullOrEmpty(ownerName))
                 {
-                    maxTransferDistance = settingsData.maxTransferDistance,
-                    normalAngleThreshold = settingsData.normalAngleThreshold,
-                    enableInpainting = settingsData.enableInpainting,
-                    maxIterations = settingsData.maxIterations,
-                    tolerance = settingsData.tolerance
-                };
-
-                var result = RobustWeightTransfer.Transfer(sourceMesh, sourceMesh.boneWeights, exportMesh, settings);
-                if (result.success)
-                {
-                    exportMesh.boneWeights = result.weights;
-                    Debug.Log($"[MeshDeformer] Weight transfer completed for {ownerName}: {result.transferredCount} transferred, {result.inpaintedCount} inpainted out of {result.totalVertices} vertices.");
+                    exportMesh.name = ownerName + "_MeshDeformed";
                 }
-                else
+
+                // Recalculate bone weights if enabled and using SkinnedMeshRenderer
+                if (deformer.RecalculateBoneWeights && skinnedMesh != null && sourceMesh.boneWeights != null && sourceMesh.boneWeights.Length > 0)
                 {
-                    Debug.LogWarning($"[MeshDeformer] Weight transfer failed for {ownerName}: {result.errorMessage}");
+                    var settingsData = deformer.WeightTransferSettings;
+                    var settings = new WeightTransferSettings
+                    {
+                        maxTransferDistance = settingsData.maxTransferDistance,
+                        normalAngleThreshold = settingsData.normalAngleThreshold,
+                        enableInpainting = settingsData.enableInpainting,
+                        maxIterations = settingsData.maxIterations,
+                        tolerance = settingsData.tolerance
+                    };
+
+                    var result = RobustWeightTransfer.Transfer(sourceMesh, sourceMesh.boneWeights, exportMesh, settings);
+                    if (result.success)
+                    {
+                        exportMesh.boneWeights = result.weights;
+                        Debug.Log($"[MeshDeformer] Weight transfer completed for {ownerName}: {result.transferredCount} transferred, {result.inpaintedCount} inpainted out of {result.totalVertices} vertices.");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[MeshDeformer] Weight transfer failed for {ownerName}: {result.errorMessage}");
+                    }
+                }
+
+                exportMesh.UploadMeshData(false);
+
+                context.AssetSaver.SaveAsset(exportMesh);
+                // AssetSaver owns the mesh after a successful save. Do not destroy it if
+                // a later registration or renderer assignment throws.
+                ownershipTransferred = true;
+                ObjectRegistry.RegisterReplacedObject(sourceMesh, exportMesh);
+
+                if (skinnedMesh != null)
+                {
+                    skinnedMesh.sharedMesh = exportMesh;
+                }
+                else if (meshFilter != null)
+                {
+                    meshFilter.sharedMesh = exportMesh;
+                }
+
+                Object.DestroyImmediate(deformer, true);
+            }
+            finally
+            {
+                // Instantiate creates an unmanaged Unity object. If any preparation step
+                // fails before AssetSaver accepts it, release the temporary mesh rather
+                // than leaking a hidden object until the next domain reload.
+                if (!ownershipTransferred && exportMesh != null)
+                {
+                    Object.DestroyImmediate(exportMesh);
                 }
             }
-
-            exportMesh.UploadMeshData(false);
-
-            context.AssetSaver.SaveAsset(exportMesh);
-            ObjectRegistry.RegisterReplacedObject(sourceMesh, exportMesh);
-
-            if (skinnedMesh != null)
-            {
-                skinnedMesh.sharedMesh = exportMesh;
-            }
-            else if (meshFilter != null)
-            {
-                meshFilter.sharedMesh = exportMesh;
-            }
-
-            Object.DestroyImmediate(deformer, true);
         }
 
         internal static bool ShouldProcessDeformer(LatticeDeformer deformer)

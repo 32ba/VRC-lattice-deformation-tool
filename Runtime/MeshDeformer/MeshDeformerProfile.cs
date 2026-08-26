@@ -187,6 +187,9 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, TextArea] private string _notes = "";
         [NonSerialized] private List<DeformerGroup> _readOnlyGroupSource;
         [NonSerialized] private ReadOnlyCollection<DeformerGroup> _readOnlyGroups;
+        [NonSerialized] private int _contentRevision;
+
+        internal int ContentRevision => _contentRevision;
 
         public IReadOnlyList<DeformerGroup> Groups
         {
@@ -224,6 +227,7 @@ namespace Net._32Ba.LatticeDeformationTool
             _groups = copy.Groups;
             _activeGroupIndex = copy.ActiveGroupIndex;
             if (sourceMesh != null) _compatibility = MeshCompatibilityMetadata.Capture(sourceMesh);
+            AdvanceContentRevision();
         }
 
         public ProfileCompatibilityStatus EvaluateCompatibility(Mesh mesh, string assetGuid = "", long assetLocalId = 0)
@@ -236,6 +240,20 @@ namespace Net._32Ba.LatticeDeformationTool
         public void SetSourceAssetIdentity(string assetGuid, long assetLocalId)
         {
             _compatibility?.SetSourceAssetIdentity(assetGuid, assetLocalId);
+            AdvanceContentRevision();
+        }
+
+        private void OnValidate()
+        {
+            AdvanceContentRevision();
+        }
+
+        private void AdvanceContentRevision()
+        {
+            unchecked
+            {
+                _contentRevision++;
+            }
         }
 
         internal DeformerProfilePayload CreateIndependentPayload()
