@@ -36,7 +36,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 string encoded = MeshDeformerSupportReport.Generate(deformer);
                 string report = MeshDeformerSupportReport.Decode(encoded);
 
-                StringAssert.StartsWith(MeshDeformerSupportReport.EnvelopePrefix, encoded);
+                Assert.That(encoded, Does.Match("^[A-Za-z0-9_-]+$"));
+                Assert.That(encoded, Does.Not.Contain("LDT-SUPPORT"));
+                Assert.That(encoded, Does.Not.Contain("json"));
+                Assert.That(encoded, Does.Not.Contain("gzip"));
+                Assert.That(encoded, Does.Not.Contain("sha256"));
                 Assert.That(encoded, Does.Not.Contain("Support Avatar"));
                 Assert.That(encoded, Does.Not.Contain("Support Shape"));
                 Assert.That(encoded.Length, Is.LessThan(report.Length));
@@ -114,10 +118,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         public void Decode_RejectsModifiedPayload()
         {
             string encoded = MeshDeformerSupportReport.Generate(null);
-            int checksumIndex = MeshDeformerSupportReport.EnvelopePrefix.Length;
-            char replacement = encoded[checksumIndex] == '0' ? '1' : '0';
-            string modified = encoded.Substring(0, checksumIndex) + replacement +
-                              encoded.Substring(checksumIndex + 1);
+            const int encodedChecksumIndex = 12;
+            char replacement = encoded[encodedChecksumIndex] == 'A' ? 'B' : 'A';
+            string modified = encoded.Substring(0, encodedChecksumIndex) + replacement +
+                              encoded.Substring(encodedChecksumIndex + 1);
 
             Assert.Throws<InvalidDataException>(() => MeshDeformerSupportReport.Decode(modified));
         }

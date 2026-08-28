@@ -16,8 +16,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     internal static class MeshDeformerSupportReport
     {
         internal const int FormatVersion = 1;
-        internal const string EnvelopePrefix =
-            "LDT-SUPPORT/1;json+gzip+base64url;sha256-64=";
+        private const byte CodecJsonGzip = 1;
+        private static readonly byte[] s_envelopeMagic = { 0x4C, 0x44, 0x54, 0x44, 0x42, 0x47 };
         private static readonly string[] s_packageNames =
         {
             "net.32ba.lattice-deformation-tool",
@@ -32,29 +32,46 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             string json = ConvertPlainTextToJson(GeneratePlainText(deformer));
             byte[] compressed = Compress(Encoding.UTF8.GetBytes(json));
-            string checksum = ComputeChecksum(compressed);
-            return EnvelopePrefix + checksum + ";" + ToBase64Url(compressed);
+            byte[] checksum = ComputeChecksum(compressed);
+            using var envelope = new MemoryStream(
+                s_envelopeMagic.Length + 2 + checksum.Length + compressed.Length);
+            envelope.Write(s_envelopeMagic, 0, s_envelopeMagic.Length);
+            envelope.WriteByte(FormatVersion);
+            envelope.WriteByte(CodecJsonGzip);
+            envelope.Write(checksum, 0, checksum.Length);
+            envelope.Write(compressed, 0, compressed.Length);
+            return ToBase64Url(envelope.ToArray());
         }
 
         internal static string Decode(string encodedReport)
         {
-            if (string.IsNullOrEmpty(encodedReport) ||
-                !encodedReport.StartsWith(EnvelopePrefix, StringComparison.Ordinal))
+            if (string.IsNullOrEmpty(encodedReport))
+                throw new FormatException("The Mesh Deformer support report is empty.");
+
+            byte[] envelope = FromBase64Url(encodedReport);
+            int headerLength = s_envelopeMagic.Length + 2 + 8;
+            if (envelope.Length <= headerLength)
+                throw new FormatException("The Mesh Deformer support report is incomplete.");
+            for (int i = 0; i < s_envelopeMagic.Length; i++)
             {
-                throw new FormatException("Unsupported Mesh Deformer support report envelope.");
+                if (envelope[i] != s_envelopeMagic[i])
+                    throw new FormatException("Unsupported Mesh Deformer support report envelope.");
+            }
+            if (envelope[s_envelopeMagic.Length] != FormatVersion ||
+                envelope[s_envelopeMagic.Length + 1] != CodecJsonGzip)
+            {
+                throw new FormatException("Unsupported Mesh Deformer support report format.");
             }
 
-            int checksumStart = EnvelopePrefix.Length;
-            int payloadSeparator = encodedReport.IndexOf(';', checksumStart);
-            if (payloadSeparator < 0)
-                throw new FormatException("The Mesh Deformer support report is incomplete.");
-
-            string expectedChecksum = encodedReport.Substring(
-                checksumStart,
-                payloadSeparator - checksumStart);
-            byte[] compressed = FromBase64Url(encodedReport.Substring(payloadSeparator + 1));
-            string actualChecksum = ComputeChecksum(compressed);
-            if (!string.Equals(expectedChecksum, actualChecksum, StringComparison.OrdinalIgnoreCase))
+            int checksumOffset = s_envelopeMagic.Length + 2;
+            int payloadOffset = checksumOffset + 8;
+            var compressed = new byte[envelope.Length - payloadOffset];
+            Buffer.BlockCopy(envelope, payloadOffset, compressed, 0, compressed.Length);
+            byte[] actualChecksum = ComputeChecksum(compressed);
+            bool checksumMatches = true;
+            for (int i = 0; i < actualChecksum.Length; i++)
+                checksumMatches &= envelope[checksumOffset + i] == actualChecksum[i];
+            if (!checksumMatches)
                 throw new InvalidDataException("The Mesh Deformer support report checksum does not match.");
 
             using var input = new MemoryStream(compressed, false);
@@ -414,14 +431,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return Convert.FromBase64String(base64);
         }
 
-        private static string ComputeChecksum(byte[] value)
+        private static byte[] ComputeChecksum(byte[] value)
         {
             using SHA256 sha256 = SHA256.Create();
             byte[] hash = sha256.ComputeHash(value);
-            var checksum = new StringBuilder(16);
-            for (int i = 0; i < 8; i++)
-                checksum.Append(hash[i].ToString("x2", CultureInfo.InvariantCulture));
-            return checksum.ToString();
+            var checksum = new byte[8];
+            Buffer.BlockCopy(hash, 0, checksum, 0, checksum.Length);
+            return checksum;
         }
 
         private static string ConvertPlainTextToJson(string plainText)
