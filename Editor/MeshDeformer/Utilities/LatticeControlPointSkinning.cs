@@ -52,6 +52,30 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal int BindingRefreshCountForTests { get; private set; }
         internal int PoseRefreshCountForTests { get; private set; }
 
+        internal bool TryGetBindingForTests(
+            int controlIndex,
+            out int[] boneIndices,
+            out float[] weights)
+        {
+            if (controlIndex < 0 || controlIndex >= _bindings.Length ||
+                _bindings[controlIndex] == null)
+            {
+                boneIndices = Array.Empty<int>();
+                weights = Array.Empty<float>();
+                return false;
+            }
+
+            Influence[] binding = _bindings[controlIndex];
+            boneIndices = new int[binding.Length];
+            weights = new float[binding.Length];
+            for (int i = 0; i < binding.Length; i++)
+            {
+                boneIndices[i] = binding[i].BoneIndex;
+                weights[i] = binding[i].Weight;
+            }
+            return true;
+        }
+
         internal bool Update(
             SkinnedMeshRenderer renderer,
             Mesh sourceMesh,

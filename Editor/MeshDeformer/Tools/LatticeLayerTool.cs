@@ -131,6 +131,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal int SkinningRefreshCountForTests { get; private set; }
         internal int ControlPointBindingRefreshCountForTests =>
             _controlPointSkinning.BindingRefreshCountForTests;
+        internal bool TryGetControlPointBindingForTests(
+            int controlIndex,
+            out int[] boneIndices,
+            out float[] weights) =>
+            _controlPointSkinning.TryGetBindingForTests(
+                controlIndex,
+                out boneIndices,
+                out weights);
         internal Bounds ProxyMeshBoundsForTests => _cachedProxyMeshBounds;
         internal bool CaptureCageFramesForTests { get; set; }
         internal int CageRepaintCountForTests { get; private set; }

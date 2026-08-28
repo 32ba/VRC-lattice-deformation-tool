@@ -1,6 +1,8 @@
 param(
     [string]$TestResultsPath,
-    [int]$MinimumTotal = 1
+    [int]$MinimumTotal = 1,
+    [string]$RequiredCategory,
+    [int]$RequiredCategoryCount = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -49,6 +51,40 @@ Write-Host "Test results: result=$result total=$total passed=$passed failed=$fai
 
 if ($total -lt $MinimumTotal) {
     throw "Test run total $total is below required minimum $MinimumTotal."
+}
+
+if (-not [string]::IsNullOrWhiteSpace($RequiredCategory)) {
+    if ($RequiredCategoryCount -le 0) {
+        throw "RequiredCategoryCount must be greater than zero when RequiredCategory is specified."
+    }
+
+    $categoryTests = @(
+        $xml.SelectNodes("//test-case") | Where-Object {
+            $testCase = $_
+            @(
+                $testCase.SelectNodes("properties/property") | Where-Object {
+                    $_.GetAttribute("name") -eq "Category" -and
+                    $_.GetAttribute("value") -eq $RequiredCategory
+                }
+            ).Count -gt 0
+        }
+    )
+
+    Write-Host "Required category '$RequiredCategory': found=$($categoryTests.Count) expected=$RequiredCategoryCount"
+
+    if ($categoryTests.Count -ne $RequiredCategoryCount) {
+        throw "Required category '$RequiredCategory' contained $($categoryTests.Count) tests; expected exactly $RequiredCategoryCount."
+    }
+
+    $categoryFailures = @(
+        $categoryTests | Where-Object { $_.GetAttribute("result") -ne "Passed" }
+    )
+    if ($categoryFailures.Count -ne 0) {
+        $failureSummary = $categoryFailures | ForEach-Object {
+            "$($_.GetAttribute('fullname'))=$($_.GetAttribute('result'))"
+        }
+        throw "Required category '$RequiredCategory' did not fully pass: $($failureSummary -join ', ')"
+    }
 }
 
 if ($result -ne "Passed" -or $failed -ne 0 -or $skipped -ne 0 -or $inconclusive -ne 0 -or $passed -ne $total) {
