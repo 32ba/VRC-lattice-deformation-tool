@@ -139,6 +139,8 @@ jobs:
           # already pulls com.unity.collections 2.1.4, so bumping to 1.14.3 or later no longer
           # changes the resolved collections version.
           NDMF_VERSION: 1.14.2
+          # Setup Outfit is part of the customer workflow covered by the hotfix regression test.
+          MODULAR_AVATAR_VERSION: 1.17.1
         run: |
           set -euo pipefail
 
@@ -150,6 +152,7 @@ jobs:
 
           vrc-get install --project ci-project --yes com.vrchat.avatars "$VRCHAT_SDK_VERSION"
           vrc-get install --project ci-project --yes nadena.dev.ndmf "$NDMF_VERSION"
+          vrc-get install --project ci-project --yes nadena.dev.modular-avatar "$MODULAR_AVATAR_VERSION"
 
           vrc-get info project --project ci-project
 
@@ -201,6 +204,15 @@ jobs:
           customParameters: '-assemblyNames net.32ba.lattice-deformation-tool.tests.editor;net.32ba.lattice-deformation-tool.tests.editor.vrchat'
           # githubToken is intentionally omitted: publishing a check run needs a writable
           # GITHUB_TOKEN, which pull requests from forks do not get.
+
+      - name: Verify MA Setup Outfit Workflow Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -RequiredCategory MaSetupOutfitE2E
+          -RequiredCategoryCount 1
 
       - name: Upload Test Results
         if: always()
