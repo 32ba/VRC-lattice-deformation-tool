@@ -49,6 +49,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Vector3[] _blendShapeUpperScratch = Array.Empty<Vector3>();
         private Vector3[] _blendShapeNormalScratch = Array.Empty<Vector3>();
         private Vector3[] _blendShapeTangentScratch = Array.Empty<Vector3>();
+        private int[] _blendShapeWeightIndices = Array.Empty<int>();
+        private int _blendShapeWeightMappingHash;
+        private int _initialShapeSampleHash;
         private Matrix4x4[] _matrices = Array.Empty<Matrix4x4>();
         private Matrix4x4[] _inverseMatrices = Array.Empty<Matrix4x4>();
         private int _bindingHash;
@@ -187,6 +190,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _blendShapeUpperScratch = Array.Empty<Vector3>();
             _blendShapeNormalScratch = Array.Empty<Vector3>();
             _blendShapeTangentScratch = Array.Empty<Vector3>();
+            _blendShapeWeightIndices = Array.Empty<int>();
+            _blendShapeWeightMappingHash = 0;
+            _initialShapeSampleHash = 0;
             _matrices = Array.Empty<Matrix4x4>();
             _inverseMatrices = Array.Empty<Matrix4x4>();
             _bindingHash = 0;
@@ -273,9 +279,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _shapeOffsetHash = int.MinValue;
             _vertexSamples = vertexSamples;
             _shapeVertices = vertices;
-            _shapeSampleIndices = BuildShapeSampleIndices(vertices.Length);
+            _shapeSampleIndices = BuildShapeSampleIndices(vertices);
             _currentShapeSampleOffsets = new Vector3[_shapeSampleIndices.Length];
             _initialShapeSampleOffsets = new Vector3[_shapeSampleIndices.Length];
+            _initialShapeSampleHash = int.MinValue;
             _blendShapeLowerScratch = new Vector3[vertices.Length];
             _blendShapeUpperScratch = new Vector3[vertices.Length];
             _blendShapeNormalScratch = new Vector3[vertices.Length];
@@ -663,7 +670,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             SkinnedMeshRenderer weightSource,
             float[] initialWeights)
         {
-            int hash = ComputeShapeOffsetHash(sourceMesh, weightSource, initialWeights);
+            EnsureBlendShapeWeightMapping(
+                sourceMesh,
+                weightSource != null ? weightSource.sharedMesh : null);
+            int hash = ComputeShapeOffsetHash(
+                sourceMesh,
+                weightSource,
+                initialWeights,
+                _blendShapeWeightIndices,
+                _blendShapeWeightMappingHash);
             if (_controlPointShapeOffsets.Length == _neutralControlPoints.Length &&
                 hash == _shapeOffsetHash)
             {
@@ -680,13 +695,27 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (_shapeVertices.Length == 0 || _shapeSampleIndices.Length == 0)
                 return;
             Array.Clear(_currentShapeSampleOffsets, 0, _currentShapeSampleOffsets.Length);
-            Array.Clear(_initialShapeSampleOffsets, 0, _initialShapeSampleOffsets.Length);
-            int shapeCount = Mathf.Min(sourceMesh.blendShapeCount,
-                weightSource.sharedMesh != null ? weightSource.sharedMesh.blendShapeCount : 0);
+            int initialSampleHash = ComputeInitialShapeSampleHash(sourceMesh, initialWeights);
+            bool refreshInitialOffsets = initialSampleHash != _initialShapeSampleHash;
+            if (refreshInitialOffsets)
+            {
+                _initialShapeSampleHash = initialSampleHash;
+                Array.Clear(_initialShapeSampleOffsets, 0, _initialShapeSampleOffsets.Length);
+            }
+            int shapeCount = sourceMesh.blendShapeCount;
             for (int shape = 0; shape < shapeCount; shape++)
             {
-                float weight = weightSource.GetBlendShapeWeight(shape);
-                if (Mathf.Abs(weight) > 1e-5f)
+                int weightIndex = shape < _blendShapeWeightIndices.Length
+                    ? _blendShapeWeightIndices[shape]
+                    : -1;
+                float weight = weightIndex >= 0
+                    ? weightSource.GetBlendShapeWeight(weightIndex)
+                    : 0f;
+                bool zeroHasShapeDelta =
+                    sourceMesh.GetBlendShapeFrameCount(shape) > 0 &&
+                    sourceMesh.GetBlendShapeFrameWeight(shape, 0) <= 0f;
+                if (weightIndex >= 0 && IsFinite(weight) &&
+                    (Mathf.Abs(weight) > 1e-5f || zeroHasShapeDelta))
                 {
                     AccumulateBlendShapeSampleOffsets(
                         sourceMesh,
@@ -697,7 +726,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 float initialWeight = initialWeights != null && shape < initialWeights.Length
                     ? initialWeights[shape]
                     : 0f;
-                if (Mathf.Abs(initialWeight) > 1e-5f)
+                if (refreshInitialOffsets && IsFinite(initialWeight) &&
+                    (Mathf.Abs(initialWeight) > 1e-5f || zeroHasShapeDelta))
                 {
                     AccumulateBlendShapeSampleOffsets(
                         sourceMesh,
@@ -745,16 +775,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return to.min + Vector3.Scale(to.size, normalized);
         }
 
-        private static int[] BuildShapeSampleIndices(int vertexCount)
+        private static int[] BuildShapeSampleIndices(Vector3[] vertices)
         {
             const int maxSamples = 1024;
-            int stride = Mathf.Max(1, Mathf.CeilToInt((float)vertexCount / maxSamples));
-            var indices = new List<int>();
-            for (int vertex = 0; vertex < vertexCount; vertex += stride)
+            int stride = Mathf.Max(1, Mathf.CeilToInt((float)vertices.Length / maxSamples));
+            var indices = new HashSet<int>();
+            for (int vertex = 0; vertex < vertices.Length; vertex += stride)
                 indices.Add(vertex);
-            if (indices[indices.Count - 1] != vertexCount - 1)
-                indices.Add(vertexCount - 1);
-            return indices.ToArray();
+            indices.Add(vertices.Length - 1);
+
+            int[] extremeIndices = { 0, 0, 0, 0, 0, 0 };
+            for (int vertex = 1; vertex < vertices.Length; vertex++)
+            {
+                if (vertices[vertex].x < vertices[extremeIndices[0]].x) extremeIndices[0] = vertex;
+                if (vertices[vertex].x > vertices[extremeIndices[1]].x) extremeIndices[1] = vertex;
+                if (vertices[vertex].y < vertices[extremeIndices[2]].y) extremeIndices[2] = vertex;
+                if (vertices[vertex].y > vertices[extremeIndices[3]].y) extremeIndices[3] = vertex;
+                if (vertices[vertex].z < vertices[extremeIndices[4]].z) extremeIndices[4] = vertex;
+                if (vertices[vertex].z > vertices[extremeIndices[5]].z) extremeIndices[5] = vertex;
+            }
+            for (int i = 0; i < extremeIndices.Length; i++)
+                indices.Add(extremeIndices[i]);
+
+            var sorted = new List<int>(indices);
+            sorted.Sort();
+            return sorted.ToArray();
         }
 
         private static Vector3 InterpolateNearestOffset(
@@ -827,13 +872,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             float lastWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, last);
             if (weight >= lastWeight)
             {
+                // Unity does not linearly extrapolate the last two delta arrays here.
+                // Past the final frame it scales only the final delta by the progress
+                // through the final frame interval (verified against BakeMesh).
                 mesh.GetBlendShapeFrameVertices(
                     shapeIndex,
                     last,
                     _blendShapeLowerScratch,
                     _blendShapeNormalScratch,
                     _blendShapeTangentScratch);
-                float scale = Mathf.Abs(lastWeight) > Mathf.Epsilon ? weight / lastWeight : 0f;
+                float lowerWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, last - 1);
+                float scale = Mathf.Abs(lastWeight - lowerWeight) > Mathf.Epsilon
+                    ? (weight - lowerWeight) / (lastWeight - lowerWeight)
+                    : 1f;
                 AccumulateSamples(_blendShapeLowerScratch, null, scale, accumulated);
                 return;
             }
@@ -882,21 +933,81 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
+        private void EnsureBlendShapeWeightMapping(Mesh sourceMesh, Mesh weightMesh)
+        {
+            unchecked
+            {
+                int hash = sourceMesh != null ? sourceMesh.GetInstanceID() : 0;
+                hash = hash * 31 + (sourceMesh != null ? EditorUtility.GetDirtyCount(sourceMesh) : 0);
+                hash = hash * 31 + (sourceMesh != null ? sourceMesh.blendShapeCount : 0);
+                hash = hash * 31 + (weightMesh != null ? weightMesh.GetInstanceID() : 0);
+                hash = hash * 31 + (weightMesh != null ? EditorUtility.GetDirtyCount(weightMesh) : 0);
+                hash = hash * 31 + (weightMesh != null ? weightMesh.blendShapeCount : 0);
+                if (hash == _blendShapeWeightMappingHash &&
+                    _blendShapeWeightIndices.Length == (sourceMesh != null
+                        ? sourceMesh.blendShapeCount
+                        : 0))
+                {
+                    return;
+                }
+
+                _blendShapeWeightMappingHash = hash;
+                if (sourceMesh == null || weightMesh == null)
+                {
+                    _blendShapeWeightIndices = Array.Empty<int>();
+                    return;
+                }
+
+                _blendShapeWeightIndices = new int[sourceMesh.blendShapeCount];
+                for (int shape = 0; shape < _blendShapeWeightIndices.Length; shape++)
+                {
+                    string shapeName = sourceMesh.GetBlendShapeName(shape);
+                    _blendShapeWeightIndices[shape] = weightMesh.GetBlendShapeIndex(shapeName);
+                }
+            }
+        }
+
         private static int ComputeShapeOffsetHash(
             Mesh sourceMesh,
             SkinnedMeshRenderer renderer,
-            float[] initialWeights)
+            float[] initialWeights,
+            int[] weightIndices,
+            int mappingHash)
         {
             unchecked
             {
                 int hash = sourceMesh != null ? sourceMesh.GetInstanceID() : 0;
                 if (sourceMesh == null || renderer == null)
                     return hash;
-                int count = Mathf.Min(sourceMesh.blendShapeCount,
-                    renderer.sharedMesh != null ? renderer.sharedMesh.blendShapeCount : 0);
+                hash = hash * 31 + mappingHash;
+                int count = sourceMesh.blendShapeCount;
                 for (int shape = 0; shape < count; shape++)
                 {
-                    hash = hash * 31 + renderer.GetBlendShapeWeight(shape).GetHashCode();
+                    int weightIndex = weightIndices != null && shape < weightIndices.Length
+                        ? weightIndices[shape]
+                        : -1;
+                    hash = hash * 31 + weightIndex;
+                    hash = hash * 31 + (weightIndex >= 0
+                        ? renderer.GetBlendShapeWeight(weightIndex).GetHashCode()
+                        : 0);
+                    hash = hash * 31 + (initialWeights != null && shape < initialWeights.Length
+                        ? initialWeights[shape].GetHashCode()
+                        : 0);
+                }
+                return hash;
+            }
+        }
+
+        private static int ComputeInitialShapeSampleHash(Mesh sourceMesh, float[] initialWeights)
+        {
+            unchecked
+            {
+                int hash = sourceMesh != null ? sourceMesh.GetInstanceID() : 0;
+                hash = hash * 31 + (sourceMesh != null ? EditorUtility.GetDirtyCount(sourceMesh) : 0);
+                int count = sourceMesh != null ? sourceMesh.blendShapeCount : 0;
+                hash = hash * 31 + count;
+                for (int shape = 0; shape < count; shape++)
+                {
                     hash = hash * 31 + (initialWeights != null && shape < initialWeights.Length
                         ? initialWeights[shape].GetHashCode()
                         : 0);
