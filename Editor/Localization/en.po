@@ -1345,7 +1345,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.support-information"
 msgstr "Support Information"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information-description"
-msgstr "Copies technical information needed for troubleshooting. Absolute paths, asset GUIDs, mesh vertex data, and the computer name are not included."
+msgstr "Copies compact encoded technical information for troubleshooting. Absolute paths, asset GUIDs, mesh vertex data, and the computer name are not included."
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy-support-information"
 msgstr "Copy Support Information"

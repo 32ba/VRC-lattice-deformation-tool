@@ -2,7 +2,10 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
@@ -13,6 +16,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     internal static class MeshDeformerSupportReport
     {
         internal const int FormatVersion = 1;
+        internal const string EnvelopePrefix =
+            "LDT-SUPPORT/1;json+gzip+base64url;sha256-64=";
         private static readonly string[] s_packageNames =
         {
             "net.32ba.lattice-deformation-tool",
@@ -24,6 +29,42 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         };
 
         internal static string Generate(LatticeDeformer deformer)
+        {
+            string json = ConvertPlainTextToJson(GeneratePlainText(deformer));
+            byte[] compressed = Compress(Encoding.UTF8.GetBytes(json));
+            string checksum = ComputeChecksum(compressed);
+            return EnvelopePrefix + checksum + ";" + ToBase64Url(compressed);
+        }
+
+        internal static string Decode(string encodedReport)
+        {
+            if (string.IsNullOrEmpty(encodedReport) ||
+                !encodedReport.StartsWith(EnvelopePrefix, StringComparison.Ordinal))
+            {
+                throw new FormatException("Unsupported Mesh Deformer support report envelope.");
+            }
+
+            int checksumStart = EnvelopePrefix.Length;
+            int payloadSeparator = encodedReport.IndexOf(';', checksumStart);
+            if (payloadSeparator < 0)
+                throw new FormatException("The Mesh Deformer support report is incomplete.");
+
+            string expectedChecksum = encodedReport.Substring(
+                checksumStart,
+                payloadSeparator - checksumStart);
+            byte[] compressed = FromBase64Url(encodedReport.Substring(payloadSeparator + 1));
+            string actualChecksum = ComputeChecksum(compressed);
+            if (!string.Equals(expectedChecksum, actualChecksum, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("The Mesh Deformer support report checksum does not match.");
+
+            using var input = new MemoryStream(compressed, false);
+            using var gzip = new GZipStream(input, CompressionMode.Decompress);
+            using var output = new MemoryStream();
+            gzip.CopyTo(output);
+            return Encoding.UTF8.GetString(output.ToArray());
+        }
+
+        private static string GeneratePlainText(LatticeDeformer deformer)
         {
             var report = new StringBuilder(8192);
             report.AppendLine("Mesh Deformer Support Report");
@@ -338,6 +379,149 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static string FormatBounds(Bounds value) =>
             $"center={FormatVector(value.center)}, size={FormatVector(value.size)}";
+
+        private static byte[] Compress(byte[] input)
+        {
+            using var output = new MemoryStream();
+            using (var gzip = new GZipStream(
+                       output,
+                       System.IO.Compression.CompressionLevel.Optimal,
+                       true))
+                gzip.Write(input, 0, input.Length);
+            return output.ToArray();
+        }
+
+        private static string ToBase64Url(byte[] value) =>
+            Convert.ToBase64String(value)
+                .TrimEnd('=')
+                .Replace('+', '-')
+                .Replace('/', '_');
+
+        private static byte[] FromBase64Url(string value)
+        {
+            string base64 = value.Replace('-', '+').Replace('_', '/');
+            switch (base64.Length % 4)
+            {
+                case 2:
+                    base64 += "==";
+                    break;
+                case 3:
+                    base64 += "=";
+                    break;
+                case 1:
+                    throw new FormatException("The support report Base64URL payload is invalid.");
+            }
+            return Convert.FromBase64String(base64);
+        }
+
+        private static string ComputeChecksum(byte[] value)
+        {
+            using SHA256 sha256 = SHA256.Create();
+            byte[] hash = sha256.ComputeHash(value);
+            var checksum = new StringBuilder(16);
+            for (int i = 0; i < 8; i++)
+                checksum.Append(hash[i].ToString("x2", CultureInfo.InvariantCulture));
+            return checksum.ToString();
+        }
+
+        private static string ConvertPlainTextToJson(string plainText)
+        {
+            string[] lines = plainText.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            var json = new StringBuilder(plainText.Length + 256);
+            json.Append('{');
+            bool firstRootProperty = true;
+            if (lines.Length > 0 && !string.IsNullOrEmpty(lines[0]))
+                AppendJsonProperty(json, ref firstRootProperty, "report", lines[0]);
+
+            string currentSection = null;
+            var sectionProperties = new List<KeyValuePair<string, string>>();
+            for (int i = 1; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                if (line.Length == 0) continue;
+                if (line.Length >= 2 && line[0] == '[' && line[line.Length - 1] == ']')
+                {
+                    FlushJsonSection(json, ref firstRootProperty, currentSection, sectionProperties);
+                    currentSection = line.Substring(1, line.Length - 2);
+                    sectionProperties.Clear();
+                    continue;
+                }
+
+                int separator = line.IndexOf('=');
+                string key = separator >= 0 ? line.Substring(0, separator) : "unparsed";
+                string value = separator >= 0 ? line.Substring(separator + 1) : line;
+                if (currentSection == null)
+                    AppendJsonProperty(json, ref firstRootProperty, key, value);
+                else
+                    sectionProperties.Add(new KeyValuePair<string, string>(key, value));
+            }
+            FlushJsonSection(json, ref firstRootProperty, currentSection, sectionProperties);
+            json.Append('}');
+            return json.ToString();
+        }
+
+        private static void FlushJsonSection(
+            StringBuilder json,
+            ref bool firstRootProperty,
+            string section,
+            IReadOnlyList<KeyValuePair<string, string>> properties)
+        {
+            if (section == null) return;
+            if (!firstRootProperty) json.Append(',');
+            firstRootProperty = false;
+            AppendJsonString(json, section);
+            json.Append(":{");
+            bool firstSectionProperty = true;
+            for (int i = 0; i < properties.Count; i++)
+                AppendJsonProperty(
+                    json,
+                    ref firstSectionProperty,
+                    properties[i].Key,
+                    properties[i].Value);
+            json.Append('}');
+        }
+
+        private static void AppendJsonProperty(
+            StringBuilder json,
+            ref bool firstProperty,
+            string key,
+            string value)
+        {
+            if (!firstProperty) json.Append(',');
+            firstProperty = false;
+            AppendJsonString(json, key);
+            json.Append(':');
+            AppendJsonString(json, value);
+        }
+
+        private static void AppendJsonString(StringBuilder json, string value)
+        {
+            json.Append('"');
+            if (value != null)
+            {
+                for (int i = 0; i < value.Length; i++)
+                {
+                    char character = value[i];
+                    switch (character)
+                    {
+                        case '"': json.Append("\\\""); break;
+                        case '\\': json.Append("\\\\"); break;
+                        case '\b': json.Append("\\b"); break;
+                        case '\f': json.Append("\\f"); break;
+                        case '\n': json.Append("\\n"); break;
+                        case '\r': json.Append("\\r"); break;
+                        case '\t': json.Append("\\t"); break;
+                        default:
+                            if (character < 0x20)
+                                json.Append("\\u").Append(((int)character).ToString("x4"));
+                            else
+                                json.Append(character);
+                            break;
+                    }
+                }
+            }
+            json.Append('"');
+        }
 
         private static string Sanitize(string value)
         {

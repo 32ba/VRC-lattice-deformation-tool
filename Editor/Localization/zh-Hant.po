@@ -1345,7 +1345,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.support-information"
 msgstr "支援資訊"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information-description"
-msgstr "複製疑難排解所需的技術資訊。不包含絕對路徑、資產 GUID、網格頂點資料或電腦名稱。"
+msgstr "以壓縮編碼形式複製疑難排解所需的技術資訊。不包含絕對路徑、資產 GUID、網格頂點資料或電腦名稱。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy-support-information"
 msgstr "複製支援資訊"

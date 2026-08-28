@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System;
+using System.IO;
 using NUnit.Framework;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using UnityEngine;
@@ -32,20 +33,25 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.Reset();
                 renderer.SetBlendShapeWeight(0, 42f);
 
-                string report = MeshDeformerSupportReport.Generate(deformer);
+                string encoded = MeshDeformerSupportReport.Generate(deformer);
+                string report = MeshDeformerSupportReport.Decode(encoded);
 
-                StringAssert.StartsWith("Mesh Deformer Support Report", report);
-                StringAssert.Contains("format-version=1", report);
-                StringAssert.Contains("unity-version=" + Application.unityVersion, report);
-                StringAssert.Contains("net.32ba.lattice-deformation-tool=", report);
-                StringAssert.Contains("hierarchy=Support Avatar/Support Outfit/Support Mesh", report);
-                StringAssert.Contains("source-mesh.vertices=4", report);
-                StringAssert.Contains("source-mesh.blend-shapes=1", report);
-                StringAssert.Contains("shape[0]=name=Support Shape, current=42, initial=73, frames=1", report);
-                StringAssert.Contains("group-count=1", report);
+                StringAssert.StartsWith(MeshDeformerSupportReport.EnvelopePrefix, encoded);
+                Assert.That(encoded, Does.Not.Contain("Support Avatar"));
+                Assert.That(encoded, Does.Not.Contain("Support Shape"));
+                Assert.That(encoded.Length, Is.LessThan(report.Length));
+                StringAssert.StartsWith("{\"report\":\"Mesh Deformer Support Report\"", report);
+                StringAssert.Contains("\"format-version\":\"1\"", report);
+                StringAssert.Contains("\"unity-version\":\"" + Application.unityVersion + "\"", report);
+                StringAssert.Contains("\"net.32ba.lattice-deformation-tool\":", report);
+                StringAssert.Contains("\"hierarchy\":\"Support Avatar/Support Outfit/Support Mesh\"", report);
+                StringAssert.Contains("\"source-mesh.vertices\":\"4\"", report);
+                StringAssert.Contains("\"source-mesh.blend-shapes\":\"1\"", report);
+                StringAssert.Contains("\"shape[0]\":\"name=Support Shape, current=42, initial=73, frames=1\"", report);
+                StringAssert.Contains("\"group-count\":\"1\"", report);
                 StringAssert.Contains("grid=(3,3,3)", report);
-                StringAssert.Contains("preview-aligned-cage=", report);
-                StringAssert.Contains("[validation]", report);
+                StringAssert.Contains("\"preview-aligned-cage\":", report);
+                StringAssert.Contains("\"validation\":{", report);
                 Assert.That(report, Does.Not.Contain(Application.dataPath));
                 Assert.That(report, Does.Not.Contain(Environment.UserName));
                 Assert.That(report, Does.Not.Contain("Assets/"));
@@ -75,12 +81,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 LatticePreviewUtility.RegisterProxy(original, proxy);
                 LatticePreviewUtility.RegisterPreviewMesh(original, proxyMesh);
 
-                string report = MeshDeformerSupportReport.Generate(deformer);
+                string report = MeshDeformerSupportReport.Decode(
+                    MeshDeformerSupportReport.Generate(deformer));
 
-                StringAssert.Contains("proxy-present=True", report);
-                StringAssert.Contains("proxy-hierarchy=Preview Proxy", report);
-                StringAssert.Contains("proxy-mesh.vertices=5", report);
-                StringAssert.Contains("registered-preview-mesh=True", report);
+                StringAssert.Contains("\"proxy-present\":\"True\"", report);
+                StringAssert.Contains("\"proxy-hierarchy\":\"Preview Proxy\"", report);
+                StringAssert.Contains("\"proxy-mesh.vertices\":\"5\"", report);
+                StringAssert.Contains("\"registered-preview-mesh\":\"True\"", report);
             }
             finally
             {
@@ -95,11 +102,24 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [Test]
         public void Generate_NullComponentReturnsPasteablePartialReport()
         {
-            string report = null;
-            Assert.DoesNotThrow(() => report = MeshDeformerSupportReport.Generate(null));
-            StringAssert.Contains("[packages]", report);
-            StringAssert.Contains("[component]", report);
-            StringAssert.Contains("present=False", report);
+            string encoded = null;
+            Assert.DoesNotThrow(() => encoded = MeshDeformerSupportReport.Generate(null));
+            string report = MeshDeformerSupportReport.Decode(encoded);
+            StringAssert.Contains("\"packages\":{", report);
+            StringAssert.Contains("\"component\":{", report);
+            StringAssert.Contains("\"present\":\"False\"", report);
+        }
+
+        [Test]
+        public void Decode_RejectsModifiedPayload()
+        {
+            string encoded = MeshDeformerSupportReport.Generate(null);
+            int checksumIndex = MeshDeformerSupportReport.EnvelopePrefix.Length;
+            char replacement = encoded[checksumIndex] == '0' ? '1' : '0';
+            string modified = encoded.Substring(0, checksumIndex) + replacement +
+                              encoded.Substring(checksumIndex + 1);
+
+            Assert.Throws<InvalidDataException>(() => MeshDeformerSupportReport.Decode(modified));
         }
 
         private static Mesh CreateSourceMesh()

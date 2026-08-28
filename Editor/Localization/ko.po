@@ -1345,7 +1345,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.support-information"
 msgstr "지원 정보"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information-description"
-msgstr "문제 해결에 필요한 기술 정보를 복사합니다. 절대 경로, 에셋 GUID, 메시 버텍스 데이터 및 컴퓨터 이름은 포함되지 않습니다."
+msgstr "문제 해결에 필요한 기술 정보를 압축 및 인코딩하여 복사합니다. 절대 경로, 에셋 GUID, 메시 버텍스 데이터 및 컴퓨터 이름은 포함되지 않습니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy-support-information"
 msgstr "지원 정보 복사"

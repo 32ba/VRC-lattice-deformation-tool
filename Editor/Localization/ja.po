@@ -1345,7 +1345,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.support-information"
 msgstr "サポート情報"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information-description"
-msgstr "問題の調査に必要な技術情報をコピーします。絶対パス、アセットGUID、メッシュの頂点データ、PC名は含まれません。"
+msgstr "問題の調査に必要な技術情報を、圧縮・エンコードしてコピーします。絶対パス、アセットGUID、メッシュの頂点データ、PC名は含まれません。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy-support-information"
 msgstr "サポート情報をコピー"
