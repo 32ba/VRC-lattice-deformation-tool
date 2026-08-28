@@ -1159,7 +1159,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     mesh,
                     sourceBounds,
                     gridSize,
-                    worldToSource);
+                    worldToSource,
+                    deformer != null ? deformer.GetComponent<SkinnedMeshRenderer>() : null,
+                    deformer != null ? deformer.InitialBlendShapeWeightsForEditor : null);
                 _hasSkinningFallbackBounds = false;
                 _hasSkinningDisplayBounds = false;
                 if (hasPerPointSkinning && _controlPointSkinning.HasPoseBounds)

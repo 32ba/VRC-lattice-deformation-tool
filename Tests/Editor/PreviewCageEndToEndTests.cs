@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using nadena.dev.ndmf.preview;
 using Net._32Ba.LatticeDeformationTool;
@@ -424,7 +425,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
         [UnityTest]
         [Category("GraphicsE2E")]
-        public IEnumerator BlendShapeWeightChange_DoesNotRebindOrJitterActiveLatticeCage()
+        public IEnumerator BlendShapeWeightChange_MovesCageWithoutRebindingOrJitter()
         {
             if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
             {
@@ -495,10 +496,16 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     handler.ControlPointBindingRefreshCountForTests,
                     Is.EqualTo(initialBindingRefreshes),
                     "In-place BlendShape preview updates must retain the established control-point bindings.");
+                Vector3[] weightOneHundred = handler.GetLastCageHandlePositionsForTests();
+                Assert.That(
+                    weightOneHundred.Zip(weightZero, Vector3.Distance).Max(),
+                    Is.GreaterThan(1f),
+                    "An active Shape must move the cage to the currently rendered geometry.");
+                yield return WaitForNextCageRepaint(handler, sceneView);
                 AssertCageFrameEquals(
                     handler,
-                    weightZero,
-                    "Changing a BlendShape must not choose new bone bindings for lattice control points.");
+                    weightOneHundred,
+                    "A stable Shape weight must not make the cage jitter between bindings.");
 
                 renderer.SetBlendShapeWeight(0, 0f);
                 EditorUtility.SetDirty(renderer);
@@ -507,7 +514,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 AssertCageFrameEquals(
                     handler,
                     weightZero,
-                    "Returning the BlendShape weight must not make the cage snap back.");
+                    "Returning the BlendShape weight to its initialization value must restore the cage.");
             }
             finally
             {
@@ -581,6 +588,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             IRenderFilterNode previewNode = null;
             bool previousPreviewAlignedCage = LatticePreviewUtility.UsePreviewAlignedCage;
             string operation = "initialization";
+            const float initialShape0Weight = 40f;
+            const float initialShape1Weight = 0f;
 
             try
             {
@@ -589,8 +598,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 renderer.sharedMesh = source;
                 renderer.rootBone = boneObject.transform;
                 renderer.bones = new[] { boneObject.transform, secondaryBoneObject.transform };
-                renderer.SetBlendShapeWeight(0, 40f);
-                renderer.SetBlendShapeWeight(1, 0f);
+                renderer.SetBlendShapeWeight(0, initialShape0Weight);
+                renderer.SetBlendShapeWeight(1, initialShape1Weight);
 
                 var deformer = rendererObject.AddComponent<LatticeDeformer>();
                 deformer.Reset();
@@ -694,7 +703,19 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                             {
                                 boneObject.transform.localToWorldMatrix * bindPose,
                                 secondaryBoneObject.transform.localToWorldMatrix * secondaryBindPose,
-                            });
+                            },
+                        controlIndex =>
+                        {
+                            Vector3 point = rendererObject.GetComponent<LatticeDeformer>()
+                                .EditingSettings.GetControlPointLocal(controlIndex);
+                            return InterpolateExpectedShapeDelta(
+                                       source.vertices,
+                                       point,
+                                       GetActiveShapeDelta) *
+                                   ((renderer.GetBlendShapeWeight(0) - initialShape0Weight) / 100f) +
+                                   new Vector3(2f, 5f, -3f) *
+                                   ((renderer.GetBlendShapeWeight(1) - initialShape1Weight) / 100f);
+                        });
                 }
                 catch (AssertionException exception)
                 {
@@ -1182,13 +1203,17 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             LatticeToolHandler handler,
             Vector3[] cagePositions,
             LatticeAsset settings,
-            Matrix4x4[] boneMatrices)
+            Matrix4x4[] boneMatrices,
+            System.Func<int, Vector3> shapeOffset = null)
         {
             Vector3Int gridSize = settings.GridSize;
             int controlCount = gridSize.x * gridSize.y * gridSize.z;
             bool includesInterior = cagePositions.Length == controlCount;
             int drawnIndex = 0;
             float maximumError = 0f;
+            int maximumErrorControl = -1;
+            Vector3 maximumErrorExpected = default;
+            Vector3 maximumErrorActual = default;
 
             for (int controlIndex = 0; controlIndex < controlCount; controlIndex++)
             {
@@ -1210,7 +1235,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                         out int[] boneIndices,
                         out float[] weights),
                     Is.True);
-                Vector3 sourcePoint = settings.GetControlPointLocal(controlIndex);
+                Vector3 sourcePoint = settings.GetControlPointLocal(controlIndex) +
+                                      (shapeOffset?.Invoke(controlIndex) ?? Vector3.zero);
                 Vector3 expected = Vector3.zero;
                 for (int influence = 0; influence < boneIndices.Length; influence++)
                 {
@@ -1219,9 +1245,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     expected += boneMatrices[boneIndices[influence]]
                         .MultiplyPoint3x4(sourcePoint) * weights[influence];
                 }
-                maximumError = Mathf.Max(
-                    maximumError,
-                    Vector3.Distance(cagePositions[drawnIndex], expected));
+                Vector3 actual = cagePositions[drawnIndex];
+                float error = Vector3.Distance(actual, expected);
+                if (error > maximumError)
+                {
+                    maximumError = error;
+                    maximumErrorControl = controlIndex;
+                    maximumErrorExpected = expected;
+                    maximumErrorActual = actual;
+                }
                 drawnIndex++;
             }
 
@@ -1229,7 +1261,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 maximumError,
                 Is.LessThanOrEqualTo(1e-4f),
                 "The Scene View cage must apply the current proxy bone and bind-pose " +
-                "matrices to every cached control-point binding exactly once.");
+                "matrices to every cached control-point binding exactly once. " +
+                $"Worst control={maximumErrorControl}, expected={maximumErrorExpected}, " +
+                $"actual={maximumErrorActual}.");
         }
 
         private static Mesh GeneratePreviewMesh(LatticeDeformer deformer)
@@ -1457,6 +1491,49 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 vertex.y * 0.18f,
                 0.08f + vertex.x * 0.12f,
                 vertex.x * vertex.y * 0.3f);
+        }
+
+        private static Vector3 InterpolateExpectedShapeDelta(
+            Vector3[] vertices,
+            Vector3 point,
+            System.Func<Vector3, Vector3> getDelta)
+        {
+            const int neighborCount = 4;
+            var nearest = new int[neighborCount] { -1, -1, -1, -1 };
+            var distances = new float[neighborCount]
+            {
+                float.PositiveInfinity,
+                float.PositiveInfinity,
+                float.PositiveInfinity,
+                float.PositiveInfinity,
+            };
+            for (int vertex = 0; vertex < vertices.Length; vertex++)
+            {
+                float distance = (vertices[vertex] - point).sqrMagnitude;
+                if (distance >= distances[neighborCount - 1])
+                    continue;
+                int insertion = neighborCount - 1;
+                while (insertion > 0 && distance < distances[insertion - 1])
+                {
+                    distances[insertion] = distances[insertion - 1];
+                    nearest[insertion] = nearest[insertion - 1];
+                    insertion--;
+                }
+                distances[insertion] = distance;
+                nearest[insertion] = vertex;
+            }
+            if (distances[0] <= 1e-12f)
+                return getDelta(vertices[nearest[0]]);
+
+            Vector3 result = Vector3.zero;
+            float total = 0f;
+            for (int i = 0; i < neighborCount && nearest[i] >= 0; i++)
+            {
+                float weight = 1f / Mathf.Max(Mathf.Sqrt(distances[i]), 1e-6f);
+                result += getDelta(vertices[nearest[i]]) * weight;
+                total += weight;
+            }
+            return result / total;
         }
     }
 }

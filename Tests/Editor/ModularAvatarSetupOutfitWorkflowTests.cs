@@ -16,6 +16,138 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         private const string GeneratedAssetDirectory =
             "Packages/nadena.dev.ndmf/__Generated/MA Setup Outfit E2E Avatar";
 
+        internal sealed class PreviewFixture : IDisposable
+        {
+            internal GameObject AvatarRoot { get; }
+            internal GameObject OutfitRoot { get; }
+            internal GameObject MeshObject { get; }
+            internal SkinnedMeshRenderer Renderer { get; }
+            internal LatticeDeformer Deformer { get; }
+            internal Mesh SourceMesh { get; }
+            internal Avatar HumanoidAvatar { get; }
+            internal Component ShapeChanger { get; }
+            internal Vector3 ShapeDelta { get; }
+            internal Transform BaseHips { get; }
+            internal Transform BaseLeftUpperArm { get; }
+
+            internal PreviewFixture(
+                GameObject avatarRoot,
+                GameObject outfitRoot,
+                GameObject meshObject,
+                SkinnedMeshRenderer renderer,
+                LatticeDeformer deformer,
+                Mesh sourceMesh,
+                Avatar humanoidAvatar,
+                Component shapeChanger,
+                Vector3 shapeDelta,
+                Transform baseHips,
+                Transform baseLeftUpperArm)
+            {
+                AvatarRoot = avatarRoot;
+                OutfitRoot = outfitRoot;
+                MeshObject = meshObject;
+                Renderer = renderer;
+                Deformer = deformer;
+                SourceMesh = sourceMesh;
+                HumanoidAvatar = humanoidAvatar;
+                ShapeChanger = shapeChanger;
+                ShapeDelta = shapeDelta;
+                BaseHips = baseHips;
+                BaseLeftUpperArm = baseLeftUpperArm;
+            }
+
+            public void Dispose()
+            {
+                if (AvatarRoot != null)
+                    Object.DestroyImmediate(AvatarRoot);
+                AssetDatabase.DeleteAsset(GeneratedAssetDirectory);
+                if (HumanoidAvatar != null && !EditorUtility.IsPersistent(HumanoidAvatar))
+                    Object.DestroyImmediate(HumanoidAvatar);
+                if (SourceMesh != null && !EditorUtility.IsPersistent(SourceMesh))
+                    Object.DestroyImmediate(SourceMesh);
+            }
+        }
+
+        internal static PreviewFixture CreatePreviewFixture()
+        {
+            Type descriptorType = FindType("VRC.SDK3.Avatars.Components.VRCAvatarDescriptor");
+            Type setupOutfitType = FindType("nadena.dev.modular_avatar.core.editor.SetupOutfit");
+            Assert.That(descriptorType, Is.Not.Null, "The representative workflow requires the VRChat Avatars SDK.");
+            Assert.That(setupOutfitType, Is.Not.Null, "Modular Avatar Setup Outfit was not found.");
+
+            var avatarRoot = new GameObject("MA Setup Outfit Preview E2E Avatar");
+            Avatar humanoidAvatar = null;
+            Mesh sourceMesh = null;
+            try
+            {
+                avatarRoot.AddComponent(descriptorType);
+                Rig baseRig = CreateRig(avatarRoot.transform, "Armature", Vector3.one);
+                humanoidAvatar = BuildHumanoidAvatar(avatarRoot, baseRig);
+                Assert.That(humanoidAvatar, Is.Not.Null);
+                Assert.That(humanoidAvatar.isValid && humanoidAvatar.isHuman, Is.True);
+                avatarRoot.AddComponent<Animator>().avatar = humanoidAvatar;
+
+                var outfitRoot = new GameObject("Representative Outfit");
+                outfitRoot.transform.SetParent(avatarRoot.transform, false);
+                outfitRoot.transform.localPosition = new Vector3(0.08f, -0.03f, 0.02f);
+                outfitRoot.transform.localRotation = Quaternion.Euler(0f, 6f, 0f);
+                Rig outfitRig = CreateRig(
+                    outfitRoot.transform,
+                    "OutfitArmature",
+                    new Vector3(1.08f, 0.94f, 1.03f));
+
+                var meshObject = new GameObject("Outfit Mesh");
+                meshObject.transform.SetParent(outfitRoot.transform, false);
+                var renderer = meshObject.AddComponent<SkinnedMeshRenderer>();
+                sourceMesh = CreateOutfitMesh(renderer.transform, outfitRig);
+                renderer.sharedMesh = sourceMesh;
+                renderer.bones = new[] { outfitRig.Hips, outfitRig.LeftUpperArm };
+                renderer.rootBone = outfitRig.Hips;
+                renderer.localBounds = sourceMesh.bounds;
+
+                MethodInfo setupOutfit = setupOutfitType.GetMethod(
+                    "SetupOutfitUI",
+                    BindingFlags.Public | BindingFlags.Static);
+                Assert.That(setupOutfit, Is.Not.Null);
+                setupOutfit.Invoke(null, new object[] { outfitRoot });
+
+                var deformer = meshObject.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                deformer.AlignMode = LatticeDeformer.LatticeAlignMode.Mode3_BoundsRemap;
+                int editedControl = deformer.EditingSettings.ControlPointCount - 1;
+                deformer.EditingSettings.SetControlPointLocal(
+                    editedControl,
+                    deformer.EditingSettings.GetControlPointLocal(editedControl) +
+                    new Vector3(0.12f, 0.04f, -0.03f));
+                deformer.NotifyDeformationDataChanged();
+
+                Component shapeChanger = AddShapeChanger(outfitRoot, meshObject);
+                renderer.SetBlendShapeWeight(0, 100f);
+
+                return new PreviewFixture(
+                    avatarRoot,
+                    outfitRoot,
+                    meshObject,
+                    renderer,
+                    deformer,
+                    sourceMesh,
+                    humanoidAvatar,
+                    shapeChanger,
+                    new Vector3(0f, -0.45f, 0.08f),
+                    baseRig.Hips,
+                    baseRig.LeftUpperArm);
+            }
+            catch
+            {
+                Object.DestroyImmediate(avatarRoot);
+                if (humanoidAvatar != null && !EditorUtility.IsPersistent(humanoidAvatar))
+                    Object.DestroyImmediate(humanoidAvatar);
+                if (sourceMesh != null && !EditorUtility.IsPersistent(sourceMesh))
+                    Object.DestroyImmediate(sourceMesh);
+                throw;
+            }
+        }
+
         [Test]
         [Category("MaSetupOutfitE2E")]
         public void SetupOutfitThenDeform_RetargetsBonesWithoutChangingTheEditedMesh()
@@ -245,7 +377,53 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             };
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
+            var shapeDelta = Enumerable.Repeat(
+                new Vector3(0f, -0.45f, 0.08f),
+                vertices.Length).ToArray();
+            mesh.AddBlendShapeFrame(
+                "Representative Shape",
+                100f,
+                shapeDelta,
+                new Vector3[vertices.Length],
+                new Vector3[vertices.Length]);
             return mesh;
+        }
+
+        private static Component AddShapeChanger(GameObject host, GameObject meshObject)
+        {
+            Type changerType = FindType("nadena.dev.modular_avatar.core.ModularAvatarShapeChanger");
+            Type changedShapeType = FindType("nadena.dev.modular_avatar.core.ChangedShape");
+            Type objectReferenceType = FindType("nadena.dev.modular_avatar.core.AvatarObjectReference");
+            Type changeType = FindType("nadena.dev.modular_avatar.core.ShapeChangeType");
+            Assert.That(changerType, Is.Not.Null);
+            Assert.That(changedShapeType, Is.Not.Null);
+            Assert.That(objectReferenceType, Is.Not.Null);
+            Assert.That(changeType, Is.Not.Null);
+
+            Component changer = host.AddComponent(changerType);
+            object changedShape = Activator.CreateInstance(changedShapeType);
+            object objectReference = Activator.CreateInstance(objectReferenceType);
+            objectReferenceType.GetMethod("Set", BindingFlags.Public | BindingFlags.Instance)
+                ?.Invoke(objectReference, new object[] { meshObject });
+            MethodInfo getReference = objectReferenceType.GetMethod(
+                "Get",
+                BindingFlags.Public | BindingFlags.Instance,
+                null,
+                new[] { typeof(Component) },
+                null);
+            Assert.That(getReference?.Invoke(objectReference, new object[] { changer }), Is.SameAs(meshObject),
+                "The MA Shape Changer reference must resolve to the representative outfit mesh.");
+            changedShapeType.GetField("Object")?.SetValue(changedShape, objectReference);
+            changedShapeType.GetField("ShapeName")?.SetValue(changedShape, "Representative Shape");
+            changedShapeType.GetField("ChangeType")?.SetValue(
+                changedShape,
+                Enum.Parse(changeType, "Set"));
+            changedShapeType.GetField("Value")?.SetValue(changedShape, 100f);
+            object shapes = changerType.GetProperty("Shapes")?.GetValue(changer);
+            Assert.That(shapes, Is.AssignableTo<System.Collections.IList>());
+            ((System.Collections.IList)shapes).Add(changedShape);
+            EditorUtility.SetDirty(changer);
+            return changer;
         }
 
         private static void AssertVerticesEqual(Vector3[] expected, Vector3[] actual)
@@ -314,4 +492,3 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     }
 }
 #endif
-

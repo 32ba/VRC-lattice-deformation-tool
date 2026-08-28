@@ -223,6 +223,15 @@ jobs:
           -RequiredCategory GraphicsE2EExploration
           -RequiredCategoryCount 1
 
+      - name: Verify MA Setup Outfit Preview E2E Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -RequiredCategory MaSetupOutfitPreviewE2E
+          -RequiredCategoryCount 1
+
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
