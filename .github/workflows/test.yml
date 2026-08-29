@@ -141,6 +141,9 @@ jobs:
           NDMF_VERSION: 1.14.2
           # Setup Outfit is part of the customer workflow covered by the hotfix regression test.
           MODULAR_AVATAR_VERSION: 1.17.1
+          # The real preview graph test uses Remove Mesh In Box as a topology-changing
+          # downstream consumer, matching the package installed in Plugin-dev-playground.
+          AVATAR_OPTIMIZER_VERSION: 1.9.17
         run: |
           set -euo pipefail
 
@@ -149,10 +152,12 @@ jobs:
           # If packages.vrchat.com ever starts rejecting the runner, setup-vrc-get exposes a
           # "fix-official-curated-repository" input that switches to direct download links.
           vrc-get repo add -- https://vpm.nadena.dev/vpm.json || true
+          vrc-get repo add -- https://vpm.anatawa12.com/vpm.json || true
 
           vrc-get install --project ci-project --yes com.vrchat.avatars "$VRCHAT_SDK_VERSION"
           vrc-get install --project ci-project --yes nadena.dev.ndmf "$NDMF_VERSION"
           vrc-get install --project ci-project --yes nadena.dev.modular-avatar "$MODULAR_AVATAR_VERSION"
+          vrc-get install --project ci-project --yes com.anatawa12.avatar-optimizer "$AVATAR_OPTIMIZER_VERSION"
 
           vrc-get info project --project ci-project
 
