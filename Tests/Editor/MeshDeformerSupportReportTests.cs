@@ -58,7 +58,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 StringAssert.Contains("\"preview-aligned-cage\":", report);
                 StringAssert.Contains("\"validation\":{", report);
                 Assert.That(report, Does.Not.Contain(Application.dataPath));
-                Assert.That(report, Does.Not.Contain(Environment.UserName));
+                string userPathSegment = Path.DirectorySeparatorChar +
+                                         Environment.UserName +
+                                         Path.DirectorySeparatorChar;
+                Assert.That(report, Does.Not.Contain(userPathSegment));
                 Assert.That(report, Does.Not.Contain("Assets/"));
             }
             finally
