@@ -948,7 +948,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                             bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
                             deformer.Deform(assignRuntimeMesh);
                             LatticePrefabUtility.MarkModified(deformer);
-                            LatticePreviewUtility.RequestSceneRepaint();
+                            LatticePreviewUtility.PublishInteractiveDeformation(deformer);
                         }
                     }
                 }

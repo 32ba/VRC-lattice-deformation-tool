@@ -405,7 +405,24 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(diagnostics.Count(d => d.Code == MeshDeformerValidator.ExistingBlendShapeCollision), Is.EqualTo(2));
 
             first.BlendShapeName = "";
+            Assert.That(MeshDeformerValidator.Validate(fixture.Deformer)
+                .Any(d => d.Code == MeshDeformerValidator.EmptyBlendShapeName), Is.False,
+                "An empty stored name must use the same object-name fallback as Deform().");
+            fixture.Deformer.gameObject.name = "";
             AssertCode(fixture.Deformer, MeshDeformerValidator.EmptyBlendShapeName);
+        }
+
+        [Test]
+        public void EmptyLayerBlendShapeName_UsesLayerNameFallback()
+        {
+            using var fixture = CreateFixture("Layer BlendShape Fallback");
+            LatticeLayer layer = fixture.Deformer.Groups[0].Layers[0];
+            layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+            layer.BlendShapeName = "";
+
+            Assert.That(layer.EffectiveBlendShapeName, Is.Not.Empty);
+            Assert.That(MeshDeformerValidator.Validate(fixture.Deformer)
+                .Any(d => d.Code == MeshDeformerValidator.EmptyBlendShapeName), Is.False);
         }
 
         [Test]

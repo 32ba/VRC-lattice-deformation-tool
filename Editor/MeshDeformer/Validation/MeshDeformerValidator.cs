@@ -345,7 +345,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
                 {
                     ValidateOutputName(deformer, results, outputNames, sourceNames,
-                        group.BlendShapeName, groupIndex, -1, "_blendShapeName");
+                        group.EffectiveBlendShapeName(deformer.gameObject.name),
+                        groupIndex, -1, "_blendShapeName");
                 }
 
                 var layers = s_layersField?.GetValue(group) as List<LatticeLayer>;
@@ -410,7 +411,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     if (layer.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
                     {
                         ValidateOutputName(deformer, results, outputNames, sourceNames,
-                            layer.BlendShapeName, groupIndex, layerIndex, "_blendShapeName");
+                            layer.EffectiveBlendShapeName,
+                            groupIndex, layerIndex, "_blendShapeName");
                     }
                 }
             }

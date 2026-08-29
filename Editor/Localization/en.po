@@ -1345,7 +1345,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.support-information"
 msgstr "Support Information"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information-description"
-msgstr "Saves encoded technical information for troubleshooting as a PNG image. It normally excludes local paths and computer identity, but error text may contain environment-specific details."
+msgstr "Saves encoded technical information for troubleshooting as a PNG image."
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy-support-information"
 msgstr "Save Support Information Image"

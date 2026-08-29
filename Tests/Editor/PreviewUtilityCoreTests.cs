@@ -9,6 +9,7 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.TestTools;
+using Object = UnityEngine.Object;
 
 namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
@@ -424,7 +425,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void LatticePreviewUtility_ShouldAssignRuntimeMesh_ReflectsPreviewState()
+        public void LatticePreviewUtility_EditorPreviewNeverAssignsRuntimeMeshToSourceRenderer()
         {
             int previousDepth = NDMFPreview.DisablePreviewDepth;
             bool previousPreview = NDMFPreviewPrefs.instance.EnablePreview;
@@ -432,21 +433,208 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 NDMFPreview.DisablePreviewDepth = 1;
                 NDMFPreviewPrefs.instance.EnablePreview = true;
-                Assert.That(LatticePreviewUtility.ShouldAssignRuntimeMesh(), Is.True);
+                Assert.That(LatticePreviewUtility.ShouldAssignRuntimeMesh(), Is.False,
+                    "Temporarily suspended NDMF preview must not make editor operations replace the source renderer mesh.");
 
                 NDMFPreview.DisablePreviewDepth = 0;
                 NDMFPreviewPrefs.instance.EnablePreview = false;
-                Assert.That(LatticePreviewUtility.ShouldAssignRuntimeMesh(), Is.True);
+                Assert.That(LatticePreviewUtility.ShouldAssignRuntimeMesh(), Is.False,
+                    "Disabling NDMF preview must not make editor operations replace the source renderer mesh.");
 
-                Assert.That(LatticePreviewUtility.ShouldAssignRuntimeMesh(1, true, true), Is.True);
-                Assert.That(LatticePreviewUtility.ShouldAssignRuntimeMesh(0, false, true), Is.True);
-                Assert.That(LatticePreviewUtility.ShouldAssignRuntimeMesh(0, true, false), Is.True);
+                Assert.That(LatticePreviewUtility.ShouldAssignRuntimeMesh(1, true, true), Is.False);
+                Assert.That(LatticePreviewUtility.ShouldAssignRuntimeMesh(0, false, true), Is.False);
+                Assert.That(LatticePreviewUtility.ShouldAssignRuntimeMesh(0, true, false), Is.False);
                 Assert.That(LatticePreviewUtility.ShouldAssignRuntimeMesh(0, true, true), Is.False);
             }
             finally
             {
                 NDMFPreview.DisablePreviewDepth = previousDepth;
                 NDMFPreviewPrefs.instance.EnablePreview = previousPreview;
+            }
+        }
+
+        [Test]
+        public void EditorDeformation_AfterComponentAttachment_KeepsAuthoredSkinnedMesh()
+        {
+            var go = new GameObject("non-destructive-attachment");
+            var source = CreateBlendShapeMesh(0);
+            try
+            {
+                var renderer = go.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = source;
+
+                var deformer = go.AddComponent<LatticeDeformer>();
+                Assert.That(renderer.sharedMesh, Is.SameAs(source),
+                    "Attaching Mesh Deformer must leave the authored mesh on the renderer.");
+
+                bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh(
+                    disablePreviewDepth: 1,
+                    enablePreview: false,
+                    previewToggleEnabled: false);
+                Mesh generated = deformer.Deform(assignRuntimeMesh);
+
+                Assert.That(generated, Is.Not.Null);
+                Assert.That(generated, Is.Not.SameAs(source));
+                Assert.That(renderer.sharedMesh, Is.SameAs(source),
+                    "The first editor deformation after attachment must publish through a preview proxy, not replace SkinnedMeshRenderer.sharedMesh.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(go);
+                Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
+        public void EditorDeformation_WithoutNdmfPreview_UsesStandaloneSceneProxy()
+        {
+            var go = new GameObject("standalone-preview-source");
+            var source = CreateBlendShapeMesh(0);
+            try
+            {
+                var renderer = go.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = source;
+                var deformer = go.AddComponent<LatticeDeformer>();
+
+                LatticeAsset settings = deformer.EditingSettings;
+                for (int i = 0; i < settings.ControlPointCount; i++)
+                {
+                    settings.SetControlPointLocal(
+                        i,
+                        settings.GetControlPointLocal(i) + Vector3.right * 0.25f);
+                }
+                deformer.NotifyDeformationDataChanged();
+                Mesh generated = deformer.Deform(false);
+                LatticePreviewUtility.PublishInteractiveDeformation(deformer);
+
+                Assert.That(renderer.sharedMesh, Is.SameAs(source));
+                Assert.That(MeshDeformerStandalonePreview.TryGetProxy(deformer, out Renderer proxy), Is.True);
+                Assert.That(proxy, Is.TypeOf<SkinnedMeshRenderer>());
+                Assert.That(((SkinnedMeshRenderer)proxy).sharedMesh, Is.SameAs(generated));
+                Assert.That(generated.vertices[0], Is.EqualTo(source.vertices[0] + Vector3.right * 0.25f));
+                Assert.That(renderer.forceRenderingOff, Is.True);
+
+                MeshDeformerStandalonePreview.Release(deformer);
+                Assert.That(renderer.forceRenderingOff, Is.False);
+            }
+            finally
+            {
+                MeshDeformerStandalonePreview.ReleaseAll();
+                Object.DestroyImmediate(go);
+                Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
+        public void StandalonePreview_WhenNdmfProxyArrives_RestoresAuthoredRendererState()
+        {
+            var sourceObject = new GameObject("standalone-transition-source");
+            var ndmfProxyObject = new GameObject("standalone-transition-ndmf-proxy");
+            var sourceMesh = CreateBlendShapeMesh(0);
+            long ndmfGeneration = 0;
+            try
+            {
+                var sourceRenderer = sourceObject.AddComponent<SkinnedMeshRenderer>();
+                sourceRenderer.sharedMesh = sourceMesh;
+                var deformer = sourceObject.AddComponent<LatticeDeformer>();
+                deformer.Deform(false);
+                LatticePreviewUtility.PublishInteractiveDeformation(deformer);
+                Assert.That(sourceRenderer.forceRenderingOff, Is.True);
+
+                var ndmfProxy = ndmfProxyObject.AddComponent<SkinnedMeshRenderer>();
+                ndmfProxy.sharedMesh = sourceMesh;
+                ndmfProxy.forceRenderingOff = sourceRenderer.forceRenderingOff;
+                ndmfGeneration = LatticePreviewUtility.RegisterProxy(sourceRenderer, ndmfProxy);
+
+                Assert.That(sourceRenderer.forceRenderingOff, Is.False);
+                Assert.That(ndmfProxy.forceRenderingOff, Is.False);
+                Assert.That(MeshDeformerStandalonePreview.TryGetProxy(deformer, out _), Is.False);
+                Assert.That(LatticePreviewUtility.TryGetPreviewProxy(sourceRenderer, out Renderer registered), Is.True);
+                Assert.That(registered, Is.SameAs(ndmfProxy));
+            }
+            finally
+            {
+                MeshDeformerStandalonePreview.ReleaseAll();
+                var sourceRenderer = sourceObject.GetComponent<SkinnedMeshRenderer>();
+                var ndmfProxy = ndmfProxyObject.GetComponent<SkinnedMeshRenderer>();
+                if (sourceRenderer != null && ndmfProxy != null && ndmfGeneration != 0)
+                    LatticePreviewUtility.ClearProxy(sourceRenderer, ndmfProxy, ndmfGeneration);
+                Object.DestroyImmediate(sourceObject);
+                Object.DestroyImmediate(ndmfProxyObject);
+                Object.DestroyImmediate(sourceMesh);
+            }
+        }
+
+        [Test]
+        public void StandalonePreview_DisablingComponent_RestoresSourceRenderer()
+        {
+            var go = new GameObject("standalone-disable-source");
+            var sourceMesh = CreateBlendShapeMesh(0);
+            try
+            {
+                var renderer = go.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = sourceMesh;
+                var deformer = go.AddComponent<LatticeDeformer>();
+                deformer.Deform(false);
+                LatticePreviewUtility.PublishInteractiveDeformation(deformer);
+                Assert.That(renderer.forceRenderingOff, Is.True);
+
+                deformer.enabled = false;
+                MeshDeformerStandalonePreview.CleanupInactiveEntries();
+
+                Assert.That(renderer.sharedMesh, Is.SameAs(sourceMesh));
+                Assert.That(renderer.forceRenderingOff, Is.False);
+                Assert.That(MeshDeformerStandalonePreview.TryGetProxy(deformer, out _), Is.False);
+            }
+            finally
+            {
+                MeshDeformerStandalonePreview.ReleaseAll();
+                Object.DestroyImmediate(go);
+                Object.DestroyImmediate(sourceMesh);
+            }
+        }
+
+        [Test]
+        public void StandalonePreview_UndoRefreshesProxyWithoutReplacingSourceMesh()
+        {
+            var go = new GameObject("standalone-undo-source");
+            var sourceMesh = CreateBlendShapeMesh(0);
+            try
+            {
+                var renderer = go.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = sourceMesh;
+                var deformer = go.AddComponent<LatticeDeformer>();
+
+                deformer.Deform(false);
+                LatticePreviewUtility.PublishInteractiveDeformation(deformer);
+                Assert.That(MeshDeformerStandalonePreview.TryGetProxy(deformer, out Renderer proxy), Is.True);
+                Vector3 before = ((SkinnedMeshRenderer)proxy).sharedMesh.vertices[0];
+
+                Undo.RegisterCompleteObjectUndo(deformer, "Move lattice for standalone preview undo test");
+                LatticeAsset settings = deformer.EditingSettings;
+                for (int i = 0; i < settings.ControlPointCount; i++)
+                {
+                    settings.SetControlPointLocal(
+                        i,
+                        settings.GetControlPointLocal(i) + Vector3.up * 0.2f);
+                }
+                deformer.NotifyDeformationDataChanged();
+                deformer.Deform(false);
+                LatticePreviewUtility.PublishInteractiveDeformation(deformer);
+                Assert.That(((SkinnedMeshRenderer)proxy).sharedMesh.vertices[0],
+                    Is.EqualTo(before + Vector3.up * 0.2f));
+
+                Undo.PerformUndo();
+
+                Assert.That(renderer.sharedMesh, Is.SameAs(sourceMesh));
+                Assert.That(MeshDeformerStandalonePreview.TryGetProxy(deformer, out Renderer refreshed), Is.True);
+                Assert.That(((SkinnedMeshRenderer)refreshed).sharedMesh.vertices[0], Is.EqualTo(before));
+            }
+            finally
+            {
+                MeshDeformerStandalonePreview.ReleaseAll();
+                Object.DestroyImmediate(go);
+                Object.DestroyImmediate(sourceMesh);
             }
         }
 
@@ -686,6 +874,47 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeDeformerPreviewFilter_InvalidDataReturnsValidNoOpNode()
+        {
+            var original = new GameObject("invalid-preview-original");
+            var proxy = new GameObject("invalid-preview-proxy");
+            var source = CreateBlendShapeMesh(0);
+            IRenderFilterNode node = null;
+            try
+            {
+                var originalRenderer = original.AddComponent<SkinnedMeshRenderer>();
+                originalRenderer.sharedMesh = source;
+                var deformer = original.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                deformer.ActiveGroup.LayersList.Clear();
+
+                var proxyRenderer = proxy.AddComponent<SkinnedMeshRenderer>();
+                proxyRenderer.sharedMesh = source;
+                LogAssert.Expect(LogType.Error,
+                    "[MDV010] invalid-preview-original / group 0 / _layers: An enabled group has no layers.");
+
+                node = new LatticeDeformerPreviewFilter().Instantiate(
+                        RenderGroup.For(originalRenderer),
+                        new[] { ((Renderer)originalRenderer, (Renderer)proxyRenderer) },
+                        new ComputeContext("invalid preview no-op contract test"))
+                    .GetAwaiter()
+                    .GetResult();
+
+                Assert.That(node, Is.Not.Null);
+                Assert.That(node.GetType().Name, Is.EqualTo("NoOpNode"));
+                Assert.DoesNotThrow(() => node.OnFrameGroup());
+                Assert.DoesNotThrow(() => node.OnFrame(originalRenderer, proxyRenderer));
+            }
+            finally
+            {
+                node?.Dispose();
+                Object.DestroyImmediate(original);
+                Object.DestroyImmediate(proxy);
+                Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
         public void LatticeDeformerPostAaoPreviewFilter_SyncsVerticesWithoutChangingDeletedTopology()
         {
             var original = new GameObject("downstream-refresh-original");
@@ -752,8 +981,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 postNode.OnFrameGroup();
                 Assert.That(postNode.OutputMeshForTests.vertices[0], Is.EqualTo(before));
 
-                latticeNode.OnFrameGroup();
-                postNode.OnFrameGroup();
+                LatticePreviewUtility.PublishInteractiveDeformation(deformer);
+                Assert.That(previewMesh.vertices[0],
+                    Is.EqualTo(before + Vector3.right * 0.25f),
+                    "The upstream preview must update before the handle GUI event returns.");
+                Assert.That(postNode.OutputMeshForTests.vertices[0],
+                    Is.EqualTo(before + Vector3.right * 0.25f),
+                    "The post-AAO preview must update in the same published interaction event.");
 
                 // AAO can write its cached upstream channels after the post-AAO
                 // group callback. The final renderer callback must win that ordering
@@ -840,6 +1074,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.DoesNotThrow(() => postNode.OnFrameGroup());
                 Assert.DoesNotThrow(() => postNode.OnFrame(originalRenderer, proxyRenderer));
 
+                // A downstream package may duplicate the mesh without placing a
+                // recognizable component on this renderer. The deferred stage must
+                // activate from mesh identity alone.
+                lateAaoMesh = Object.Instantiate(source);
+                proxyRenderer.sharedMesh = lateAaoMesh;
+                postNode.OnFrameGroup();
+                postNode.OnFrame(originalRenderer, proxyRenderer);
+
                 LatticeAsset settings = deformer.EditingSettings;
                 for (int control = 0; control < settings.ControlPointCount; control++)
                 {
@@ -849,16 +1091,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 }
                 deformer.NotifyDeformationDataChanged();
                 deformer.Deform(false);
-                latticeNode.OnFrameGroup();
-
-                // NDMF may instantiate this stage before AAO has assigned its output.
-                // AAO still duplicates the mesh when no faces happen to be removed,
-                // so the distinct mesh must activate synchronization even when its
-                // topology is unchanged.
-                lateAaoMesh = Object.Instantiate(source);
-                proxyRenderer.sharedMesh = lateAaoMesh;
-                postNode.OnFrameGroup();
-                postNode.OnFrame(originalRenderer, proxyRenderer);
+                LatticePreviewUtility.PublishInteractiveDeformation(deformer);
 
                 Assert.That(proxyRenderer.sharedMesh, Is.SameAs(lateAaoMesh));
                 Assert.That(lateAaoMesh.triangles, Is.EqualTo(source.triangles));

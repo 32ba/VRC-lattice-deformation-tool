@@ -169,7 +169,20 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 }
                 deformer.NotifyDeformationDataChanged();
                 deformer.Deform(false);
-                LatticePreviewUtility.RequestSceneRepaint();
+                LatticePreviewUtility.PublishInteractiveDeformation(deformer);
+
+                Assert.That(LatticePreviewUtility.TryGetPreviewMesh(
+                    sourceRenderer,
+                    out Mesh previewMeshInHandleEvent), Is.True);
+                Assert.That(HasAnyVertexMoved(verticesBeforeEdit, previewMeshInHandleEvent), Is.True,
+                    "The upstream lattice preview must publish the edit in the same handle GUI event.");
+                Assert.That(NDMFPreviewProxyUtility.TryGetProxyRenderer(
+                    sourceRenderer,
+                    out Renderer displayedProxyInHandleEvent), Is.True);
+                Assert.That(HasAnyVertexMoved(
+                    verticesBeforeEdit,
+                    LatticeDeformerPreviewFilter.GetRendererMesh(displayedProxyInHandleEvent)), Is.True,
+                    "The displayed post-AAO mesh must publish the edit in the same handle GUI event.");
 
                 bool handleFollowedEdit = false;
                 bool previewMeshFollowedEdit = false;

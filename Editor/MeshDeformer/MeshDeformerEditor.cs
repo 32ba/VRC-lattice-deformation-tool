@@ -89,6 +89,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_showBlendShapeOutput = false;
         private static bool s_showLayerSettings = false;
         private static bool s_showClearanceHeatmapSettings = false;
+        private static bool s_showSupportInformation = false;
         private static readonly Dictionary<long, Vector3Int> s_pendingGridSizes = new();
         private static string s_copiedLayerJson = null;
         private static MeshDeformerLayerType s_copiedLayerType;
@@ -912,8 +913,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 DrawValidationDiagnostics();
             }
 
-            DrawSupportReport();
-
             EditorGUILayout.Space();
 
             bool hasLayers = _layersProp != null && _layersProp.arraySize > 0;
@@ -928,49 +927,55 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     LatticePreviewUtility.RequestSceneRepaint();
                 }
             }
+
+            DrawSupportReport();
         }
 
         private void DrawSupportReport()
         {
             EditorGUILayout.Space();
-            EditorGUILayout.LabelField(
-                LatticeLocalization.Tr(LocKey.SupportInformation),
-                EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox(
-                LatticeLocalization.Tr(LocKey.SupportInformationDescription),
-                MessageType.Info);
-            using (new EditorGUI.DisabledScope(
-                       targets.Length != 1 || target is not LatticeDeformer))
+            s_showSupportInformation = EditorGUILayout.BeginFoldoutHeaderGroup(
+                s_showSupportInformation,
+                LatticeLocalization.Tr(LocKey.SupportInformation));
+            if (s_showSupportInformation)
             {
-                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.CopySupportInformation)) &&
-                    target is LatticeDeformer deformer)
+                EditorGUILayout.HelpBox(
+                    LatticeLocalization.Tr(LocKey.SupportInformationDescription),
+                    MessageType.Info);
+                using (new EditorGUI.DisabledScope(
+                           targets.Length != 1 || target is not LatticeDeformer))
                 {
-                    string path = EditorUtility.SaveFilePanel(
-                        LatticeLocalization.Tr(LocKey.CopySupportInformation),
-                        "",
-                        $"MeshDeformer-Support-{DateTime.UtcNow:yyyyMMdd-HHmmss}.png",
-                        "png");
-                    if (!string.IsNullOrEmpty(path))
+                    if (GUILayout.Button(LatticeLocalization.Tr(LocKey.CopySupportInformation)) &&
+                        target is LatticeDeformer deformer)
                     {
-                        try
+                        string path = EditorUtility.SaveFilePanel(
+                            LatticeLocalization.Tr(LocKey.CopySupportInformation),
+                            "",
+                            $"MeshDeformer-Support-{DateTime.UtcNow:yyyyMMdd-HHmmss}.png",
+                            "png");
+                        if (!string.IsNullOrEmpty(path))
                         {
-                            File.WriteAllBytes(path, MeshDeformerSupportReport.GeneratePng(deformer));
-                            _supportReportSavedUntil = EditorApplication.timeSinceStartup + 3d;
-                        }
-                        catch (Exception exception)
-                        {
-                            EditorUtility.DisplayDialog("Mesh Deformer", exception.Message, "OK");
+                            try
+                            {
+                                File.WriteAllBytes(path, MeshDeformerSupportReport.GeneratePng(deformer));
+                                _supportReportSavedUntil = EditorApplication.timeSinceStartup + 3d;
+                            }
+                            catch (Exception exception)
+                            {
+                                EditorUtility.DisplayDialog("Mesh Deformer", exception.Message, "OK");
+                            }
                         }
                     }
                 }
+                if (EditorApplication.timeSinceStartup < _supportReportSavedUntil)
+                {
+                    EditorGUILayout.HelpBox(
+                        LatticeLocalization.Tr(LocKey.SupportInformationCopied),
+                        MessageType.Info);
+                    Repaint();
+                }
             }
-            if (EditorApplication.timeSinceStartup < _supportReportSavedUntil)
-            {
-                EditorGUILayout.HelpBox(
-                    LatticeLocalization.Tr(LocKey.SupportInformationCopied),
-                    MessageType.Info);
-                Repaint();
-            }
+            EditorGUILayout.EndFoldoutHeaderGroup();
         }
 
         private void DrawValidationDiagnostics()
