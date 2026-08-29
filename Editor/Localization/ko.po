@@ -1345,10 +1345,10 @@ msgid "net.32ba.lattice-deformation-tool.localization.support-information"
 msgstr "지원 정보"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information-description"
-msgstr "문제 해결에 필요한 기술 정보를 압축 및 인코딩하여 복사합니다. 절대 경로, 에셋 GUID, 메시 버텍스 데이터 및 컴퓨터 이름은 포함되지 않습니다."
+msgstr "문제 해결에 필요한 기술 정보를 인코딩된 PNG 이미지로 저장합니다. 일반적으로 로컬 경로와 컴퓨터 식별 정보는 제외되지만 오류 메시지에는 환경별 정보가 포함될 수 있습니다."
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy-support-information"
-msgstr "지원 정보 복사"
+msgstr "지원 정보 이미지 저장"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information-copied"
-msgstr "지원 정보를 복사했습니다. 지원 메시지에 붙여 넣어 주세요."
+msgstr "지원 정보 이미지를 저장했습니다. 지원 메시지에 첨부해 주세요."

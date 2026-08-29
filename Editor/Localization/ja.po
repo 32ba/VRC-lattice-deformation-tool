@@ -1345,10 +1345,10 @@ msgid "net.32ba.lattice-deformation-tool.localization.support-information"
 msgstr "サポート情報"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information-description"
-msgstr "問題の調査に必要な技術情報を、圧縮・エンコードしてコピーします。絶対パス、アセットGUID、メッシュの頂点データ、PC名は含まれません。"
+msgstr "問題の調査に必要な技術情報を、エンコードしたPNG画像として保存します。通常はローカルパスやPCの識別情報を含みませんが、エラー文などに環境固有の情報が含まれる場合があります。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy-support-information"
-msgstr "サポート情報をコピー"
+msgstr "サポート情報画像を保存"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information-copied"
-msgstr "サポート情報をコピーしました。お問い合わせメッセージに貼り付けてください。"
+msgstr "サポート情報画像を保存しました。お問い合わせメッセージに添付してください。"

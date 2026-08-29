@@ -45,6 +45,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int[] _shapeSampleIndices = Array.Empty<int>();
         private Vector3[] _currentShapeSampleOffsets = Array.Empty<Vector3>();
         private Vector3[] _initialShapeSampleOffsets = Array.Empty<Vector3>();
+        private Vector3[] _changedShapeSampleOffsets = Array.Empty<Vector3>();
+        private float[] _currentShapeWeights = Array.Empty<float>();
+        private int _currentShapeMappingHash;
         private Vector3[] _blendShapeLowerScratch = Array.Empty<Vector3>();
         private Vector3[] _blendShapeUpperScratch = Array.Empty<Vector3>();
         private Vector3[] _blendShapeNormalScratch = Array.Empty<Vector3>();
@@ -64,6 +67,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal bool HasPoseBounds { get; private set; }
         internal int BindingRefreshCountForTests { get; private set; }
         internal int PoseRefreshCountForTests { get; private set; }
+        internal int BlendShapeFrameReadCountForTests { get; private set; }
 
         internal bool TryGetBindingForTests(
             int controlIndex,
@@ -186,6 +190,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _shapeSampleIndices = Array.Empty<int>();
             _currentShapeSampleOffsets = Array.Empty<Vector3>();
             _initialShapeSampleOffsets = Array.Empty<Vector3>();
+            _changedShapeSampleOffsets = Array.Empty<Vector3>();
+            _currentShapeWeights = Array.Empty<float>();
+            _currentShapeMappingHash = 0;
             _blendShapeLowerScratch = Array.Empty<Vector3>();
             _blendShapeUpperScratch = Array.Empty<Vector3>();
             _blendShapeNormalScratch = Array.Empty<Vector3>();
@@ -239,7 +246,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // retaining the proxy's (possibly retargeted) bone indices. The preview mesh
             // may already contain active source BlendShapes; using those moved vertices
             // here would select different bones as a Shape slider changes.
-            Vector3[] bindingPositions = poseVertices.Length == vertices.Length
+            Vector3[] bindingPositions = HasMatchingVertexTopology(sourceMesh, poseMesh)
                 ? vertices
                 : poseVertices;
             var vertexSamples = BuildVertexSamples(bindingPositions, poseWeights);
@@ -282,6 +289,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _shapeSampleIndices = BuildShapeSampleIndices(vertices);
             _currentShapeSampleOffsets = new Vector3[_shapeSampleIndices.Length];
             _initialShapeSampleOffsets = new Vector3[_shapeSampleIndices.Length];
+            _changedShapeSampleOffsets = new Vector3[_shapeSampleIndices.Length];
+            _currentShapeWeights = Array.Empty<float>();
+            _currentShapeMappingHash = 0;
             _initialShapeSampleHash = int.MinValue;
             _blendShapeLowerScratch = new Vector3[vertices.Length];
             _blendShapeUpperScratch = new Vector3[vertices.Length];
@@ -289,6 +299,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _blendShapeTangentScratch = new Vector3[vertices.Length];
             _matrices = new Matrix4x4[controlCount];
             _inverseMatrices = new Matrix4x4[controlCount];
+            return true;
+        }
+
+        private static bool HasMatchingVertexTopology(Mesh source, Mesh pose)
+        {
+            if (source == null || pose == null || source.vertexCount != pose.vertexCount ||
+                source.subMeshCount != pose.subMeshCount)
+                return false;
+            for (int subMesh = 0; subMesh < source.subMeshCount; subMesh++)
+            {
+                if (source.GetTopology(subMesh) != pose.GetTopology(subMesh)) return false;
+                int[] sourceIndices = source.GetIndices(subMesh);
+                int[] poseIndices = pose.GetIndices(subMesh);
+                if (sourceIndices.Length != poseIndices.Length) return false;
+                for (int index = 0; index < sourceIndices.Length; index++)
+                    if (sourceIndices[index] != poseIndices[index]) return false;
+            }
             return true;
         }
 
@@ -694,7 +721,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (_shapeVertices.Length == 0 || _shapeSampleIndices.Length == 0)
                 return;
-            Array.Clear(_currentShapeSampleOffsets, 0, _currentShapeSampleOffsets.Length);
+            int shapeCount = sourceMesh.blendShapeCount;
+            int mappingContentHash = ComputeMappingContentHash(_blendShapeWeightIndices);
+            bool canUpdateIncrementally = _currentShapeWeights.Length == shapeCount &&
+                                          _currentShapeMappingHash == mappingContentHash;
+            if (!canUpdateIncrementally)
+            {
+                Array.Clear(_currentShapeSampleOffsets, 0, _currentShapeSampleOffsets.Length);
+                _currentShapeWeights = new float[shapeCount];
+                for (int shape = 0; shape < shapeCount; shape++)
+                    _currentShapeWeights[shape] = float.NaN;
+                _currentShapeMappingHash = mappingContentHash;
+            }
             int initialSampleHash = ComputeInitialShapeSampleHash(sourceMesh, initialWeights);
             bool refreshInitialOffsets = initialSampleHash != _initialShapeSampleHash;
             if (refreshInitialOffsets)
@@ -702,7 +740,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _initialShapeSampleHash = initialSampleHash;
                 Array.Clear(_initialShapeSampleOffsets, 0, _initialShapeSampleOffsets.Length);
             }
-            int shapeCount = sourceMesh.blendShapeCount;
             for (int shape = 0; shape < shapeCount; shape++)
             {
                 int weightIndex = shape < _blendShapeWeightIndices.Length
@@ -714,14 +751,28 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 bool zeroHasShapeDelta =
                     sourceMesh.GetBlendShapeFrameCount(shape) > 0 &&
                     sourceMesh.GetBlendShapeFrameWeight(shape, 0) <= 0f;
-                if (weightIndex >= 0 && IsFinite(weight) &&
-                    (Mathf.Abs(weight) > 1e-5f || zeroHasShapeDelta))
+                float effectiveWeight = weightIndex >= 0 && IsFinite(weight) ? weight : 0f;
+                float previousWeight = _currentShapeWeights[shape];
+                if (!IsFinite(previousWeight) || Mathf.Abs(previousWeight - effectiveWeight) > 1e-5f)
                 {
-                    AccumulateBlendShapeSampleOffsets(
-                        sourceMesh,
-                        shape,
-                        weight,
-                        _currentShapeSampleOffsets);
+                    bool linearSingleFrame = IsFinite(previousWeight) &&
+                                             sourceMesh.GetBlendShapeFrameCount(shape) == 1 &&
+                                             Mathf.Abs(sourceMesh.GetBlendShapeFrameWeight(shape, 0)) > Mathf.Epsilon;
+                    if (linearSingleFrame)
+                    {
+                        AccumulateBlendShapeSampleOffsets(
+                            sourceMesh, shape, effectiveWeight - previousWeight, _currentShapeSampleOffsets);
+                    }
+                    else if (IsFinite(previousWeight) &&
+                        (Mathf.Abs(previousWeight) > 1e-5f || zeroHasShapeDelta))
+                    {
+                        Array.Clear(_changedShapeSampleOffsets, 0, _changedShapeSampleOffsets.Length);
+                        AccumulateBlendShapeSampleOffsets(sourceMesh, shape, previousWeight, _changedShapeSampleOffsets);
+                        AddSampleOffsets(_currentShapeSampleOffsets, _changedShapeSampleOffsets, -1f);
+                    }
+                    if (!linearSingleFrame && (Mathf.Abs(effectiveWeight) > 1e-5f || zeroHasShapeDelta))
+                        AccumulateBlendShapeSampleOffsets(sourceMesh, shape, effectiveWeight, _currentShapeSampleOffsets);
+                    _currentShapeWeights[shape] = effectiveWeight;
                 }
                 float initialWeight = initialWeights != null && shape < initialWeights.Length
                     ? initialWeights[shape]
@@ -755,6 +806,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     _shapeSampleIndices,
                     sourcePoint);
                 _controlPointShapeOffsets[control] = currentOffset - initialOffset;
+            }
+        }
+
+        private static void AddSampleOffsets(Vector3[] destination, Vector3[] source, float scale)
+        {
+            for (int i = 0; i < destination.Length; i++) destination[i] += source[i] * scale;
+        }
+
+        private static int ComputeMappingContentHash(int[] mapping)
+        {
+            unchecked
+            {
+                int hash = 17;
+                if (mapping == null) return hash;
+                for (int i = 0; i < mapping.Length; i++) hash = hash * 31 + mapping[i];
+                return hash;
             }
         }
 
@@ -808,42 +875,48 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             int[] sampleIndices,
             Vector3 point)
         {
-            const int neighborCount = 4;
-            var nearest = new int[neighborCount] { -1, -1, -1, -1 };
-            var distances = new float[neighborCount]
-            {
-                float.PositiveInfinity, float.PositiveInfinity,
-                float.PositiveInfinity, float.PositiveInfinity
-            };
+            int nearest0 = -1, nearest1 = -1, nearest2 = -1, nearest3 = -1;
+            float distance0 = float.PositiveInfinity, distance1 = float.PositiveInfinity;
+            float distance2 = float.PositiveInfinity, distance3 = float.PositiveInfinity;
             for (int sample = 0; sample < sampleIndices.Length; sample++)
             {
                 int vertex = sampleIndices[sample];
                 float distance = (vertices[vertex] - point).sqrMagnitude;
-                if (!IsFinite(distance) || distance >= distances[neighborCount - 1])
+                if (!IsFinite(distance) || distance >= distance3)
                     continue;
-                int insertion = neighborCount - 1;
-                while (insertion > 0 && distance < distances[insertion - 1])
-                {
-                    distances[insertion] = distances[insertion - 1];
-                    nearest[insertion] = nearest[insertion - 1];
-                    insertion--;
-                }
-                distances[insertion] = distance;
-                nearest[insertion] = sample;
+                if (distance < distance0)
+                { distance3 = distance2; nearest3 = nearest2; distance2 = distance1; nearest2 = nearest1; distance1 = distance0; nearest1 = nearest0; distance0 = distance; nearest0 = sample; }
+                else if (distance < distance1)
+                { distance3 = distance2; nearest3 = nearest2; distance2 = distance1; nearest2 = nearest1; distance1 = distance; nearest1 = sample; }
+                else if (distance < distance2)
+                { distance3 = distance2; nearest3 = nearest2; distance2 = distance; nearest2 = sample; }
+                else
+                { distance3 = distance; nearest3 = sample; }
             }
-            if (nearest[0] < 0)
+            if (nearest0 < 0)
                 return Vector3.zero;
-            if (distances[0] <= 1e-12f)
-                return sampleOffsets[nearest[0]];
+            if (distance0 <= 1e-12f)
+                return sampleOffsets[nearest0];
             Vector3 result = Vector3.zero;
             float total = 0f;
-            for (int i = 0; i < neighborCount && nearest[i] >= 0; i++)
-            {
-                float spatialWeight = 1f / Mathf.Max(Mathf.Sqrt(distances[i]), 1e-6f);
-                result += sampleOffsets[nearest[i]] * spatialWeight;
-                total += spatialWeight;
-            }
+            AddWeightedNearest(nearest0, distance0, sampleOffsets, ref result, ref total);
+            AddWeightedNearest(nearest1, distance1, sampleOffsets, ref result, ref total);
+            AddWeightedNearest(nearest2, distance2, sampleOffsets, ref result, ref total);
+            AddWeightedNearest(nearest3, distance3, sampleOffsets, ref result, ref total);
             return total > 1e-6f ? result / total : Vector3.zero;
+        }
+
+        private static void AddWeightedNearest(
+            int nearest,
+            float distance,
+            Vector3[] sampleOffsets,
+            ref Vector3 result,
+            ref float total)
+        {
+            if (nearest < 0) return;
+            float spatialWeight = 1f / Mathf.Max(Mathf.Sqrt(distance), 1e-6f);
+            result += sampleOffsets[nearest] * spatialWeight;
+            total += spatialWeight;
         }
 
         private void AccumulateBlendShapeSampleOffsets(
@@ -864,6 +937,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     _blendShapeLowerScratch,
                     _blendShapeNormalScratch,
                     _blendShapeTangentScratch);
+                BlendShapeFrameReadCountForTests++;
                 float scale = Mathf.Abs(firstWeight) > Mathf.Epsilon ? weight / firstWeight : 0f;
                 AccumulateSamples(_blendShapeLowerScratch, null, scale, accumulated);
                 return;
@@ -881,6 +955,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     _blendShapeLowerScratch,
                     _blendShapeNormalScratch,
                     _blendShapeTangentScratch);
+                BlendShapeFrameReadCountForTests++;
                 float lowerWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, last - 1);
                 float scale = Mathf.Abs(lastWeight - lowerWeight) > Mathf.Epsilon
                     ? (weight - lowerWeight) / (lastWeight - lowerWeight)
@@ -901,12 +976,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     _blendShapeLowerScratch,
                     _blendShapeNormalScratch,
                     _blendShapeTangentScratch);
+                BlendShapeFrameReadCountForTests++;
                 mesh.GetBlendShapeFrameVertices(
                     shapeIndex,
                     frame,
                     _blendShapeUpperScratch,
                     _blendShapeNormalScratch,
                     _blendShapeTangentScratch);
+                BlendShapeFrameReadCountForTests++;
                 float t = Mathf.InverseLerp(lowerWeight, upperWeight, weight);
                 AccumulateSamples(
                     _blendShapeLowerScratch,

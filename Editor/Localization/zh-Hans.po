@@ -1345,10 +1345,10 @@ msgid "net.32ba.lattice-deformation-tool.localization.support-information"
 msgstr "支持信息"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information-description"
-msgstr "以压缩编码形式复制排查问题所需的技术信息。不包含绝对路径、资源 GUID、网格顶点数据或计算机名称。"
+msgstr "将排查问题所需的技术信息保存为编码 PNG 图像。通常不包含本地路径或计算机标识，但错误文本可能包含特定于环境的信息。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy-support-information"
-msgstr "复制支持信息"
+msgstr "保存支持信息图像"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information-copied"
-msgstr "支持信息已复制。请将其粘贴到支持消息中。"
+msgstr "支持信息图像已保存。请将其附加到支持消息中。"

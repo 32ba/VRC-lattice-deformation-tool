@@ -278,6 +278,99 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
+        [Test]
+        public void Update_ChangingOneOfSeveralShapesReadsOnlyChangedShapeFrames()
+        {
+            var root = new GameObject("Incremental Shapes");
+            var bone = new GameObject("Bone");
+            var mesh = CreateBlendShapeCube();
+            try
+            {
+                var delta = new Vector3[mesh.vertexCount];
+                for (int i = 0; i < delta.Length; i++) delta[i] = Vector3.right;
+                mesh.AddBlendShapeFrame("Shape B", 100f, delta, null, null);
+                for (int i = 0; i < delta.Length; i++) delta[i] = Vector3.forward;
+                mesh.AddBlendShapeFrame("Shape C", 100f, delta, null, null);
+                bone.transform.SetParent(root.transform, false);
+                var renderer = root.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = mesh;
+                renderer.bones = new[] { bone.transform };
+                renderer.rootBone = bone.transform;
+                renderer.SetBlendShapeWeight(0, 20f);
+                renderer.SetBlendShapeWeight(1, 30f);
+                renderer.SetBlendShapeWeight(2, 40f);
+                var cache = new LatticeControlPointSkinning();
+                Assert.That(cache.Update(renderer, mesh, mesh, mesh.bounds,
+                    new Vector3Int(2, 2, 2), root.transform.worldToLocalMatrix,
+                    renderer, new[] { 0f, 0f, 0f }), Is.True);
+                Assert.That(cache.Update(renderer, mesh, mesh, mesh.bounds,
+                    new Vector3Int(2, 2, 2), root.transform.worldToLocalMatrix,
+                    renderer, new[] { 0f, 0f, 0f }), Is.True);
+                int before = cache.BlendShapeFrameReadCountForTests;
+
+                renderer.SetBlendShapeWeight(0, 55f);
+                Assert.That(cache.Update(renderer, mesh, mesh, mesh.bounds,
+                    new Vector3Int(2, 2, 2), root.transform.worldToLocalMatrix,
+                    renderer, new[] { 0f, 0f, 0f }), Is.True);
+
+                Assert.That(
+                    cache.BlendShapeFrameReadCountForTests - before,
+                    Is.EqualTo(3),
+                    "Only the changed multi-frame Shape should be removed and resampled.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(bone);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void Update_SameVertexCountRewiredProxyUsesProxyPositionsWithProxyWeights()
+        {
+            var root = new GameObject("Rewired Proxy Root");
+            var bone0 = new GameObject("Bone 0");
+            var bone1 = new GameObject("Bone 1");
+            var source = CreateTwoBoneTriangle();
+            var proxy = new Mesh
+            {
+                vertices = new[] { Vector3.right, Vector3.zero, Vector3.up },
+                triangles = new[] { 1, 0, 2 },
+                boneWeights = new[]
+                {
+                    new BoneWeight { boneIndex0 = 0, weight0 = 1f },
+                    new BoneWeight { boneIndex0 = 1, weight0 = 1f },
+                    new BoneWeight { boneIndex0 = 0, weight0 = 1f },
+                },
+                bindposes = new[] { Matrix4x4.identity, Matrix4x4.identity },
+            };
+            try
+            {
+                bone0.transform.SetParent(root.transform, false);
+                bone1.transform.SetParent(root.transform, false);
+                var renderer = root.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = proxy;
+                renderer.bones = new[] { bone0.transform, bone1.transform };
+                renderer.rootBone = bone0.transform;
+                var cache = new LatticeControlPointSkinning();
+
+                Assert.That(cache.Update(renderer, source, proxy, source.bounds,
+                    new Vector3Int(2, 2, 1), root.transform.worldToLocalMatrix), Is.True);
+                Assert.That(cache.TryGetBindingForTests(0, out int[] bones, out float[] weights), Is.True);
+                Assert.That(bones[0], Is.EqualTo(1));
+                Assert.That(weights[0], Is.EqualTo(1f).Within(1e-6f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(bone0);
+                Object.DestroyImmediate(bone1);
+                Object.DestroyImmediate(source);
+                Object.DestroyImmediate(proxy);
+            }
+        }
+
         [TestCase(-50f)]
         [TestCase(12.5f)]
         [TestCase(25f)]
@@ -868,6 +961,43 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     deformer.InitialBlendShapeWeightsForEditor,
                     Is.EqualTo(new[] { 37f }),
                     "Saving and reopening a component must retain its original Shape baseline.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(bone);
+                Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
+        public void LatticeDeformer_PreBaselineComponentAdoptsVisibleShapeWithoutResettingCage()
+        {
+            var root = new GameObject("Legacy Shape Baseline Root");
+            var bone = new GameObject("Bone");
+            var source = CreateBlendShapeCube();
+            try
+            {
+                bone.transform.SetParent(root.transform, false);
+                var renderer = root.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = source;
+                renderer.bones = new[] { bone.transform };
+                renderer.rootBone = bone.transform;
+                renderer.SetBlendShapeWeight(0, 64f);
+                var deformer = root.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                Vector3 edited = deformer.Groups[0].Layers[0].Settings.GetControlPointLocal(0) + Vector3.right;
+                deformer.Groups[0].Layers[0].Settings.SetControlPointLocal(0, edited);
+
+                var serialized = new SerializedObject(deformer);
+                serialized.FindProperty("_initialBlendShapeWeights").arraySize = 0;
+                serialized.FindProperty("_hasInitialBlendShapeWeightBaseline").boolValue = false;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                deformer.enabled = false;
+                deformer.enabled = true;
+
+                Assert.That(deformer.InitialBlendShapeWeightsForEditor, Is.EqualTo(new[] { 64f }));
+                AssertVector(deformer.Groups[0].Layers[0].Settings.GetControlPointLocal(0), edited);
             }
             finally
             {

@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using NUnit.Framework;
 using Net._32Ba.LatticeDeformationTool.Editor;
+using UnityEditor;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
@@ -124,6 +125,59 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                               encoded.Substring(encodedChecksumIndex + 1);
 
             Assert.Throws<InvalidDataException>(() => MeshDeformerSupportReport.Decode(modified));
+        }
+
+        [Test]
+        public void Png_RoundTripsAndRejectsModifiedPixels()
+        {
+            byte[] png = MeshDeformerSupportReport.GeneratePng(null);
+            TestContext.Out.WriteLine($"support-png-bytes={png.Length}");
+            Assert.That(png.Length, Is.LessThanOrEqualTo(MeshDeformerSupportReport.MaximumAttachmentBytes));
+            StringAssert.Contains("\"present\":\"False\"", MeshDeformerSupportReport.DecodePng(png));
+
+            var texture = new Texture2D(2, 2, TextureFormat.RGB24, false, true);
+            try
+            {
+                Assert.That(ImageConversion.LoadImage(texture, png, false), Is.True);
+                Color32[] pixels = texture.GetPixels32();
+                pixels[8].r ^= 0x20;
+                texture.SetPixels32(pixels);
+                texture.Apply(false, false);
+                byte[] modified = texture.EncodeToPNG();
+                Assert.Throws<InvalidDataException>(() => MeshDeformerSupportReport.DecodePng(modified));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(texture);
+            }
+        }
+
+        [Test]
+        public void Generate_DoesNotCanonicalizeMalformedSerializedStack()
+        {
+            var root = new GameObject("Raw Support State");
+            Mesh source = CreateSourceMesh();
+            try
+            {
+                var renderer = root.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = source;
+                var deformer = root.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                var serialized = new UnityEditor.SerializedObject(deformer);
+                serialized.FindProperty("_groups").arraySize = 0;
+                serialized.FindProperty("_activeGroupIndex").intValue = 7;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                string before = EditorJsonUtility.ToJson(deformer);
+
+                MeshDeformerSupportReport.GeneratePng(deformer);
+
+                Assert.That(EditorJsonUtility.ToJson(deformer), Is.EqualTo(before));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                UnityEngine.Object.DestroyImmediate(source);
+            }
         }
 
         private static Mesh CreateSourceMesh()

@@ -132,7 +132,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private IReadOnlyList<MeshDeformerDiagnostic> _cachedValidationDiagnostics;
         private int _cachedValidationStateHash;
         private bool _hasCachedValidationState;
-        private double _supportReportCopiedUntil;
+        private double _supportReportSavedUntil;
         private const int HeatmapDrawPointBudget = 4096;
         private static readonly ProfilerMarker s_heatmapDrawMarker =
             new ProfilerMarker("ClearanceHeatmap.Draw");
@@ -945,11 +945,26 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (GUILayout.Button(LatticeLocalization.Tr(LocKey.CopySupportInformation)) &&
                     target is LatticeDeformer deformer)
                 {
-                    EditorGUIUtility.systemCopyBuffer = MeshDeformerSupportReport.Generate(deformer);
-                    _supportReportCopiedUntil = EditorApplication.timeSinceStartup + 3d;
+                    string path = EditorUtility.SaveFilePanel(
+                        LatticeLocalization.Tr(LocKey.CopySupportInformation),
+                        "",
+                        $"MeshDeformer-Support-{DateTime.UtcNow:yyyyMMdd-HHmmss}.png",
+                        "png");
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        try
+                        {
+                            File.WriteAllBytes(path, MeshDeformerSupportReport.GeneratePng(deformer));
+                            _supportReportSavedUntil = EditorApplication.timeSinceStartup + 3d;
+                        }
+                        catch (Exception exception)
+                        {
+                            EditorUtility.DisplayDialog("Mesh Deformer", exception.Message, "OK");
+                        }
+                    }
                 }
             }
-            if (EditorApplication.timeSinceStartup < _supportReportCopiedUntil)
+            if (EditorApplication.timeSinceStartup < _supportReportSavedUntil)
             {
                 EditorGUILayout.HelpBox(
                     LatticeLocalization.Tr(LocKey.SupportInformationCopied),

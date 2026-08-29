@@ -16,6 +16,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     internal static class MeshDeformerSupportReport
     {
         internal const int FormatVersion = 1;
+        internal const int MaximumAttachmentBytes = 8 * 1024 * 1024;
+        private const int MaximumDecodedBytes = 2 * 1024 * 1024;
+        private const int ImageWidth = 256;
         private const byte CodecJsonGzip = 1;
         private static readonly byte[] s_envelopeMagic = { 0x4C, 0x44, 0x54, 0x44, 0x42, 0x47 };
         private static readonly string[] s_packageNames =
@@ -30,8 +33,95 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static string Generate(LatticeDeformer deformer)
         {
+            return ToBase64Url(GenerateEnvelope(deformer));
+        }
+
+        internal static byte[] GeneratePng(LatticeDeformer deformer)
+        {
+            byte[] envelope = GenerateEnvelope(deformer);
+            int byteCount = sizeof(int) + envelope.Length;
+            int pixelCount = (byteCount + 2) / 3;
+            int height = Math.Max(ImageWidth, (pixelCount + ImageWidth - 1) / ImageWidth);
+            var pixels = new Color32[ImageWidth * height];
+            var packed = new byte[pixels.Length * 3];
+            Buffer.BlockCopy(BitConverter.GetBytes(envelope.Length), 0, packed, 0, sizeof(int));
+            Buffer.BlockCopy(envelope, 0, packed, sizeof(int), envelope.Length);
+            for (int i = 0; i < pixels.Length; i++)
+                pixels[i] = new Color32(packed[i * 3], packed[i * 3 + 1], packed[i * 3 + 2], 255);
+            var texture = new Texture2D(ImageWidth, height, TextureFormat.RGB24, false, true);
+            try
+            {
+                texture.SetPixels32(pixels);
+                texture.Apply(false, false);
+                byte[] png = texture.EncodeToPNG();
+                if (png == null || png.Length == 0 || png.Length > MaximumAttachmentBytes)
+                    throw new InvalidDataException("The support image exceeds the 8 MB attachment limit.");
+                return png;
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(texture);
+            }
+        }
+
+        internal static string DecodePng(byte[] png)
+        {
+            if (png == null || png.Length == 0 || png.Length > MaximumAttachmentBytes)
+                throw new InvalidDataException("The support image is empty or exceeds the attachment limit.");
+            var texture = new Texture2D(2, 2, TextureFormat.RGB24, false, true);
+            try
+            {
+                if (!ImageConversion.LoadImage(texture, png, false))
+                    throw new InvalidDataException("The support image could not be decoded.");
+                Color32[] pixels = texture.GetPixels32();
+                var packed = new byte[pixels.Length * 3];
+                for (int i = 0; i < pixels.Length; i++)
+                { packed[i * 3] = pixels[i].r; packed[i * 3 + 1] = pixels[i].g; packed[i * 3 + 2] = pixels[i].b; }
+                if (packed.Length < sizeof(int)) throw new InvalidDataException("The support image is incomplete.");
+                int length = BitConverter.ToInt32(packed, 0);
+                if (length <= 0 || length > packed.Length - sizeof(int))
+                    throw new InvalidDataException("The support image payload length is invalid.");
+                var envelope = new byte[length];
+                Buffer.BlockCopy(packed, sizeof(int), envelope, 0, length);
+                return DecodeEnvelope(envelope);
+            }
+            catch (InvalidDataException) { throw; }
+            catch (Exception exception)
+            {
+                throw new InvalidDataException("The support image is damaged or unsupported.", exception);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(texture);
+            }
+        }
+
+        [MenuItem("Tools/Lattice Deformation Tool/Decode Support Information Image...")]
+        private static void DecodeSupportImageFromMenu()
+        {
+            string imagePath = EditorUtility.OpenFilePanel("Open Support Information Image", "", "png");
+            if (string.IsNullOrEmpty(imagePath)) return;
+            try
+            {
+                string json = DecodePng(File.ReadAllBytes(imagePath));
+                string outputPath = EditorUtility.SaveFilePanel(
+                    "Save Decoded Support Information", Path.GetDirectoryName(imagePath),
+                    Path.GetFileNameWithoutExtension(imagePath) + ".json", "json");
+                if (!string.IsNullOrEmpty(outputPath)) File.WriteAllText(outputPath, json, new UTF8Encoding(false));
+            }
+            catch (Exception exception)
+            {
+                EditorUtility.DisplayDialog("Mesh Deformer", exception.Message, "OK");
+            }
+        }
+
+        private static byte[] GenerateEnvelope(LatticeDeformer deformer)
+        {
             string json = ConvertPlainTextToJson(GeneratePlainText(deformer));
-            byte[] compressed = Compress(Encoding.UTF8.GetBytes(json));
+            byte[] jsonBytes = Encoding.UTF8.GetBytes(json);
+            if (jsonBytes.Length > MaximumDecodedBytes)
+                throw new InvalidDataException("The support report is too large.");
+            byte[] compressed = Compress(jsonBytes);
             byte[] checksum = ComputeChecksum(compressed);
             using var envelope = new MemoryStream(
                 s_envelopeMagic.Length + 2 + checksum.Length + compressed.Length);
@@ -40,7 +130,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             envelope.WriteByte(CodecJsonGzip);
             envelope.Write(checksum, 0, checksum.Length);
             envelope.Write(compressed, 0, compressed.Length);
-            return ToBase64Url(envelope.ToArray());
+            return envelope.ToArray();
         }
 
         internal static string Decode(string encodedReport)
@@ -48,7 +138,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (string.IsNullOrEmpty(encodedReport))
                 throw new FormatException("The Mesh Deformer support report is empty.");
 
-            byte[] envelope = FromBase64Url(encodedReport);
+            return DecodeEnvelope(FromBase64Url(encodedReport));
+        }
+
+        private static string DecodeEnvelope(byte[] envelope)
+        {
             int headerLength = s_envelopeMagic.Length + 2 + 8;
             if (envelope.Length <= headerLength)
                 throw new FormatException("The Mesh Deformer support report is incomplete.");
@@ -77,7 +171,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             using var input = new MemoryStream(compressed, false);
             using var gzip = new GZipStream(input, CompressionMode.Decompress);
             using var output = new MemoryStream();
-            gzip.CopyTo(output);
+            var buffer = new byte[8192];
+            int read;
+            while ((read = gzip.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                if (output.Length + read > MaximumDecodedBytes)
+                    throw new InvalidDataException("The support report expands beyond the safety limit.");
+                output.Write(buffer, 0, read);
+            }
             return Encoding.UTF8.GetString(output.ToArray());
         }
 
@@ -141,8 +242,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Append(report, "active-in-hierarchy", deformer.gameObject.activeInHierarchy);
             Append(report, "data-source", deformer.DataSource);
             Append(report, "profile-present", deformer.Profile != null);
-            Append(report, "active-group", deformer.ActiveGroupIndex);
-            Append(report, "active-layer", deformer.ActiveLayerIndex);
+            Append(report, "active-group", deformer.SerializedActiveGroupIndexForEditor);
             AppendTransform(report, "component-transform", deformer.transform);
 
             var serialized = new SerializedObject(deformer);
@@ -217,7 +317,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static void AppendStack(StringBuilder report, LatticeDeformer deformer)
         {
-            IReadOnlyList<DeformerGroup> groups = deformer.Groups;
+            IReadOnlyList<DeformerGroup> groups = deformer.SerializedGroupsForEditor;
             Append(report, "group-count", groups?.Count ?? 0);
             if (groups == null) return;
             for (int groupIndex = 0; groupIndex < groups.Count; groupIndex++)
@@ -231,18 +331,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Append(
                     report,
                     $"group[{groupIndex}]",
-                    $"name={Sanitize(group.Name)}, enabled={group.Enabled}, active-layer={group.ActiveLayerIndex}, " +
+                    $"name={Sanitize(group.Name)}, enabled={group.Enabled}, active-layer={group.SerializedActiveLayerIndex}, " +
                     $"output={group.BlendShapeOutput}, composition={group.BlendShapeComposition}, " +
-                    $"layers={group.Layers.Count}");
-                for (int layerIndex = 0; layerIndex < group.Layers.Count; layerIndex++)
+                    $"layers={group.SerializedLayers?.Count ?? 0}");
+                IReadOnlyList<LatticeLayer> layers = group.SerializedLayers;
+                if (layers == null) continue;
+                for (int layerIndex = 0; layerIndex < layers.Count; layerIndex++)
                 {
-                    LatticeLayer layer = group.Layers[layerIndex];
+                    LatticeLayer layer = layers[layerIndex];
                     if (layer == null)
                     {
                         Append(report, $"group[{groupIndex}].layer[{layerIndex}]", "null");
                         continue;
                     }
-                    LatticeAsset settings = layer.Settings;
+                    LatticeAsset settings = layer.SerializedSettings;
+                    if (settings == null)
+                    {
+                        Append(report, $"group[{groupIndex}].layer[{layerIndex}]", "settings=null");
+                        continue;
+                    }
                     Append(
                         report,
                         $"group[{groupIndex}].layer[{layerIndex}]",

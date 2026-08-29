@@ -807,6 +807,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, HideInInspector] private int _serializedSourceVertexCount;
         [SerializeField, HideInInspector] private int _serializedSourceTopologyHash;
         [SerializeField, HideInInspector] private float[] _initialBlendShapeWeights = Array.Empty<float>();
+        [SerializeField, HideInInspector] private bool _hasInitialBlendShapeWeightBaseline;
 
         // Preview alignment (per-instance)
         [SerializeField, HideInInspector] private LatticeAlignMode _alignMode = LatticeAlignMode.Mode1_TransformOnly;
@@ -2293,6 +2294,20 @@ namespace Net._32Ba.LatticeDeformationTool
         private void OnEnable()
         {
             EnsureLayerModelReady();
+            CaptureMissingBlendShapeBaseline();
+        }
+
+        private void CaptureMissingBlendShapeBaseline()
+        {
+            if (_hasInitialBlendShapeWeightBaseline) return;
+            if (_skinnedMeshRenderer == null)
+                _skinnedMeshRenderer = GetComponent<SkinnedMeshRenderer>();
+            Mesh mesh = _skinnedMeshRenderer != null ? _skinnedMeshRenderer.sharedMesh : null;
+            int shapeCount = mesh != null ? mesh.blendShapeCount : 0;
+            _initialBlendShapeWeights = new float[shapeCount];
+            for (int shape = 0; shape < shapeCount; shape++)
+                _initialBlendShapeWeights[shape] = _skinnedMeshRenderer.GetBlendShapeWeight(shape);
+            _hasInitialBlendShapeWeightBaseline = true;
         }
 
         [ExcludeFromCodeCoverage]
@@ -4535,6 +4550,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 _initialBlendShapeWeights = new float[shapeCount];
                 for (int shape = 0; shape < shapeCount; shape++)
                     _initialBlendShapeWeights[shape] = _skinnedMeshRenderer.GetBlendShapeWeight(shape);
+                _hasInitialBlendShapeWeightBaseline = true;
             }
             foreach (var group in GetGroupStorage())
             {
@@ -4579,6 +4595,9 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 #endif
         }
+
+        internal List<DeformerGroup> SerializedGroupsForEditor => _groups;
+        internal int SerializedActiveGroupIndexForEditor => _activeGroupIndex;
 
         internal float[] InitialBlendShapeWeightsForEditor =>
             _initialBlendShapeWeights ?? Array.Empty<float>();
