@@ -156,6 +156,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     ToolManager.RestorePreviousTool();
                 Selection.activeObject = previousSelection;
 
+                root.SetActive(false);
+                PreviewSession.Current?.ForceRebuild();
                 NDMFPreview.DisablePreviewDepth = previousDisableDepth;
                 if (!previewWasEnabled && PreviewSession.Current != null && previousDisableDepth == 0)
                     EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
@@ -275,6 +277,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     ToolManager.RestorePreviousTool();
                 Selection.activeObject = previousSelection;
                 LatticePreviewUtility.UsePreviewAlignedCage = previousPreviewAlignedCage;
+                if (fixture != null)
+                    fixture.AvatarRoot.SetActive(false);
+                PreviewSession.Current?.ForceRebuild();
                 NDMFPreview.DisablePreviewDepth = previousDisableDepth;
                 if (!previewWasEnabled && PreviewSession.Current != null && previousDisableDepth == 0)
                     EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
