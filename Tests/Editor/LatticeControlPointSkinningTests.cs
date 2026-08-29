@@ -594,13 +594,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void Update_NegativeAndZeroFrameWeightsMatchUnityAcrossSequence()
+        public void Update_NegativeAndZeroFrameWeightsMatchFrameInterpolationAcrossSequence()
         {
             var root = new GameObject("Signed Frame Root");
             var bone = new GameObject("Bone");
             var source = CreateSignedFrameBlendShapeCube();
-            var initialBaked = new Mesh();
-            var currentBaked = new Mesh();
             try
             {
                 bone.transform.SetParent(root.transform, false);
@@ -609,7 +607,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 renderer.bones = new[] { bone.transform };
                 renderer.rootBone = bone.transform;
                 renderer.SetBlendShapeWeight(0, 0f);
-                renderer.BakeMesh(initialBaked);
+                Vector3[] initial = EvaluateBlendShapeVertices(source, new[] { 0f });
 
                 var cache = new LatticeControlPointSkinning();
                 int initialBindingRefreshes = -1;
@@ -617,7 +615,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 for (int step = 0; step < weights.Length; step++)
                 {
                     renderer.SetBlendShapeWeight(0, weights[step]);
-                    renderer.BakeMesh(currentBaked);
+                    Vector3[] current = EvaluateBlendShapeVertices(source, new[] { weights[step] });
                     Assert.That(
                         cache.Update(
                             renderer,
@@ -636,8 +634,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                         Assert.That(cache.BindingRefreshCountForTests, Is.EqualTo(initialBindingRefreshes));
 
                     Vector3[] neutral = source.vertices;
-                    Vector3[] initial = initialBaked.vertices;
-                    Vector3[] current = currentBaked.vertices;
                     for (int control = 0; control < 8; control++)
                     {
                         Vector3 expected = neutral[control] + current[control] - initial[control];
@@ -657,8 +653,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Object.DestroyImmediate(root);
                 Object.DestroyImmediate(bone);
                 Object.DestroyImmediate(source);
-                Object.DestroyImmediate(initialBaked);
-                Object.DestroyImmediate(currentBaked);
             }
         }
 
@@ -706,7 +700,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
         [Test]
         [Category("CageShapeExploration")]
-        public void SeededMultiShapeStateSpace_AlwaysMatchesUnityBakedVertices()
+        public void SeededMultiShapeStateSpace_AlwaysMatchesExpectedBlendShapeVertices()
         {
             int seed = ReadInteger("LATTICE_CAGE_SHAPE_SEED", 14501);
             int steps = Mathf.Clamp(ReadInteger("LATTICE_CAGE_SHAPE_STEPS", 192), 1, 1024);
@@ -714,8 +708,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var root = new GameObject("Seeded Multi Shape Root");
             var bone = new GameObject("Bone");
             var source = CreateExplorationBlendShapeCube();
-            var initialBaked = new Mesh();
-            var currentBaked = new Mesh();
             try
             {
                 bone.transform.SetParent(root.transform, false);
@@ -732,17 +724,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 {
                     for (int shape = 0; shape < source.blendShapeCount; shape++)
                     {
-                        // BakeMesh extrapolation outside the conventional 0..100 range differs
-                        // between Unity's Windows and Linux editor backends. Keep this
-                        // cross-platform oracle inside the shared interpolation range.
-                        initialWeights[shape] = RandomRange(random, 0f, 100f);
-                        currentWeights[shape] = RandomRange(random, 0f, 100f);
+                        initialWeights[shape] = RandomRange(random, -60f, 150f);
+                        currentWeights[shape] = RandomRange(random, -100f, 180f);
                         renderer.SetBlendShapeWeight(shape, initialWeights[shape]);
                     }
-                    renderer.BakeMesh(initialBaked);
+                    Vector3[] initial = EvaluateBlendShapeVertices(source, initialWeights);
                     for (int shape = 0; shape < source.blendShapeCount; shape++)
                         renderer.SetBlendShapeWeight(shape, currentWeights[shape]);
-                    renderer.BakeMesh(currentBaked);
+                    Vector3[] current = EvaluateBlendShapeVertices(source, currentWeights);
 
                     Assert.That(
                         cache.Update(
@@ -765,8 +754,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                             $"Shape-only changes must not rebind. seed={seed}, step={step}");
 
                     Vector3[] neutral = source.vertices;
-                    Vector3[] initial = initialBaked.vertices;
-                    Vector3[] current = currentBaked.vertices;
                     for (int control = 0; control < 8; control++)
                     {
                         Vector3 expected = neutral[control] + current[control] - initial[control];
@@ -788,8 +775,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Object.DestroyImmediate(root);
                 Object.DestroyImmediate(bone);
                 Object.DestroyImmediate(source);
-                Object.DestroyImmediate(initialBaked);
-                Object.DestroyImmediate(currentBaked);
             }
         }
 
@@ -1225,6 +1210,77 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         {
             string raw = System.Environment.GetEnvironmentVariable(name);
             return int.TryParse(raw, out int value) ? value : fallback;
+        }
+
+        private static Vector3[] EvaluateBlendShapeVertices(Mesh mesh, float[] weights)
+        {
+            Vector3[] result = mesh.vertices;
+            int vertexCount = mesh.vertexCount;
+            var lower = new Vector3[vertexCount];
+            var upper = new Vector3[vertexCount];
+            var normals = new Vector3[vertexCount];
+            var tangents = new Vector3[vertexCount];
+
+            for (int shape = 0; shape < mesh.blendShapeCount; shape++)
+            {
+                float weight = shape < weights.Length ? weights[shape] : 0f;
+                int frameCount = mesh.GetBlendShapeFrameCount(shape);
+                if (frameCount <= 0 || float.IsNaN(weight) || float.IsInfinity(weight))
+                    continue;
+
+                int lowerFrame = 0;
+                int upperFrame = 0;
+                float interpolation = 0f;
+                float firstWeight = mesh.GetBlendShapeFrameWeight(shape, 0);
+                if (frameCount == 1 || weight <= firstWeight)
+                {
+                    interpolation = Mathf.Abs(firstWeight) > Mathf.Epsilon
+                        ? weight / firstWeight
+                        : 0f;
+                }
+                else
+                {
+                    int lastFrame = frameCount - 1;
+                    float lastWeight = mesh.GetBlendShapeFrameWeight(shape, lastFrame);
+                    if (weight >= lastWeight)
+                    {
+                        lowerFrame = lastFrame;
+                        upperFrame = lastFrame;
+                        float previousWeight = mesh.GetBlendShapeFrameWeight(shape, lastFrame - 1);
+                        interpolation = Mathf.Abs(lastWeight - previousWeight) > Mathf.Epsilon
+                            ? (weight - previousWeight) / (lastWeight - previousWeight)
+                            : 1f;
+                    }
+                    else
+                    {
+                        for (int frame = 1; frame < frameCount; frame++)
+                        {
+                            float upperWeight = mesh.GetBlendShapeFrameWeight(shape, frame);
+                            if (weight > upperWeight)
+                                continue;
+
+                            lowerFrame = frame - 1;
+                            upperFrame = frame;
+                            float lowerWeight = mesh.GetBlendShapeFrameWeight(shape, lowerFrame);
+                            interpolation = Mathf.InverseLerp(lowerWeight, upperWeight, weight);
+                            break;
+                        }
+                    }
+                }
+
+                mesh.GetBlendShapeFrameVertices(shape, lowerFrame, lower, normals, tangents);
+                if (upperFrame != lowerFrame)
+                    mesh.GetBlendShapeFrameVertices(shape, upperFrame, upper, normals, tangents);
+
+                for (int vertex = 0; vertex < vertexCount; vertex++)
+                {
+                    result[vertex] += upperFrame == lowerFrame
+                        ? lower[vertex] * interpolation
+                        : Vector3.LerpUnclamped(lower[vertex], upper[vertex], interpolation);
+                }
+            }
+
+            return result;
         }
 
         private static float RandomRange(System.Random random, float min, float max)
