@@ -139,6 +139,11 @@ jobs:
           # already pulls com.unity.collections 2.1.4, so bumping to 1.14.3 or later no longer
           # changes the resolved collections version.
           NDMF_VERSION: 1.14.2
+          # Setup Outfit is part of the customer workflow covered by the hotfix regression test.
+          MODULAR_AVATAR_VERSION: 1.17.1
+          # The real preview graph test uses Remove Mesh In Box as a topology-changing
+          # downstream consumer, matching the package installed in Plugin-dev-playground.
+          AVATAR_OPTIMIZER_VERSION: 1.9.17
         run: |
           set -euo pipefail
 
@@ -147,9 +152,12 @@ jobs:
           # If packages.vrchat.com ever starts rejecting the runner, setup-vrc-get exposes a
           # "fix-official-curated-repository" input that switches to direct download links.
           vrc-get repo add -- https://vpm.nadena.dev/vpm.json || true
+          vrc-get repo add -- https://vpm.anatawa12.com/vpm.json || true
 
           vrc-get install --project ci-project --yes com.vrchat.avatars "$VRCHAT_SDK_VERSION"
           vrc-get install --project ci-project --yes nadena.dev.ndmf "$NDMF_VERSION"
+          vrc-get install --project ci-project --yes nadena.dev.modular-avatar "$MODULAR_AVATAR_VERSION"
+          vrc-get install --project ci-project --yes com.anatawa12.avatar-optimizer "$AVATAR_OPTIMIZER_VERSION"
 
           vrc-get info project --project ci-project
 
@@ -201,6 +209,42 @@ jobs:
           customParameters: '-assemblyNames net.32ba.lattice-deformation-tool.tests.editor;net.32ba.lattice-deformation-tool.tests.editor.vrchat'
           # githubToken is intentionally omitted: publishing a check run needs a writable
           # GITHUB_TOKEN, which pull requests from forks do not get.
+
+      - name: Verify MA Setup Outfit Workflow Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -RequiredCategory MaSetupOutfitE2E
+          -RequiredCategoryCount 1
+
+      - name: Verify Seeded Cage Exploration Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -RequiredCategory GraphicsE2EExploration
+          -RequiredCategoryCount 1
+
+      - name: Verify MA Setup Outfit Preview E2E Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -RequiredCategory MaSetupOutfitPreviewE2E
+          -RequiredCategoryCount 1
+
+      - name: Verify Cage Shape Exploration Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -RequiredCategory CageShapeExploration
+          -RequiredCategoryCount 1
 
       - name: Upload Test Results
         if: always()

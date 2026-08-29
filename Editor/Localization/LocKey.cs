@@ -292,6 +292,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string Advanced = "net.32ba.lattice-deformation-tool.localization.advanced";
         internal const string Validation = "net.32ba.lattice-deformation-tool.localization.validation";
         internal const string ValidationFix = "net.32ba.lattice-deformation-tool.localization.validation-fix";
+        internal const string SupportInformation = "net.32ba.lattice-deformation-tool.localization.support-information";
+        internal const string SupportInformationDescription = "net.32ba.lattice-deformation-tool.localization.support-information-description";
+        internal const string CopySupportInformation = "net.32ba.lattice-deformation-tool.localization.copy-support-information";
+        internal const string SupportInformationCopied = "net.32ba.lattice-deformation-tool.localization.support-information-copied";
 
         // Legacy Brush Deformer
         internal const string BrushDeformer = "net.32ba.lattice-deformation-tool.localization.brush-deformer";

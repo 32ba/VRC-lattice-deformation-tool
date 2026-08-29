@@ -13,5 +13,11 @@
   "optionalUnityReferences": [
     "TestAssemblies"
   ],
-  "versionDefines": []
+  "versionDefines": [
+    {
+      "name": "nadena.dev.modular-avatar",
+      "expression": "1.0.0",
+      "define": "LATTICE_MODULAR_AVATAR_TESTS"
+    }
+  ]
 }

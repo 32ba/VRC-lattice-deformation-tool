@@ -1340,3 +1340,15 @@ msgstr "驗證"
 
 msgid "net.32ba.lattice-deformation-tool.localization.validation-fix"
 msgstr "修正"
+
+msgid "net.32ba.lattice-deformation-tool.localization.support-information"
+msgstr "支援資訊"
+
+msgid "net.32ba.lattice-deformation-tool.localization.support-information-description"
+msgstr "將疑難排解所需的技術資訊儲存為編碼 PNG 圖片。通常不包含本機路徑或電腦識別資訊，但錯誤文字可能包含環境特定資訊。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-support-information"
+msgstr "儲存支援資訊圖片"
+
+msgid "net.32ba.lattice-deformation-tool.localization.support-information-copied"
+msgstr "支援資訊圖片已儲存。請將其附加到支援訊息中。"

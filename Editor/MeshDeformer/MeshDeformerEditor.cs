@@ -132,6 +132,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private IReadOnlyList<MeshDeformerDiagnostic> _cachedValidationDiagnostics;
         private int _cachedValidationStateHash;
         private bool _hasCachedValidationState;
+        private double _supportReportSavedUntil;
         private const int HeatmapDrawPointBudget = 4096;
         private static readonly ProfilerMarker s_heatmapDrawMarker =
             new ProfilerMarker("ClearanceHeatmap.Draw");
@@ -911,6 +912,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 DrawValidationDiagnostics();
             }
 
+            DrawSupportReport();
+
             EditorGUILayout.Space();
 
             bool hasLayers = _layersProp != null && _layersProp.arraySize > 0;
@@ -924,6 +927,49 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     ToolManager.SetActiveTool<MeshDeformerTool>();
                     LatticePreviewUtility.RequestSceneRepaint();
                 }
+            }
+        }
+
+        private void DrawSupportReport()
+        {
+            EditorGUILayout.Space();
+            EditorGUILayout.LabelField(
+                LatticeLocalization.Tr(LocKey.SupportInformation),
+                EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                LatticeLocalization.Tr(LocKey.SupportInformationDescription),
+                MessageType.Info);
+            using (new EditorGUI.DisabledScope(
+                       targets.Length != 1 || target is not LatticeDeformer))
+            {
+                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.CopySupportInformation)) &&
+                    target is LatticeDeformer deformer)
+                {
+                    string path = EditorUtility.SaveFilePanel(
+                        LatticeLocalization.Tr(LocKey.CopySupportInformation),
+                        "",
+                        $"MeshDeformer-Support-{DateTime.UtcNow:yyyyMMdd-HHmmss}.png",
+                        "png");
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        try
+                        {
+                            File.WriteAllBytes(path, MeshDeformerSupportReport.GeneratePng(deformer));
+                            _supportReportSavedUntil = EditorApplication.timeSinceStartup + 3d;
+                        }
+                        catch (Exception exception)
+                        {
+                            EditorUtility.DisplayDialog("Mesh Deformer", exception.Message, "OK");
+                        }
+                    }
+                }
+            }
+            if (EditorApplication.timeSinceStartup < _supportReportSavedUntil)
+            {
+                EditorGUILayout.HelpBox(
+                    LatticeLocalization.Tr(LocKey.SupportInformationCopied),
+                    MessageType.Info);
+                Repaint();
             }
         }
 

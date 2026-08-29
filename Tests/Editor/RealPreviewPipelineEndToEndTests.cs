@@ -156,6 +156,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     ToolManager.RestorePreviousTool();
                 Selection.activeObject = previousSelection;
 
+                root.SetActive(false);
+                PreviewSession.Current?.ForceRebuild();
                 NDMFPreview.DisablePreviewDepth = previousDisableDepth;
                 if (!previewWasEnabled && PreviewSession.Current != null && previousDisableDepth == 0)
                     EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
@@ -183,6 +185,113 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
+#if LATTICE_MODULAR_AVATAR_TESTS
+        [UnityTest]
+        [Category("MaSetupOutfitPreviewE2E")]
+        [Category("GraphicsE2E")]
+        public IEnumerator ActualNdmfMaSetupOutfitGraph_CageStaysStableAndMatchesPreviewSkinning()
+        {
+            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
+                Assert.Ignore("The real Scene View preview E2E requires a graphics device.");
+
+            int seed = ReadInteger("LATTICE_MA_PREVIEW_EXPLORATION_SEED", 14401);
+            int steps = Mathf.Clamp(ReadInteger("LATTICE_MA_PREVIEW_EXPLORATION_STEPS", 24), 1, 128);
+            var random = new System.Random(seed);
+            ModularAvatarSetupOutfitWorkflowTests.PreviewFixture fixture = null;
+            SceneView sceneView = null;
+            bool previewWasEnabled = PreviewSession.Current != null;
+            int previousDisableDepth = NDMFPreview.DisablePreviewDepth;
+            Object previousSelection = Selection.activeObject;
+            Type previousTool = ToolManager.activeToolType;
+            bool previousPreviewAlignedCage = LatticePreviewUtility.UsePreviewAlignedCage;
+            var monitor = new CageIntervalMonitor();
+
+            try
+            {
+                fixture = ModularAvatarSetupOutfitWorkflowTests.CreatePreviewFixture();
+                AssertMaShapeChangerAnalysis(fixture);
+                LatticePreviewUtility.UsePreviewAlignedCage = true;
+                NDMFPreview.DisablePreviewDepth = 0;
+                if (PreviewSession.Current == null)
+                {
+                    Assert.That(EditorApplication.ExecuteMenuItem(EnablePreviewMenu), Is.True,
+                        "The E2E must enable the same global preview session used by the Scene View.");
+                }
+
+                yield return WaitUntil(
+                    () => PreviewSession.Current != null,
+                    null,
+                    "NDMF did not publish its global PreviewSession.");
+
+                LatticeDeformerPreviewFilter.ForcePreviewState(true);
+                PreviewSession.Current.ForceRebuild();
+                sceneView = EditorWindow.GetWindow<SceneView>();
+                sceneView.Show();
+                sceneView.pivot = fixture.MeshObject.transform.position;
+                sceneView.size = 2f;
+                Selection.activeGameObject = fixture.MeshObject;
+                ActiveEditorTracker.sharedTracker.ForceRebuild();
+                yield return null;
+                ToolManager.SetActiveTool<MeshDeformerTool>();
+                LatticeToolHandler.CageFrameRendered += monitor.Observe;
+
+                yield return WaitUntil(
+                    () => monitor.LastFrame.HasValue &&
+                          IsGenuineNdmfProxy(monitor.LastFrame.Value.ProxyRenderer, fixture.AvatarRoot),
+                    sceneView,
+                    "The actual NDMF + MA graph did not publish an outfit proxy to the active tool.");
+                Assert.That(
+                    IsGenuineMaSetupOutfitProxy(monitor.LastFrame.Value.ProxyRenderer, fixture),
+                    Is.True,
+                    DescribeProxy(monitor.LastFrame.Value.ProxyRenderer));
+                AssertCageMatchesRetargetedSkinning(monitor.LastFrame.Value, fixture, seed, 0);
+
+                for (int step = 1; step <= steps; step++)
+                {
+                    monitor.CurrentOperation = ApplyMaOperation(random, fixture, step);
+                    monitor.BeginSettlingWindow();
+                    PreviewSession.Current.ForceRebuild();
+                    yield return WaitUntil(
+                        () => monitor.PostInteractionFrameCount >= 3 &&
+                              monitor.LastSettledFramesAreEqual &&
+                              monitor.LastFrame.HasValue &&
+                              IsGenuineMaSetupOutfitProxy(monitor.LastFrame.Value.ProxyRenderer, fixture) &&
+                              CageMatchesRetargetedSkinning(
+                                  monitor.LastFrame.Value,
+                                  fixture,
+                                  seed,
+                                  step),
+                        sceneView,
+                        $"The MA preview did not settle after seed={seed}, step={step}/{steps}, " +
+                        $"operation={monitor.CurrentOperation}.");
+                    monitor.AssertSettledFramesDoNotAlternate();
+                    AssertCageMatchesRetargetedSkinning(monitor.LastFrame.Value, fixture, seed, step);
+                }
+            }
+            finally
+            {
+                LatticeToolHandler.CageFrameRendered -= monitor.Observe;
+                if (previousTool != null)
+                    ToolManager.SetActiveTool(previousTool);
+                else
+                    ToolManager.RestorePreviousTool();
+                Selection.activeObject = previousSelection;
+                LatticePreviewUtility.UsePreviewAlignedCage = previousPreviewAlignedCage;
+                if (fixture != null)
+                    fixture.AvatarRoot.SetActive(false);
+                PreviewSession.Current?.ForceRebuild();
+                NDMFPreview.DisablePreviewDepth = previousDisableDepth;
+                if (!previewWasEnabled && PreviewSession.Current != null && previousDisableDepth == 0)
+                    EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
+                if (fixture != null)
+                {
+                    LatticePreviewUtility.ClearProxy(fixture.Renderer);
+                    fixture.Dispose();
+                }
+            }
+        }
+#endif
+
         private sealed class CageIntervalMonitor
         {
             private readonly List<string> _violations = new List<string>();
@@ -194,6 +303,18 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             internal string CurrentOperation { get; set; } = "interaction begins";
             internal int InteractionFrameCount { get; private set; }
             internal int PostInteractionFrameCount => _settledFrames.Count;
+            internal bool LastSettledFramesAreEqual
+            {
+                get
+                {
+                    if (_settledFrames.Count < 3)
+                        return false;
+                    Vector3[] expected = _settledFrames[_settledFrames.Count - 1];
+                    return _settledFrames
+                        .Skip(_settledFrames.Count - 3)
+                        .All(frame => FramesEqual(expected, frame));
+                }
+            }
             internal LatticeToolHandler.CageFrameSnapshot? LastFrame { get; private set; }
 
             internal void BeginInteraction()
@@ -210,6 +331,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
             internal void EndInteraction()
             {
+                _interaction = false;
+                _settledFrames.Clear();
+            }
+
+            internal void BeginSettlingWindow()
+            {
+                Assert.That(LastFrame.HasValue, Is.True);
+                _baseline = (Vector3[])LastFrame.Value.HandlePositions.Clone();
                 _interaction = false;
                 _settledFrames.Clear();
             }
@@ -281,6 +410,18 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 for (int i = 0; i < expected.Length; i++)
                     Assert.That(Vector3.Distance(actual[i], expected[i]), Is.LessThanOrEqualTo(1e-5f), message);
             }
+
+            private static bool FramesEqual(Vector3[] expected, Vector3[] actual)
+            {
+                if (expected == null || actual == null || expected.Length != actual.Length)
+                    return false;
+                for (int i = 0; i < expected.Length; i++)
+                {
+                    if (Vector3.Distance(actual[i], expected[i]) > 1e-5f)
+                        return false;
+                }
+                return true;
+            }
         }
 
         private static IEnumerator WaitForInteractionFrames(
@@ -323,6 +464,213 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                    proxy.gameObject.scene == NDMFPreviewSceneManager.GetPreviewScene() &&
                    NDMFPreview.GetOriginalObjectForProxy(proxy.gameObject)?.transform.IsChildOf(avatarRoot.transform) == true;
         }
+
+#if LATTICE_MODULAR_AVATAR_TESTS
+        private static bool IsGenuineMaSetupOutfitProxy(
+            Renderer renderer,
+            ModularAvatarSetupOutfitWorkflowTests.PreviewFixture fixture)
+        {
+            if (!(renderer is SkinnedMeshRenderer proxy) ||
+                !IsGenuineNdmfProxy(proxy, fixture.AvatarRoot) ||
+                NDMFPreview.GetOriginalObjectForProxy(proxy.gameObject) != fixture.MeshObject ||
+                proxy.bones == null ||
+                proxy.bones.Length < 2)
+            {
+                return false;
+            }
+
+            return proxy.bones.All(bone => bone != null);
+        }
+
+        private static string DescribeProxy(Renderer renderer)
+        {
+            if (!(renderer is SkinnedMeshRenderer proxy))
+                return $"Proxy is {renderer?.GetType().FullName ?? "null"}.";
+            string BonePath(Transform bone)
+            {
+                if (bone == null) return "<null>";
+                var names = new List<string>();
+                for (Transform current = bone; current != null; current = current.parent)
+                    names.Add(current.name);
+                names.Reverse();
+                Object original = NDMFPreview.GetOriginalObjectForProxy(bone.gameObject);
+                return string.Join("/", names) + $" -> original={original?.name ?? "null"}";
+            }
+            return "Proxy bones:\n" + string.Join("\n", proxy.bones.Select(BonePath));
+        }
+
+        private static void AssertMaShapeChangerAnalysis(
+            ModularAvatarSetupOutfitWorkflowTests.PreviewFixture fixture)
+        {
+            Type analyzerType = FindType("nadena.dev.modular_avatar.core.editor.ReactiveObjectAnalyzer");
+            object analyzer = Activator.CreateInstance(
+                analyzerType,
+                new object[] { new ComputeContext("MA Shape Changer fixture validation") });
+            object result = analyzerType.GetMethod("Analyze")?.Invoke(
+                analyzer,
+                new object[] { fixture.AvatarRoot });
+            object shapes = result?.GetType().GetField("Shapes")?.GetValue(result);
+            int count = shapes is System.Collections.IDictionary dictionary ? dictionary.Count : 0;
+            Assert.That(count, Is.GreaterThan(0),
+                "MA did not recognize the representative Shape Changer configuration.");
+            bool initiallyActive = false;
+            foreach (System.Collections.DictionaryEntry entry in (System.Collections.IDictionary)shapes)
+            {
+                FieldInfo groupsField = entry.Value.GetType().GetField("actionGroups");
+                if (!(groupsField?.GetValue(entry.Value) is System.Collections.IEnumerable groups))
+                    continue;
+                foreach (object group in groups)
+                {
+                    PropertyInfo activeProperty = group.GetType().GetProperty("InitiallyActive");
+                    if (activeProperty?.GetValue(group) is bool active && active)
+                        initiallyActive = true;
+                }
+            }
+            Assert.That(initiallyActive, Is.True,
+                "MA recognized the Shape Changer, but its representative rule was not initially active.");
+        }
+
+        private static string ApplyMaOperation(
+            System.Random random,
+            ModularAvatarSetupOutfitWorkflowTests.PreviewFixture fixture,
+            int step)
+        {
+            switch (random.Next(8))
+            {
+                case 0:
+                    fixture.Renderer.SetBlendShapeWeight(0, RandomRange(random, -25f, 125f));
+                    EditorUtility.SetDirty(fixture.Renderer);
+                    return $"step {step}: shape weight";
+                case 1:
+                    fixture.OutfitRoot.transform.localScale = RandomScale(random, 0.65f, 1.45f);
+                    return $"step {step}: outfit nonuniform scale";
+                case 2:
+                    fixture.MeshObject.transform.localPosition = RandomVector(random, 0.12f);
+                    fixture.MeshObject.transform.localRotation = Quaternion.Euler(RandomVector(random, 35f));
+                    return $"step {step}: renderer transform";
+                case 3:
+                    fixture.BaseHips.localRotation = Quaternion.Euler(RandomVector(random, 28f));
+                    return $"step {step}: retarget hips rotation";
+                case 4:
+                    fixture.BaseLeftUpperArm.localRotation = Quaternion.Euler(RandomVector(random, 55f));
+                    fixture.BaseLeftUpperArm.localScale = RandomScale(random, 0.72f, 1.3f);
+                    return $"step {step}: retarget arm pose and scale";
+                case 5:
+                    fixture.AvatarRoot.transform.localScale = RandomScale(random, 0.75f, 1.3f);
+                    return $"step {step}: avatar nonuniform scale";
+                case 6:
+                {
+                    var pulse = new GameObject($"ma-preview-hierarchy-pulse-{step}");
+                    pulse.transform.SetParent(fixture.OutfitRoot.transform, false);
+                    Object.DestroyImmediate(pulse);
+                    return $"step {step}: hierarchy pulse";
+                }
+                default:
+                    fixture.Renderer.SetBlendShapeWeight(0, RandomRange(random, -25f, 125f));
+                    fixture.OutfitRoot.transform.localScale = RandomScale(random, 0.62f, 1.5f);
+                    fixture.BaseHips.localRotation = Quaternion.Euler(RandomVector(random, 32f));
+                    fixture.BaseLeftUpperArm.localRotation = Quaternion.Euler(RandomVector(random, 60f));
+                    EditorUtility.SetDirty(fixture.Renderer);
+                    return $"step {step}: combined setup-outfit burst";
+            }
+        }
+
+        private static void AssertCageMatchesRetargetedSkinning(
+            LatticeToolHandler.CageFrameSnapshot frame,
+            ModularAvatarSetupOutfitWorkflowTests.PreviewFixture fixture,
+            int seed,
+            int steps)
+        {
+            var proxy = frame.ProxyRenderer as SkinnedMeshRenderer;
+            Assert.That(proxy, Is.Not.Null);
+            Mesh proxyMesh = LatticeDeformerPreviewFilter.GetRendererMesh(proxy);
+            Assert.That(proxyMesh, Is.Not.Null);
+            int shapeIndex = proxyMesh.GetBlendShapeIndex("Representative Shape");
+            Assert.That(shapeIndex, Is.GreaterThanOrEqualTo(0));
+            float shapeWeight = fixture.Renderer.GetBlendShapeWeight(shapeIndex);
+            if (steps == 0)
+            {
+                Assert.That(shapeWeight, Is.EqualTo(100f).Within(1e-4f),
+                    "The representative user workflow must begin with the source shape active.");
+            }
+            var evaluator = new LatticeControlPointSkinning();
+            LatticeAsset settings = fixture.Deformer.EditingSettings;
+            Assert.That(evaluator.Update(
+                proxy,
+                fixture.SourceMesh,
+                proxyMesh,
+                settings.LocalBounds,
+                settings.GridSize,
+                fixture.MeshObject.transform.worldToLocalMatrix), Is.True,
+                $"Could not build the independent final-pose cage oracle. seed={seed}, steps={steps}");
+            Vector3Int grid = settings.GridSize;
+            var displayedIndices = new List<int>();
+            for (int index = 0; index < settings.ControlPointCount; index++)
+            {
+                int x = index % grid.x;
+                int y = (index / grid.x) % grid.y;
+                int z = index / (grid.x * grid.y);
+                if (x == 0 || x == grid.x - 1 ||
+                    y == 0 || y == grid.y - 1 ||
+                    z == 0 || z == grid.z - 1)
+                {
+                    displayedIndices.Add(index);
+                }
+            }
+            Assert.That(frame.HandlePositions, Has.Length.EqualTo(displayedIndices.Count));
+            for (int displayedIndex = 0; displayedIndex < frame.HandlePositions.Length; displayedIndex++)
+            {
+                int controlIndex = displayedIndices[displayedIndex];
+                Assert.That(evaluator.TryTransformPoint(
+                    controlIndex,
+                    settings.GetControlPointLocal(controlIndex) +
+                    fixture.ShapeDelta * (shapeWeight / 100f),
+                    out Vector3 corrected), Is.True);
+                Vector3 expected = fixture.MeshObject.transform.TransformPoint(corrected);
+                Assert.That(Vector3.Distance(frame.HandlePositions[displayedIndex], expected), Is.LessThanOrEqualTo(1e-4f),
+                    $"MA Setup Outfit cage offset at control {controlIndex}. seed={seed}, steps={steps}, " +
+                    $"expected={expected}, actual={frame.HandlePositions[displayedIndex]}");
+            }
+        }
+
+        private static bool CageMatchesRetargetedSkinning(
+            LatticeToolHandler.CageFrameSnapshot frame,
+            ModularAvatarSetupOutfitWorkflowTests.PreviewFixture fixture,
+            int seed,
+            int step)
+        {
+            try
+            {
+                AssertCageMatchesRetargetedSkinning(frame, fixture, seed, step);
+                return true;
+            }
+            catch (AssertionException)
+            {
+                return false;
+            }
+        }
+
+        private static int ReadInteger(string name, int fallback)
+        {
+            string value = Environment.GetEnvironmentVariable(name);
+            return int.TryParse(value, out int parsed) ? parsed : fallback;
+        }
+
+        private static float RandomRange(System.Random random, float min, float max) =>
+            min + (float)random.NextDouble() * (max - min);
+
+        private static Vector3 RandomVector(System.Random random, float magnitude) =>
+            new Vector3(
+                RandomRange(random, -magnitude, magnitude),
+                RandomRange(random, -magnitude, magnitude),
+                RandomRange(random, -magnitude, magnitude));
+
+        private static Vector3 RandomScale(System.Random random, float min, float max) =>
+            new Vector3(
+                RandomRange(random, min, max),
+                RandomRange(random, min, max),
+                RandomRange(random, min, max));
+#endif
 
         private static Type FindType(string fullName)
         {

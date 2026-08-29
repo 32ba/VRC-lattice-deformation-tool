@@ -1340,3 +1340,15 @@ msgstr "검증"
 
 msgid "net.32ba.lattice-deformation-tool.localization.validation-fix"
 msgstr "수정"
+
+msgid "net.32ba.lattice-deformation-tool.localization.support-information"
+msgstr "지원 정보"
+
+msgid "net.32ba.lattice-deformation-tool.localization.support-information-description"
+msgstr "문제 해결에 필요한 기술 정보를 인코딩된 PNG 이미지로 저장합니다. 일반적으로 로컬 경로와 컴퓨터 식별 정보는 제외되지만 오류 메시지에는 환경별 정보가 포함될 수 있습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-support-information"
+msgstr "지원 정보 이미지 저장"
+
+msgid "net.32ba.lattice-deformation-tool.localization.support-information-copied"
+msgstr "지원 정보 이미지를 저장했습니다. 지원 메시지에 첨부해 주세요."

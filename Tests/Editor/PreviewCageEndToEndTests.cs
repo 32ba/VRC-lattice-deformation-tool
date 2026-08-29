@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using nadena.dev.ndmf.preview;
 using Net._32Ba.LatticeDeformationTool;
@@ -424,7 +425,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
         [UnityTest]
         [Category("GraphicsE2E")]
-        public IEnumerator BlendShapeWeightChange_DoesNotRebindOrJitterActiveLatticeCage()
+        public IEnumerator BlendShapeWeightChange_MovesCageWithoutRebindingOrJitter()
         {
             if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
             {
@@ -495,10 +496,16 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     handler.ControlPointBindingRefreshCountForTests,
                     Is.EqualTo(initialBindingRefreshes),
                     "In-place BlendShape preview updates must retain the established control-point bindings.");
+                Vector3[] weightOneHundred = handler.GetLastCageHandlePositionsForTests();
+                Assert.That(
+                    weightOneHundred.Zip(weightZero, Vector3.Distance).Max(),
+                    Is.GreaterThan(1f),
+                    "An active Shape must move the cage to the currently rendered geometry.");
+                yield return WaitForNextCageRepaint(handler, sceneView);
                 AssertCageFrameEquals(
                     handler,
-                    weightZero,
-                    "Changing a BlendShape must not choose new bone bindings for lattice control points.");
+                    weightOneHundred,
+                    "A stable Shape weight must not make the cage jitter between bindings.");
 
                 renderer.SetBlendShapeWeight(0, 0f);
                 EditorUtility.SetDirty(renderer);
@@ -507,7 +514,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 AssertCageFrameEquals(
                     handler,
                     weightZero,
-                    "Returning the BlendShape weight must not make the cage snap back.");
+                    "Returning the BlendShape weight to its initialization value must restore the cage.");
             }
             finally
             {
@@ -527,6 +534,383 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     handler.OnToolGUI(view, root.GetComponent<LatticeDeformer>());
                 }
             }
+        }
+
+        [UnityTest]
+        [Category("GraphicsE2EExploration")]
+        public IEnumerator SeededTransformAndShapeOperationStream_CageAlwaysMatchesSkinning()
+        {
+            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
+            {
+                Assert.Ignore("Scene View cage exploration requires a graphics device.");
+            }
+
+            int seed = ReadExplorationInteger("LATTICE_CAGE_EXPLORATION_SEED", 14045);
+            int stepCount = Mathf.Clamp(
+                ReadExplorationInteger("LATTICE_CAGE_EXPLORATION_STEPS", 64),
+                1,
+                512);
+            var random = new System.Random(seed);
+            var avatarRoot = new GameObject("cage-exploration-avatar");
+            var outfitRoot = new GameObject("cage-exploration-outfit");
+            var rendererObject = new GameObject("cage-exploration-renderer");
+            var proxyObject = new GameObject("cage-exploration-preview-proxy");
+            var armatureObject = new GameObject("cage-exploration-armature");
+            var boneObject = new GameObject("cage-exploration-bone");
+            var secondaryBoneObject = new GameObject("cage-exploration-secondary-bone");
+            var retargetBoneObject = new GameObject("cage-exploration-avatar-bone");
+            var secondaryRetargetBoneObject = new GameObject("cage-exploration-secondary-avatar-bone");
+            outfitRoot.transform.SetParent(avatarRoot.transform, false);
+            rendererObject.transform.SetParent(outfitRoot.transform, false);
+            proxyObject.transform.SetParent(outfitRoot.transform, false);
+            armatureObject.transform.SetParent(outfitRoot.transform, false);
+            boneObject.transform.SetParent(armatureObject.transform, false);
+            secondaryBoneObject.transform.SetParent(armatureObject.transform, false);
+            retargetBoneObject.transform.SetParent(avatarRoot.transform, false);
+            secondaryRetargetBoneObject.transform.SetParent(avatarRoot.transform, false);
+            secondaryBoneObject.transform.localPosition = new Vector3(0.18f, 0.04f, -0.03f);
+            secondaryRetargetBoneObject.transform.localPosition = secondaryBoneObject.transform.position;
+
+            rendererObject.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+            Matrix4x4 bindPose =
+                boneObject.transform.worldToLocalMatrix * rendererObject.transform.localToWorldMatrix;
+            Matrix4x4 secondaryBindPose =
+                secondaryBoneObject.transform.worldToLocalMatrix * rendererObject.transform.localToWorldMatrix;
+            Matrix4x4 retargetBindPose =
+                retargetBoneObject.transform.worldToLocalMatrix * proxyObject.transform.localToWorldMatrix;
+            Matrix4x4 secondaryRetargetBindPose =
+                secondaryRetargetBoneObject.transform.worldToLocalMatrix * proxyObject.transform.localToWorldMatrix;
+            Mesh source = CreateTwoBoneSkinnedBoundsRegressionMesh(bindPose, secondaryBindPose);
+            LatticeToolHandler handler = null;
+            SceneView sceneView = null;
+            SkinnedMeshRenderer renderer = null;
+            SkinnedMeshRenderer proxyRenderer = null;
+            IRenderFilterNode previewNode = null;
+            bool previousPreviewAlignedCage = LatticePreviewUtility.UsePreviewAlignedCage;
+            string operation = "initialization";
+            const float initialShape0Weight = 40f;
+            const float initialShape1Weight = 0f;
+
+            try
+            {
+                LatticePreviewUtility.UsePreviewAlignedCage = true;
+                renderer = rendererObject.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = source;
+                renderer.rootBone = boneObject.transform;
+                renderer.bones = new[] { boneObject.transform, secondaryBoneObject.transform };
+                renderer.SetBlendShapeWeight(0, initialShape0Weight);
+                renderer.SetBlendShapeWeight(1, initialShape1Weight);
+
+                var deformer = rendererObject.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                // Keep the eight lattice corners exactly on the eight source vertices.
+                // This gives the exploration an independent oracle: each side is 100%
+                // weighted to one known bone, so no nearest-surface approximation is
+                // involved in the expected cage position.
+                deformer.EditingSettings.LocalBounds =
+                    new Bounds(Vector3.zero, new Vector3(1f, 0.5f, 0.2f));
+                deformer.EditingSettings.ResetControlPoints();
+                deformer.NotifyDeformationDataChanged();
+                proxyRenderer = proxyObject.AddComponent<SkinnedMeshRenderer>();
+                proxyRenderer.sharedMesh = source;
+                proxyRenderer.rootBone = retargetBoneObject.transform;
+                proxyRenderer.bones = new[]
+                {
+                    retargetBoneObject.transform,
+                    secondaryRetargetBoneObject.transform,
+                };
+                Mesh previewMesh = GeneratePreviewMesh(deformer);
+                Assert.That(previewMesh, Is.Not.Null);
+                previewMesh.bindposes = new[] { retargetBindPose, secondaryRetargetBindPose };
+                previewNode = CreateLatticePreviewNode(
+                    deformer,
+                    renderer,
+                    proxyRenderer,
+                    previewMesh);
+                handler = new LatticeToolHandler
+                {
+                    CaptureCageFramesForTests = true,
+                };
+                handler.Activate(deformer);
+
+                sceneView = EditorWindow.GetWindow<SceneView>();
+                sceneView.Show();
+                SceneView.duringSceneGui += DrawCage;
+                yield return WaitForNextCageRepaint(handler, sceneView);
+                AssertCurrentExplorationFrame(0);
+
+                for (int step = 1; step <= stepCount; step++)
+                {
+                    operation = ApplyExplorationOperation(
+                        random,
+                        avatarRoot.transform,
+                        outfitRoot.transform,
+                        rendererObject.transform,
+                        proxyObject.transform,
+                        armatureObject.transform,
+                        boneObject.transform,
+                        secondaryBoneObject.transform,
+                        retargetBoneObject.transform,
+                        secondaryRetargetBoneObject.transform,
+                        renderer);
+                    EditorUtility.SetDirty(renderer);
+                    previewNode.OnFrameGroup();
+                    proxyRenderer.sharedMesh.bindposes = new[]
+                    {
+                        retargetBindPose,
+                        secondaryRetargetBindPose,
+                    };
+                    EditorUtility.SetDirty(proxyRenderer.sharedMesh);
+                    yield return WaitForNextCageRepaint(handler, sceneView);
+                    AssertCurrentExplorationFrame(step);
+                }
+            }
+            finally
+            {
+                SceneView.duringSceneGui -= DrawCage;
+                LatticePreviewUtility.UsePreviewAlignedCage = previousPreviewAlignedCage;
+                handler?.Deactivate();
+                previewNode?.Dispose();
+                LatticePreviewUtility.ClearProxy(renderer);
+                Object.DestroyImmediate(avatarRoot);
+                Object.DestroyImmediate(source);
+            }
+
+            void DrawCage(SceneView view)
+            {
+                if (view == sceneView && Event.current != null)
+                {
+                    handler.OnToolGUI(view, rendererObject.GetComponent<LatticeDeformer>());
+                }
+            }
+
+            void AssertCurrentExplorationFrame(int step)
+            {
+                AssertCageFrame(handler);
+                try
+                {
+                    AssertCageCornersFollowCurrentBindings(
+                        handler,
+                        handler.GetLastCageHandlePositionsForTests(),
+                        rendererObject.GetComponent<LatticeDeformer>().EditingSettings,
+                        LatticePreviewUtility.UsePreviewAlignedCage
+                            ? new[]
+                            {
+                                retargetBoneObject.transform.localToWorldMatrix * retargetBindPose,
+                                secondaryRetargetBoneObject.transform.localToWorldMatrix * secondaryRetargetBindPose,
+                            }
+                            : new[]
+                            {
+                                boneObject.transform.localToWorldMatrix * bindPose,
+                                secondaryBoneObject.transform.localToWorldMatrix * secondaryBindPose,
+                            },
+                        controlIndex =>
+                        {
+                            Vector3 point = rendererObject.GetComponent<LatticeDeformer>()
+                                .EditingSettings.GetControlPointLocal(controlIndex);
+                            return InterpolateExpectedShapeDelta(
+                                       source.vertices,
+                                       point,
+                                       GetActiveShapeDelta) *
+                                   ((renderer.GetBlendShapeWeight(0) - initialShape0Weight) / 100f) +
+                                   new Vector3(2f, 5f, -3f) *
+                                   ((renderer.GetBlendShapeWeight(1) - initialShape1Weight) / 100f);
+                        });
+                }
+                catch (AssertionException exception)
+                {
+                    Assert.Fail(
+                        $"Cage exploration failed. seed={seed}, step={step}/{stepCount}, " +
+                        $"operation={operation}. Set LATTICE_CAGE_EXPLORATION_SEED={seed} " +
+                        $"and LATTICE_CAGE_EXPLORATION_STEPS={step} to replay.\n" +
+                        DescribeExplorationState(
+                            avatarRoot.transform,
+                            outfitRoot.transform,
+                            rendererObject.transform,
+                            proxyObject.transform,
+                            armatureObject.transform,
+                            boneObject.transform,
+                            secondaryBoneObject.transform,
+                            retargetBoneObject.transform,
+                            secondaryRetargetBoneObject.transform,
+                            renderer) + "\n" +
+                        $"skinningRefreshes={handler.SkinningRefreshCountForTests}, " +
+                        $"bindingRefreshes={handler.ControlPointBindingRefreshCountForTests}\n" +
+                        exception.Message);
+                }
+            }
+        }
+
+        private static int ReadExplorationInteger(string name, int fallback)
+        {
+            string value = System.Environment.GetEnvironmentVariable(name);
+            return int.TryParse(value, out int parsed) ? parsed : fallback;
+        }
+
+        private static string ApplyExplorationOperation(
+            System.Random random,
+            Transform avatar,
+            Transform outfit,
+            Transform rendererTransform,
+            Transform proxyTransform,
+            Transform armature,
+            Transform bone,
+            Transform secondaryBone,
+            Transform retargetBone,
+            Transform secondaryRetargetBone,
+            SkinnedMeshRenderer renderer)
+        {
+            int operation = random.Next(19);
+            switch (operation)
+            {
+                case 0:
+                    avatar.localScale = RandomScale(random, 0.72f, 1.32f);
+                    return $"avatar-scale={avatar.localScale}";
+                case 1:
+                    SetRandomTransform(random, outfit, 0.16f, 22f, 0.68f, 1.38f);
+                    return "outfit-root-trs";
+                case 2:
+                    SetRandomTransform(random, rendererTransform, 0.08f, 105f, 0.78f, 1.24f);
+                    return "renderer-trs";
+                case 3:
+                    SetRandomTransform(random, armature, 0.14f, 28f, 0.62f, 1.46f);
+                    return "armature-trs";
+                case 4:
+                    SetRandomTransform(random, bone, 0.2f, 38f, 0.55f, 1.58f);
+                    return "bone-trs";
+                case 5:
+                {
+                    float weight = RandomRange(random, -25f, 125f);
+                    renderer.SetBlendShapeWeight(0, weight);
+                    return $"active-shape={weight:F3}";
+                }
+                case 6:
+                {
+                    float weight = RandomRange(random, 0f, 35f);
+                    renderer.SetBlendShapeWeight(1, weight);
+                    return $"large-unused-shape={weight:F3}";
+                }
+                case 7:
+                    outfit.localScale = RandomScale(random, 0.64f, 1.42f);
+                    armature.localScale = RandomScale(random, 0.58f, 1.52f);
+                    bone.localScale = RandomScale(random, 0.52f, 1.64f);
+                    return "stacked-nonuniform-scale";
+                case 8:
+                    SetRandomTransform(random, outfit, 0.18f, 25f, 0.64f, 1.42f);
+                    SetRandomTransform(random, rendererTransform, 0.1f, 110f, 0.74f, 1.28f);
+                    SetRandomTransform(random, armature, 0.16f, 32f, 0.58f, 1.52f);
+                    SetRandomTransform(random, bone, 0.22f, 42f, 0.52f, 1.64f);
+                    renderer.SetBlendShapeWeight(0, RandomRange(random, -25f, 125f));
+                    renderer.SetBlendShapeWeight(1, RandomRange(random, 0f, 35f));
+                    return "combined-burst";
+                case 9:
+                    proxyTransform.localPosition = rendererTransform.localPosition;
+                    proxyTransform.localRotation = rendererTransform.localRotation;
+                    proxyTransform.localScale = rendererTransform.localScale;
+                    return "synchronize-preview-proxy-trs";
+                case 10:
+                    SetRandomTransform(random, proxyTransform, 0.12f, 115f, 0.7f, 1.34f);
+                    return "preview-proxy-independent-trs";
+                case 11:
+                    LatticePreviewUtility.UsePreviewAlignedCage =
+                        !LatticePreviewUtility.UsePreviewAlignedCage;
+                    return $"preview-aligned-cage={LatticePreviewUtility.UsePreviewAlignedCage}";
+                case 12:
+                    SetRandomTransform(random, retargetBone, 0.24f, 46f, 0.48f, 1.72f);
+                    return "retargeted-avatar-bone-trs";
+                case 13:
+                    bone.position = retargetBone.position;
+                    bone.rotation = retargetBone.rotation;
+                    bone.localScale = retargetBone.localScale;
+                    return "setup-outfit-base-to-merge-sync";
+                case 14:
+                    SetRandomTransform(random, retargetBone, 0.26f, 50f, 0.46f, 1.76f);
+                    SetRandomTransform(random, bone, 0.22f, 42f, 0.52f, 1.64f);
+                    LatticePreviewUtility.UsePreviewAlignedCage = random.Next(2) == 0;
+                    return "retarget-handoff-burst";
+                case 15:
+                    SetRandomTransform(random, secondaryBone, 0.24f, 48f, 0.5f, 1.68f);
+                    return "secondary-outfit-bone-trs";
+                case 16:
+                    SetRandomTransform(random, secondaryRetargetBone, 0.28f, 54f, 0.44f, 1.8f);
+                    return "secondary-retargeted-avatar-bone-trs";
+                case 17:
+                    secondaryBone.position = secondaryRetargetBone.position;
+                    secondaryBone.rotation = secondaryRetargetBone.rotation;
+                    secondaryBone.localScale = secondaryRetargetBone.localScale;
+                    return "secondary-setup-outfit-sync";
+                default:
+                    SetRandomTransform(random, bone, 0.24f, 46f, 0.5f, 1.68f);
+                    SetRandomTransform(random, secondaryBone, 0.24f, 46f, 0.5f, 1.68f);
+                    SetRandomTransform(random, retargetBone, 0.28f, 54f, 0.44f, 1.8f);
+                    SetRandomTransform(random, secondaryRetargetBone, 0.28f, 54f, 0.44f, 1.8f);
+                    return "multi-bone-retarget-burst";
+            }
+        }
+
+        private static void SetRandomTransform(
+            System.Random random,
+            Transform transform,
+            float positionRange,
+            float rotationRange,
+            float minimumScale,
+            float maximumScale)
+        {
+            transform.localPosition = RandomVector(random, -positionRange, positionRange);
+            transform.localRotation = Quaternion.Euler(
+                RandomVector(random, -rotationRange, rotationRange));
+            transform.localScale = RandomScale(random, minimumScale, maximumScale);
+        }
+
+        private static Vector3 RandomScale(System.Random random, float minimum, float maximum)
+        {
+            return new Vector3(
+                RandomRange(random, minimum, maximum),
+                RandomRange(random, minimum, maximum),
+                RandomRange(random, minimum, maximum));
+        }
+
+        private static Vector3 RandomVector(System.Random random, float minimum, float maximum)
+        {
+            return new Vector3(
+                RandomRange(random, minimum, maximum),
+                RandomRange(random, minimum, maximum),
+                RandomRange(random, minimum, maximum));
+        }
+
+        private static float RandomRange(System.Random random, float minimum, float maximum)
+        {
+            return minimum + (float)random.NextDouble() * (maximum - minimum);
+        }
+
+        private static string DescribeExplorationState(
+            Transform avatar,
+            Transform outfit,
+            Transform rendererTransform,
+            Transform proxyTransform,
+            Transform armature,
+            Transform bone,
+            Transform secondaryBone,
+            Transform retargetBone,
+            Transform secondaryRetargetBone,
+            SkinnedMeshRenderer renderer)
+        {
+            return
+                $"avatar=({DescribeTransform(avatar)}), outfit=({DescribeTransform(outfit)}), " +
+                $"renderer=({DescribeTransform(rendererTransform)}), " +
+                $"proxy=({DescribeTransform(proxyTransform)}), " +
+                $"armature=({DescribeTransform(armature)}), bone=({DescribeTransform(bone)}), " +
+                $"secondaryBone=({DescribeTransform(secondaryBone)}), " +
+                $"retargetBone=({DescribeTransform(retargetBone)}), " +
+                $"secondaryRetargetBone=({DescribeTransform(secondaryRetargetBone)}), " +
+                $"shape0={renderer.GetBlendShapeWeight(0):F3}, " +
+                $"shape1={renderer.GetBlendShapeWeight(1):F3}, " +
+                $"previewAligned={LatticePreviewUtility.UsePreviewAlignedCage}";
+        }
+
+        private static string DescribeTransform(Transform transform)
+        {
+            return $"p={transform.localPosition}, r={transform.localEulerAngles}, s={transform.localScale}";
         }
 
         private sealed class CageFrameMonitor
@@ -815,6 +1199,73 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 "to a disagreeing BakeMesh snapshot must not move the cage.");
         }
 
+        private static void AssertCageCornersFollowCurrentBindings(
+            LatticeToolHandler handler,
+            Vector3[] cagePositions,
+            LatticeAsset settings,
+            Matrix4x4[] boneMatrices,
+            System.Func<int, Vector3> shapeOffset = null)
+        {
+            Vector3Int gridSize = settings.GridSize;
+            int controlCount = gridSize.x * gridSize.y * gridSize.z;
+            bool includesInterior = cagePositions.Length == controlCount;
+            int drawnIndex = 0;
+            float maximumError = 0f;
+            int maximumErrorControl = -1;
+            Vector3 maximumErrorExpected = default;
+            Vector3 maximumErrorActual = default;
+
+            for (int controlIndex = 0; controlIndex < controlCount; controlIndex++)
+            {
+                int x = controlIndex % gridSize.x;
+                int y = (controlIndex / gridSize.x) % gridSize.y;
+                int z = controlIndex / (gridSize.x * gridSize.y);
+                bool onBoundary =
+                    x == 0 || x == gridSize.x - 1 ||
+                    y == 0 || y == gridSize.y - 1 ||
+                    z == 0 || z == gridSize.z - 1;
+                if (!onBoundary && !includesInterior)
+                {
+                    continue;
+                }
+
+                Assert.That(
+                    handler.TryGetControlPointBindingForTests(
+                        controlIndex,
+                        out int[] boneIndices,
+                        out float[] weights),
+                    Is.True);
+                Vector3 sourcePoint = settings.GetControlPointLocal(controlIndex) +
+                                      (shapeOffset?.Invoke(controlIndex) ?? Vector3.zero);
+                Vector3 expected = Vector3.zero;
+                for (int influence = 0; influence < boneIndices.Length; influence++)
+                {
+                    Assert.That(boneIndices[influence],
+                        Is.InRange(0, boneMatrices.Length - 1));
+                    expected += boneMatrices[boneIndices[influence]]
+                        .MultiplyPoint3x4(sourcePoint) * weights[influence];
+                }
+                Vector3 actual = cagePositions[drawnIndex];
+                float error = Vector3.Distance(actual, expected);
+                if (error > maximumError)
+                {
+                    maximumError = error;
+                    maximumErrorControl = controlIndex;
+                    maximumErrorExpected = expected;
+                    maximumErrorActual = actual;
+                }
+                drawnIndex++;
+            }
+
+            Assert.That(
+                maximumError,
+                Is.LessThanOrEqualTo(1e-4f),
+                "The Scene View cage must apply the current proxy bone and bind-pose " +
+                "matrices to every cached control-point binding exactly once. " +
+                $"Worst control={maximumErrorControl}, expected={maximumErrorExpected}, " +
+                $"actual={maximumErrorActual}.");
+        }
+
         private static Mesh GeneratePreviewMesh(LatticeDeformer deformer)
         {
             var generate = typeof(LatticeDeformerPreviewFilter).GetMethod(
@@ -933,6 +1384,27 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             return mesh;
         }
 
+        private static Mesh CreateTwoBoneSkinnedBoundsRegressionMesh(
+            Matrix4x4 leftBindPose,
+            Matrix4x4 rightBindPose)
+        {
+            Mesh mesh = CreateSkinnedBoundsRegressionMesh(leftBindPose);
+            mesh.name = "Two-Bone Skinned Cage Exploration Source";
+            mesh.bindposes = new[] { leftBindPose, rightBindPose };
+            Vector3[] vertices = mesh.vertices;
+            var weights = new BoneWeight[vertices.Length];
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                weights[i] = new BoneWeight
+                {
+                    boneIndex0 = vertices[i].x < 0f ? 0 : 1,
+                    weight0 = 1f,
+                };
+            }
+            mesh.boneWeights = weights;
+            return mesh;
+        }
+
         private static Mesh CreateBoneReorderMesh(
             bool extraVertex,
             int boneIndex,
@@ -1019,6 +1491,49 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 vertex.y * 0.18f,
                 0.08f + vertex.x * 0.12f,
                 vertex.x * vertex.y * 0.3f);
+        }
+
+        private static Vector3 InterpolateExpectedShapeDelta(
+            Vector3[] vertices,
+            Vector3 point,
+            System.Func<Vector3, Vector3> getDelta)
+        {
+            const int neighborCount = 4;
+            var nearest = new int[neighborCount] { -1, -1, -1, -1 };
+            var distances = new float[neighborCount]
+            {
+                float.PositiveInfinity,
+                float.PositiveInfinity,
+                float.PositiveInfinity,
+                float.PositiveInfinity,
+            };
+            for (int vertex = 0; vertex < vertices.Length; vertex++)
+            {
+                float distance = (vertices[vertex] - point).sqrMagnitude;
+                if (distance >= distances[neighborCount - 1])
+                    continue;
+                int insertion = neighborCount - 1;
+                while (insertion > 0 && distance < distances[insertion - 1])
+                {
+                    distances[insertion] = distances[insertion - 1];
+                    nearest[insertion] = nearest[insertion - 1];
+                    insertion--;
+                }
+                distances[insertion] = distance;
+                nearest[insertion] = vertex;
+            }
+            if (distances[0] <= 1e-12f)
+                return getDelta(vertices[nearest[0]]);
+
+            Vector3 result = Vector3.zero;
+            float total = 0f;
+            for (int i = 0; i < neighborCount && nearest[i] >= 0; i++)
+            {
+                float weight = 1f / Mathf.Max(Mathf.Sqrt(distances[i]), 1e-6f);
+                result += getDelta(vertices[nearest[i]]) * weight;
+                total += weight;
+            }
+            return result / total;
         }
     }
 }
