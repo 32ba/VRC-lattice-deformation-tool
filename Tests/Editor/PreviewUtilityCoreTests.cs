@@ -695,8 +695,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             LatticeDeformerPostAaoPreviewFilter.PreviewNode postNode = null;
             Mesh aaoMesh = null;
             var context = new ComputeContext("post AAO sync test");
+            int downstreamInvalidationCount = 0;
             try
             {
+                _ = context.Observe(source);
                 var originalRenderer = original.AddComponent<SkinnedMeshRenderer>();
                 originalRenderer.sharedMesh = source;
                 var deformer = original.AddComponent<LatticeDeformer>();
@@ -725,14 +727,24 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     originalRenderer,
                     proxyRenderer,
                     aaoMesh,
-                    context);
+                    context,
+                    () => downstreamInvalidationCount++);
+                Vector3[] staleAaoVertices = aaoMesh.vertices;
                 Vector3 before = postNode.OutputMeshForTests.vertices[0];
 
-                int brushLayer = deformer.AddLayer("Interactive Brush", MeshDeformerLayerType.Brush);
-                deformer.ActiveLayerIndex = brushLayer;
-                deformer.EnsureDisplacementCapacity();
-                deformer.SetDisplacement(0, Vector3.right * 0.25f);
-                deformer.InvalidateCache();
+                // Match a multi-selected lattice-handle drag. Translating every control
+                // point gives a deterministic whole-mesh delta independent of vertex
+                // placement within the cage.
+                LatticeAsset settings = deformer.EditingSettings;
+                Assert.That(settings, Is.Not.Null);
+                for (int control = 0; control < settings.ControlPointCount; control++)
+                {
+                    settings.SetControlPointLocal(
+                        control,
+                        settings.GetControlPointLocal(control) + Vector3.right * 0.25f);
+                }
+                deformer.NotifyDeformationDataChanged();
+                deformer.Deform(false);
 
                 // NDMF may update the downstream node before its upstream node.
                 // The downstream node must not consume the deformer revision while
@@ -742,6 +754,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 latticeNode.OnFrameGroup();
                 postNode.OnFrameGroup();
+
+                // AAO can write its cached upstream channels after the post-AAO
+                // group callback. The final renderer callback must win that ordering
+                // race rather than leaving the visible mesh one interaction behind.
+                aaoMesh.vertices = staleAaoVertices;
+                Assert.That(aaoMesh.vertices[0], Is.EqualTo(before),
+                    "The simulated AAO frame must restore the stale vertex before the final callback.");
                 postNode.OnFrame(originalRenderer, proxyRenderer);
 
                 // AAO reassigns its duplicated mesh on every frame. The synchronized
@@ -754,18 +773,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(postNode.OutputMeshForTests, Is.SameAs(aaoMesh));
                 Assert.That(postNode.OutputMeshForTests.triangles, Is.Empty);
                 Assert.That(proxyRenderer.sharedMesh, Is.SameAs(postNode.OutputMeshForTests));
-                Assert.That(context.IsInvalidated, Is.False,
-                    "Interactive edits must not rebuild AAO immediately.");
+                Assert.That(downstreamInvalidationCount, Is.Zero,
+                    "Interactive vertex synchronization must not rebuild the downstream graph mid-drag.");
 
-                typeof(LatticeDeformerPostAaoPreviewFilter.PreviewNode)
-                    .GetField("_scheduledRebuildAt", BindingFlags.Instance | BindingFlags.NonPublic)
-                    ?.SetValue(postNode, 0d);
-                typeof(LatticeDeformerPostAaoPreviewFilter.PreviewNode)
-                    .GetMethod("OnEditorUpdate", BindingFlags.Instance | BindingFlags.NonPublic)
-                    ?.Invoke(postNode, null);
+                postNode.FlushDownstreamRebuildForTests();
 
-                Assert.That(context.IsInvalidated, Is.True,
-                    "AAO should rebuild once after editing settles.");
+                Assert.That(downstreamInvalidationCount, Is.EqualTo(1),
+                    "The downstream graph should rebuild once after interactive edits settle.");
             }
             finally
             {
@@ -780,13 +794,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void LatticeDeformerPostAaoPreviewFilter_NoTopologyDifferenceReturnsValidNoOpNode()
+        public void LatticeDeformerPostAaoPreviewFilter_DeferredNodeActivatesWhenAaoMeshAppears()
         {
             var original = new GameObject("post-aao-noop-original");
             var proxy = new GameObject("post-aao-noop-proxy");
             var source = CreateBlendShapeMesh(0);
             IRenderFilterNode latticeNode = null;
             IRenderFilterNode postNode = null;
+            Mesh lateAaoMesh = null;
             try
             {
                 var originalRenderer = original.AddComponent<SkinnedMeshRenderer>();
@@ -819,9 +834,36 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 Assert.That(postNode, Is.Not.Null,
                     "IRenderFilter.Instantiate must always return a node for a target group.");
-                Assert.That(postNode.WhatChanged, Is.EqualTo((RenderAspects)0));
+                Assert.That(postNode.GetType().Name, Is.EqualTo("NoOpNode"),
+                    "The pre-AAO topology should exercise the deferred-node path.");
+                Assert.That(postNode.WhatChanged, Is.EqualTo(RenderAspects.Mesh));
                 Assert.DoesNotThrow(() => postNode.OnFrameGroup());
                 Assert.DoesNotThrow(() => postNode.OnFrame(originalRenderer, proxyRenderer));
+
+                LatticeAsset settings = deformer.EditingSettings;
+                for (int control = 0; control < settings.ControlPointCount; control++)
+                {
+                    settings.SetControlPointLocal(
+                        control,
+                        settings.GetControlPointLocal(control) + Vector3.up * 0.2f);
+                }
+                deformer.NotifyDeformationDataChanged();
+                deformer.Deform(false);
+                latticeNode.OnFrameGroup();
+
+                // NDMF may instantiate this stage before AAO has assigned its output.
+                // AAO still duplicates the mesh when no faces happen to be removed,
+                // so the distinct mesh must activate synchronization even when its
+                // topology is unchanged.
+                lateAaoMesh = Object.Instantiate(source);
+                proxyRenderer.sharedMesh = lateAaoMesh;
+                postNode.OnFrameGroup();
+                postNode.OnFrame(originalRenderer, proxyRenderer);
+
+                Assert.That(proxyRenderer.sharedMesh, Is.SameAs(lateAaoMesh));
+                Assert.That(lateAaoMesh.triangles, Is.EqualTo(source.triangles));
+                Assert.That(lateAaoMesh.vertices[0],
+                    Is.EqualTo(source.vertices[0] + Vector3.up * 0.2f));
             }
             finally
             {
@@ -831,6 +873,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Object.DestroyImmediate(original);
                 Object.DestroyImmediate(proxy);
                 Object.DestroyImmediate(source);
+                if (lateAaoMesh != null) Object.DestroyImmediate(lateAaoMesh);
             }
         }
 

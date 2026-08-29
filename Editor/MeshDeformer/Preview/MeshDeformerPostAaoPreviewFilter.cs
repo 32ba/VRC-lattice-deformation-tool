@@ -73,7 +73,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (deformer == null || upstreamMesh == null ||
                     !LatticePreviewUtility.TryGetPreviewMesh(original, out var latticePreviewMesh) ||
                     latticePreviewMesh.vertexCount != upstreamMesh.vertexCount ||
-                    !HasTopologyDifference(latticePreviewMesh, upstreamMesh))
+                    (object.ReferenceEquals(latticePreviewMesh, upstreamMesh) &&
+                     !HasTopologyDifference(latticePreviewMesh, upstreamMesh)))
                 {
                     continue;
                 }
@@ -90,26 +91,62 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // legitimately reach this point when AAO did not remove any topology,
             // or while the upstream preview is being replaced. Returning null here
             // leaves NDMF's NodeController with no node to drive on the next frame.
-            // Keep the stage in the graph as a no-op; an upstream change or context
-            // invalidation will refresh/re-instantiate it when synchronization becomes
-            // necessary.
-            return Task.FromResult<IRenderFilterNode>(new NoOpNode());
+            // AAO may not have assigned its duplicated mesh yet. Keep a deferred node
+            // in the graph so it can begin synchronization on the first frame where
+            // that downstream mesh becomes observable.
+            return Task.FromResult<IRenderFilterNode>(new NoOpNode(context));
         }
 
-        private sealed class NoOpNode : IRenderFilterNode
+        internal sealed class NoOpNode : IRenderFilterNode
         {
-            public RenderAspects WhatChanged => 0;
+            private readonly ComputeContext _context;
+            private PreviewNode _activeNode;
+
+            internal NoOpNode(ComputeContext context)
+            {
+                _context = context;
+            }
+
+            public RenderAspects WhatChanged => RenderAspects.Mesh;
 
             public void OnFrameGroup()
             {
+                _activeNode?.OnFrameGroup();
             }
 
             public void OnFrame(Renderer original, Renderer proxy)
             {
+                if (_activeNode == null && original != null && proxy != null)
+                {
+                    var deformer = original.GetComponent<LatticeDeformer>();
+                    Mesh upstreamMesh = LatticeDeformerPreviewFilter.GetRendererMesh(proxy);
+                    if (deformer != null && upstreamMesh != null &&
+                        LatticePreviewUtility.TryGetPreviewMesh(
+                            original,
+                            out var latticePreviewMesh) &&
+                        latticePreviewMesh.vertexCount == upstreamMesh.vertexCount &&
+                        (!object.ReferenceEquals(latticePreviewMesh, upstreamMesh) ||
+                         HasTopologyDifference(latticePreviewMesh, upstreamMesh)))
+                    {
+                        // AAO may assign its topology only after this filter was
+                        // instantiated. Promote the deferred node in place so the
+                        // first changed frame is synchronized immediately.
+                        _activeNode = new PreviewNode(
+                            deformer,
+                            original,
+                            proxy,
+                            upstreamMesh,
+                            _context);
+                    }
+                }
+
+                _activeNode?.OnFrame(original, proxy);
             }
 
             public void Dispose()
             {
+                _activeNode?.Dispose();
+                _activeNode = null;
             }
         }
 
@@ -146,6 +183,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             private readonly Mesh _outputMesh;
             private readonly Mesh _restorationMesh;
             private readonly ComputeContext _context;
+            private readonly Action _invalidateDownstream;
             private readonly List<Vector3> _vertices = new();
             private readonly List<Vector3> _normals = new();
             private readonly List<Vector4> _tangents = new();
@@ -163,12 +201,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Renderer original,
                 Renderer proxy,
                 Mesh upstreamMesh,
-                ComputeContext context)
+                ComputeContext context,
+                Action invalidateDownstream = null)
             {
                 _deformer = deformer;
                 _original = original;
                 _proxy = proxy;
                 _context = context;
+                _invalidateDownstream = invalidateDownstream ?? (() => _context?.Invalidate());
                 // AAO's preview node assigns its duplicated mesh back to the proxy on
                 // every OnFrame call. A separate downstream mesh is therefore replaced
                 // again depending on NDMF's frame callback order. Update AAO's duplicated
@@ -195,6 +235,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             internal Mesh OutputMeshForTests => _outputMesh;
+            internal void FlushDownstreamRebuildForTests()
+            {
+                _scheduledRebuildAt = 0d;
+                OnEditorUpdate();
+            }
 
             public RenderAspects WhatChanged => RenderAspects.Mesh;
 
@@ -238,6 +283,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (proxy != null && _outputMesh != null)
                 {
+                    // AAO can repopulate its duplicated mesh after our group callback.
+                    // Reapply the latest lattice channels at the final renderer callback
+                    // so the visible proxy follows every handle-drag frame immediately.
+                    Mesh latticePreviewMesh = null;
+                    if (LatticePreviewUtility.TryGetPreviewMesh(
+                            _original,
+                            out latticePreviewMesh,
+                            out _))
+                    {
+                        SyncDeformedChannels(
+                            latticePreviewMesh,
+                            _outputMesh,
+                            ShouldCopyBlendShapes(latticePreviewMesh));
+                    }
+
                     LatticeDeformerPreviewFilter.AssignRendererMesh(proxy, _outputMesh);
                     if (_ownsProxyOverride)
                     {
@@ -322,6 +382,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     return;
                 }
 
+                // The visible AAO mesh is synchronized in place on every renderer
+                // callback. Rebuilding the downstream graph during the drag would
+                // replace that mesh repeatedly and destabilize the cage; coalesce the
+                // structural rebuild until input has settled instead.
                 _scheduledRebuildAt =
                     EditorApplication.timeSinceStartup + k_DownstreamRebuildDelaySeconds;
                 if (_editorUpdateSubscribed)
@@ -343,7 +407,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 UnsubscribeEditorUpdate();
                 _scheduledRebuildAt = -1d;
-                _context?.Invalidate();
+                _invalidateDownstream();
             }
 
             private void UnsubscribeEditorUpdate()

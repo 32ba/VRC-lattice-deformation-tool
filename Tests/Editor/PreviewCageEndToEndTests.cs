@@ -150,8 +150,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     handler.ResolveProxyRenderer(originalRenderer),
                     Is.SameAs(finalAaoRenderer),
                     "The latest displayed post-AAO proxy must be adopted once interaction ends.");
-                AssertFrameDiffers(settledFrame, dragStartFrame,
-                    "The settled cage must reflect the post-AAO mesh bounds, proving that the handoff completed.");
+                Assert.That(settledFrame, Is.EqualTo(dragStartFrame),
+                    "Adopting a topology-only AAO proxy must preserve the latest lattice cage shape.");
 
                 yield return WaitForNextCageRepaint(handler, sceneView);
                 AssertCageFrameEquals(handler, settledFrame,
@@ -1066,25 +1066,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     Is.LessThan(1e-5f),
                     $"{message} Control point {i} changed from {expected[i]} to {actual[i]}.");
             }
-        }
-
-        private static void AssertFrameDiffers(
-            Vector3[] actual,
-            Vector3[] before,
-            string message)
-        {
-            Assert.That(actual, Has.Length.EqualTo(before.Length));
-            bool differs = false;
-            for (int i = 0; i < before.Length; i++)
-            {
-                if (Vector3.Distance(actual[i], before[i]) > 1e-4f)
-                {
-                    differs = true;
-                    break;
-                }
-            }
-
-            Assert.That(differs, Is.True, message);
         }
 
         private static void ScaleMesh(Mesh mesh, float scale)

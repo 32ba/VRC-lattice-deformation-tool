@@ -26,7 +26,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [UnityTest]
         [Category("GraphicsE2E")]
         [Category("PlaygroundE2E")]
-        public IEnumerator ActualNdmfAaoGraph_NeverChangesCageShapeDuringAnInteraction()
+        public IEnumerator ActualNdmfAaoGraph_KeepsExternalCageStableAndAppliesLatticeEditsDuringInteraction()
         {
             if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
                 Assert.Ignore("The real Scene View preview E2E requires a graphics device.");
@@ -53,6 +53,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Object previousSelection = Selection.activeObject;
             Type previousTool = ToolManager.activeToolType;
             var monitor = new CageIntervalMonitor();
+            Vector3[] verticesBeforeEdit = null;
 
             try
             {
@@ -142,6 +143,85 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     sceneView,
                     "The tool did not settle on the latest genuine NDMF proxy after the interaction.");
                 monitor.AssertSettledFramesDoNotAlternate();
+
+                // A stable external alignment must not freeze the edit itself. Reproduce
+                // the LatticeToolHandler write path while a Scene View control owns the
+                // interaction, then require both the cage and the real post-AAO proxy to
+                // publish the new shape within a small continuous frame window.
+                Vector3 handleBeforeEdit = monitor.LastFrame.Value.HandlePositions[0];
+                Assert.That(NDMFPreviewProxyUtility.TryGetProxyRenderer(
+                    sourceRenderer,
+                    out Renderer displayedProxyBeforeEdit), Is.True);
+                Mesh proxyMeshBeforeEdit = LatticeDeformerPreviewFilter.GetRendererMesh(
+                    displayedProxyBeforeEdit);
+                Assert.That(proxyMeshBeforeEdit, Is.Not.Null);
+                verticesBeforeEdit = proxyMeshBeforeEdit.vertices;
+
+                holdInteraction = true;
+                yield return WaitForInteractionState(monitor, sceneView, true);
+                LatticeAsset settings = deformer.EditingSettings;
+                Assert.That(settings, Is.Not.Null);
+                for (int control = 0; control < settings.ControlPointCount; control++)
+                {
+                    settings.SetControlPointLocal(
+                        control,
+                        settings.GetControlPointLocal(control) + Vector3.up * 0.2f);
+                }
+                deformer.NotifyDeformationDataChanged();
+                deformer.Deform(false);
+                LatticePreviewUtility.RequestSceneRepaint();
+
+                bool handleFollowedEdit = false;
+                bool previewMeshFollowedEdit = false;
+                bool displayedMeshFollowedEdit = false;
+                for (int responseFrame = 0; responseFrame < 8; responseFrame++)
+                {
+                    sceneView.Repaint();
+                    SceneView.RepaintAll();
+                    yield return null;
+                    if (!monitor.LastFrame.HasValue)
+                        continue;
+
+                    LatticeToolHandler.CageFrameSnapshot frame = monitor.LastFrame.Value;
+                    handleFollowedEdit |= frame.InteractionActive &&
+                                          Vector3.Distance(
+                                              frame.HandlePositions[0],
+                                              handleBeforeEdit) > 1e-5f;
+                    if (LatticePreviewUtility.TryGetPreviewMesh(
+                            sourceRenderer,
+                            out Mesh currentLatticePreviewMesh))
+                    {
+                        previewMeshFollowedEdit |= HasAnyVertexMoved(
+                            verticesBeforeEdit,
+                            currentLatticePreviewMesh);
+                    }
+                    if (NDMFPreviewProxyUtility.TryGetProxyRenderer(
+                            sourceRenderer,
+                            out Renderer displayedProxy))
+                    {
+                        displayedMeshFollowedEdit |= HasAnyVertexMoved(
+                            verticesBeforeEdit,
+                            LatticeDeformerPreviewFilter.GetRendererMesh(displayedProxy));
+                    }
+                }
+
+                Assert.That(handleFollowedEdit, Is.True,
+                    "The lattice cage did not follow its own control-point edit during the drag.");
+                Assert.That(previewMeshFollowedEdit, Is.True,
+                    "The upstream lattice preview mesh did not follow the control-point edit during the drag.");
+                NDMFPreviewProxyUtility.TryGetProxyRenderer(
+                    sourceRenderer,
+                    out Renderer finalDisplayedProxy);
+                LatticePreviewUtility.TryGetPreviewProxy(
+                    sourceRenderer,
+                    out Renderer registeredProxy);
+                Assert.That(displayedMeshFollowedEdit, Is.True,
+                    "The displayed post-AAO mesh did not follow the lattice edit during the drag. " +
+                    $"final={DescribeMesh(LatticeDeformerPreviewFilter.GetRendererMesh(finalDisplayedProxy))}, " +
+                    $"registered={DescribeMesh(LatticeDeformerPreviewFilter.GetRendererMesh(registeredProxy))}");
+
+                holdInteraction = false;
+                yield return WaitForInteractionState(monitor, sceneView, false);
             }
             finally
             {
@@ -436,9 +516,25 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 $"The Scene View did not publish {additionalFrames} interaction repaint frames.");
         }
 
-        private static IEnumerator WaitUntil(Func<bool> predicate, SceneView sceneView, string failure)
+        private static IEnumerator WaitForInteractionState(
+            CageIntervalMonitor monitor,
+            SceneView sceneView,
+            bool expected)
         {
-            for (int frame = 0; frame < 240; frame++)
+            yield return WaitUntil(
+                () => monitor.LastFrame.HasValue &&
+                      monitor.LastFrame.Value.InteractionActive == expected,
+                sceneView,
+                $"The Scene View interaction state did not become {expected}.");
+        }
+
+        private static IEnumerator WaitUntil(
+            Func<bool> predicate,
+            SceneView sceneView,
+            string failure,
+            int maximumFrames = 240)
+        {
+            for (int frame = 0; frame < maximumFrames; frame++)
             {
                 sceneView?.Repaint();
                 SceneView.RepaintAll();
@@ -448,6 +544,32 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
 
             Assert.Fail(failure);
+        }
+
+        private static bool HasAnyVertexMoved(Vector3[] before, Mesh currentMesh)
+        {
+            if (before == null || currentMesh == null || currentMesh.vertexCount != before.Length)
+                return false;
+
+            Vector3[] current = currentMesh.vertices;
+            for (int vertex = 0; vertex < before.Length; vertex++)
+            {
+                if ((current[vertex] - before[vertex]).sqrMagnitude > 1e-10f)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static string DescribeMesh(Mesh mesh)
+        {
+            if (mesh == null)
+                return "null";
+
+            var indexCounts = new List<ulong>();
+            for (int subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
+                indexCounts.Add(mesh.GetIndexCount(subMesh));
+            return $"id={mesh.GetInstanceID()}, vertices={mesh.vertexCount}, indices=[{string.Join(",", indexCounts)}]";
         }
 
         private static bool IsGenuineAaoOutput(Renderer proxy, Mesh source, GameObject avatarRoot)
