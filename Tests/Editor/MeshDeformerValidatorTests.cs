@@ -127,7 +127,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void NdmfPreviewInstantiate_ErrorReturnsNoNodeAndDoesNotMutateProxy()
+        public void NdmfPreviewInstantiate_ErrorReturnsNoOpNodeAndDoesNotMutateProxy()
         {
             using var fixture = CreateFixture("NDMF Preview E2E");
             CorruptBrushLength(fixture.Deformer, 1);
@@ -154,8 +154,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     LogAssert.ignoreFailingMessages = previousIgnore;
                 }
 
-                Assert.That(node, Is.Null);
+                Assert.That(node, Is.Not.Null);
+                Assert.That(node.WhatChanged, Is.EqualTo((RenderAspects)0));
                 Assert.That(proxyRenderer.GetComponent<MeshFilter>().sharedMesh, Is.SameAs(proxyMesh));
+                node.Dispose();
             }
             finally
             {
