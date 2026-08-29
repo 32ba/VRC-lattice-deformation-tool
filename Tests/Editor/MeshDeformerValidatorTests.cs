@@ -127,7 +127,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void NdmfPreviewInstantiate_ErrorReturnsNoNodeAndDoesNotMutateProxy()
+        public void NdmfPreviewInstantiate_ErrorReturnsNoOpNodeAndDoesNotMutateProxy()
         {
             using var fixture = CreateFixture("NDMF Preview E2E");
             CorruptBrushLength(fixture.Deformer, 1);
@@ -154,8 +154,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     LogAssert.ignoreFailingMessages = previousIgnore;
                 }
 
-                Assert.That(node, Is.Null);
+                Assert.That(node, Is.Not.Null);
+                Assert.That(node.WhatChanged, Is.EqualTo((RenderAspects)0));
                 Assert.That(proxyRenderer.GetComponent<MeshFilter>().sharedMesh, Is.SameAs(proxyMesh));
+                node.Dispose();
             }
             finally
             {
@@ -405,7 +407,24 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(diagnostics.Count(d => d.Code == MeshDeformerValidator.ExistingBlendShapeCollision), Is.EqualTo(2));
 
             first.BlendShapeName = "";
+            Assert.That(MeshDeformerValidator.Validate(fixture.Deformer)
+                .Any(d => d.Code == MeshDeformerValidator.EmptyBlendShapeName), Is.False,
+                "An empty stored name must use the same object-name fallback as Deform().");
+            fixture.Deformer.gameObject.name = "";
             AssertCode(fixture.Deformer, MeshDeformerValidator.EmptyBlendShapeName);
+        }
+
+        [Test]
+        public void EmptyLayerBlendShapeName_UsesLayerNameFallback()
+        {
+            using var fixture = CreateFixture("Layer BlendShape Fallback");
+            LatticeLayer layer = fixture.Deformer.Groups[0].Layers[0];
+            layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+            layer.BlendShapeName = "";
+
+            Assert.That(layer.EffectiveBlendShapeName, Is.Not.Empty);
+            Assert.That(MeshDeformerValidator.Validate(fixture.Deformer)
+                .Any(d => d.Code == MeshDeformerValidator.EmptyBlendShapeName), Is.False);
         }
 
         [Test]

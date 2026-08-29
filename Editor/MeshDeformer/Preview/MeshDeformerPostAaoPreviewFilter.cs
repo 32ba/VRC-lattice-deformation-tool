@@ -38,12 +38,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
 
                 var renderer = context.GetComponent<Renderer>(deformer.gameObject);
-                if (renderer == null ||
-                    !LatticeDeformerPreviewFilter.RequiresDownstreamMeshRefresh(renderer))
+                if (renderer == null)
                 {
                     continue;
                 }
 
+                // A downstream package can duplicate a renderer mesh without adding
+                // a marker component to that renderer (MA Setup Outfit is a common
+                // route). Instantiate a deferred node for every deformer and decide
+                // from the actual downstream mesh identity instead of package names.
                 _rendererToDeformer[renderer] = deformer;
                 builder.Add(RenderGroup.For(renderer));
             }
@@ -232,6 +235,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     out proxyOverrideToken);
                 _restorationMesh = restorationMesh;
                 _proxyOverrideToken = proxyOverrideToken;
+                LatticePreviewUtility.PreviewMeshUpdated += OnPreviewMeshUpdated;
             }
 
             internal Mesh OutputMeshForTests => _outputMesh;
@@ -308,11 +312,36 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             public void Dispose()
             {
+                LatticePreviewUtility.PreviewMeshUpdated -= OnPreviewMeshUpdated;
                 UnsubscribeEditorUpdate();
                 if (_ownsProxyOverride &&
                     LatticePreviewUtility.ClearProxyOverride(_proxyOverrideToken))
                 {
                     LatticeDeformerPreviewFilter.AssignRendererMesh(_proxy, _restorationMesh);
+                }
+            }
+
+            private void OnPreviewMeshUpdated(
+                Renderer original,
+                Mesh latticePreviewMesh,
+                long contentRevision)
+            {
+                if (!ReferenceEquals(original, _original) ||
+                    !SyncDeformedChannels(
+                        latticePreviewMesh,
+                        _outputMesh,
+                        ShouldCopyBlendShapes(latticePreviewMesh)))
+                {
+                    return;
+                }
+
+                _lastBlendShapeWeightStateHash = CurrentBlendShapeWeightStateHash();
+                _lastPreviewMeshContentRevision = contentRevision;
+                ScheduleDownstreamRebuild();
+                LatticeDeformerPreviewFilter.AssignRendererMesh(_proxy, _outputMesh);
+                if (_ownsProxyOverride)
+                {
+                    LatticePreviewUtility.CommitProxyOverride(_proxyOverrideToken);
                 }
             }
 

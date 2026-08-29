@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using nadena.dev.ndmf.preview;
@@ -15,6 +16,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private const string k_DebugAlignKey = "Net32Ba.LatticeDeformer.DebugAlignLogs";
         private static readonly Dictionary<Renderer, ProxyRegistration> s_latestProxyMap = new();
         private static readonly Dictionary<Renderer, PreviewMeshRegistration> s_previewMeshMap = new();
+        internal static event Action<LatticeDeformer> InteractiveDeformationPublished;
+        internal static event Action<Renderer, Mesh, long> PreviewMeshUpdated;
         private static long s_nextProxyRegistrationGeneration;
         private static int s_proxyMappingRevision;
 
@@ -102,9 +105,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
 
         /// <summary>
-        /// Determines whether the runtime mesh should be assigned back to the renderer.
-        /// When the NDMF preview pipeline is active we leave the original mesh untouched
-        /// and rely on proxy renderers instead.
+        /// Determines whether an editor operation may assign the generated runtime mesh
+        /// back to the source renderer. Editor preview is always non-destructive: the
+        /// original renderer keeps its authored mesh and visible results are provided by
+        /// the NDMF preview proxy.
         /// </summary>
         public static bool ShouldAssignRuntimeMesh()
         {
@@ -116,17 +120,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static bool ShouldAssignRuntimeMesh(int disablePreviewDepth, bool enablePreview, bool previewToggleEnabled)
         {
-            if (disablePreviewDepth != 0)
-            {
-                return true;
-            }
-
-            if (!enablePreview)
-            {
-                return true;
-            }
-
-            return !previewToggleEnabled;
+            return false;
         }
 
         /// <summary>
@@ -288,6 +282,26 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             SceneView.RepaintAll();
         }
 
+        internal static void PublishInteractiveDeformation(LatticeDeformer deformer)
+        {
+            if (deformer == null)
+            {
+                return;
+            }
+
+            // The editing tool has already completed Deform(false). Ensure there is
+            // still a non-destructive display target when global NDMF preview is off,
+            // then publish synchronously so every preview stage can update before
+            // the current Scene View GUI event returns.
+            MeshDeformerStandalonePreview.Update(deformer);
+
+            // Publish that
+            // runtime mesh synchronously so every preview stage can update before
+            // the current Scene View GUI event returns.
+            InteractiveDeformationPublished?.Invoke(deformer);
+            RequestSceneRepaint();
+        }
+
         internal static long RegisterProxy(Renderer original, Renderer proxy)
         {
             return RegisterProxy(original, proxy, null, out _);
@@ -367,6 +381,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 registration.Mesh,
                 registration.Generation,
                 nextRevision);
+            PreviewMeshUpdated?.Invoke(original, previewMesh, nextRevision);
             return true;
         }
 
@@ -419,6 +434,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             s_latestProxyMap[original] = new ProxyRegistration(proxy, generation, restorationMesh);
             unchecked { s_proxyMappingRevision++; }
+            MeshDeformerStandalonePreview.OnExternalProxyRegistered(original, proxy);
             return generation;
         }
 

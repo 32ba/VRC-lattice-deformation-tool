@@ -194,7 +194,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (pairList.Count == 0)
             {
-                return Task.FromResult<IRenderFilterNode>(null);
+                return Task.FromResult<IRenderFilterNode>(new NoOpNode());
             }
 
             var deformer = pairList
@@ -223,7 +223,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (deformer == null)
             {
-                return Task.FromResult<IRenderFilterNode>(null);
+                return Task.FromResult<IRenderFilterNode>(new NoOpNode());
             }
 
             var evaluationPair = pairList.FirstOrDefault(pair =>
@@ -233,7 +233,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             MeshDeformerValidator.Log(diagnostics);
             if (MeshDeformerValidator.HasErrors(diagnostics))
             {
-                return Task.FromResult<IRenderFilterNode>(null);
+                return Task.FromResult<IRenderFilterNode>(new NoOpNode());
             }
 
             // Only structural changes should replace the node. Interactive layer
@@ -259,7 +259,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var previewMesh = GeneratePreviewMesh(deformer);
             if (previewMesh == null)
             {
-                return Task.FromResult<IRenderFilterNode>(null);
+                return Task.FromResult<IRenderFilterNode>(new NoOpNode());
             }
 
             var node = new PreviewNode(deformer, pairList, previewMesh);
@@ -305,6 +305,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                        StringComparison.Ordinal) &&
                    typeName != null &&
                    typeName.StartsWith("RemoveMesh", StringComparison.Ordinal);
+        }
+
+        private sealed class NoOpNode : IRenderFilterNode
+        {
+            public RenderAspects WhatChanged => 0;
+
+            public void OnFrameGroup()
+            {
+            }
+
+            public void OnFrame(Renderer original, Renderer proxy)
+            {
+            }
+
+            public void Dispose()
+            {
+            }
         }
 
         private sealed class PreviewNode : IRenderFilterNode
@@ -371,6 +388,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     ApplyPreviewMesh(target);
                     _targets.Add(target);
                 }
+
+                LatticePreviewUtility.InteractiveDeformationPublished +=
+                    OnInteractiveDeformationPublished;
             }
 
             public RenderAspects WhatChanged => RenderAspects.Mesh;
@@ -412,31 +432,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 // deformation (including normal/bounds recalculation) a second time.
                 bool runtimeMeshWasUpdated =
                     currentRuntimeMeshRevision != _lastRuntimeMeshRevision;
-                if (UpdatePreviewMesh(runtimeMeshWasUpdated))
-                {
-                    foreach (var target in _targets)
-                    {
-                        LatticePreviewUtility.MarkPreviewMeshUpdated(
-                            target.OriginalRenderer,
-                            _previewMesh,
-                            target.PreviewMeshGeneration);
-                    }
-
-                    _lastBlendShapeWeightStateHash = ComputeBlendShapeWeightStateHash(
-                        _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
-                        _deformer != null ? _deformer.SourceMesh : null);
-                    _lastDeformationDataRevision = _deformer != null
-                        ? _deformer.DeformationDataRevision
-                        : 0;
-                    _lastRuntimeMeshRevision = _deformer != null
-                        ? _deformer.RuntimeMeshRevision
-                        : 0;
-
-                }
+                UpdateAndPublishPreviewMesh(runtimeMeshWasUpdated);
             }
 
             public void Dispose()
             {
+                LatticePreviewUtility.InteractiveDeformationPublished -=
+                    OnInteractiveDeformationPublished;
                 foreach (var target in _targets)
                 {
                     LatticePreviewUtility.ClearPreviewMesh(
@@ -464,6 +466,43 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     UnityEngine.Object.DestroyImmediate(_previewMesh);
                 }
+            }
+
+            private void OnInteractiveDeformationPublished(LatticeDeformer deformer)
+            {
+                if (!ReferenceEquals(deformer, _deformer))
+                {
+                    return;
+                }
+
+                UpdateAndPublishPreviewMesh(true);
+            }
+
+            private bool UpdateAndPublishPreviewMesh(bool reuseRuntimeMesh)
+            {
+                if (!UpdatePreviewMesh(reuseRuntimeMesh))
+                {
+                    return false;
+                }
+
+                foreach (var target in _targets)
+                {
+                    LatticePreviewUtility.MarkPreviewMeshUpdated(
+                        target.OriginalRenderer,
+                        _previewMesh,
+                        target.PreviewMeshGeneration);
+                }
+
+                _lastBlendShapeWeightStateHash = ComputeBlendShapeWeightStateHash(
+                    _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
+                    _deformer != null ? _deformer.SourceMesh : null);
+                _lastDeformationDataRevision = _deformer != null
+                    ? _deformer.DeformationDataRevision
+                    : 0;
+                _lastRuntimeMeshRevision = _deformer != null
+                    ? _deformer.RuntimeMeshRevision
+                    : 0;
+                return true;
             }
 
             private void ApplyPreviewMesh(Target target)
