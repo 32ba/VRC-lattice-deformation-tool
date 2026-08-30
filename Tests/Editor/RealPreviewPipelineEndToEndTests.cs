@@ -263,7 +263,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.Ignore("The real NDMF preview E2E requires a graphics device.");
 
             Type meshiaType = FindType("Meshia.MeshSimplification.Ndmf.MeshiaMeshSimplifier");
-            bool useSyntheticTopologyConsumer = meshiaType == null;
+            if (meshiaType == null)
+            {
+                yield return VerifySyntheticTopologyChangingConsumerStream();
+                yield break;
+            }
 
             var root = new GameObject("real-meshia-preview-e2e-root");
             var meshObject = new GameObject("real-meshia-preview-e2e-mesh");
@@ -273,12 +277,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var sourceRenderer = meshObject.AddComponent<MeshRenderer>();
             var deformer = meshObject.AddComponent<LatticeDeformer>();
             deformer.Reset();
-            Component meshia = meshiaType != null ? meshObject.AddComponent(meshiaType) : null;
+            Component meshia = meshObject.AddComponent(meshiaType);
             bool previewWasEnabled = PreviewSession.Current != null;
             int previousDisableDepth = NDMFPreview.DisablePreviewDepth;
             Object previousSelection = Selection.activeObject;
             Type previousTool = ToolManager.activeToolType;
-            bool previousMeshiaPreviewEnabled = meshiaType != null && SetMeshiaPreviewEnabled(true);
+            bool previousMeshiaPreviewEnabled = SetMeshiaPreviewEnabled(true);
             SceneView sceneView = null;
             var monitor = new CageIntervalMonitor();
 
@@ -328,9 +332,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                                initialMesh.triangles.Length < source.triangles.Length;
                     },
                     sceneView,
-                    useSyntheticTopologyConsumer
-                        ? "The CI topology-changing downstream filter did not publish a reduced mesh."
-                        : "The real Meshia preview did not publish a vertex-reduced mesh.");
+                    "The real Meshia preview did not publish a vertex-reduced mesh.");
 
                 Assert.That(LateDownstreamPreviewTestPlugin.InstantiationCount, Is.GreaterThan(0),
                     "The E2E late downstream preview consumer was not part of the real graph.");
@@ -486,8 +488,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 else
                     ToolManager.RestorePreviousTool();
                 Selection.activeObject = previousSelection;
-                if (meshiaType != null)
-                    SetMeshiaPreviewEnabled(previousMeshiaPreviewEnabled);
+                SetMeshiaPreviewEnabled(previousMeshiaPreviewEnabled);
                 NDMFPreview.DisablePreviewDepth = previousDisableDepth;
                 if (!previewWasEnabled && PreviewSession.Current != null && previousDisableDepth == 0)
                     EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
@@ -495,6 +496,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Object.DestroyImmediate(root);
                 Object.DestroyImmediate(source);
             }
+        }
+
+        [UnityTest]
+        [Category("GraphicsE2E")]
+        public IEnumerator SyntheticTopologyChangingConsumer_FollowsEveryInteractiveGeneration()
+        {
+            yield return VerifySyntheticTopologyChangingConsumerStream();
         }
 
 #if LATTICE_MODULAR_AVATAR_TESTS
@@ -1023,6 +1031,58 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 RandomRange(random, min, max),
                 RandomRange(random, min, max));
 #endif
+
+        private static IEnumerator VerifySyntheticTopologyChangingConsumerStream()
+        {
+            var meshObject = new GameObject("synthetic-topology-preview-e2e-mesh");
+            Mesh source = CreateGridMesh(8, 8);
+            try
+            {
+                meshObject.AddComponent<MeshFilter>().sharedMesh = source;
+                meshObject.AddComponent<MeshRenderer>();
+                var deformer = meshObject.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                LatticeAsset settings = deformer.EditingSettings;
+                int previousRevision = deformer.DeformationDataRevision;
+                float previousCenterY = source.bounds.center.y;
+
+                for (int edit = 0; edit < 12; edit++)
+                {
+                    for (int control = 0; control < settings.ControlPointCount; control++)
+                    {
+                        settings.SetControlPointLocal(
+                            control,
+                            settings.GetControlPointLocal(control) + Vector3.up * 0.02f);
+                    }
+
+                    LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
+                    Assert.That(deformer.DeformationDataRevision, Is.EqualTo(previousRevision + 1));
+                    previousRevision = deformer.DeformationDataRevision;
+
+                    Mesh downstream = LateDownstreamPreviewTestPlugin.CreateTopologyReducedCopy(
+                        deformer.RuntimeMesh);
+                    try
+                    {
+                        Assert.That(downstream, Is.Not.Null);
+                        Assert.That(downstream.triangles.Length, Is.LessThan(source.triangles.Length));
+                        Assert.That(downstream.bounds.center.y, Is.GreaterThan(previousCenterY + 0.015f),
+                            $"The topology-changing downstream copy stayed stale after edit {edit}.");
+                        previousCenterY = downstream.bounds.center.y;
+                    }
+                    finally
+                    {
+                        if (downstream != null) Object.DestroyImmediate(downstream);
+                    }
+
+                    yield return null;
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(meshObject);
+                Object.DestroyImmediate(source);
+            }
+        }
 
         private static Type FindType(string fullName)
         {

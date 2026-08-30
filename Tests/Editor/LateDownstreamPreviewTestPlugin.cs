@@ -31,6 +31,21 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 .PreviewingWith(new CopyingFilter());
         }
 
+        internal static Mesh CreateTopologyReducedCopy(Mesh input)
+        {
+            if (input == null) return null;
+
+            Mesh output = Object.Instantiate(input);
+            if (output.triangles.Length >= 6)
+            {
+                int retainedIndexCount = output.triangles.Length / 2;
+                retainedIndexCount -= retainedIndexCount % 3;
+                output.triangles = output.triangles.Take(retainedIndexCount).ToArray();
+                output.RecalculateBounds();
+            }
+            return output;
+        }
+
         private sealed class CopyingFilter : IRenderFilter
         {
             public IEnumerable<TogglablePreviewNode> GetPreviewControlNodes()
@@ -73,14 +88,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     Mesh input = LatticeDeformerPreviewFilter.GetRendererMesh(proxy);
                     if (proxy == null || input == null) continue;
 
-                    Mesh output = Object.Instantiate(input);
-                    if (output.triangles.Length >= 6)
-                    {
-                        int retainedIndexCount = output.triangles.Length / 2;
-                        retainedIndexCount -= retainedIndexCount % 3;
-                        output.triangles = output.triangles.Take(retainedIndexCount).ToArray();
-                        output.RecalculateBounds();
-                    }
+                    Mesh output = CreateTopologyReducedCopy(input);
                     OutputCount++;
                     output.name = input.name + "_LateDownstreamCopy";
                     LatticeDeformerPreviewFilter.AssignRendererMesh(proxy, output);
