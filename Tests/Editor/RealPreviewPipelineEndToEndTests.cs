@@ -286,7 +286,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 LateDownstreamPreviewTestPlugin.InstantiationCount = 0;
                 LateDownstreamPreviewTestPlugin.OutputCount = 0;
-                LateDownstreamPreviewTestPlugin.ReduceTopologyForTests = useSyntheticTopologyConsumer;
                 NDMFPreview.DisablePreviewDepth = 0;
                 // Recreate the session after the test assembly is loaded so its
                 // intentionally-late preview consumer is present in the graph.
@@ -487,7 +486,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 else
                     ToolManager.RestorePreviousTool();
                 Selection.activeObject = previousSelection;
-                LateDownstreamPreviewTestPlugin.ReduceTopologyForTests = false;
                 if (meshiaType != null)
                     SetMeshiaPreviewEnabled(previousMeshiaPreviewEnabled);
                 NDMFPreview.DisablePreviewDepth = previousDisableDepth;

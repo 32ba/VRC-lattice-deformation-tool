@@ -20,7 +20,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     {
         internal static int InstantiationCount { get; set; }
         internal static int OutputCount { get; set; }
-        internal static bool ReduceTopologyForTests { get; set; }
         public override string QualifiedName => "net.32ba.lattice-deformation-tool.tests.late-downstream";
         public override string DisplayName => "Late downstream preview test consumer";
 
@@ -75,7 +74,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     if (proxy == null || input == null) continue;
 
                     Mesh output = Object.Instantiate(input);
-                    if (ReduceTopologyForTests && output.triangles.Length >= 6)
+                    if (output.triangles.Length >= 6)
                     {
                         int retainedIndexCount = output.triangles.Length / 2;
                         retainedIndexCount -= retainedIndexCount % 3;
