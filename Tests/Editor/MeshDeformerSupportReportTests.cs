@@ -1,6 +1,10 @@
 #if UNITY_EDITOR
 using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
+using System.Threading.Tasks;
+using nadena.dev.ndmf.preview;
 using NUnit.Framework;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using UnityEditor;
@@ -52,10 +56,22 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 StringAssert.Contains("\"hierarchy\":\"Support Avatar/Support Outfit/Support Mesh\"", report);
                 StringAssert.Contains("\"source-mesh.vertices\":\"4\"", report);
                 StringAssert.Contains("\"source-mesh.blend-shapes\":\"1\"", report);
+                StringAssert.Contains("\"active-self\":\"True\"", report);
+                StringAssert.Contains("\"active-in-hierarchy\":\"True\"", report);
                 StringAssert.Contains("\"shape[0]\":\"name=Support Shape, current=42, initial=73, frames=1\"", report);
                 StringAssert.Contains("\"group-count\":\"1\"", report);
                 StringAssert.Contains("grid=(3,3,3)", report);
+                StringAssert.Contains("\"components\":{", report);
+                StringAssert.Contains("type=UnityEngine.SkinnedMeshRenderer, enabled=True", report);
+                StringAssert.Contains("type=Net._32Ba.LatticeDeformationTool.LatticeDeformer, enabled=True", report);
+                StringAssert.Contains("\"object-toggles\":{", report);
+                StringAssert.Contains("\"editor-state\":{", report);
+                StringAssert.Contains("\"selected-object\":", report);
+                StringAssert.Contains("\"active-tool\":", report);
+                StringAssert.Contains("\"brush-sub-mode\":", report);
                 StringAssert.Contains("\"preview-aligned-cage\":", report);
+                StringAssert.Contains("\"filter-order-available\":", report);
+                StringAssert.Contains("\"filter-count\":", report);
                 StringAssert.Contains("\"validation\":{", report);
                 Assert.That(report, Does.Not.Contain(Application.dataPath));
                 string userPathSegment = Path.DirectorySeparatorChar +
@@ -67,6 +83,91 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally
             {
                 UnityEngine.Object.DestroyImmediate(avatar);
+                UnityEngine.Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
+        public void Generate_ReportsModularAvatarObjectToggleEntriesWhenAvailable()
+        {
+            Type toggleType = FindType("nadena.dev.modular_avatar.core.ModularAvatarObjectToggle");
+            if (toggleType == null)
+                Assert.Ignore("Modular Avatar is not installed in this test project.");
+
+            var avatar = new GameObject("Toggle Avatar");
+            var toggleOwner = new GameObject("Toggle Owner");
+            var meshObject = new GameObject("Toggle Target");
+            Mesh source = CreateSourceMesh();
+            try
+            {
+                toggleOwner.transform.SetParent(avatar.transform, false);
+                meshObject.transform.SetParent(avatar.transform, false);
+                var renderer = meshObject.AddComponent<MeshRenderer>();
+                var filter = meshObject.AddComponent<MeshFilter>();
+                filter.sharedMesh = source;
+                var deformer = meshObject.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+
+                Component toggle = toggleOwner.AddComponent(toggleType);
+                var serialized = new SerializedObject(toggle);
+                SerializedProperty objects = serialized.FindProperty("m_objects");
+                Assert.That(objects, Is.Not.Null);
+                objects.arraySize = 1;
+                SerializedProperty entry = objects.GetArrayElementAtIndex(0);
+                entry.FindPropertyRelative("Active").boolValue = false;
+                SerializedProperty reference = entry.FindPropertyRelative("Object");
+                reference.FindPropertyRelative("targetObject").objectReferenceValue = meshObject;
+                reference.FindPropertyRelative("referencePath").stringValue = "Toggle Target";
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+
+                string report = MeshDeformerSupportReport.Decode(
+                    MeshDeformerSupportReport.Generate(deformer));
+
+                StringAssert.Contains("\"object-toggles\":{", report);
+                StringAssert.Contains("owner=Toggle Avatar/Toggle Owner", report);
+                StringAssert.Contains("target=Toggle Avatar/Toggle Target", report);
+                StringAssert.Contains("active=False", report);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(avatar);
+                UnityEngine.Object.DestroyImmediate(source);
+            }
+        }
+
+        [Test]
+        public void Generate_ReportsNdmfPreviewFiltersInExecutionOrder()
+        {
+            PreviewSession previous = PreviewSession.Current;
+            var session = new PreviewSession();
+            var root = new GameObject("Filter Order Target");
+            Mesh source = CreateSourceMesh();
+            IDisposable registration = null;
+            try
+            {
+                var renderer = root.AddComponent<MeshRenderer>();
+                var filter = root.AddComponent<MeshFilter>();
+                filter.sharedMesh = source;
+                var deformer = root.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                registration = session.AddMutator(
+                    new SequencePoint { DebugString = "support-report-test" },
+                    new SupportReportPreviewFilter());
+                PreviewSession.Current = session;
+
+                string report = MeshDeformerSupportReport.Decode(
+                    MeshDeformerSupportReport.Generate(deformer));
+
+                StringAssert.Contains("\"filter-order-available\":\"True\"", report);
+                StringAssert.Contains("\"filter-count\":\"1\"", report);
+                StringAssert.Contains(typeof(SupportReportPreviewFilter).FullName, report);
+            }
+            finally
+            {
+                PreviewSession.Current = previous;
+                registration?.Dispose();
+                session.Dispose();
+                UnityEngine.Object.DestroyImmediate(root);
                 UnityEngine.Object.DestroyImmediate(source);
             }
         }
@@ -238,6 +339,27 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
         private static BoneWeight OneBone() =>
             new BoneWeight { boneIndex0 = 0, weight0 = 1f };
+
+        private static Type FindType(string fullName)
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                Type type = assembly.GetType(fullName, false);
+                if (type != null) return type;
+            }
+            return null;
+        }
+
+        private sealed class SupportReportPreviewFilter : IRenderFilter
+        {
+            public ImmutableList<RenderGroup> GetTargetGroups(ComputeContext context) =>
+                ImmutableList<RenderGroup>.Empty;
+
+            public Task<IRenderFilterNode> Instantiate(
+                RenderGroup group,
+                IEnumerable<(Renderer, Renderer)> proxyPairs,
+                ComputeContext context) => Task.FromResult<IRenderFilterNode>(null);
+        }
     }
 }
 #endif
