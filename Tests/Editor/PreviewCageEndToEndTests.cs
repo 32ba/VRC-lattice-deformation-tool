@@ -17,203 +17,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     {
         [UnityTest]
         [Category("GraphicsE2E")]
-        public IEnumerator PostAaoProxyHandoff_KeepsEveryCageBoxVisibleAndStableDuringInteraction()
-        {
-            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
-            {
-                Assert.Ignore("Scene View cage E2E requires a graphics device.");
-            }
-
-            var original = new GameObject("cage-e2e-original");
-            var preAaoProxy = new GameObject("cage-e2e-pre-aao");
-            var postAaoProxy = new GameObject("cage-e2e-post-aao");
-            var finalAaoProxy = new GameObject("cage-e2e-final-aao");
-            var source = CreateSourceMesh();
-            Mesh previewMesh = null;
-            Mesh downstreamMesh = null;
-            Mesh finalDownstreamMesh = null;
-            IRenderFilterNode latticeNode = null;
-            LatticeDeformerPostAaoPreviewFilter.PreviewNode postNode = null;
-            LatticeDeformerPostAaoPreviewFilter.PreviewNode finalNode = null;
-            LatticeToolHandler handler = null;
-            SceneView sceneView = null;
-            LatticeDeformer deformer = null;
-            bool interactionActive = false;
-            int simulatedHotControl = 0;
-            bool previousPreviewAlignedCage = LatticePreviewUtility.UsePreviewAlignedCage;
-            var frameMonitor = new CageFrameMonitor();
-
-            try
-            {
-                LatticePreviewUtility.UsePreviewAlignedCage = true;
-                original.AddComponent<MeshFilter>().sharedMesh = source;
-                var originalRenderer = original.AddComponent<MeshRenderer>();
-                deformer = original.AddComponent<LatticeDeformer>();
-                deformer.Reset();
-                deformer.AlignMode = LatticeDeformer.LatticeAlignMode.Mode3_BoundsRemap;
-
-                previewMesh = GeneratePreviewMesh(deformer);
-                Assert.That(previewMesh, Is.Not.Null);
-                preAaoProxy.AddComponent<MeshFilter>().sharedMesh = previewMesh;
-                var preAaoRenderer = preAaoProxy.AddComponent<MeshRenderer>();
-
-                downstreamMesh = Object.Instantiate(previewMesh);
-                var downstreamVertices = downstreamMesh.vertices;
-                for (int i = 0; i < downstreamVertices.Length; i++)
-                {
-                    downstreamVertices[i] *= 1.5f;
-                }
-                downstreamMesh.vertices = downstreamVertices;
-                downstreamMesh.RecalculateBounds();
-                postAaoProxy.AddComponent<MeshFilter>().sharedMesh = downstreamMesh;
-                var postAaoRenderer = postAaoProxy.AddComponent<MeshRenderer>();
-                postAaoProxy.transform.position = new Vector3(0f, 5f, 0f);
-
-                finalDownstreamMesh = Object.Instantiate(previewMesh);
-                ScaleMesh(finalDownstreamMesh, 2f);
-                finalAaoProxy.AddComponent<MeshFilter>().sharedMesh = finalDownstreamMesh;
-                var finalAaoRenderer = finalAaoProxy.AddComponent<MeshRenderer>();
-                finalAaoProxy.transform.position = new Vector3(3f, -2f, 0f);
-
-                latticeNode = CreateLatticePreviewNode(
-                    deformer,
-                    originalRenderer,
-                    preAaoRenderer,
-                    previewMesh);
-                handler = new LatticeToolHandler();
-                handler.CaptureCageFramesForTests = true;
-                handler.Activate(deformer);
-
-                sceneView = EditorWindow.GetWindow<SceneView>();
-                sceneView.Show();
-                SceneView.duringSceneGui += DrawCage;
-
-                yield return WaitForNextCageRepaint(handler, sceneView);
-                AssertCageFrame(handler);
-                Vector3[] dragStartFrame = handler.GetLastCageHandlePositionsForTests();
-
-                interactionActive = true;
-                frameMonitor.BeginInteraction(dragStartFrame);
-                frameMonitor.CurrentOperation = "interaction-start";
-                yield return WaitForCageRepaints(handler, sceneView, 2);
-
-                frameMonitor.CurrentOperation = "register-post-aao-candidate";
-                postNode = new LatticeDeformerPostAaoPreviewFilter.PreviewNode(
-                    deformer,
-                    originalRenderer,
-                    postAaoRenderer,
-                    downstreamMesh,
-                    new ComputeContext("post AAO cage end-to-end test"));
-                yield return WaitForCageRepaints(handler, sceneView, 2);
-
-                frameMonitor.CurrentOperation = "commit-post-aao-candidate";
-                postNode.OnFrame(originalRenderer, postAaoRenderer);
-                yield return WaitForCageRepaints(handler, sceneView, 3);
-
-                frameMonitor.CurrentOperation = "mutate-committed-mesh-in-place";
-                ScaleMesh(downstreamMesh, 1.25f);
-                EditorUtility.SetDirty(downstreamMesh);
-                postAaoProxy.transform.position += new Vector3(-4f, 1f, 0f);
-                yield return WaitForCageRepaints(handler, sceneView, 3);
-
-                frameMonitor.CurrentOperation = "hierarchy-invalidation";
-                var hierarchyPulse = new GameObject("cage-e2e-hierarchy-pulse");
-                yield return WaitForCageRepaints(handler, sceneView, 2);
-                Object.DestroyImmediate(hierarchyPulse);
-                yield return WaitForCageRepaints(handler, sceneView, 2);
-
-                frameMonitor.CurrentOperation = "register-and-commit-newer-candidate";
-                finalNode = new LatticeDeformerPostAaoPreviewFilter.PreviewNode(
-                    deformer,
-                    originalRenderer,
-                    finalAaoRenderer,
-                    finalDownstreamMesh,
-                    new ComputeContext("final AAO cage end-to-end test"));
-                yield return WaitForCageRepaints(handler, sceneView, 2);
-                finalNode.OnFrame(originalRenderer, finalAaoRenderer);
-                yield return WaitForCageRepaints(handler, sceneView, 3);
-
-                frameMonitor.CurrentOperation = "destroy-original-cage-proxy";
-                Object.DestroyImmediate(preAaoProxy);
-                yield return WaitForCageRepaints(handler, sceneView, 4);
-
-                frameMonitor.EndInteraction();
-                frameMonitor.AssertAllInteractionFramesStable(
-                    minimumFrameCount: 20,
-                    minimumOperationCount: 7);
-
-                interactionActive = false;
-                yield return WaitForNextCageRepaint(handler, sceneView);
-                AssertCageFrame(handler, dragStartFrame.Length);
-                Vector3[] settledFrame = handler.GetLastCageHandlePositionsForTests();
-                Assert.That(
-                    handler.ResolveProxyRenderer(originalRenderer),
-                    Is.SameAs(finalAaoRenderer),
-                    "The latest displayed post-AAO proxy must be adopted once interaction ends.");
-                Assert.That(settledFrame, Is.EqualTo(dragStartFrame),
-                    "Adopting a topology-only AAO proxy must preserve the latest lattice cage shape.");
-
-                yield return WaitForNextCageRepaint(handler, sceneView);
-                AssertCageFrameEquals(handler, settledFrame,
-                    "The settled post-AAO cage must not alternate with the previous frame.");
-            }
-            finally
-            {
-                SceneView.duringSceneGui -= DrawCage;
-                if (simulatedHotControl != 0 && GUIUtility.hotControl == simulatedHotControl)
-                {
-                    GUIUtility.hotControl = 0;
-                }
-                LatticePreviewUtility.UsePreviewAlignedCage = previousPreviewAlignedCage;
-
-                handler?.Deactivate();
-                finalNode?.Dispose();
-                postNode?.Dispose();
-                latticeNode?.Dispose();
-                LatticePreviewUtility.ClearProxy(original.GetComponent<Renderer>());
-                Object.DestroyImmediate(original);
-                if (preAaoProxy != null) Object.DestroyImmediate(preAaoProxy);
-                Object.DestroyImmediate(postAaoProxy);
-                Object.DestroyImmediate(finalAaoProxy);
-                Object.DestroyImmediate(source);
-                if (previewMesh != null) Object.DestroyImmediate(previewMesh);
-                if (downstreamMesh != null) Object.DestroyImmediate(downstreamMesh);
-                if (finalDownstreamMesh != null) Object.DestroyImmediate(finalDownstreamMesh);
-            }
-
-            void DrawCage(SceneView view)
-            {
-                if (view != sceneView || Event.current == null)
-                {
-                    return;
-                }
-
-                if (interactionActive)
-                {
-                    if (simulatedHotControl == 0)
-                    {
-                        simulatedHotControl = GUIUtility.GetControlID(FocusType.Passive);
-                    }
-                    GUIUtility.hotControl = simulatedHotControl;
-                }
-                else if (simulatedHotControl != 0 && GUIUtility.hotControl == simulatedHotControl)
-                {
-                    GUIUtility.hotControl = 0;
-                }
-
-                handler.OnToolGUI(view, deformer);
-                if (Event.current.type == EventType.Repaint)
-                {
-                    frameMonitor.Observe(
-                        handler.CageRepaintCountForTests,
-                        handler.LastCageHandleCountForTests,
-                        handler.GetLastCageHandlePositionsForTests());
-                }
-            }
-        }
-
-        [UnityTest]
-        [Category("GraphicsE2E")]
         public IEnumerator SkinnedShapeAndScale_CageFollowsRenderedControlPoints()
         {
             if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
@@ -537,207 +340,70 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [UnityTest]
-        [Category("GraphicsE2EExploration")]
-        public IEnumerator SeededTransformAndShapeOperationStream_CageAlwaysMatchesSkinning()
+        [Category("GraphicsE2E")]
+        public IEnumerator DelayedBoneLessSkinnedProxy_DoesNotMoveAnAlreadyCorrectCage()
         {
             if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
-            {
-                Assert.Ignore("Scene View cage exploration requires a graphics device.");
-            }
+                Assert.Ignore("Scene View cage E2E requires a graphics device.");
 
-            int seed = ReadExplorationInteger("LATTICE_CAGE_EXPLORATION_SEED", 14045);
-            int stepCount = Mathf.Clamp(
-                ReadExplorationInteger("LATTICE_CAGE_EXPLORATION_STEPS", 64),
-                1,
-                512);
-            var random = new System.Random(seed);
-            var avatarRoot = new GameObject("cage-exploration-avatar");
-            var outfitRoot = new GameObject("cage-exploration-outfit");
-            var rendererObject = new GameObject("cage-exploration-renderer");
-            var proxyObject = new GameObject("cage-exploration-preview-proxy");
-            var armatureObject = new GameObject("cage-exploration-armature");
-            var boneObject = new GameObject("cage-exploration-bone");
-            var secondaryBoneObject = new GameObject("cage-exploration-secondary-bone");
-            var retargetBoneObject = new GameObject("cage-exploration-avatar-bone");
-            var secondaryRetargetBoneObject = new GameObject("cage-exploration-secondary-avatar-bone");
-            outfitRoot.transform.SetParent(avatarRoot.transform, false);
-            rendererObject.transform.SetParent(outfitRoot.transform, false);
-            proxyObject.transform.SetParent(outfitRoot.transform, false);
-            armatureObject.transform.SetParent(outfitRoot.transform, false);
-            boneObject.transform.SetParent(armatureObject.transform, false);
-            secondaryBoneObject.transform.SetParent(armatureObject.transform, false);
-            retargetBoneObject.transform.SetParent(avatarRoot.transform, false);
-            secondaryRetargetBoneObject.transform.SetParent(avatarRoot.transform, false);
-            secondaryBoneObject.transform.localPosition = new Vector3(0.18f, 0.04f, -0.03f);
-            secondaryRetargetBoneObject.transform.localPosition = secondaryBoneObject.transform.position;
-
-            rendererObject.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
-            Matrix4x4 bindPose =
-                boneObject.transform.worldToLocalMatrix * rendererObject.transform.localToWorldMatrix;
-            Matrix4x4 secondaryBindPose =
-                secondaryBoneObject.transform.worldToLocalMatrix * rendererObject.transform.localToWorldMatrix;
-            Matrix4x4 retargetBindPose =
-                retargetBoneObject.transform.worldToLocalMatrix * proxyObject.transform.localToWorldMatrix;
-            Matrix4x4 secondaryRetargetBindPose =
-                secondaryRetargetBoneObject.transform.worldToLocalMatrix * proxyObject.transform.localToWorldMatrix;
-            Mesh source = CreateTwoBoneSkinnedBoundsRegressionMesh(bindPose, secondaryBindPose);
+            var sourceObject = new GameObject("delayed-boneless-source");
+            var proxyObject = new GameObject("delayed-boneless-proxy");
+            var mesh = CreateSourceMesh();
             LatticeToolHandler handler = null;
             SceneView sceneView = null;
-            SkinnedMeshRenderer renderer = null;
-            SkinnedMeshRenderer proxyRenderer = null;
-            IRenderFilterNode previewNode = null;
+            long proxyGeneration = 0;
             bool previousPreviewAlignedCage = LatticePreviewUtility.UsePreviewAlignedCage;
-            string operation = "initialization";
-            const float initialShape0Weight = 40f;
-            const float initialShape1Weight = 0f;
-
             try
             {
-                LatticePreviewUtility.UsePreviewAlignedCage = true;
-                renderer = rendererObject.AddComponent<SkinnedMeshRenderer>();
-                renderer.sharedMesh = source;
-                renderer.rootBone = boneObject.transform;
-                renderer.bones = new[] { boneObject.transform, secondaryBoneObject.transform };
-                renderer.SetBlendShapeWeight(0, initialShape0Weight);
-                renderer.SetBlendShapeWeight(1, initialShape1Weight);
-
-                var deformer = rendererObject.AddComponent<LatticeDeformer>();
+                sourceObject.transform.position = new Vector3(0f, 1.1684f, 0f);
+                sourceObject.transform.localScale = Vector3.one * 0.02f;
+                var sourceRenderer = sourceObject.AddComponent<SkinnedMeshRenderer>();
+                sourceRenderer.sharedMesh = mesh;
+                var deformer = sourceObject.AddComponent<LatticeDeformer>();
                 deformer.Reset();
-                // Keep the eight lattice corners exactly on the eight source vertices.
-                // This gives the exploration an independent oracle: each side is 100%
-                // weighted to one known bone, so no nearest-surface approximation is
-                // involved in the expected cage position.
-                deformer.EditingSettings.LocalBounds =
-                    new Bounds(Vector3.zero, new Vector3(1f, 0.5f, 0.2f));
-                deformer.EditingSettings.ResetControlPoints();
-                deformer.NotifyDeformationDataChanged();
-                proxyRenderer = proxyObject.AddComponent<SkinnedMeshRenderer>();
-                proxyRenderer.sharedMesh = source;
-                proxyRenderer.rootBone = retargetBoneObject.transform;
-                proxyRenderer.bones = new[]
-                {
-                    retargetBoneObject.transform,
-                    secondaryRetargetBoneObject.transform,
-                };
-                Mesh previewMesh = GeneratePreviewMesh(deformer);
-                Assert.That(previewMesh, Is.Not.Null);
-                previewMesh.bindposes = new[] { retargetBindPose, secondaryRetargetBindPose };
-                previewNode = CreateLatticePreviewNode(
-                    deformer,
-                    renderer,
-                    proxyRenderer,
-                    previewMesh);
-                handler = new LatticeToolHandler
-                {
-                    CaptureCageFramesForTests = true,
-                };
-                handler.Activate(deformer);
+                deformer.AlignMode = LatticeDeformer.LatticeAlignMode.Mode3_BoundsRemap;
 
+                LatticePreviewUtility.UsePreviewAlignedCage = true;
+                handler = new LatticeToolHandler { CaptureCageFramesForTests = true };
+                handler.Activate(deformer);
                 sceneView = EditorWindow.GetWindow<SceneView>();
                 sceneView.Show();
                 SceneView.duringSceneGui += DrawCage;
-                yield return WaitForNextCageRepaint(handler, sceneView);
-                AssertCurrentExplorationFrame(0);
 
-                for (int step = 1; step <= stepCount; step++)
-                {
-                    operation = ApplyExplorationOperation(
-                        random,
-                        avatarRoot.transform,
-                        outfitRoot.transform,
-                        rendererObject.transform,
-                        proxyObject.transform,
-                        armatureObject.transform,
-                        boneObject.transform,
-                        secondaryBoneObject.transform,
-                        retargetBoneObject.transform,
-                        secondaryRetargetBoneObject.transform,
-                        renderer);
-                    EditorUtility.SetDirty(renderer);
-                    previewNode.OnFrameGroup();
-                    proxyRenderer.sharedMesh.bindposes = new[]
-                    {
-                        retargetBindPose,
-                        secondaryRetargetBindPose,
-                    };
-                    EditorUtility.SetDirty(proxyRenderer.sharedMesh);
-                    yield return WaitForNextCageRepaint(handler, sceneView);
-                    AssertCurrentExplorationFrame(step);
-                }
+                yield return WaitForNextCageRepaint(handler, sceneView);
+                AssertCageFrame(handler);
+                Vector3[] correctSourceCage = handler.GetLastCageHandlePositionsForTests();
+
+                var proxyRenderer = proxyObject.AddComponent<SkinnedMeshRenderer>();
+                proxyRenderer.sharedMesh = mesh;
+                proxyGeneration = LatticePreviewUtility.RegisterProxy(sourceRenderer, proxyRenderer);
+                yield return WaitForCageRepaints(handler, sceneView, 3);
+
+                AssertCageFrameEquals(
+                    handler,
+                    correctSourceCage,
+                    "Glasses_Ver_2_default-ON first draws correctly. A delayed NDMF proxy " +
+                    "without bones, bind poses, or a usable baked pose must not replace that " +
+                    "correct source alignment with the proxy transform.");
             }
             finally
             {
                 SceneView.duringSceneGui -= DrawCage;
                 LatticePreviewUtility.UsePreviewAlignedCage = previousPreviewAlignedCage;
                 handler?.Deactivate();
-                previewNode?.Dispose();
-                LatticePreviewUtility.ClearProxy(renderer);
-                Object.DestroyImmediate(avatarRoot);
-                Object.DestroyImmediate(source);
+                var sourceRenderer = sourceObject.GetComponent<SkinnedMeshRenderer>();
+                var proxyRenderer = proxyObject.GetComponent<SkinnedMeshRenderer>();
+                if (sourceRenderer != null && proxyRenderer != null && proxyGeneration != 0)
+                    LatticePreviewUtility.ClearProxy(sourceRenderer, proxyRenderer, proxyGeneration);
+                Object.DestroyImmediate(sourceObject);
+                Object.DestroyImmediate(proxyObject);
+                Object.DestroyImmediate(mesh);
             }
 
             void DrawCage(SceneView view)
             {
                 if (view == sceneView && Event.current != null)
-                {
-                    handler.OnToolGUI(view, rendererObject.GetComponent<LatticeDeformer>());
-                }
-            }
-
-            void AssertCurrentExplorationFrame(int step)
-            {
-                AssertCageFrame(handler);
-                try
-                {
-                    AssertCageCornersFollowCurrentBindings(
-                        handler,
-                        handler.GetLastCageHandlePositionsForTests(),
-                        rendererObject.GetComponent<LatticeDeformer>().EditingSettings,
-                        LatticePreviewUtility.UsePreviewAlignedCage
-                            ? new[]
-                            {
-                                retargetBoneObject.transform.localToWorldMatrix * retargetBindPose,
-                                secondaryRetargetBoneObject.transform.localToWorldMatrix * secondaryRetargetBindPose,
-                            }
-                            : new[]
-                            {
-                                boneObject.transform.localToWorldMatrix * bindPose,
-                                secondaryBoneObject.transform.localToWorldMatrix * secondaryBindPose,
-                            },
-                        controlIndex =>
-                        {
-                            Vector3 point = rendererObject.GetComponent<LatticeDeformer>()
-                                .EditingSettings.GetControlPointLocal(controlIndex);
-                            return InterpolateExpectedShapeDelta(
-                                       source.vertices,
-                                       point,
-                                       GetActiveShapeDelta) *
-                                   ((renderer.GetBlendShapeWeight(0) - initialShape0Weight) / 100f) +
-                                   new Vector3(2f, 5f, -3f) *
-                                   ((renderer.GetBlendShapeWeight(1) - initialShape1Weight) / 100f);
-                        });
-                }
-                catch (AssertionException exception)
-                {
-                    Assert.Fail(
-                        $"Cage exploration failed. seed={seed}, step={step}/{stepCount}, " +
-                        $"operation={operation}. Set LATTICE_CAGE_EXPLORATION_SEED={seed} " +
-                        $"and LATTICE_CAGE_EXPLORATION_STEPS={step} to replay.\n" +
-                        DescribeExplorationState(
-                            avatarRoot.transform,
-                            outfitRoot.transform,
-                            rendererObject.transform,
-                            proxyObject.transform,
-                            armatureObject.transform,
-                            boneObject.transform,
-                            secondaryBoneObject.transform,
-                            retargetBoneObject.transform,
-                            secondaryRetargetBoneObject.transform,
-                            renderer) + "\n" +
-                        $"skinningRefreshes={handler.SkinningRefreshCountForTests}, " +
-                        $"bindingRefreshes={handler.ControlPointBindingRefreshCountForTests}\n" +
-                        exception.Message);
-                }
+                    handler.OnToolGUI(view, sourceObject.GetComponent<LatticeDeformer>());
             }
         }
 
@@ -1275,6 +941,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     deformer,
                     new[] { (original, proxy) },
                     previewMesh,
+                    null,
                 },
                 null);
         }

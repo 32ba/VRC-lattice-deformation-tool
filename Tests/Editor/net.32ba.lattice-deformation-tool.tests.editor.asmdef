@@ -13,6 +13,10 @@
   "optionalUnityReferences": [
     "TestAssemblies"
   ],
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "System.Collections.Immutable.dll"
+  ],
   "versionDefines": [
     {
       "name": "nadena.dev.modular-avatar",

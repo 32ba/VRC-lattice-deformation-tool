@@ -2594,6 +2594,198 @@ namespace Net._32Ba.LatticeDeformationTool
             return mesh;
         }
 
+#if UNITY_EDITOR
+        /// <summary>
+        /// Evaluates the authored deformation against the mesh supplied by the
+        /// current NDMF preview stage. The input mesh is read-only and the returned
+        /// mesh is owned by the caller.
+        /// </summary>
+        public Mesh CreatePreviewMeshFromInput(Mesh inputMesh)
+        {
+            if (!EnsureLayerModelReady() || inputMesh == null || !inputMesh.isReadable ||
+                _sourceMesh == null)
+                return null;
+            bool sourceTopologyMatches = inputMesh.vertexCount == _sourceMesh.vertexCount;
+            if (!sourceTopologyMatches && !CanPreviewAfterTopologyChanges())
+                return null;
+            if (sourceTopologyMatches && !EnsureAllBrushLayerDisplacementCapacity(inputMesh.vertexCount))
+                return null;
+
+            int vertexCount = inputMesh.vertexCount;
+            EnsureManagedDeformationBuffers(vertexCount);
+            var inputVertices = inputMesh.vertices;
+            var outputVertices = new Vector3[vertexCount];
+            var generated = new List<GeneratedBlendShape>();
+            EvaluatePreviewLayerStack(inputVertices, outputVertices, generated);
+
+            var output = Instantiate(inputMesh);
+            output.name = inputMesh.name + " (Lattice Preview)";
+            output.vertices = outputVertices;
+            output.ClearBlendShapes();
+
+            var deltaVertices = new Vector3[vertexCount];
+            var deltaNormals = new Vector3[vertexCount];
+            var deltaTangents = new Vector3[vertexCount];
+            var combined = new Vector3[vertexCount];
+            var deformedCombined = new Vector3[vertexCount];
+            var outputDelta = new Vector3[vertexCount];
+            for (int shape = 0; shape < inputMesh.blendShapeCount; shape++)
+            {
+                string shapeName = inputMesh.GetBlendShapeName(shape);
+                int frameCount = inputMesh.GetBlendShapeFrameCount(shape);
+                for (int frame = 0; frame < frameCount; frame++)
+                {
+                    inputMesh.GetBlendShapeFrameVertices(
+                        shape, frame, deltaVertices, deltaNormals, deltaTangents);
+                    for (int vertex = 0; vertex < vertexCount; vertex++)
+                        combined[vertex] = inputVertices[vertex] + deltaVertices[vertex];
+
+                    generated.Clear();
+                    EvaluatePreviewLayerStack(combined, deformedCombined, generated);
+                    for (int vertex = 0; vertex < vertexCount; vertex++)
+                        outputDelta[vertex] = deformedCombined[vertex] - outputVertices[vertex];
+
+                    output.AddBlendShapeFrame(
+                        shapeName,
+                        inputMesh.GetBlendShapeFrameWeight(shape, frame),
+                        outputDelta,
+                        deltaNormals,
+                        deltaTangents);
+                }
+            }
+
+            generated.Clear();
+            EvaluatePreviewLayerStack(inputVertices, outputVertices, generated);
+            var usedNames = CollectBlendShapeNames(output);
+            foreach (var generatedShape in generated)
+            {
+                string name = MakeUniqueBlendShapeName(generatedShape.Name, usedNames);
+                AddGeneratedBlendShapeFrames(output, name, outputVertices, generatedShape);
+            }
+
+            if (_recalculateNormals) output.RecalculateNormals();
+            if (_recalculateTangents) output.RecalculateTangents();
+            if (_recalculateBounds) output.RecalculateBounds();
+            else output.bounds = inputMesh.bounds;
+            output.UploadMeshData(false);
+            return output;
+        }
+
+        /// <summary>
+        /// True when every contribution that can affect the current preview is a
+        /// spatial lattice field. Such a stack can be evaluated after topology-
+        /// changing NDMF filters without relying on source vertex indices.
+        /// </summary>
+        internal bool CanPreviewAfterTopologyChanges()
+        {
+            if (!EnsureLayerModelReady()) return false;
+            foreach (var group in GetGroupStorage())
+            {
+                if (group == null || !group.Enabled) continue;
+                foreach (var layer in group.LayersList)
+                {
+                    if (layer == null || !layer.Enabled || layer.Weight <= 0f) continue;
+                    if (layer.Type == MeshDeformerLayerType.Brush) return false;
+                }
+            }
+
+            return true;
+        }
+
+        private void EvaluatePreviewLayerStack(
+            Vector3[] sourceVertices,
+            Vector3[] finalVertices,
+            List<GeneratedBlendShape> generatedBlendShapes)
+        {
+            int vertexCount = sourceVertices.Length;
+            var directDeltas = new Vector3[vertexCount];
+            var groups = GetGroupStorage();
+
+            for (int groupIndex = 0; groupIndex < groups.Count; groupIndex++)
+            {
+                var group = groups[groupIndex];
+                if (group == null || !group.Enabled) continue;
+                var groupVertices = (Vector3[])sourceVertices.Clone();
+                var layers = group.LayersList;
+                bool staged = group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape &&
+                              group.BlendShapeComposition != BlendShapeCompositionMode.Single;
+                var candidates = staged ? new List<Vector3[]>() : null;
+                var candidateWeights = staged ? new List<float>() : null;
+                bool preserveWeights = staged;
+
+                for (int layerIndex = 0; layerIndex < layers.Count; layerIndex++)
+                {
+                    var layer = layers[layerIndex];
+                    if (layer == null || !layer.Enabled || layer.Weight <= 0f) continue;
+
+                    if (!_legacyPublishedBlendShapeSemantics &&
+                        layer.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
+                    {
+                        var layerVertices = (Vector3[])sourceVertices.Clone();
+                        TryApplyLayerContribution(layer, sourceVertices, layerVertices);
+                        if (TryBuildDeltas(sourceVertices, layerVertices, out var layerDeltas))
+                            generatedBlendShapes.Add(new GeneratedBlendShape(
+                                layer.EffectiveBlendShapeName, layer.BlendShapeCurve, layerDeltas));
+                        continue;
+                    }
+
+                    if (staged)
+                    {
+                        var layerVertices = (Vector3[])sourceVertices.Clone();
+                        TryApplyLayerContribution(layer, sourceVertices, layerVertices);
+                        if (TryBuildDeltas(
+                                sourceVertices, layerVertices, out var stageDeltas,
+                                !layer.HasImportedBlendShapeFrameWeight))
+                        {
+                            candidates.Add(stageDeltas);
+                            if (layer.HasImportedBlendShapeFrameWeight)
+                                candidateWeights.Add(layer.ImportedBlendShapeFrameWeight);
+                            else
+                                preserveWeights = false;
+                        }
+                    }
+                    else
+                    {
+                        TryApplyLayerContribution(layer, sourceVertices, groupVertices);
+                    }
+                }
+
+                if (group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
+                {
+                    if (staged && candidates.Count > 0)
+                    {
+                        float[] weights = group.BlendShapeComposition == BlendShapeCompositionMode.Crossfade &&
+                                          preserveWeights && HaveStrictlyIncreasingWeights(candidateWeights)
+                            ? candidateWeights.ToArray()
+                            : null;
+                        generatedBlendShapes.Add(new GeneratedBlendShape(
+                            group.EffectiveBlendShapeName(gameObject.name),
+                            group.BlendShapeCurve,
+                            group.BlendShapeComposition,
+                            candidates.ToArray(),
+                            weights));
+                    }
+                    else if (!staged && TryBuildDeltas(
+                                 sourceVertices, groupVertices, out var groupDeltas))
+                    {
+                        generatedBlendShapes.Add(new GeneratedBlendShape(
+                            group.EffectiveBlendShapeName(gameObject.name),
+                            group.BlendShapeCurve,
+                            groupDeltas));
+                    }
+                }
+                else
+                {
+                    for (int vertex = 0; vertex < vertexCount; vertex++)
+                        directDeltas[vertex] += groupVertices[vertex] - sourceVertices[vertex];
+                }
+            }
+
+            for (int vertex = 0; vertex < vertexCount; vertex++)
+                finalVertices[vertex] = sourceVertices[vertex] + directDeltas[vertex];
+        }
+#endif
+
         private void RestoreSourceNormals(Mesh mesh)
         {
             if (mesh == null || _sourceMesh == null)
@@ -5651,7 +5843,11 @@ namespace Net._32Ba.LatticeDeformationTool
 
             int restVerticesHash = HashVertices(restVertices);
             LatticeInterpolationMode effectiveInterpolation = GetEffectiveInterpolation(settings);
-            if (_cache.IsCompatibleWith(settings, mesh, restVerticesHash, effectiveInterpolation))
+            if (_cache.IsCompatibleWith(
+                    settings,
+                    restVertices.Length,
+                    restVerticesHash,
+                    effectiveInterpolation))
             {
                 return true;
             }
@@ -5700,7 +5896,7 @@ namespace Net._32Ba.LatticeDeformationTool
                     return false;
                 }
 
-                int vertexCount = mesh.vertexCount;
+                int vertexCount = restVertices.Length;
                 if (vertexCount <= 0)
                 {
                     _cache.Clear();
@@ -6146,12 +6342,30 @@ namespace Net._32Ba.LatticeDeformationTool
                 return false;
             }
 
+            return IsCompatibleWith(
+                asset,
+                mesh.vertexCount,
+                restVerticesHash,
+                effectiveInterpolation);
+        }
+
+        public bool IsCompatibleWith(
+            LatticeAsset asset,
+            int vertexCount,
+            int restVerticesHash,
+            LatticeInterpolationMode effectiveInterpolation)
+        {
+            if (asset == null || vertexCount < 0)
+            {
+                return false;
+            }
+
             if (_entries == null || _entries.Length == 0)
             {
                 return false;
             }
 
-            if (_vertexCount != mesh.vertexCount)
+            if (_vertexCount != vertexCount)
             {
                 return false;
             }
@@ -6172,7 +6386,7 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             if (_interpolation == LatticeInterpolationMode.CubicBernstein &&
-                !HasValidBernsteinWeights(mesh.vertexCount))
+                !HasValidBernsteinWeights(vertexCount))
             {
                 return false;
             }

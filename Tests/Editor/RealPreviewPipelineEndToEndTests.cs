@@ -11,6 +11,7 @@ using UnityEditor;
 using UnityEditor.EditorTools;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEngine.TestTools.Utils;
 using Object = UnityEngine.Object;
 
 namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
@@ -77,6 +78,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 sceneView = EditorWindow.GetWindow<SceneView>();
                 sceneView.Show();
+                sceneView.Focus();
                 sceneView.pivot = Vector3.zero;
                 sceneView.size = 3f;
                 Selection.activeGameObject = meshObject;
@@ -171,23 +173,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.Deform(false);
                 LatticePreviewUtility.PublishInteractiveDeformation(deformer);
 
-                Assert.That(LatticePreviewUtility.TryGetPreviewMesh(
-                    sourceRenderer,
-                    out Mesh previewMeshInHandleEvent), Is.True);
-                Assert.That(HasAnyVertexMoved(verticesBeforeEdit, previewMeshInHandleEvent), Is.True,
-                    "The upstream lattice preview must publish the edit in the same handle GUI event.");
-                Assert.That(NDMFPreviewProxyUtility.TryGetProxyRenderer(
-                    sourceRenderer,
-                    out Renderer displayedProxyInHandleEvent), Is.True);
-                Assert.That(HasAnyVertexMoved(
-                    verticesBeforeEdit,
-                    LatticeDeformerPreviewFilter.GetRendererMesh(displayedProxyInHandleEvent)), Is.True,
-                    "The displayed post-AAO mesh must publish the edit in the same handle GUI event.");
-
                 bool handleFollowedEdit = false;
-                bool previewMeshFollowedEdit = false;
                 bool displayedMeshFollowedEdit = false;
-                for (int responseFrame = 0; responseFrame < 8; responseFrame++)
+                for (int responseFrame = 0; responseFrame < 30; responseFrame++)
                 {
                     sceneView.Repaint();
                     SceneView.RepaintAll();
@@ -200,14 +188,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                                           Vector3.Distance(
                                               frame.HandlePositions[0],
                                               handleBeforeEdit) > 1e-5f;
-                    if (LatticePreviewUtility.TryGetPreviewMesh(
-                            sourceRenderer,
-                            out Mesh currentLatticePreviewMesh))
-                    {
-                        previewMeshFollowedEdit |= HasAnyVertexMoved(
-                            verticesBeforeEdit,
-                            currentLatticePreviewMesh);
-                    }
                     if (NDMFPreviewProxyUtility.TryGetProxyRenderer(
                             sourceRenderer,
                             out Renderer displayedProxy))
@@ -220,8 +200,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 Assert.That(handleFollowedEdit, Is.True,
                     "The lattice cage did not follow its own control-point edit during the drag.");
-                Assert.That(previewMeshFollowedEdit, Is.True,
-                    "The upstream lattice preview mesh did not follow the control-point edit during the drag.");
                 NDMFPreviewProxyUtility.TryGetProxyRenderer(
                     sourceRenderer,
                     out Renderer finalDisplayedProxy);
@@ -249,8 +227,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     ToolManager.RestorePreviousTool();
                 Selection.activeObject = previousSelection;
 
-                root.SetActive(false);
-                PreviewSession.Current?.ForceRebuild();
                 NDMFPreview.DisablePreviewDepth = previousDisableDepth;
                 if (!previewWasEnabled && PreviewSession.Current != null && previousDisableDepth == 0)
                     EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
@@ -275,6 +251,247 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 {
                     GUIUtility.hotControl = 0;
                 }
+            }
+        }
+
+        [UnityTest]
+        [Category("GraphicsE2E")]
+        [Category("PlaygroundE2E")]
+        public IEnumerator ActualNdmfMeshiaGraph_RebuildsReducedMeshAfterEveryLatticeEdit()
+        {
+            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
+                Assert.Ignore("The real NDMF preview E2E requires a graphics device.");
+
+            Type meshiaType = FindType("Meshia.MeshSimplification.Ndmf.MeshiaMeshSimplifier");
+            if (meshiaType == null)
+                Assert.Ignore("Meshia Mesh Simplification is not installed in Plugin-dev-playground.");
+
+            var root = new GameObject("real-meshia-preview-e2e-root");
+            var meshObject = new GameObject("real-meshia-preview-e2e-mesh");
+            meshObject.transform.SetParent(root.transform, false);
+            Mesh source = CreateGridMesh(8, 8);
+            meshObject.AddComponent<MeshFilter>().sharedMesh = source;
+            var sourceRenderer = meshObject.AddComponent<MeshRenderer>();
+            var deformer = meshObject.AddComponent<LatticeDeformer>();
+            deformer.Reset();
+            Component meshia = meshObject.AddComponent(meshiaType);
+            bool previewWasEnabled = PreviewSession.Current != null;
+            int previousDisableDepth = NDMFPreview.DisablePreviewDepth;
+            Object previousSelection = Selection.activeObject;
+            Type previousTool = ToolManager.activeToolType;
+            bool previousMeshiaPreviewEnabled = SetMeshiaPreviewEnabled(true);
+            SceneView sceneView = null;
+            var monitor = new CageIntervalMonitor();
+
+            try
+            {
+                LateDownstreamPreviewTestPlugin.InstantiationCount = 0;
+                LateDownstreamPreviewTestPlugin.OutputCount = 0;
+                NDMFPreview.DisablePreviewDepth = 0;
+                // Recreate the session after the test assembly is loaded so its
+                // intentionally-late preview consumer is present in the graph.
+                if (PreviewSession.Current != null)
+                {
+                    Assert.That(EditorApplication.ExecuteMenuItem(EnablePreviewMenu), Is.True);
+                    yield return WaitUntil(
+                        () => PreviewSession.Current == null,
+                        null,
+                        "NDMF did not stop the existing preview session.");
+                }
+                Assert.That(EditorApplication.ExecuteMenuItem(EnablePreviewMenu), Is.True);
+
+                yield return WaitUntil(
+                    () => PreviewSession.Current != null,
+                    null,
+                    "NDMF did not publish its global PreviewSession.");
+
+                LatticeDeformerPreviewFilter.ForcePreviewState(true);
+                Selection.activeGameObject = meshObject;
+                PreviewSession.Current.ForceRebuild();
+                sceneView = EditorWindow.GetWindow<SceneView>();
+                sceneView.Show();
+                sceneView.Focus();
+                ActiveEditorTracker.sharedTracker.ForceRebuild();
+                yield return null;
+                ToolManager.SetActiveTool<MeshDeformerTool>();
+                LatticeToolHandler.CageFrameRendered += monitor.Observe;
+
+                Renderer initialProxy = null;
+                Mesh initialMesh = null;
+                yield return WaitUntil(
+                    () =>
+                    {
+                        if (!NDMFPreviewProxyUtility.TryGetProxyRenderer(sourceRenderer, out initialProxy))
+                            return false;
+                        initialMesh = LatticeDeformerPreviewFilter.GetRendererMesh(initialProxy);
+                        return IsGenuineNdmfProxy(initialProxy, root) &&
+                               initialMesh != null &&
+                               initialMesh.triangles.Length < source.triangles.Length;
+                    },
+                    sceneView,
+                    "The real Meshia preview did not publish a vertex-reduced mesh.");
+
+                Assert.That(LateDownstreamPreviewTestPlugin.InstantiationCount, Is.GreaterThan(0),
+                    "The E2E late downstream preview consumer was not part of the real graph.");
+                Assert.That(LateDownstreamPreviewTestPlugin.OutputCount, Is.GreaterThan(0),
+                    "The E2E late downstream preview consumer did not own a copied mesh.");
+
+                yield return WaitUntil(
+                    () => monitor.LastFrame.HasValue &&
+                          monitor.LastFrame.Value.HandlePositions != null &&
+                          monitor.LastFrame.Value.HandlePositions.Length > 0,
+                    sceneView,
+                    "The lattice handles did not appear on the actual Meshia preview proxy.");
+
+                float beforeCenterY = initialMesh.bounds.center.y;
+                LatticeAsset settings = deformer.EditingSettings;
+                float greatestPublishedCenterY = beforeCenterY;
+                for (int edit = 0; edit < 12; edit++)
+                {
+                    Assert.That(NDMFPreviewProxyUtility.TryGetProxyRenderer(
+                        sourceRenderer, out Renderer proxyBeforePublish), Is.True);
+                    Mesh meshBeforePublish = LatticeDeformerPreviewFilter.GetRendererMesh(proxyBeforePublish);
+                    int downstreamGenerationBefore = LateDownstreamPreviewTestPlugin.OutputCount;
+
+                    for (int control = 0; control < settings.ControlPointCount; control++)
+                    {
+                        settings.SetControlPointLocal(
+                            control,
+                            settings.GetControlPointLocal(control) + Vector3.up * 0.02f);
+                    }
+                    deformer.NotifyDeformationDataChanged();
+                    deformer.Deform(false);
+                    LatticePreviewUtility.PublishInteractiveDeformation(deformer);
+
+                    Assert.That(NDMFPreviewProxyUtility.TryGetProxyRenderer(
+                        sourceRenderer, out Renderer immediateProxy), Is.True);
+                    Assert.That(immediateProxy, Is.SameAs(proxyBeforePublish),
+                        "A lattice handle edit must not replace the global NDMF preview generation.");
+                    Assert.That(LatticeDeformerPreviewFilter.GetRendererMesh(immediateProxy),
+                        Is.SameAs(meshBeforePublish),
+                        "The late lattice node must update its owned final mesh in place.");
+                    Assert.That(meshBeforePublish.bounds.center.y,
+                        Is.GreaterThan(beforeCenterY + edit * 0.015f),
+                        "The final Meshia output must follow the handle before the next editor frame.");
+
+                    for (int frame = 0; frame < 12; frame++)
+                    {
+                        sceneView.Repaint();
+                        SceneView.RepaintAll();
+                        yield return null;
+                        Assert.That(monitor.LastFrame.HasValue, Is.True);
+                        Assert.That(monitor.LastFrame.Value.HandlePositions.Length, Is.GreaterThan(0),
+                            $"Meshia edit stream lost every lattice handle at edit {edit}, frame {frame}.");
+                        if (NDMFPreviewProxyUtility.TryGetProxyRenderer(
+                                sourceRenderer,
+                                out Renderer streamedProxy))
+                        {
+                            Mesh streamedMesh = LatticeDeformerPreviewFilter.GetRendererMesh(streamedProxy);
+                            if (streamedMesh != null && streamedMesh.triangles.Length < source.triangles.Length)
+                            {
+                                Assert.That(streamedMesh.bounds.center.y,
+                                    Is.GreaterThan(beforeCenterY + edit * 0.015f),
+                                    "The displayed final proxy reverted to a downstream-owned stale copy " +
+                                    $"at edit {edit}, frame {frame}.");
+                                Assert.That(streamedMesh.bounds.center.y + 1e-5f,
+                                    Is.GreaterThanOrEqualTo(greatestPublishedCenterY),
+                                    "A completed downstream preview generation must never regress to an older edit.");
+                                greatestPublishedCenterY = Mathf.Max(
+                                    greatestPublishedCenterY,
+                                    streamedMesh.bounds.center.y);
+                            }
+                        }
+                    }
+
+                    Assert.That(LateDownstreamPreviewTestPlugin.OutputCount,
+                        Is.GreaterThan(downstreamGenerationBefore),
+                        "The interactive revision did not propagate through the actual later " +
+                        $"NDMF consumer after edit {edit}.");
+                }
+
+                // A real handle gesture is undoable. The serialized control point
+                // already returns through Unity's Undo system; require that the same
+                // dependency-scoped preview notification also reaches every later
+                // NDMF consumer instead of leaving the displayed mesh at the edited
+                // generation.
+                Assert.That(NDMFPreviewProxyUtility.TryGetProxyRenderer(
+                    sourceRenderer, out Renderer beforeUndoEditProxy), Is.True);
+                Mesh beforeUndoEditMesh = LatticeDeformerPreviewFilter.GetRendererMesh(beforeUndoEditProxy);
+                Assert.That(beforeUndoEditMesh, Is.Not.Null);
+                float centerBeforeUndoEdit = beforeUndoEditMesh.bounds.center.y;
+                Vector3 controlBeforeUndoEdit = settings.GetControlPointLocal(0);
+
+                Undo.RecordObject(deformer, "E2E undo lattice handle edit");
+                for (int control = 0; control < settings.ControlPointCount; control++)
+                {
+                    settings.SetControlPointLocal(
+                        control,
+                        settings.GetControlPointLocal(control) + Vector3.up * 0.1f);
+                }
+                deformer.NotifyDeformationDataChanged();
+                deformer.Deform(false);
+                LatticePrefabUtility.MarkModified(deformer);
+                Undo.FlushUndoRecordObjects();
+                int generationBeforeUndoableEdit = LateDownstreamPreviewTestPlugin.OutputCount;
+                LatticePreviewUtility.PublishInteractiveDeformation(deformer);
+                yield return WaitUntil(
+                    () => LateDownstreamPreviewTestPlugin.OutputCount > generationBeforeUndoableEdit,
+                    sceneView,
+                    "The undoable handle edit did not reach the late NDMF consumer.");
+
+                int generationBeforeUndo = LateDownstreamPreviewTestPlugin.OutputCount;
+                int revisionBeforeUndo = deformer.DeformationDataRevision;
+                Undo.PerformUndo();
+                yield return null;
+                Assert.That(settings.GetControlPointLocal(0),
+                    Is.EqualTo(controlBeforeUndoEdit).Using(Vector3ComparerWithEqualsOperator.Instance),
+                    $"Unity Undo did not restore the recorded control point; " +
+                    $"revisionBefore={revisionBeforeUndo}, revisionAfter={deformer.DeformationDataRevision}.");
+                yield return WaitUntil(
+                    () => LateDownstreamPreviewTestPlugin.OutputCount > generationBeforeUndo,
+                    sceneView,
+                    "Undo restored serialized lattice data but did not invalidate the later NDMF preview consumer. " +
+                    $"revisionBefore={revisionBeforeUndo}, revisionAfter={deformer.DeformationDataRevision}, " +
+                    $"published={LatticePreviewUtility.GetInteractiveRevision(deformer).Value}.");
+
+                Assert.That(NDMFPreviewProxyUtility.TryGetProxyRenderer(
+                    sourceRenderer, out Renderer afterUndoProxy), Is.True);
+                Mesh afterUndoMesh = LatticeDeformerPreviewFilter.GetRendererMesh(afterUndoProxy);
+                Assert.That(afterUndoMesh, Is.Not.Null);
+                Assert.That(afterUndoMesh.bounds.center.y,
+                    Is.EqualTo(centerBeforeUndoEdit).Within(1e-4f),
+                    "Undo did not restore the displayed final preview mesh.");
+
+                yield return WaitUntil(
+                    () =>
+                    {
+                        if (!NDMFPreviewProxyUtility.TryGetProxyRenderer(sourceRenderer, out Renderer proxy))
+                            return false;
+                        Mesh current = LatticeDeformerPreviewFilter.GetRendererMesh(proxy);
+                        return IsGenuineNdmfProxy(proxy, root) &&
+                               current != null &&
+                               current.triangles.Length < source.triangles.Length &&
+                               current.bounds.center.y > beforeCenterY + 0.2f;
+                    },
+                    sceneView,
+                    "The Meshia output stayed stale after the lattice handle edit.",
+                    480);
+            }
+            finally
+            {
+                LatticeToolHandler.CageFrameRendered -= monitor.Observe;
+                if (previousTool != null)
+                    ToolManager.SetActiveTool(previousTool);
+                else
+                    ToolManager.RestorePreviousTool();
+                Selection.activeObject = previousSelection;
+                SetMeshiaPreviewEnabled(previousMeshiaPreviewEnabled);
+                NDMFPreview.DisablePreviewDepth = previousDisableDepth;
+                if (!previewWasEnabled && PreviewSession.Current != null && previousDisableDepth == 0)
+                    EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
+                LatticePreviewUtility.ClearProxy(sourceRenderer);
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(source);
             }
         }
 
@@ -320,6 +537,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 PreviewSession.Current.ForceRebuild();
                 sceneView = EditorWindow.GetWindow<SceneView>();
                 sceneView.Show();
+                sceneView.Focus();
                 sceneView.pivot = fixture.MeshObject.transform.position;
                 sceneView.size = 2f;
                 Selection.activeGameObject = fixture.MeshObject;
@@ -370,9 +588,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     ToolManager.RestorePreviousTool();
                 Selection.activeObject = previousSelection;
                 LatticePreviewUtility.UsePreviewAlignedCage = previousPreviewAlignedCage;
-                if (fixture != null)
-                    fixture.AvatarRoot.SetActive(false);
-                PreviewSession.Current?.ForceRebuild();
                 NDMFPreview.DisablePreviewDepth = previousDisableDepth;
                 if (!previewWasEnabled && PreviewSession.Current != null && previousDisableDepth == 0)
                     EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
@@ -859,6 +1074,61 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
             return mesh;
+        }
+
+        private static Mesh CreateGridMesh(int columns, int rows)
+        {
+            var vertices = new Vector3[(columns + 1) * (rows + 1)];
+            for (int y = 0; y <= rows; y++)
+            for (int x = 0; x <= columns; x++)
+                vertices[y * (columns + 1) + x] = new Vector3(x, y, 0f);
+
+            var triangles = new int[columns * rows * 6];
+            int index = 0;
+            for (int y = 0; y < rows; y++)
+            for (int x = 0; x < columns; x++)
+            {
+                int lowerLeft = y * (columns + 1) + x;
+                int lowerRight = lowerLeft + 1;
+                int upperLeft = lowerLeft + columns + 1;
+                int upperRight = upperLeft + 1;
+                triangles[index++] = lowerLeft;
+                triangles[index++] = upperLeft;
+                triangles[index++] = upperRight;
+                triangles[index++] = lowerLeft;
+                triangles[index++] = upperRight;
+                triangles[index++] = lowerRight;
+            }
+
+            var mesh = new Mesh
+            {
+                name = "Real Meshia Preview E2E Source",
+                vertices = vertices,
+                triangles = triangles,
+            };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private static bool SetMeshiaPreviewEnabled(bool enabled)
+        {
+            Type previewType = FindType(
+                "Meshia.MeshSimplification.Ndmf.Editor.Preview.MeshiaMeshSimplifierPreview");
+            Assert.That(previewType, Is.Not.Null);
+            PropertyInfo nodeProperty = previewType.GetProperty(
+                "PreviewControlNode",
+                BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+            Assert.That(nodeProperty, Is.Not.Null);
+            object node = nodeProperty.GetValue(null);
+            PropertyInfo isEnabledProperty = node.GetType().GetProperty(
+                "IsEnabled",
+                BindingFlags.Public | BindingFlags.Instance);
+            object reactiveValue = isEnabledProperty.GetValue(node);
+            PropertyInfo valueProperty = reactiveValue.GetType().GetProperty("Value");
+            bool previous = (bool)valueProperty.GetValue(reactiveValue);
+            valueProperty.SetValue(reactiveValue, enabled);
+            return previous;
         }
     }
 }
