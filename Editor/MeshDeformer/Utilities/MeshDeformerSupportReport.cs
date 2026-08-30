@@ -1,13 +1,17 @@
 #if UNITY_EDITOR
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using nadena.dev.ndmf.preview;
 using UnityEditor;
+using UnityEditor.EditorTools;
 using UnityEngine;
 using PackageManagerInfo = UnityEditor.PackageManager.PackageInfo;
 
@@ -207,6 +211,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             AppendSection(report, "source-renderer", () => AppendRenderer(report, renderer, deformer.SourceMesh));
             AppendSection(report, "blend-shapes", () => AppendBlendShapes(report, deformer, renderer));
             AppendSection(report, "deformer-stack", () => AppendStack(report, deformer));
+            AppendSection(report, "components", () => AppendComponents(report, deformer));
+            AppendSection(report, "object-toggles", () => AppendObjectToggles(report, deformer));
+            AppendSection(report, "editor-state", () => AppendEditorState(report, deformer));
             AppendSection(report, "preview", () => AppendPreview(report, renderer));
             AppendSection(report, "validation", () => AppendValidation(report, deformer));
             return report.ToString();
@@ -262,6 +269,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (renderer == null) return;
             Append(report, "type", renderer.GetType().Name);
             Append(report, "enabled", renderer.enabled);
+            Append(report, "active-self", renderer.gameObject.activeSelf);
+            Append(report, "active-in-hierarchy", renderer.gameObject.activeInHierarchy);
             Append(report, "hierarchy", GetHierarchyPath(renderer.transform));
             AppendTransform(report, "renderer-transform", renderer.transform);
             Mesh assignedMesh = GetRendererMesh(renderer);
@@ -368,6 +377,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Append(report, "assign-runtime-mesh", LatticePreviewUtility.ShouldAssignRuntimeMesh());
             Append(report, "preview-aligned-cage", LatticePreviewUtility.UsePreviewAlignedCage);
             Append(report, "proxy-mapping-revision", LatticePreviewUtility.ProxyMappingRevision);
+            AppendPreviewFilterOrder(report);
             Renderer proxy = null;
             bool hasProxy = original != null &&
                             LatticePreviewUtility.TryGetPreviewProxy(original, out proxy) &&
@@ -375,6 +385,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Append(report, "proxy-present", hasProxy);
             if (!hasProxy) return;
             Append(report, "proxy-type", proxy.GetType().Name);
+            Append(report, "proxy-enabled", proxy.enabled);
+            Append(report, "proxy-active-self", proxy.gameObject.activeSelf);
+            Append(report, "proxy-active-in-hierarchy", proxy.gameObject.activeInHierarchy);
             Append(report, "proxy-hierarchy", GetHierarchyPath(proxy.transform));
             AppendTransform(report, "proxy-transform", proxy.transform);
             AppendMesh(report, "proxy-mesh", GetRendererMesh(proxy));
@@ -386,6 +399,192 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             bool hasPreviewMesh = LatticePreviewUtility.TryGetPreviewMesh(original, out Mesh previewMesh);
             Append(report, "registered-preview-mesh", hasPreviewMesh);
             if (hasPreviewMesh) AppendMesh(report, "registered-preview", previewMesh);
+        }
+
+        private static void AppendComponents(StringBuilder report, LatticeDeformer deformer)
+        {
+            Component[] components = deformer.GetComponents<Component>();
+            const int maximumEntries = 64;
+            Append(report, "count", components.Length);
+            int written = 0;
+            for (int i = 0; i < components.Length && written < maximumEntries; i++)
+            {
+                Component component = components[i];
+                if (component == null)
+                {
+                    Append(report, $"component[{written}]", "missing-script");
+                    written++;
+                    continue;
+                }
+
+                string typeName = component.GetType().FullName ?? component.GetType().Name;
+                string state = TryGetEnabledState(component, out bool enabled)
+                    ? $", enabled={enabled}"
+                    : "";
+                Append(report, $"component[{written}]", $"type={typeName}{state}");
+                written++;
+            }
+            Append(report, "reported", written);
+            Append(report, "truncated", components.Length > written);
+        }
+
+        private static bool TryGetEnabledState(Component component, out bool enabled)
+        {
+            switch (component)
+            {
+                case Behaviour behaviour:
+                    enabled = behaviour.enabled;
+                    return true;
+                case Renderer renderer:
+                    enabled = renderer.enabled;
+                    return true;
+                case Collider collider:
+                    enabled = collider.enabled;
+                    return true;
+                default:
+                    enabled = false;
+                    return false;
+            }
+        }
+
+        private static void AppendObjectToggles(StringBuilder report, LatticeDeformer deformer)
+        {
+            const string toggleTypeName = "nadena.dev.modular_avatar.core.ModularAvatarObjectToggle";
+            const int maximumEntries = 256;
+            Transform root = deformer.transform.root;
+            Component[] components = root.GetComponentsInChildren<Component>(true);
+            int toggleComponents = 0;
+            int affectingEntries = 0;
+            bool truncated = false;
+
+            foreach (Component component in components)
+            {
+                if (component == null || component.GetType().FullName != toggleTypeName) continue;
+                toggleComponents++;
+                var serialized = new SerializedObject(component);
+                serialized.UpdateIfRequiredOrScript();
+                SerializedProperty objects = serialized.FindProperty("m_objects");
+                if (objects == null || !objects.isArray) continue;
+
+                for (int entryIndex = 0; entryIndex < objects.arraySize; entryIndex++)
+                {
+                    SerializedProperty entry = objects.GetArrayElementAtIndex(entryIndex);
+                    SerializedProperty objectReference = entry.FindPropertyRelative("Object");
+                    SerializedProperty active = entry.FindPropertyRelative("Active");
+                    GameObject target = objectReference?
+                        .FindPropertyRelative("targetObject")?.objectReferenceValue as GameObject;
+                    string referencePath = objectReference?
+                        .FindPropertyRelative("referencePath")?.stringValue ?? "";
+                    target ??= ResolveToggleTarget(root, referencePath);
+                    if (!AffectsTarget(target, deformer.gameObject)) continue;
+                    if (affectingEntries >= maximumEntries)
+                    {
+                        truncated = true;
+                        continue;
+                    }
+
+                    string targetText = target != null
+                        ? GetHierarchyPath(target.transform)
+                        : "unresolved:" + referencePath;
+                    Append(
+                        report,
+                        $"entry[{affectingEntries}]",
+                        $"owner={GetHierarchyPath(component.transform)}, target={targetText}, " +
+                        $"active={(active != null ? active.boolValue.ToString() : "unavailable")}");
+                    affectingEntries++;
+                }
+            }
+
+            Append(report, "toggle-components-scanned", toggleComponents);
+            Append(report, "affecting-entry-count", affectingEntries);
+            Append(report, "truncated", truncated);
+        }
+
+        private static GameObject ResolveToggleTarget(Transform root, string referencePath)
+        {
+            if (root == null || string.IsNullOrEmpty(referencePath)) return null;
+            if (referencePath == "$$$AVATAR_ROOT$$$") return root.gameObject;
+            return root.Find(referencePath)?.gameObject;
+        }
+
+        private static bool AffectsTarget(GameObject toggledObject, GameObject target)
+        {
+            if (toggledObject == null || target == null) return false;
+            return target.transform == toggledObject.transform ||
+                   target.transform.IsChildOf(toggledObject.transform);
+        }
+
+        private static void AppendEditorState(StringBuilder report, LatticeDeformer deformer)
+        {
+            Transform selected = Selection.activeTransform;
+            Append(report, "selected-object", selected != null ? GetHierarchyPath(selected) : "none");
+            Append(report, "selected-is-component", selected == deformer.transform);
+            Type activeTool = ToolManager.activeToolType;
+            Append(report, "active-tool", activeTool?.FullName ?? "none");
+            Append(report, "brush-sub-mode", MeshDeformerTool.CurrentBrushSubMode);
+            if (deformer.TryGetActiveLayerFast(out LatticeLayer layer))
+                Append(report, "active-layer-type", layer.Type);
+            else
+                Append(report, "active-layer-type", "unavailable");
+        }
+
+        private static void AppendPreviewFilterOrder(StringBuilder report)
+        {
+            object session = GetCurrentPreviewSession();
+            object proxySession = GetMemberValue(session, "_proxySession");
+            object filters = GetMemberValue(proxySession, "Filters") ??
+                             GetMemberValue(proxySession, "_filters");
+            if (filters is not IEnumerable enumerable)
+            {
+                Append(report, "filter-order-available", false);
+                Append(report, "filter-count", 0);
+                return;
+            }
+
+            var descriptions = new List<string>();
+            foreach (object filter in enumerable)
+            {
+                if (filter == null) continue;
+                Type type = filter.GetType();
+                string description = type.FullName ?? type.Name;
+                object placement = GetMemberValue(filter, "_placement");
+                if (placement != null) description += ", placement=" + placement;
+                descriptions.Add(description);
+            }
+
+            Append(report, "filter-order-available", true);
+            Append(report, "filter-count", descriptions.Count);
+            for (int i = 0; i < descriptions.Count; i++)
+                Append(report, $"filter[{i}]", descriptions[i]);
+        }
+
+        private static object GetCurrentPreviewSession()
+        {
+            try
+            {
+                return PreviewSession.Current;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static object GetMemberValue(object instance, string name)
+        {
+            if (instance == null) return null;
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            try
+            {
+                Type type = instance.GetType();
+                PropertyInfo property = type.GetProperty(name, flags);
+                if (property != null) return property.GetValue(instance);
+                return type.GetField(name, flags)?.GetValue(instance);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static void AppendValidation(StringBuilder report, LatticeDeformer deformer)
