@@ -263,8 +263,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.Ignore("The real NDMF preview E2E requires a graphics device.");
 
             Type meshiaType = FindType("Meshia.MeshSimplification.Ndmf.MeshiaMeshSimplifier");
-            if (meshiaType == null)
-                Assert.Ignore("Meshia Mesh Simplification is not installed in Plugin-dev-playground.");
+            bool useSyntheticTopologyConsumer = meshiaType == null;
 
             var root = new GameObject("real-meshia-preview-e2e-root");
             var meshObject = new GameObject("real-meshia-preview-e2e-mesh");
@@ -274,12 +273,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var sourceRenderer = meshObject.AddComponent<MeshRenderer>();
             var deformer = meshObject.AddComponent<LatticeDeformer>();
             deformer.Reset();
-            Component meshia = meshObject.AddComponent(meshiaType);
+            Component meshia = meshiaType != null ? meshObject.AddComponent(meshiaType) : null;
             bool previewWasEnabled = PreviewSession.Current != null;
             int previousDisableDepth = NDMFPreview.DisablePreviewDepth;
             Object previousSelection = Selection.activeObject;
             Type previousTool = ToolManager.activeToolType;
-            bool previousMeshiaPreviewEnabled = SetMeshiaPreviewEnabled(true);
+            bool previousMeshiaPreviewEnabled = meshiaType != null && SetMeshiaPreviewEnabled(true);
             SceneView sceneView = null;
             var monitor = new CageIntervalMonitor();
 
@@ -287,6 +286,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 LateDownstreamPreviewTestPlugin.InstantiationCount = 0;
                 LateDownstreamPreviewTestPlugin.OutputCount = 0;
+                LateDownstreamPreviewTestPlugin.ReduceTopologyForTests = useSyntheticTopologyConsumer;
                 NDMFPreview.DisablePreviewDepth = 0;
                 // Recreate the session after the test assembly is loaded so its
                 // intentionally-late preview consumer is present in the graph.
@@ -329,7 +329,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                                initialMesh.triangles.Length < source.triangles.Length;
                     },
                     sceneView,
-                    "The real Meshia preview did not publish a vertex-reduced mesh.");
+                    useSyntheticTopologyConsumer
+                        ? "The CI topology-changing downstream filter did not publish a reduced mesh."
+                        : "The real Meshia preview did not publish a vertex-reduced mesh.");
 
                 Assert.That(LateDownstreamPreviewTestPlugin.InstantiationCount, Is.GreaterThan(0),
                     "The E2E late downstream preview consumer was not part of the real graph.");
@@ -485,7 +487,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 else
                     ToolManager.RestorePreviousTool();
                 Selection.activeObject = previousSelection;
-                SetMeshiaPreviewEnabled(previousMeshiaPreviewEnabled);
+                LateDownstreamPreviewTestPlugin.ReduceTopologyForTests = false;
+                if (meshiaType != null)
+                    SetMeshiaPreviewEnabled(previousMeshiaPreviewEnabled);
                 NDMFPreview.DisablePreviewDepth = previousDisableDepth;
                 if (!previewWasEnabled && PreviewSession.Current != null && previousDisableDepth == 0)
                     EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
