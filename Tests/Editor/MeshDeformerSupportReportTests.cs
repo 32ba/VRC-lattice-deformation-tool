@@ -72,7 +72,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void Generate_IncludesRegisteredPreviewProxyTopology()
+        public void Generate_IgnoresLegacyIndependentPreviewRegistration()
         {
             var originalObject = new GameObject("Original Renderer");
             var proxyObject = new GameObject("Preview Proxy");
@@ -92,10 +92,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 string report = MeshDeformerSupportReport.Decode(
                     MeshDeformerSupportReport.Generate(deformer));
 
-                StringAssert.Contains("\"proxy-present\":\"True\"", report);
-                StringAssert.Contains("\"proxy-hierarchy\":\"Preview Proxy\"", report);
-                StringAssert.Contains("\"proxy-mesh.vertices\":\"5\"", report);
-                StringAssert.Contains("\"registered-preview-mesh\":\"True\"", report);
+                StringAssert.Contains("\"proxy-present\":\"False\"", report);
+                Assert.That(report, Does.Not.Contain("\"proxy-hierarchy\":\"Preview Proxy\""),
+                    "Support data and Scene tools must use only NDMF's active primary proxy, " +
+                    "not the removed independent preview registry.");
             }
             finally
             {

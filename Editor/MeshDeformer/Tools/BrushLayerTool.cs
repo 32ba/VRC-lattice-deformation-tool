@@ -773,8 +773,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
             float strength = effectiveStrength * 0.01f;
             float direction = s_invertBrush ? -1f : 1f;
-            bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-
             bool modified = false;
             _hasLastMoveBrushLocalDelta = false;
 
@@ -805,8 +803,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
 
                 using (s_deformMarker.Auto())
-                    deformer.Deform(assignToRenderer);
-                LatticePreviewUtility.RequestSceneRepaint();
+                    LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
             }
 
             _lastMousePosition = evt.mousePosition;
@@ -2363,9 +2360,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 LatticePrefabUtility.MarkModified(deformer);
             }
-            bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-            deformer.Deform(assignToRenderer);
-            LatticePreviewUtility.RequestSceneRepaint();
+            LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
         }
 
         internal static void ClearActiveMask(LatticeDeformer deformer)
@@ -2379,9 +2374,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 LatticePrefabUtility.MarkModified(deformer);
             }
-            bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-            deformer.Deform(assignToRenderer);
-            LatticePreviewUtility.RequestSceneRepaint();
+            LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
         }
 
         /// <summary>

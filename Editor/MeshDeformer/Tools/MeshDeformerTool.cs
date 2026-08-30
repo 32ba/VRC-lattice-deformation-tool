@@ -79,8 +79,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         public override void OnWillBeDeactivated()
         {
-            if (target is LatticeDeformer deformer)
-                MeshDeformerStandalonePreview.Release(deformer);
             DeactivateCurrentHandler();
         }
 
@@ -127,8 +125,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void ActivateHandler(ActiveHandler handler, LatticeDeformer deformer)
         {
-            if (_currentHandlerTarget != null && _currentHandlerTarget != deformer)
-                MeshDeformerStandalonePreview.Release(_currentHandlerTarget);
             _currentHandler = handler;
             _currentHandlerTarget = deformer;
             switch (handler)

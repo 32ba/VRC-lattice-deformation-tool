@@ -419,15 +419,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     proxyBoundsRenderer = _cachedProxyRendererBounds;
                 }
             }
+
             var sourceToProxy = worldToProxy * sourceToWorld;
             var proxyToSource = worldToSource * proxyToWorld;
-            // Both helpers already return proxy-local bounds. Dividing by lossyScale here
-            // would apply the transform scale a second time and shrink/enlarge the cage.
-            var proxyBoundsLocal = useProxy ? ChooseLargerBounds(proxyBoundsMesh, proxyBoundsRenderer) : sourceBounds;
-            if (!_controlPointSkinning.IsValid && _hasSkinningFallbackBounds)
-            {
-                proxyBoundsLocal = _skinningFallbackBounds;
-            }
+            // The lattice bounds are authored input state. The proxy mesh already
+            // contains this deformer output, so using its bounds here creates a
+            // feedback loop: a drag changes the mesh bounds and releasing the handle
+            // then resizes the cage. Keep the domain fixed while still using the proxy
+            // transform and per-control-point skinning to follow upstream pose changes.
+            var proxyBoundsLocal = sourceBounds;
             const float k_BoundsTolerance = 0.02f;
             const float k_MaxVolumeRatio = 4f; // if proxy bounds are >4x volume, treat as unreliable
             var proxyVolume = proxyBoundsLocal.size.x * proxyBoundsLocal.size.y * proxyBoundsLocal.size.z;
@@ -440,17 +440,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var manualScale = LatticePreviewUtility.GetManualScaleProxy(deformer);
             bool hasManualAdjust = manualOffset != Vector3.zero || manualScale != Vector3.one;
 
-            bool useBoundsRemap =
-                useProxy &&
-                mode == LatticeDeformer.LatticeAlignMode.Mode3_BoundsRemap &&
-                !proxyTooBig &&
-                !hasManualAdjust &&
-                !AreBoundsApproximatelyEqual(sourceBounds, proxyBoundsLocal, k_BoundsTolerance);
+            bool useBoundsRemap = false;
 
-            bool useSkinningFallback =
-                !_controlPointSkinning.IsValid &&
-                _hasSkinningFallbackBounds &&
-                !AreBoundsApproximatelyEqual(sourceBounds, proxyBoundsLocal, k_BoundsTolerance);
+            bool useSkinningFallback = false;
             var needBoundsMap = useBoundsRemap || useSkinningFallback;
 
             if (proxyTooBig && LatticePreviewUtility.DebugAlignLogs)
@@ -963,31 +955,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal Renderer ResolveProxyRenderer(Renderer sourceRenderer, bool interactionActive)
         {
-            int mappingRevision = LatticePreviewUtility.ProxyMappingRevision;
+            Renderer candidate = null;
+            if (sourceRenderer != null)
+                LatticePreviewUtility.TryGetPreviewProxy(sourceRenderer, out candidate);
+
             if (!_proxyResolved || !ReferenceEquals(_cachedSourceRenderer, sourceRenderer))
             {
                 _cachedSourceRenderer = sourceRenderer;
-                _cachedProxyRenderer = null;
-                if (sourceRenderer != null)
-                    LatticePreviewUtility.TryGetPreviewProxy(sourceRenderer, out _cachedProxyRenderer);
+                _cachedProxyRenderer = candidate;
                 _proxyResolved = true;
-                _cachedProxyMappingRevision = mappingRevision;
+                _cachedProxyMappingRevision = LatticePreviewUtility.ProxyMappingRevision;
                 _proxySnapshotValid = false;
                 _proxyAlignmentSnapshotValid = false;
                 ResetPendingProxyResolution();
                 return _cachedProxyRenderer;
             }
 
-            if (_cachedProxyMappingRevision == mappingRevision)
-                return _cachedProxyRenderer;
-
-            Renderer candidate = null;
-            if (sourceRenderer != null)
-                LatticePreviewUtility.TryGetPreviewProxy(sourceRenderer, out candidate);
-
             if (ReferenceEquals(candidate, _cachedProxyRenderer))
             {
-                _cachedProxyMappingRevision = mappingRevision;
                 ResetPendingProxyResolution();
                 return _cachedProxyRenderer;
             }
@@ -1005,12 +990,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // semantics used by utility tests and non-interactive callers.
             if (_activeDeformer == null)
             {
-                CommitProxyResolution(candidate, mappingRevision);
+                CommitProxyResolution(candidate, LatticePreviewUtility.ProxyMappingRevision);
                 return _cachedProxyRenderer;
             }
 
             _pendingProxyRenderer = candidate;
-            _pendingProxyMappingRevision = mappingRevision;
+            _pendingProxyMappingRevision = LatticePreviewUtility.ProxyMappingRevision;
 
             // Post-AAO candidates increment the mapping revision only after their
             // output is displayed. While a handle owns the interaction, retain the

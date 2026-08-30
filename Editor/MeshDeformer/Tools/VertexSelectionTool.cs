@@ -967,9 +967,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 ApplyProportionalMove(deformer, localDelta, restSpaceConverter);
             }
 
-            bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-            deformer.Deform(assignToRenderer);
-            LatticePreviewUtility.RequestSceneRepaint();
+            LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
         }
 
         private void ApplyRotationDelta(LatticeDeformer deformer, Transform meshTransform, Vector3 worldCentroid, Quaternion deltaRotation)
@@ -997,9 +995,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 ApplyProportionalRotation(deformer, meshTransform, worldCentroid, deltaRotation);
             }
 
-            bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-            deformer.Deform(assignToRenderer);
-            LatticePreviewUtility.RequestSceneRepaint();
+            LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
         }
 
         private void ApplyScaleDelta(LatticeDeformer deformer, Transform meshTransform, Vector3 worldCentroid, Vector3 relativeScale)
@@ -1031,9 +1027,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 ApplyProportionalScale(deformer, meshTransform, worldCentroid, relativeScale);
             }
 
-            bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-            deformer.Deform(assignToRenderer);
-            LatticePreviewUtility.RequestSceneRepaint();
+            LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
         }
 
         private void ApplyProportionalMove(
@@ -1588,10 +1582,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 deformer.SetDisplacement(i, Vector3.zero);
             }
 
-            bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-            deformer.Deform(assignToRenderer);
+            LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
             LatticePrefabUtility.MarkModified(deformer);
-            LatticePreviewUtility.RequestSceneRepaint();
         }
 
         private static void ResetAllVertices(LatticeDeformer deformer)
@@ -1601,10 +1593,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ResetAllVertices));
             deformer.ClearDisplacements();
 
-            bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-            deformer.Deform(assignToRenderer);
+            LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
             LatticePrefabUtility.MarkModified(deformer);
-            LatticePreviewUtility.RequestSceneRepaint();
         }
 
         internal static void ClearSelection()
