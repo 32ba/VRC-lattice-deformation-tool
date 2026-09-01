@@ -821,6 +821,32 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeToolHandler_DoesNotChangeNativePivotRotation()
+        {
+            var previous = Tools.pivotRotation;
+            var handler = new LatticeToolHandler();
+
+            try
+            {
+                Tools.pivotRotation = PivotRotation.Global;
+                handler.Activate(null);
+
+                Assert.That(Tools.pivotRotation, Is.EqualTo(PivotRotation.Global));
+
+                handler.Deactivate();
+                Tools.pivotRotation = PivotRotation.Local;
+                handler.Activate(null);
+
+                Assert.That(Tools.pivotRotation, Is.EqualTo(PivotRotation.Local));
+            }
+            finally
+            {
+                handler.Deactivate();
+                Tools.pivotRotation = previous;
+            }
+        }
+
+        [Test]
         public void ToolIcons_Content_FallsBackToTextWhenIconIsMissing()
         {
             var key = "__missing_loc_key__" + Guid.NewGuid().ToString("N");
