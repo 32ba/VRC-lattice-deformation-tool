@@ -59,8 +59,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_showProportionalSection = false;
         private static bool s_showVisualizationSection = false;
 
-        private const float k_PrecisionMultiplier = 0.1f;
-
         private static readonly HashSet<int> s_selectedVertices = new HashSet<int>();
 
         private LatticeDeformer _activeDeformer;
@@ -335,41 +333,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
 
             var evt = Event.current;
-
-            // W/E/R key shortcuts to switch transform mode, Z to toggle pivot
-            if (evt.type == EventType.KeyDown && !evt.alt && !evt.control && !evt.command && !evt.shift)
-            {
-                switch (evt.keyCode)
-                {
-                    case KeyCode.W:
-                        CurrentTransformMode = TransformMode.Move;
-                        evt.Use();
-                        return;
-                    case KeyCode.E:
-                        CurrentTransformMode = TransformMode.Rotate;
-                        evt.Use();
-                        return;
-                    case KeyCode.R:
-                        CurrentTransformMode = TransformMode.Scale;
-                        evt.Use();
-                        return;
-                    case KeyCode.Z:
-                        CurrentPivotMode = s_pivotMode == PivotMode.Center
-                            ? PivotMode.LastSelected
-                            : PivotMode.Center;
-                        evt.Use();
-                        return;
-                }
-            }
-
-            // Alt+Scroll to adjust proportional radius
-            if (evt.type == EventType.ScrollWheel && evt.alt && ProportionalEditing)
-            {
-                float delta = -evt.delta.y * 0.005f;
-                ProportionalRadius = s_proportionalRadius + delta;
-                evt.Use();
-                return;
-            }
 
             // Handle selection input
             // Draw vertex dots
@@ -825,8 +788,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
 
                     var localDelta = meshTransform.InverseTransformVector(delta);
-                    if (Event.current.shift)
-                        localDelta *= k_PrecisionMultiplier;
                     ApplyMoveDelta(deformer, localDelta);
                 }
             }
@@ -857,8 +818,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 var deltaRotation = newRotation * Quaternion.Inverse(_handleRotation);
                 _handleRotation = newRotation;
-                if (Event.current.shift)
-                    deltaRotation = Quaternion.Slerp(Quaternion.identity, deltaRotation, k_PrecisionMultiplier);
 
                 ApplyRotationDelta(deformer, meshTransform, centroid, deltaRotation);
             }
@@ -892,8 +851,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     _handleScale.y != 0f ? newScale.y / _handleScale.y : 1f,
                     _handleScale.z != 0f ? newScale.z / _handleScale.z : 1f);
                 _handleScale = newScale;
-                if (Event.current.shift)
-                    relativeScale = Vector3.Lerp(Vector3.one, relativeScale, k_PrecisionMultiplier);
 
                 ApplyScaleDelta(deformer, meshTransform, centroid, relativeScale);
             }
@@ -1863,12 +1820,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             GUILayout.Space(2f);
-            GUILayout.Label(LatticeLocalization.Tr(LocKey.WERHint) + "  " + LatticeLocalization.Tr(LocKey.ZTogglePivot), EditorStyles.miniLabel);
-            GUILayout.Label(LatticeLocalization.Tr(LocKey.ShiftClickHint) + "  " + LatticeLocalization.Tr(LocKey.ShiftDragPrecision), EditorStyles.miniLabel);
-            if (VertexSelectionHandler.ProportionalEditing)
-            {
-                GUILayout.Label(LatticeLocalization.Tr(LocKey.AltScrollProportionalHint), EditorStyles.miniLabel);
-            }
+            GUILayout.Label(LatticeLocalization.Tr(LocKey.ShiftClickHint), EditorStyles.miniLabel);
         }
     }
 }

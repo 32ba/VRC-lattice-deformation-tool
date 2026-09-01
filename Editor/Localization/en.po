@@ -1020,6 +1020,18 @@ msgstr "Normals"
 msgid "net.32ba.lattice-deformation-tool.localization.normals.tooltip"
 msgstr "Recalculate how light reflects off the deformed surface."
 
+msgid "net.32ba.lattice-deformation-tool.localization.normals-mode"
+msgstr "Normals Recalculation Mode"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals-mode.tooltip"
+msgstr "Choose the legacy Unity calculation or preserve source smoothing across UV seams."
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals-legacy-unity-recalculate"
+msgstr "Legacy Unity Recalculate"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals-preserve-source-smoothing"
+msgstr "Preserve Source Smoothing"
+
 msgid "net.32ba.lattice-deformation-tool.localization.tangents"
 msgstr "Tangents"
 

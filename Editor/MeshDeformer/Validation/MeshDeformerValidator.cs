@@ -102,6 +102,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string RestSpaceConversionUnsafe = "MDV017";
         internal const string PreviewBakeTargetMismatch = "MDV018";
         internal const string NullGroupOrLayer = "MDV019";
+        // MDV020 is retired. Unity keeps imported mesh data available to Editor
+        // APIs even when the importer reports Read/Write disabled, so blocking
+        // NDMF Preview/Bake on Mesh.isReadable was a false positive.
         internal const string SourceMeshNotReadable = "MDV020";
         internal const string InvalidBrushData = "MDV021";
         internal const string InvalidMaskData = "MDV022";
@@ -131,13 +134,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Add(results, MissingSourceMesh, MeshDeformerDiagnosticSeverity.Error, deformer,
                     "The target renderer has no source mesh.", property: "sharedMesh");
                 return results;
-            }
-
-            if (!currentMesh.isReadable)
-            {
-                Add(results, SourceMeshNotReadable, MeshDeformerDiagnosticSeverity.Error, deformer,
-                    "The source mesh has Read/Write disabled. Enable Read/Write so deformation can read its vertex and BlendShape data.",
-                    property: "sharedMesh");
             }
 
             var serializedSource = serialized.FindProperty("_serializedSourceMesh")?.objectReferenceValue as Mesh;
@@ -171,12 +167,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ValidateGroups(deformer, currentMesh, results);
             ValidateProfile(deformer, results);
             ValidateClearance(deformer, renderer, results);
-            // Rest-space conversion reads bone weights and bind poses through CPU-only
-            // Mesh array getters. MDV020 is already the fail-closed result here.
-            if (currentMesh.isReadable)
-            {
-                ValidateRestSpace(deformer, renderer, results);
-            }
+            ValidateRestSpace(deformer, renderer, results);
             return results;
         }
 
@@ -578,7 +569,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     int hash = 17;
                     hash = hash * 31 + mesh.vertexCount;
                     hash = hash * 31 + mesh.subMeshCount;
-                    using Mesh.MeshDataArray meshDataArray = Mesh.AcquireReadOnlyMeshData(mesh);
+                    using Mesh.MeshDataArray meshDataArray = MeshUtility.AcquireReadOnlyMeshData(mesh);
                     Mesh.MeshData data = meshDataArray[0];
                     bool use16Bit = mesh.indexFormat == UnityEngine.Rendering.IndexFormat.UInt16;
                     NativeArray<ushort> indices16 = use16Bit

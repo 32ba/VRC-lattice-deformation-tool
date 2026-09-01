@@ -1020,6 +1020,18 @@ msgstr "法線"
 msgid "net.32ba.lattice-deformation-tool.localization.normals.tooltip"
 msgstr "変形後の表面の光の反射を再計算します。"
 
+msgid "net.32ba.lattice-deformation-tool.localization.normals-mode"
+msgstr "法線再計算モード"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals-mode.tooltip"
+msgstr "従来のUnity計算、またはUV境界をまたいで元のスムージングを維持する計算を選択します。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals-legacy-unity-recalculate"
+msgstr "従来のUnity再計算"
+
+msgid "net.32ba.lattice-deformation-tool.localization.normals-preserve-source-smoothing"
+msgstr "元のスムージングを維持"
+
 msgid "net.32ba.lattice-deformation-tool.localization.tangents"
 msgstr "接線"
 

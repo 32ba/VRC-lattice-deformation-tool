@@ -493,22 +493,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     return;
                 }
 
-                // Radius/strength shortcuts do not depend on a surface hit.
-                if (evt.type == EventType.ScrollWheel)
-                {
-                    if (evt.shift)
-                    {
-                        BrushStrength = s_brushStrength - evt.delta.y * 0.01f;
-                        evt.Use();
-                    }
-                    else if (evt.alt)
-                    {
-                        BrushRadius = s_brushRadius - evt.delta.y * 0.005f;
-                        evt.Use();
-                    }
-                    return;
-                }
-
                 // Ending a stroke does not require another posed-mesh bake/raycast.
                 if (evt.type == EventType.MouseUp && evt.button == 0)
                 {
@@ -766,12 +750,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             deformer.EnsureDisplacementCapacity();
 
             float worldRadius = s_brushRadius;
-            float effectiveStrength = s_brushStrength;
-            if (evt != null && evt.control)
-            {
-                effectiveStrength *= 0.1f;
-            }
-            float strength = effectiveStrength * 0.01f;
+            float strength = s_brushStrength * 0.01f;
             float direction = s_invertBrush ? -1f : 1f;
             bool modified = false;
             _hasLastMoveBrushLocalDelta = false;
@@ -2561,7 +2540,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             GUILayout.Space(2f);
-            GUILayout.Label(LatticeLocalization.Tr(LocKey.AltScrollHint), EditorStyles.miniLabel);
         }
     }
 }
