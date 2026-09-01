@@ -296,7 +296,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 ### CI
 
 - `.github/workflows/test.yml` が pull request と master への push で EditMode テストを実行する。GameCI の `unity-test-runner` が Unity 2022.3.22f1 で `ci-project/` を組み立て、`net.32ba.lattice-deformation-tool.tests.editor` と `...tests.editor.vrchat` を走らせる
-- `ci-project/` には vrc-get で VRChat SDK（`com.vrchat.avatars`）と NDMF を VPM から導入し、実際の VCC プロジェクトを再現する。バージョンは workflow 内で固定。VRChat SDK がないと NDMF がプラグインを VRChat アバター専用とみなして bake pass を Incompatible でスキップするため、`MeshDeformerValidatorTests` が失敗する
+- `ci-project/` には vrc-get で VRChat SDK（`com.vrchat.avatars`）、NDMF、Avatar Optimizer（`com.anatawa12.avatar-optimizer`）を VPM から導入し、実際の VCC プロジェクトを再現する。バージョンは workflow 内で固定。VRChat SDK がないと NDMF がプラグインを VRChat アバター専用とみなして bake pass を Incompatible でスキップするため、`MeshDeformerValidatorTests` が失敗する。AAO がないとユーザー環境と plugin set が乖離し、`RealPreviewPipelineEndToEndTests` も AAO 不在で Ignore になる
 - Scripting Define は追加しない。`LATTICE_VRCSDK3_AVATAR` は asmdef の versionDefines 由来なのでクリーン構成のまま有効になる
 - VRChat SDK の `EnvConfig` は初回起動時に API Compatibility Level と Scripting Define Symbols を書き換えてスクリプト再コンパイルを要求する。バッチモードのテスト実行中は assembly reload がロックされているためこの要求は保留のままとなり、`EditorApplication.isCompiling` が実行中ずっと true になって Prefab Mode の退出やシーン切り替えが Unity に拒否される。workflow はこれを避けるため、本番のテスト実行前に軽量なテスト1本だけの warm-up 実行を挟んで ProjectSettings を settled にしている
 - `EnvConfig` は `PlayerSettings.legacyClampBlendShapeWeights` を true に強制する。Unity はこのフラグをセッション内で最初に BlendShape を bake した時点で latch し、以降の書き換えを無視するため、**テスト内で設定を変更しても `BakeMesh` の挙動は変わらない**。重み 100 超の挙動に依存するテストは、設定値を読んで期待値を切り替えること
@@ -318,6 +318,10 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
   - `GetSourceBlendShapeNames_ReturnsCorrectNames`
 - UnityMCP で対象アセンブリのみ実行する例:
   - `unity-mcp raw run_tests '{"mode":"EditMode","assemblyNames":["net.32ba.lattice-deformation-tool.tests.editor"],"includeDetails":true}'`
+- 対話エディタ経由のローカル実行では環境起因の偽失敗に注意する:
+  - `RealPreviewPipelineEndToEndTests` は NDMF の `Camera.onPreCull` 駆動でプロキシを生成するため、エディタがバックグラウンド（非フォーカス）だとレンダリングが走らず fail する。実行中は Unity を前面に置くこと
+  - ドメインリロード直後は NDMF の `NDMFSyncContext` 遅延初期化（`unityMainThreadId == -1`）が未発火のことがあり、`ComputeContext.Invalidate()` が非同期化して即時 assert するテストが落ちる。再実行または editor loop を1回回せば解消する
+  - Inspector 系のカスタムエディタは破棄済みターゲットの再描画で例外を出さないよう fake-null ガード必須。batch mode の CI では GUI が存在しないためこの種のバグは検出できない
 - カバレッジは `pwsh -File Tools~/Run-Coverage.ps1 -ProjectPath <UnityProject> -EnforceLineCoverage` で実行する。Unity Test Framework 1.4.x の複数 assembly 指定はセミコロン区切り、package の PDB path filter は `**/Packages/net.32ba.lattice-deformation-tool/...` の相対 glob を使用する
 - `#line hidden` によるカバレッジ除外は、Native allocation枯渇やUnity内部例外、事前検証により構造上到達不能な二重防御に限定し、直前に理由をコメントする。再現可能な境界・失敗状態は除外せずテストで固定する
 

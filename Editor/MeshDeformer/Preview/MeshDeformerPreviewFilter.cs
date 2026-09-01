@@ -564,6 +564,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
+        private sealed class NoOpNode : IRenderFilterNode
+        {
+            public RenderAspects WhatChanged => 0;
+
+            public void OnFrame(Renderer original, Renderer proxy)
+            {
+            }
+
+            public void OnFrameGroup()
+            {
+            }
+
+            public void Dispose()
+            {
+            }
+        }
+
         private sealed class Target
         {
             public Renderer ProxyRenderer;
