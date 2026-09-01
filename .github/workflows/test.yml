@@ -261,7 +261,7 @@ jobs:
           ./Tools~/Assert-TestResults.ps1
           -TestResultsPath test-artifacts/editmode-results.xml
           -RequiredCategory GraphicsE2E
-          -RequiredCategoryCount 5
+          -RequiredCategoryCount 8
 
       - name: Upload Test Results
         if: always()
