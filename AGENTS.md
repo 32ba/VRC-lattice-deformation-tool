@@ -348,6 +348,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 ## 2.0評価の比較基準と境界
 
+- `Runtime/Model/` は既存の `LatticeLayer` / `DeformerGroup` とenumを同一namespace・assembly・保存fieldのまま配置する。`LatticeDeformer.cs` と既存metaはコンポーネントの互換入口として維持し、ファイル移動をschema変更として扱わない
 - `DeformationOutputBaselineFixture.cs` は固定commitの隔離Unityでのみ期待出力を生成する。候補実装でfixtureを更新して差を吸収しない
 - `DeformationOutputCompatibilityTests.cs` は13条件について全Mesh channel、BlendShape全frame、source/upstream不変を比較する。基準と検証hashは `Docs~/Architecture/2026-09-07-output-contracts.md` を参照する
 - 既存14タグcorpusを維持したまま、後続公開28件の対応を `2026-09-07-published-releases.json` に基づいて追加する。棚卸しと実保存fixtureの完成を区別する
