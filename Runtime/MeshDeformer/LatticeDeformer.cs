@@ -127,7 +127,6 @@ namespace Net._32Ba.LatticeDeformationTool
         private const int k_CurrentLayerModelVersion = DeformationMigrationPreflight.CurrentLayerModelVersion;
         private const string k_PrimaryLayerName = "Lattice Layer";
         private const string k_BrushLayerName = "Brush Layer";
-        private const string k_RecoveredLegacyFlatLayersGroupName = "Recovered Legacy Flat Layers";
 
         internal static DeformationDataVersion CurrentDeformationDataVersion =>
             DeformationDataVersion.CurrentDevelopment;
@@ -163,31 +162,9 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        private readonly struct GroupSelectionSnapshot
-        {
-            public readonly DeformerGroup Group;
-            public readonly int ActiveLayerIndex;
 
-            public GroupSelectionSnapshot(DeformerGroup group, int activeLayerIndex)
-            {
-                Group = group;
-                ActiveLayerIndex = activeLayerIndex;
-            }
-        }
 
-        private readonly struct LatticeInterpolationCompatibilitySnapshot
-        {
-            public readonly LatticeAsset Asset;
-            public readonly bool UsedLegacyTrilinearInterpolation;
 
-            public LatticeInterpolationCompatibilitySnapshot(
-                LatticeAsset asset,
-                bool usedLegacyTrilinearInterpolation)
-            {
-                Asset = asset;
-                UsedLegacyTrilinearInterpolation = usedLegacyTrilinearInterpolation;
-            }
-        }
 
         /// <summary>
         /// Base layer settings (legacy). Delegates to the first layer of the active group.
@@ -1972,25 +1949,65 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
+        private DeformationMigrationState CaptureMigrationState()
+        {
+            Matrix4x4? ownerWorldToLocal = null;
+            if (_settings != null && _settings.HasPendingLegacyWorldSpace)
+            {
+                var owner = MeshTransform;
+                if (owner != null) ownerWorldToLocal = owner.worldToLocalMatrix;
+            }
+            return new DeformationMigrationState
+            {
+                Settings = _settings, FlatLayers = _layers, Groups = _groups,
+                ActiveLayerIndex = _activeLayerIndex, ActiveGroupIndex = _activeGroupIndex,
+                LayerModelVersion = _layerModelVersion, Version = _deformationDataVersion,
+                SourceVersion = _deformationDataSourceVersion, BlendShapeOutput = _blendShapeOutput,
+                BlendShapeName = _blendShapeName, BlendShapeCurve = _blendShapeCurve,
+                LegacyAbsoluteEvaluation = _legacyAbsoluteLatticeEvaluation,
+                LegacyPublishedBlendShapeSemantics = _legacyPublishedBlendShapeSemantics,
+                HasInitializedFromSource = _hasInitializedFromSource,
+                HasSerializedSource = _serializedSourceMesh != null,
+                HasIncompatibleBrushData = _hasIncompatibleBrushData, Status = _migrationStatus,
+                ProfileGroupCount = _dataSource == DeformerDataSource.Profile && _profile != null
+                    ? _profile.SerializedGroups?.Count ?? 0 : 0,
+                SourceVertexCount = ReadMigrationSourceVertexCount(), OwnerWorldToLocal = ownerWorldToLocal
+            };
+        }
+
+        private void ApplyMigrationState(DeformationMigrationState state)
+        {
+            _migrationStatus = state.Status;
+            _hasIncompatibleBrushData = state.HasIncompatibleBrushData;
+            _settings = state.Settings;
+            _layers = state.FlatLayers;
+            _groups = state.Groups;
+            _activeLayerIndex = state.ActiveLayerIndex;
+            _activeGroupIndex = state.ActiveGroupIndex;
+            _layerModelVersion = state.LayerModelVersion;
+            _deformationDataVersion = state.Version;
+            _deformationDataSourceVersion = state.SourceVersion;
+            _legacyAbsoluteLatticeEvaluation = state.LegacyAbsoluteEvaluation;
+            _legacyPublishedBlendShapeSemantics = state.LegacyPublishedBlendShapeSemantics;
+        }
+
+        // Historical private structural helpers can update the conceptual model
+        // version while returning false. Keep that contract only in these seams.
+        private bool RunLegacyMigration(Func<DeformationMigrationRunner, bool> operation)
+        {
+            var runner = new DeformationMigrationRunner(CaptureMigrationState());
+            bool succeeded = operation(runner);
+            ApplyMigrationState(runner.State);
+            if (succeeded && runner.State.CommitRequested) MarkMigrationCommitted();
+            return succeeded;
+        }
+
         private void RecoverStaleCurrentStructureVersionIfNeeded()
         {
+            // Keep the current-data hot path allocation-free.
             if (_deformationDataVersion != DeformationDataVersion.CurrentDevelopment ||
-                _layerModelVersion >= k_CurrentLayerModelVersion ||
-                HasNonNullGroups(_groups) ||
-                (!HasNonNullLayers(_layers) && !HasMeaningfulBaseSettings()))
-            {
-                return;
-            }
-
-            // A current release marker paired with only an older serialized shape can
-            // result from an interrupted save or an Inspector-first partial migration.
-            // Recover the older shape instead of creating a default group over it.
-            _deformationDataVersion = _settings != null && _settings.HasPendingLegacyWorldSpace
-                ? DeformationDataVersion.V0_0_1
-                : DeformationDataVersion.V1_2_0;
-            _deformationDataSourceVersion = _deformationDataVersion;
-            _migrationStatus = DeformationDataMigrationStatus.InProgress;
-            MarkMigrationCommitted();
+                _layerModelVersion >= k_CurrentLayerModelVersion) return;
+            RunLegacyMigration(runner => { runner.RecoverStaleCurrentStructureVersionIfNeeded(); return true; });
         }
 
         /// <summary>
@@ -2001,445 +2018,49 @@ namespace Net._32Ba.LatticeDeformationTool
         /// </summary>
         internal bool TryUpgradeDeformationDataOneRelease()
         {
-            if (!ValidateMigrationInput()) return false;
-
             if (_deformationDataVersion == DeformationDataVersion.CurrentDevelopment)
             {
-                _migrationStatus = _hasIncompatibleBrushData
-                    ? DeformationDataMigrationStatus.InvalidData
+                if (!ValidateMigrationInput()) return false;
+                _migrationStatus = _hasIncompatibleBrushData ? DeformationDataMigrationStatus.InvalidData
                     : DeformationDataMigrationStatus.Ready;
                 return false;
             }
-
-            _migrationStatus = DeformationDataMigrationStatus.InProgress;
-            switch (_deformationDataVersion)
+            var runner = new DeformationMigrationRunner(CaptureMigrationState());
+            bool ownerCommitStarted = false;
+            bool succeeded = runner.TryAdvanceOneRelease(state =>
             {
-                case DeformationDataVersion.Unversioned:
-                    return ClassifyUnversionedDeformationData();
-
-                case DeformationDataVersion.V0_0_1:
-                    return TryUpgradeV0_0_1ToV0_0_2();
-
-                // These releases did not alter the serialized deformation payload.
-                // They remain explicit so interrupted upgrades resume deterministically.
-                case DeformationDataVersion.V0_0_2:
-                    return CommitReleaseVersion(DeformationDataVersion.V0_0_3);
-                case DeformationDataVersion.V0_0_3:
-                    return CommitReleaseVersion(DeformationDataVersion.V0_0_4);
-                case DeformationDataVersion.V0_0_4:
-                    return CommitReleaseVersion(DeformationDataVersion.V0_0_5);
-                case DeformationDataVersion.V0_0_5:
-                    return CommitReleaseVersion(DeformationDataVersion.V0_0_6);
-                case DeformationDataVersion.V0_0_6:
-                    return CommitReleaseVersion(DeformationDataVersion.V1_0_0);
-                case DeformationDataVersion.V1_0_0:
-                    return CommitReleaseVersion(DeformationDataVersion.V1_0_1);
-                case DeformationDataVersion.V1_0_1:
-                    return CommitReleaseVersion(DeformationDataVersion.V1_1_0);
-                case DeformationDataVersion.V1_1_0:
-                    return CommitReleaseVersion(DeformationDataVersion.V1_2_0);
-
-                case DeformationDataVersion.V1_2_0:
-                    return TryUpgradeV1_2_0ToV1_2_1();
-
-                case DeformationDataVersion.V1_2_1:
-                    return TryUpgradeV1_2_1ToV1_3_0();
-                case DeformationDataVersion.V1_3_0:
-                    return TryNormalizePublishedGroupSelectionAndCommit(
-                        DeformationDataVersion.V1_3_1);
-                case DeformationDataVersion.V1_3_1:
-                    return TryNormalizePublishedGroupSelectionAndCommit(
-                        DeformationDataVersion.V1_4_0);
-
-                case DeformationDataVersion.V1_4_0:
-                    return TryUpgradeV1_4_0ToCurrent();
-
-                // The serialized enum is contiguous; range guards reject every unknown value.
-#line hidden
-                default:
-                    _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                    return false;
-#line default
+                ownerCommitStarted = true;
+                ApplyMigrationState(state);
+                if (state.CommitRequested) MarkMigrationCommitted();
+            });
+            if (!succeeded)
+            {
+                ApplyMigrationState(runner.State);
+                if (ownerCommitStarted) InvalidateCache();
             }
+            return succeeded;
         }
 
-        private void NormalizeAuthoritativeGroupShapeVersion()
-        {
-            if (HasNonNullGroups(_groups) && !HasNonNullLayers(_layers) &&
-                _layerModelVersion < k_CurrentLayerModelVersion)
-            {
-                _layerModelVersion = k_CurrentLayerModelVersion;
-            }
-        }
+        private void NormalizeAuthoritativeGroupShapeVersion() =>
+            RunLegacyMigration(runner => { runner.NormalizeAuthoritativeGroupShapeVersion(); return true; });
 
-        private bool ClassifyUnversionedDeformationData()
-        {
-            DeformationDataVersion detected;
-            bool hasGroups = HasNonNullGroups(_groups);
-            bool hasFlatLayers = HasNonNullLayers(_layers);
-            bool hasBaseSettings = HasMeaningfulBaseSettings();
+        private bool ClassifyUnversionedDeformationData() => RunLegacyMigration(runner => runner.ClassifyUnversionedDeformationData());
 
-            if (!hasGroups && !hasFlatLayers && !hasBaseSettings)
-            {
-                _layerModelVersion = k_CurrentLayerModelVersion;
-                _legacyAbsoluteLatticeEvaluation = false;
-                _deformationDataSourceVersion = DeformationDataVersion.CurrentDevelopment;
-                return CommitReleaseVersion(DeformationDataVersion.CurrentDevelopment);
-            }
+        private bool TryUpgradeV0_0_1ToV0_0_2() => RunLegacyMigration(runner => runner.TryUpgradeV0_0_1ToV0_0_2());
 
-            if (hasGroups)
-            {
-                // Serialized groups first shipped in 1.2.1. The published releases can
-                // also contain an eagerly-created group beside a stale flat-layer copy
-                // and conceptual-v2 marker; those are still 1.2.1 evidence.
-                detected = DeformationDataVersion.V1_2_1;
-            }
-            else if (hasFlatLayers || _layerModelVersion > 0)
-            {
-                // Internal conceptual-v1/v2 builds are treated as the immediately
-                // preceding public release and normalized in the 1.2.0→1.2.1 step.
-                detected = DeformationDataVersion.V1_2_0;
-            }
-            else
-            {
-                // Single-settings payloads are intentionally classified at the oldest
-                // compatible release. Only an intact _applySpace=1 marker identifies
-                // 0.0.1 World data; marker-less 0.0.2+ data is never guessed as World.
-                detected = DeformationDataVersion.V0_0_1;
-            }
+        private bool TryUpgradeV1_2_0ToV1_2_1() => RunLegacyMigration(runner => runner.TryUpgradeV1_2_0ToV1_2_1());
 
-            _deformationDataSourceVersion = detected;
-            _deformationDataVersion = detected;
-            MarkMigrationCommitted();
-            return true;
-        }
+        private bool TryUpgradeV1_2_1ToV1_3_0() => RunLegacyMigration(runner => runner.TryUpgradeV1_2_1ToV1_3_0());
 
-        private bool TryUpgradeV0_0_1ToV0_0_2()
-        {
-            if (_settings == null)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
+        private bool TryNormalizePublishedGroupSelectionAndCommit(DeformationDataVersion next) => RunLegacyMigration(runner => runner.TryNormalizePublishedGroupSelectionAndCommit(next));
 
-            if (_settings.HasInvalidLegacyApplySpace)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
+        private bool TryUpgradeV1_4_0ToCurrent() => RunLegacyMigration(runner => runner.TryUpgradeV1_4_0ToCurrent());
 
-            if (_settings.HasPendingLegacyWorldSpace)
-            {
-                Transform owner = MeshTransform;
-                // A live MonoBehaviour always owns a Transform.
-#line hidden
-                if (owner == null)
-                {
-                    _migrationStatus = DeformationDataMigrationStatus.PendingOwnerTransform;
-                    return false;
-                }
-#line default
+        private List<DeformationMigrationRunner.LatticeInterpolationCompatibilitySnapshot> PreservePublishedCubicInterpolationSemantics() =>
+            new DeformationMigrationRunner(CaptureMigrationState()).PreservePublishedCubicInterpolationSemantics();
 
-                if (_settings.ControlPointsLocal.Length != _settings.ControlPointCount)
-                {
-                    _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                    return false;
-                }
-
-                // 0.0.1 evaluated World control points against the owner's transform
-                // on every deformation. Validate now, but retain both raw points and
-                // marker so later transform changes keep those exact semantics.
-                if (!_settings.CanEvaluateLegacyWorldSpace(owner.worldToLocalMatrix))
-                {
-                    _migrationStatus = DeformationDataMigrationStatus.PendingOwnerTransform;
-                    return false;
-                }
-            }
-
-            return CommitReleaseVersion(DeformationDataVersion.V0_0_2);
-        }
-
-        private bool TryUpgradeV1_2_0ToV1_2_1()
-        {
-            // The structural helpers below use copy-on-write for the containing lists,
-            // so retaining the original references is a complete rollback snapshot.
-            var originalLayers = _layers;
-            var originalGroups = _groups;
-            int originalLayerVersion = _layerModelVersion;
-            int originalActiveLayer = _activeLayerIndex;
-            int originalActiveGroup = _activeGroupIndex;
-
-            try
-            {
-                bool hasGroups = HasNonNullGroups(_groups);
-                bool hasFlatLayers = HasNonNullLayers(_layers);
-
-                if (hasGroups && !hasFlatLayers)
-                {
-                    // A partial save already contains the newest meaningful shape. Do
-                    // not manufacture a duplicate layer from the facade _settings copy.
-                    _layerModelVersion = k_CurrentLayerModelVersion;
-                }
-                else
-                {
-                    if (_layerModelVersion < 2)
-                    {
-                        TryMigrateLegacyBaseToLayerStructure();
-                    }
-
-                    TryMigrateLayersToGroupStructure();
-                }
-
-                if (_layerModelVersion != k_CurrentLayerModelVersion || !HasNonNullGroups(_groups))
-                {
-                    throw new InvalidOperationException("Layer/group migration did not produce the v3 structure.");
-                }
-            }
-            catch (Exception)
-            {
-                _layers = originalLayers;
-                _groups = originalGroups;
-                _layerModelVersion = originalLayerVersion;
-                _activeLayerIndex = originalActiveLayer;
-                _activeGroupIndex = originalActiveGroup;
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-
-            return CommitReleaseVersion(DeformationDataVersion.V1_2_1);
-        }
-
-        private bool TryUpgradeV1_2_1ToV1_3_0()
-        {
-            // 1.2.1–1.4.0 could serialize authoritative groups together with a stale
-            // flat-layer facade and _layerModelVersion=2. The old runtime ignored that
-            // flat copy. Preserve it in a disabled recovery group so the payload remains
-            // inspectable without changing deformation or BlendShape output.
-            var originalLayers = _layers;
-            var originalGroups = _groups;
-            int originalLayerVersion = _layerModelVersion;
-            int originalActiveLayer = _activeLayerIndex;
-            int originalActiveGroup = _activeGroupIndex;
-            DeformationDataVersion originalVersion = _deformationDataVersion;
-            DeformationDataVersion originalSourceVersion = _deformationDataSourceVersion;
-            bool originalPublishedBlendShapeSemantics = _legacyPublishedBlendShapeSemantics;
-            List<GroupSelectionSnapshot> selectionSnapshots = null;
-
-            try
-            {
-                if (!HasNonNullGroups(_groups))
-                {
-                    throw new InvalidOperationException("The 1.2.1 group payload is missing.");
-                }
-                bool preservePublishedBlendShapeSemantics =
-                    ShouldPreserveHistoricalGroupBlendShapeSemantics();
-
-                var migratedGroups = new List<DeformerGroup>(_groups);
-                if (HasNonNullLayers(_layers))
-                {
-                    var migratedLayers = FilterLayersAndRemapActive(
-                        _layers,
-                        _activeLayerIndex,
-                        out int migratedActiveLayer);
-                    // HasNonNullLayers guarantees the filter retains at least one layer.
-#line hidden
-                    if (migratedLayers.Count == 0)
-                    {
-                        throw new InvalidOperationException("The legacy flat-layer payload could not be recovered.");
-                    }
-#line default
-
-                    var recoveryGroup = new DeformerGroup
-                    {
-                        Name = k_RecoveredLegacyFlatLayersGroupName,
-                        Enabled = false,
-                        ActiveLayerIndex = migratedActiveLayer,
-                        BlendShapeOutput = _blendShapeOutput,
-                        BlendShapeName = _blendShapeName ?? "",
-                        BlendShapeCurve = CloneCurve(_blendShapeCurve)
-                    };
-                    foreach (var layer in migratedLayers)
-                    {
-                        recoveryGroup.LayersList.Add(layer);
-                    }
-                    // ActiveLayerIndex clamps against the destination list, so restore
-                    // it after the layers have been copied.
-                    recoveryGroup.ActiveLayerIndex = migratedActiveLayer;
-                    migratedGroups.Add(recoveryGroup);
-                }
-
-                _groups = migratedGroups;
-                _layers = new List<LatticeLayer>();
-                // The recovery group owns the preserved flat selection from this point.
-                _activeLayerIndex = 0;
-                _layerModelVersion = k_CurrentLayerModelVersion;
-                // Existing groups are authoritative; keep the user's selected group.
-                _activeGroupIndex = originalActiveGroup;
-                if (preservePublishedBlendShapeSemantics)
-                {
-                    _legacyPublishedBlendShapeSemantics = true;
-                }
-                if (_activeGroupIndex < 0 || _activeGroupIndex >= _groups.Count ||
-                    _groups[_activeGroupIndex] == null)
-                {
-                    throw new InvalidOperationException("The active 1.2.1 group index is invalid.");
-                }
-
-                selectionSnapshots = CanonicalizePublishedRemoveLastSelections();
-
-                if (!CommitReleaseVersion(DeformationDataVersion.V1_3_0))
-                {
-                    throw new InvalidOperationException("Could not commit the 1.2.1→1.3.0 migration boundary.");
-                }
-
-                return true;
-            }
-            catch (Exception)
-            {
-                _layers = originalLayers;
-                _groups = originalGroups;
-                _layerModelVersion = originalLayerVersion;
-                _activeLayerIndex = originalActiveLayer;
-                _activeGroupIndex = originalActiveGroup;
-                _deformationDataVersion = originalVersion;
-                _deformationDataSourceVersion = originalSourceVersion;
-                _legacyPublishedBlendShapeSemantics = originalPublishedBlendShapeSemantics;
-                RestoreGroupSelections(selectionSnapshots);
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-        }
-
-        private bool TryNormalizePublishedGroupSelectionAndCommit(DeformationDataVersion next)
-        {
-            DeformationDataVersion originalVersion = _deformationDataVersion;
-            DeformationDataVersion originalSourceVersion = _deformationDataSourceVersion;
-            List<GroupSelectionSnapshot> selectionSnapshots = null;
-            try
-            {
-                selectionSnapshots = CanonicalizePublishedRemoveLastSelections();
-                if (!CommitReleaseVersion(next))
-                {
-                    RestoreGroupSelections(selectionSnapshots);
-                    return false;
-                }
-
-                return true;
-            }
-            // Canonicalization and commit are non-throwing for validated state.
-#line hidden
-            catch (Exception)
-            {
-                RestoreGroupSelections(selectionSnapshots);
-                _deformationDataVersion = originalVersion;
-                _deformationDataSourceVersion = originalSourceVersion;
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-        }
-
-        private bool TryUpgradeV1_4_0ToCurrent()
-        {
-            DeformationDataVersion originalVersion = _deformationDataVersion;
-            DeformationDataVersion originalSourceVersion = _deformationDataSourceVersion;
-            int originalLayerModelVersion = _layerModelVersion;
-            bool originalPublishedSemantics = _legacyPublishedBlendShapeSemantics;
-            bool originalAbsoluteEvaluation = _legacyAbsoluteLatticeEvaluation;
-            List<GroupSelectionSnapshot> selectionSnapshots = null;
-            List<LatticeInterpolationCompatibilitySnapshot> interpolationSnapshots = null;
-            try
-            {
-                NormalizeAuthoritativeGroupShapeVersion();
-                if (ShouldPreserveHistoricalGroupBlendShapeSemantics())
-                {
-                    _legacyPublishedBlendShapeSemantics = true;
-                }
-                _legacyAbsoluteLatticeEvaluation = HasMeaningfulSerializedLatticeData();
-                interpolationSnapshots = PreservePublishedCubicInterpolationSemantics();
-                selectionSnapshots = CanonicalizePublishedRemoveLastSelections();
-                if (!CommitReleaseVersion(DeformationDataVersion.CurrentDevelopment))
-                {
-                    throw new InvalidOperationException("Could not commit the 1.4.0→current migration boundary.");
-                }
-
-                return true;
-            }
-            catch (Exception)
-            {
-                RestoreGroupSelections(selectionSnapshots);
-                _deformationDataVersion = originalVersion;
-                _deformationDataSourceVersion = originalSourceVersion;
-                _layerModelVersion = originalLayerModelVersion;
-                _legacyPublishedBlendShapeSemantics = originalPublishedSemantics;
-                _legacyAbsoluteLatticeEvaluation = originalAbsoluteEvaluation;
-                RestoreLatticeInterpolationCompatibility(interpolationSnapshots);
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-#line default
-        }
-
-        private List<LatticeInterpolationCompatibilitySnapshot> PreservePublishedCubicInterpolationSemantics()
-        {
-            var snapshots = new List<LatticeInterpolationCompatibilitySnapshot>();
-            var visited = new HashSet<LatticeAsset>();
-
-            void Preserve(LatticeAsset asset)
-            {
-                if (asset == null || !visited.Add(asset) ||
-                    asset.Interpolation != LatticeInterpolationMode.CubicBernstein)
-                {
-                    return;
-                }
-
-                snapshots.Add(new LatticeInterpolationCompatibilitySnapshot(
-                    asset,
-                    asset.UsesLegacyTrilinearInterpolation));
-                asset.SetLegacyTrilinearInterpolation(true);
-            }
-
-            Preserve(_settings);
-            if (_layers != null)
-            {
-                foreach (var layer in _layers)
-                {
-                    if (layer != null && layer.Type == MeshDeformerLayerType.Lattice)
-                    {
-                        Preserve(layer.SerializedSettings);
-                    }
-                }
-            }
-
-            if (_groups != null)
-            {
-                foreach (var group in _groups)
-                {
-                    var layers = group?.SerializedLayers;
-                    if (layers == null) continue;
-                    foreach (var layer in layers)
-                    {
-                        if (layer != null && layer.Type == MeshDeformerLayerType.Lattice)
-                        {
-                            Preserve(layer.SerializedSettings);
-                        }
-                    }
-                }
-            }
-
-            return snapshots;
-        }
-
-        private static void RestoreLatticeInterpolationCompatibility(
-            List<LatticeInterpolationCompatibilitySnapshot> snapshots)
-        {
-            if (snapshots == null) return;
-            for (int index = snapshots.Count - 1; index >= 0; index--)
-            {
-                var snapshot = snapshots[index];
-                snapshot.Asset?.SetLegacyTrilinearInterpolation(
-                    snapshot.UsedLegacyTrilinearInterpolation);
-            }
-        }
+        private static void RestoreLatticeInterpolationCompatibility(List<DeformationMigrationRunner.LatticeInterpolationCompatibilitySnapshot> snapshots) =>
+            DeformationMigrationRunner.RestoreLatticeInterpolationCompatibility(snapshots);
 
         /// <summary>
         /// Releases 1.2.1 through 1.4.0 read ActiveLayerIndex only after removing a
@@ -2447,113 +2068,20 @@ namespace Net._32Ba.LatticeDeformationTool
         /// the new Count. That exact, tag-proven pattern is recoverable without guessing;
         /// every other out-of-range value remains invalid.
         /// </summary>
-        private List<GroupSelectionSnapshot> CanonicalizePublishedRemoveLastSelections()
-        {
-            var snapshots = new List<GroupSelectionSnapshot>();
-            if (!CanContainPublishedRemoveLastSelectionBug() || _groups == null)
-            {
-                return snapshots;
-            }
+        private List<DeformationMigrationRunner.GroupSelectionSnapshot> CanonicalizePublishedRemoveLastSelections() =>
+            new DeformationMigrationRunner(CaptureMigrationState()).CanonicalizePublishedRemoveLastSelections();
 
-            for (int groupIndex = 0; groupIndex < _groups.Count; groupIndex++)
-            {
-                var group = _groups[groupIndex];
-                var layers = group?.SerializedLayers;
-                if (layers == null || layers.Count == 0 ||
-                    group.SerializedActiveLayerIndex != layers.Count)
-                {
-                    continue;
-                }
-
-                snapshots.Add(new GroupSelectionSnapshot(group, group.SerializedActiveLayerIndex));
-            }
-
-            for (int index = 0; index < snapshots.Count; index++)
-            {
-                var snapshot = snapshots[index];
-                snapshot.Group.SetSerializedActiveLayerIndex(snapshot.ActiveLayerIndex - 1);
-            }
-
-            return snapshots;
-        }
-
-        private static void RestoreGroupSelections(List<GroupSelectionSnapshot> snapshots)
-        {
-            if (snapshots == null) return;
-            for (int index = snapshots.Count - 1; index >= 0; index--)
-            {
-                var snapshot = snapshots[index];
-                snapshot.Group?.SetSerializedActiveLayerIndex(snapshot.ActiveLayerIndex);
-            }
-        }
+        private static void RestoreGroupSelections(List<DeformationMigrationRunner.GroupSelectionSnapshot> snapshots) =>
+            DeformationMigrationRunner.RestoreGroupSelections(snapshots);
 
         private bool CanContainPublishedRemoveLastSelectionBug() =>
             DeformationMigrationPreflight.CanContainPublishedRemoveLastSelectionBug(ReadMigrationInput());
 
-        private bool ShouldPreserveHistoricalGroupBlendShapeSemantics()
-        {
-            DeformationDataVersion source = SourceDeformationDataVersion;
-            return source >= DeformationDataVersion.V1_2_1 &&
-                   source <= DeformationDataVersion.V1_4_0 &&
-                   HasEnabledPublishedBlendShapeMetadata();
-        }
+        private bool ShouldPreserveHistoricalGroupBlendShapeSemantics() => new DeformationMigrationRunner(CaptureMigrationState()).ShouldPreserveHistoricalGroupBlendShapeSemantics();
 
-        private bool HasEnabledPublishedBlendShapeMetadata()
-        {
-            if (_groups != null)
-            {
-                foreach (var group in _groups)
-                {
-                    // Published Deform skipped disabled groups before inspecting any
-                    // output metadata. Such dormant fields must not lock unrelated,
-                    // enabled groups into component-wide compatibility semantics.
-                    if (group == null || !group.Enabled) continue;
-                    if (group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
-                    {
-                        return true;
-                    }
+        private bool HasEnabledPublishedBlendShapeMetadata() => new DeformationMigrationRunner(CaptureMigrationState()).HasEnabledPublishedBlendShapeMetadata();
 
-                    var layers = group.SerializedLayers;
-                    if (layers == null) continue;
-                    foreach (var layer in layers)
-                    {
-                        if (layer != null && layer.Enabled && layer.Weight > 0f &&
-                            layer.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
-
-            // Once published groups existed, the old runtime never evaluated the
-            // component's stale flat-layer facade. Metadata found only in that backup
-            // must therefore not switch the authoritative groups into component-wide
-            // compatibility mode. The backup is retained in a disabled recovery group.
-            return false;
-        }
-
-        private bool CommitReleaseVersion(DeformationDataVersion next)
-        {
-            if ((int)next <= (int)_deformationDataVersion ||
-                (int)next > (int)DeformationDataVersion.CurrentDevelopment)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-
-            if (_deformationDataSourceVersion == DeformationDataVersion.Unversioned)
-            {
-                _deformationDataSourceVersion = _deformationDataVersion;
-            }
-
-            _deformationDataVersion = next;
-            _migrationStatus = next == DeformationDataVersion.CurrentDevelopment
-                ? DeformationDataMigrationStatus.Ready
-                : DeformationDataMigrationStatus.InProgress;
-            MarkMigrationCommitted();
-            return true;
-        }
+        private bool CommitReleaseVersion(DeformationDataVersion next) => RunLegacyMigration(runner => runner.CommitReleaseVersion(next));
 
         private void MarkMigrationCommitted()
         {
@@ -2566,85 +2094,13 @@ namespace Net._32Ba.LatticeDeformationTool
 #endif
         }
 
-        private bool HasMeaningfulBaseSettings()
-        {
-            if (_settings == null)
-            {
-                return false;
-            }
+        private bool HasMeaningfulBaseSettings() => new DeformationMigrationRunner(CaptureMigrationState()).HasMeaningfulBaseSettings();
 
-            if (_settings.HasPendingLegacyWorldSpace || _settings.HasInvalidLegacyApplySpace ||
-                _hasInitializedFromSource || _serializedSourceMesh != null)
-            {
-                return true;
-            }
+        private bool HasMeaningfulSerializedLatticeData() => new DeformationMigrationRunner(CaptureMigrationState()).HasMeaningfulSerializedLatticeData();
 
-            // Unity may run the nested serialization callback while a brand-new
-            // component is being constructed, which creates a neutral point array.
-            // Neutral points without any source-initialization evidence are fresh, not
-            // historical deformation data.
-            return _settings.HasNonDefaultSerializedConfiguration ||
-                   (_settings.HasSerializedControlPointData && _settings.HasCustomizedControlPoints());
-        }
+        private static bool HasNonNullGroups(List<DeformerGroup> groups) => DeformationMigrationRunner.HasNonNullGroups(groups);
 
-        private bool HasMeaningfulSerializedLatticeData()
-        {
-            if (_groups != null)
-            {
-                foreach (var group in _groups)
-                {
-                    if (group == null) continue;
-                    var serializedLayers = group.SerializedLayers;
-                    if (serializedLayers == null) continue;
-                    foreach (var layer in serializedLayers)
-                    {
-                        if (layer != null && layer.Type == MeshDeformerLayerType.Lattice &&
-                            layer.SerializedSettings != null &&
-                            layer.SerializedSettings.HasSerializedControlPointData)
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
-
-            if (_layers != null)
-            {
-                foreach (var layer in _layers)
-                {
-                    if (layer != null && layer.Type == MeshDeformerLayerType.Lattice &&
-                        layer.SerializedSettings != null &&
-                        layer.SerializedSettings.HasSerializedControlPointData)
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return HasMeaningfulBaseSettings();
-        }
-
-        private static bool HasNonNullGroups(List<DeformerGroup> groups)
-        {
-            if (groups == null) return false;
-            for (int i = 0; i < groups.Count; i++)
-            {
-                if (groups[i] != null) return true;
-            }
-
-            return false;
-        }
-
-        private static bool HasNonNullLayers(List<LatticeLayer> layers)
-        {
-            if (layers == null) return false;
-            for (int i = 0; i < layers.Count; i++)
-            {
-                if (layers[i] != null) return true;
-            }
-
-            return false;
-        }
+        private static bool HasNonNullLayers(List<LatticeLayer> layers) => DeformationMigrationRunner.HasNonNullLayers(layers);
 
         private bool HasUnsupportedFutureLatticeAsset() =>
             DeformationMigrationPreflight.HasUnsupportedFutureLatticeAsset(ReadMigrationInput());
@@ -2941,72 +2397,7 @@ namespace Net._32Ba.LatticeDeformationTool
         /// <summary>
         /// v2→v3 migration: moves flat _layers + component-level BlendShape settings into a single group.
         /// </summary>
-        private bool TryMigrateLayersToGroupStructure()
-        {
-            if (_layerModelVersion > k_CurrentLayerModelVersion ||
-                (int)_deformationDataVersion > (int)DeformationDataVersion.CurrentDevelopment)
-            {
-                return false;
-            }
-
-            var sourceLayers = _layers ?? new List<LatticeLayer>();
-            var migratedLayers = FilterLayersAndRemapActive(
-                sourceLayers,
-                _activeLayerIndex,
-                out int migratedActiveLayer);
-
-            bool hasGroups = HasNonNullGroups(_groups);
-            if (hasGroups && migratedLayers.Count == 0)
-            {
-                if (_layerModelVersion >= k_CurrentLayerModelVersion) return false;
-                _layerModelVersion = k_CurrentLayerModelVersion;
-                return false;
-            }
-
-            if (!hasGroups && migratedLayers.Count == 0)
-            {
-                if (_layerModelVersion >= k_CurrentLayerModelVersion) return false;
-                _layerModelVersion = k_CurrentLayerModelVersion;
-                return false;
-            }
-
-            // Wrap the flat payload. If groups already exist due to a partial save or
-            // Inspector-first access, append a recovery group instead of discarding
-            // either representation.
-            var group = new DeformerGroup();
-            group.Name = hasGroups ? "Recovered Layers" : "Group";
-            foreach (var layer in migratedLayers)
-            {
-                group.LayersList.Add(layer);
-            }
-            group.ActiveLayerIndex = migratedActiveLayer;
-            group.BlendShapeOutput = _blendShapeOutput;
-            group.BlendShapeName = _blendShapeName ?? "";
-            group.BlendShapeCurve = _blendShapeCurve ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
-
-            var migratedGroups = _groups == null
-                ? new List<DeformerGroup>()
-                : new List<DeformerGroup>(_groups);
-            migratedGroups.Add(group);
-            _groups = migratedGroups;
-            _activeGroupIndex = migratedGroups.Count - 1;
-            _layers = new List<LatticeLayer>();
-            // The selected flat layer now lives in the migrated group. Keep the raw
-            // facade index canonical so subsequent fail-closed preflights do not treat
-            // an otherwise successful migration as a dangling selection.
-            _activeLayerIndex = 0;
-            _layerModelVersion = k_CurrentLayerModelVersion;
-
-            InvalidateCache();
-
-#if UNITY_EDITOR
-            if (!Application.isPlaying)
-            {
-                MarkDirtyInEditor(this);
-            }
-#endif
-            return true;
-        }
+        private bool TryMigrateLayersToGroupStructure() => RunLegacyMigration(runner => runner.TryMigrateLayersToGroupStructure());
 
         private bool EnsureGroups()
         {
@@ -3026,38 +2417,8 @@ namespace Net._32Ba.LatticeDeformationTool
         }
 
         private static List<LatticeLayer> FilterLayersAndRemapActive(
-            List<LatticeLayer> source,
-            int sourceActive,
-            out int active)
-        {
-            var filtered = new List<LatticeLayer>();
-            LatticeLayer selected = sourceActive >= 0 && sourceActive < source.Count
-                ? source[sourceActive]
-                : null;
-            active = 0;
-
-            for (int i = 0; i < source.Count; i++)
-            {
-                var layer = source[i];
-                if (layer == null) continue;
-                if (ReferenceEquals(layer, selected)) active = filtered.Count;
-                filtered.Add(layer);
-            }
-
-            if (selected == null && filtered.Count > 0)
-            {
-                int nonNullBeforeOrAt = 0;
-                int limit = Mathf.Clamp(sourceActive, 0, source.Count - 1);
-                for (int i = 0; i <= limit; i++)
-                {
-                    if (source[i] != null) nonNullBeforeOrAt++;
-                }
-
-                active = Mathf.Clamp(nonNullBeforeOrAt - 1, 0, filtered.Count - 1);
-            }
-
-            return filtered;
-        }
+            List<LatticeLayer> source, int sourceActive, out int active) =>
+            DeformationMigrationRunner.FilterLayersAndRemapActive(source, sourceActive, out active);
 
         private void EnsureGroupsCore()
         {
@@ -3237,85 +2598,7 @@ namespace Net._32Ba.LatticeDeformationTool
             InitializeFromSource(true);
         }
 
-        private bool TryMigrateLegacyBaseToLayerStructure()
-        {
-            EnsureSettings();
-            // This handles v0→v2 (flat _settings → _layers). Skip if already at v2+.
-            if (_layerModelVersion >= 2)
-            {
-                return false;
-            }
-
-            var existingLayers = _layers ?? new List<LatticeLayer>();
-            var migratedLayers = new List<LatticeLayer>();
-            LatticeLayer selectedLayer = _activeLayerIndex >= 0 && _activeLayerIndex < existingLayers.Count
-                ? existingLayers[_activeLayerIndex]
-                : null;
-
-            bool includeLegacyBase = _settings != null &&
-                                     (_settings.HasCustomizedControlPoints() ||
-                                      !HasNonNullLayers(existingLayers) ||
-                                      _activeLayerIndex < 0);
-            int migratedActive = 0;
-            if (includeLegacyBase)
-            {
-                migratedLayers.Add(new LatticeLayer
-                {
-                    Name = k_PrimaryLayerName,
-                    Enabled = true,
-                    Weight = 1f,
-                    Settings = CloneSettings(_settings)
-                });
-
-                if (_activeLayerIndex < 0)
-                {
-                    migratedActive = 0;
-                }
-            }
-
-            for (int i = 0; i < existingLayers.Count; i++)
-            {
-                var existing = existingLayers[i];
-                if (existing == null)
-                {
-                    continue;
-                }
-
-                if (ReferenceEquals(existing, selectedLayer))
-                {
-                    migratedActive = migratedLayers.Count;
-                }
-                migratedLayers.Add(existing);
-            }
-
-            if (selectedLayer == null && _activeLayerIndex >= 0 && migratedLayers.Count > 0)
-            {
-                int nonNullBeforeOrAt = 0;
-                int limit = Mathf.Clamp(_activeLayerIndex, 0, Math.Max(0, existingLayers.Count - 1));
-                for (int i = 0; i <= limit && i < existingLayers.Count; i++)
-                {
-                    if (existingLayers[i] != null) nonNullBeforeOrAt++;
-                }
-
-                migratedActive = (includeLegacyBase ? 1 : 0) + nonNullBeforeOrAt - 1;
-            }
-
-            _layers = migratedLayers;
-            _activeLayerIndex = _layers.Count == 0
-                ? 0
-                : Mathf.Clamp(migratedActive, 0, _layers.Count - 1);
-            _layerModelVersion = 2; // v0→v2 done; TryMigrateLayersToGroupStructure handles v2→v3
-
-            InvalidateCache();
-
-#if UNITY_EDITOR
-            if (!Application.isPlaying)
-            {
-                MarkDirtyInEditor(this);
-            }
-#endif
-            return true;
-        }
+        private bool TryMigrateLegacyBaseToLayerStructure() => RunLegacyMigration(runner => runner.TryMigrateLegacyBaseToLayerStructure());
 
 #if UNITY_EDITOR
         [ExcludeFromCodeCoverage]
@@ -3419,45 +2702,9 @@ namespace Net._32Ba.LatticeDeformationTool
             return cloned;
         }
 
-        private static LatticeAsset CloneSettings(LatticeAsset source)
-        {
-            var cloned = new LatticeAsset();
-            if (source == null)
-            {
-                cloned.EnsureInitialized();
-                return cloned;
-            }
+        private static LatticeAsset CloneSettings(LatticeAsset source) => DeformationModelCopy.CloneSettings(source);
 
-            cloned.GridSize = source.GridSize;
-            cloned.LocalBounds = source.LocalBounds;
-            cloned.Interpolation = source.Interpolation;
-            cloned.EnsureInitialized();
-
-            int count = Mathf.Min(cloned.ControlPointCount, source.ControlPointCount);
-            for (int i = 0; i < count; i++)
-            {
-                cloned.SetControlPointLocal(i, source.GetControlPointLocal(i));
-            }
-
-            cloned.CopyLegacySerializationStateFrom(source);
-
-            return cloned;
-        }
-
-        private static AnimationCurve CloneCurve(AnimationCurve source)
-        {
-            if (source == null)
-            {
-                return AnimationCurve.Linear(0f, 0f, 1f, 1f);
-            }
-
-            var clone = new AnimationCurve(source.keys)
-            {
-                preWrapMode = source.preWrapMode,
-                postWrapMode = source.postWrapMode
-            };
-            return clone;
-        }
+        private static AnimationCurve CloneCurve(AnimationCurve source) => DeformationModelCopy.CloneCurve(source);
 
         private static int HashAssetState(LatticeAsset settings)
         {
