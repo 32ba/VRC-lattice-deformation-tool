@@ -25,6 +25,92 @@ msgstr "The main component for non-destructive mesh deformation."
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer-overview"
 msgstr "Adjust Mesh and SkinnedMesh geometry with layered Lattice, Brush, and Vertex Selection tools. The source Mesh stays unchanged; NDMF Preview and builds apply the result non-destructively."
 
+# Guided inspector
+msgid "net.32ba.lattice-deformation-tool.localization.guided-question"
+msgstr "What do you want to do?"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-intro"
+msgstr "Choose what you want to do and start editing right away. The original Mesh data will not be changed."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-target"
+msgstr "Target Mesh"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-no-target"
+msgstr "No target Mesh was found. Add this component to the same GameObject as the Renderer you want to edit, or assign a target below."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-current-edit"
+msgstr "Current edit: {0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape"
+msgstr "Adjust the overall shape"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape-description"
+msgstr "Enclose and reshape a broad area of clothing or a body at once."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface"
+msgstr "Sculpt the surface"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface-description"
+msgstr "Brush over the surface to push, move, or smooth it."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices"
+msgstr "Grab and move vertices"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices-description"
+msgstr "Select vertices and adjust their positions precisely with a handle."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-preview-note"
+msgstr "When editing starts, the result becomes visible in the Scene view."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-single-selection-required"
+msgstr "Select one Mesh Deformer to edit it from the guided screen."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-profile-read-only"
+msgstr "A shared Profile cannot be edited directly here. Open detailed editing and copy it to embedded data first."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-unable-to-start"
+msgstr "Editing could not be started. Check the target Mesh and edit data in detailed editing."
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-detailed-inspector"
+msgstr "Detailed editing..."
+
+msgid "net.32ba.lattice-deformation-tool.localization.return-to-guided-inspector"
+msgstr "Back to guided screen"
+
+# Guided Scene View overlay
+msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-adjust-shape-hint"
+msgstr "Drag the cyan points to reshape the object."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-sculpt-surface-hint"
+msgstr "Drag over the surface. Choose what the brush should do, then adjust its size and strength."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-move-vertices-hint"
+msgstr "Select vertices, then use the handle to move them."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-push-pull"
+msgstr "Shape"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-move"
+msgstr "Shift"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-smooth"
+msgstr "Smooth"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-raise"
+msgstr "Raise"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-indent"
+msgstr "Indent"
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-detailed-overlay"
+msgstr "Show detailed controls"
+
+msgid "net.32ba.lattice-deformation-tool.localization.return-to-simple-overlay"
+msgstr "Back to simple controls"
+
+msgid "net.32ba.lattice-deformation-tool.localization.finish-editing"
+msgstr "Finish editing"
+
 msgid "net.32ba.lattice-deformation-tool.localization.yes"
 msgstr "Yes"
 

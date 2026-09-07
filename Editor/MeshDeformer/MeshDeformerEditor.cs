@@ -95,6 +95,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static string s_copiedLayerJson = null;
         private static MeshDeformerLayerType s_copiedLayerType;
         private static string s_copiedGroupJson = null;
+        private const string DetailedInspectorSessionKeyPrefix =
+            "Net32Ba.LatticeDeformationTool.DetailedInspector.";
+
+        private VisualElement _guidedInspectorContainer;
+        private VisualElement _detailedInspectorContainer;
+        private bool _guidedStartFailed;
 
         // UI Toolkit layer list
         private ListView _layerListView;
@@ -255,8 +261,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             var root = new VisualElement();
 
+            _guidedInspectorContainer = new VisualElement();
+            _guidedInspectorContainer.Add(new IMGUIContainer(DrawGuidedInspector));
+            root.Add(_guidedInspectorContainer);
+
+            _detailedInspectorContainer = new VisualElement();
+            _detailedInspectorContainer.Add(new IMGUIContainer(DrawDetailedInspectorNavigation));
+
             // Top: Language + Mesh Source (IMGUI)
-            root.Add(new IMGUIContainer(DrawTopSection));
+            _detailedInspectorContainer.Add(new IMGUIContainer(DrawTopSection));
 
             // Groups > Layers nested structure (UI Toolkit)
             if (targets.Length == 1)
@@ -264,11 +277,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _groupsContainer = new VisualElement();
                 _groupsContainer.style.marginTop = 4;
                 RebuildGroupList();
-                root.Add(_groupsContainer);
+                _detailedInspectorContainer.Add(_groupsContainer);
             }
 
             // Build Options + Open Editor (IMGUI)
-            root.Add(new IMGUIContainer(DrawBottomSection));
+            _detailedInspectorContainer.Add(new IMGUIContainer(DrawBottomSection));
+            root.Add(_detailedInspectorContainer);
+
+            ApplyInspectorDepthVisibility();
 
             // Track serialized changes
             root.TrackSerializedObjectValue(serializedObject, _ =>
@@ -279,6 +295,225 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             root.Bind(serializedObject);
 
             return root;
+        }
+
+        private bool DetailedInspectorEnabled
+        {
+            get => SessionState.GetBool(GetDetailedInspectorSessionKey(), false);
+            set => SessionState.SetBool(GetDetailedInspectorSessionKey(), value);
+        }
+
+        private string GetDetailedInspectorSessionKey()
+        {
+            int instanceId = target != null ? target.GetInstanceID() : 0;
+            return DetailedInspectorSessionKeyPrefix + instanceId;
+        }
+
+        private void ApplyInspectorDepthVisibility()
+        {
+            bool detailed = DetailedInspectorEnabled;
+            if (_guidedInspectorContainer != null)
+            {
+                _guidedInspectorContainer.style.display = detailed ? DisplayStyle.None : DisplayStyle.Flex;
+            }
+            if (_detailedInspectorContainer != null)
+            {
+                _detailedInspectorContainer.style.display = detailed ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
+        private void DrawDetailedInspectorNavigation()
+        {
+            if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ReturnToGuidedInspector)))
+            {
+                DetailedInspectorEnabled = false;
+                ApplyInspectorDepthVisibility();
+            }
+        }
+
+        private void DrawGuidedInspector()
+        {
+            if (target == null) return;
+
+            AutoAssignLocalRendererReferences();
+            serializedObject.Update();
+            ResolveActiveGroupProperties();
+
+            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.GuidedQuestion), EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.GuidedIntro), MessageType.Info);
+
+            if (targets.Length != 1 || target is not LatticeDeformer deformer)
+            {
+                EditorGUILayout.HelpBox(
+                    LatticeLocalization.Tr(LocKey.GuidedSingleSelectionRequired),
+                    MessageType.Warning);
+                DrawOpenDetailedInspectorButton();
+                return;
+            }
+
+            DrawGuidedTarget(deformer);
+
+            if (deformer.DataSource == DeformerDataSource.Profile)
+            {
+                EditorGUILayout.HelpBox(
+                    LatticeLocalization.Tr(LocKey.GuidedProfileReadOnly),
+                    MessageType.Warning);
+                DrawOpenDetailedInspectorButton();
+                return;
+            }
+
+            if (deformer.TryGetActiveLayerFast(out var activeLayer))
+            {
+                EditorGUILayout.LabelField(
+                    string.Format(LatticeLocalization.Tr(LocKey.GuidedCurrentEdit), activeLayer.Name),
+                    EditorStyles.miniLabel);
+            }
+
+            bool canStart = deformer.SourceMesh != null;
+            using (new EditorGUI.DisabledScope(!canStart))
+            {
+                DrawGuidedAction(
+                    LocKey.GuidedAdjustShape,
+                    LocKey.GuidedAdjustShapeDescription,
+                    GuidedEditingIntent.AdjustShape);
+                DrawGuidedAction(
+                    LocKey.GuidedSculptSurface,
+                    LocKey.GuidedSculptSurfaceDescription,
+                    GuidedEditingIntent.SculptSurface);
+                DrawGuidedAction(
+                    LocKey.GuidedMoveVertices,
+                    LocKey.GuidedMoveVerticesDescription,
+                    GuidedEditingIntent.MoveVertices);
+            }
+
+            EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.GuidedPreviewNote), MessageType.None);
+            if (_guidedStartFailed)
+            {
+                EditorGUILayout.HelpBox(
+                    LatticeLocalization.Tr(LocKey.GuidedUnableToStart),
+                    MessageType.Warning);
+            }
+
+            DrawOpenDetailedInspectorButton();
+
+            if (serializedObject.ApplyModifiedProperties())
+            {
+                NotifyPropertyChanges();
+            }
+        }
+
+        private void DrawGuidedTarget(LatticeDeformer deformer)
+        {
+            if (deformer.SourceMesh != null)
+            {
+                EditorGUILayout.LabelField(
+                    LatticeLocalization.Tr(LocKey.GuidedTarget),
+                    deformer.SourceMesh.name);
+            }
+            else
+            {
+                EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.GuidedNoTarget), MessageType.Warning);
+                EditorGUILayout.PropertyField(_skinnedRendererProp, LatticeLocalization.Content(LocKey.SkinnedMeshSource));
+                EditorGUILayout.PropertyField(_meshFilterProp, LatticeLocalization.Content(LocKey.StaticMeshSource));
+            }
+        }
+
+        private void DrawGuidedAction(string labelKey, string descriptionKey, GuidedEditingIntent intent)
+        {
+            string description = LatticeLocalization.Tr(descriptionKey);
+            if (GUILayout.Button(new GUIContent(LatticeLocalization.Tr(labelKey), description), GUILayout.Height(34f)))
+            {
+                StartGuidedEditing(intent);
+            }
+            GUILayout.Label(description, EditorStyles.wordWrappedMiniLabel);
+            EditorGUILayout.Space(4f);
+        }
+
+        private void DrawOpenDetailedInspectorButton()
+        {
+            EditorGUILayout.Space(4f);
+            if (GUILayout.Button(LatticeLocalization.Tr(LocKey.OpenDetailedInspector)))
+            {
+                DetailedInspectorEnabled = true;
+                ApplyInspectorDepthVisibility();
+            }
+        }
+
+        private enum GuidedEditingIntent
+        {
+            AdjustShape,
+            SculptSurface,
+            MoveVertices
+        }
+
+        private void StartGuidedEditing(GuidedEditingIntent intent)
+        {
+            if (target is not LatticeDeformer deformer || deformer.SourceMesh == null)
+            {
+                _guidedStartFailed = true;
+                return;
+            }
+
+            serializedObject.ApplyModifiedProperties();
+            Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.MeshDeformer));
+
+            MeshDeformerLayerType layerType = intent == GuidedEditingIntent.AdjustShape
+                ? MeshDeformerLayerType.Lattice
+                : MeshDeformerLayerType.Brush;
+            int layerIndex = EnsureGuidedLayer(deformer, layerType);
+            if (layerIndex < 0)
+            {
+                serializedObject.Update();
+                _guidedStartFailed = true;
+                return;
+            }
+
+            _guidedStartFailed = false;
+            MeshDeformerTool.CurrentBrushSubMode = intent == GuidedEditingIntent.MoveVertices
+                ? MeshDeformerTool.BrushSubMode.VertexSelection
+                : MeshDeformerTool.BrushSubMode.Brush;
+            MeshDeformerTool.UseSimpleOverlay(deformer);
+
+            EditorUtility.SetDirty(deformer);
+            LatticePrefabUtility.MarkModified(deformer);
+            deformer.InvalidateCache();
+            deformer.Deform(LatticePreviewUtility.ShouldAssignRuntimeMesh());
+            TogglePreviewForTargets(true);
+
+            serializedObject.Update();
+            ResolveActiveGroupProperties();
+            InitializePendingGridSizes();
+            RebuildGroupList();
+            ToolManager.SetActiveTool<MeshDeformerTool>();
+            LatticePreviewUtility.RequestSceneRepaint();
+            SceneView.RepaintAll();
+        }
+
+        internal static int EnsureGuidedLayer(
+            LatticeDeformer deformer,
+            MeshDeformerLayerType requiredType)
+        {
+            if (deformer == null || deformer.DataSource == DeformerDataSource.Profile)
+            {
+                return -1;
+            }
+
+            var layers = deformer.Layers;
+            int activeIndex = deformer.ActiveLayerIndex;
+            if (activeIndex >= 0 && activeIndex < layers.Count &&
+                layers[activeIndex] != null && layers[activeIndex].Type == requiredType)
+            {
+                return activeIndex;
+            }
+
+            for (int i = 0; i < layers.Count; i++)
+            {
+                if (layers[i] == null || layers[i].Type != requiredType) continue;
+                deformer.ActiveLayerIndex = i;
+                return i;
+            }
+
+            return deformer.AddLayer(layerType: requiredType);
         }
 
         private VisualElement _groupsContainer;
@@ -931,6 +1166,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     ? LatticeLocalization.Tr(LocKey.OpenBrushEditor)
                     : LatticeLocalization.Tr(LocKey.OpenLatticeEditor)))
                 {
+                    MeshDeformerTool.UseDetailedOverlay();
                     ToolManager.SetActiveTool<MeshDeformerTool>();
                     LatticePreviewUtility.RequestSceneRepaint();
                 }

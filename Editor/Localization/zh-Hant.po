@@ -25,6 +25,92 @@ msgstr "無損網格變形的主要組件。"
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer-overview"
 msgstr "使用 Lattice、Brush 和 Vertex Selection 圖層調整 Mesh / SkinnedMesh 形狀。來源 Mesh 保持不變，結果透過 NDMF Preview 和建置流程以非破壞方式套用。"
 
+# Guided inspector
+msgid "net.32ba.lattice-deformation-tool.localization.guided-question"
+msgstr "您想做什麼？"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-intro"
+msgstr "選擇想做的操作後即可立即開始編輯，原始 Mesh 資料不會被更改。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-target"
+msgstr "目標網格"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-no-target"
+msgstr "找不到目標網格。請將此元件加入要編輯的 Renderer 所在 GameObject，或在下方指定目標。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-current-edit"
+msgstr "目前編輯內容：{0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape"
+msgstr "調整整體形狀"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape-description"
+msgstr "框住衣物或身體的較大範圍並一次調整形狀。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface"
+msgstr "沿表面進行調整"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface-description"
+msgstr "使用筆刷推動、移動或平滑表面。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices"
+msgstr "抓取並移動頂點"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices-description"
+msgstr "選取頂點並使用操作控點精細調整位置。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-preview-note"
+msgstr "開始編輯後，可以在 Scene 檢視中查看結果。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-single-selection-required"
+msgstr "若要從簡易畫面編輯，請只選取一個 Mesh Deformer。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-profile-read-only"
+msgstr "無法在此畫面直接編輯共用 Profile。請先在詳細編輯中複製到內嵌資料。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-unable-to-start"
+msgstr "無法開始編輯。請在詳細編輯中檢查目標網格與編輯內容。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-detailed-inspector"
+msgstr "詳細編輯..."
+
+msgid "net.32ba.lattice-deformation-tool.localization.return-to-guided-inspector"
+msgstr "返回簡易畫面"
+
+# Guided Scene View overlay
+msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-adjust-shape-hint"
+msgstr "拖曳淺藍色控制點來調整整體形狀。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-sculpt-surface-hint"
+msgstr "在表面拖曳進行調整。可選擇筆刷作用、大小和強度。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-move-vertices-hint"
+msgstr "選取頂點，然後使用顯示的控制柄移動它們。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-push-pull"
+msgstr "改變形狀"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-move"
+msgstr "推移"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-smooth"
+msgstr "平滑"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-raise"
+msgstr "凸起"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-indent"
+msgstr "凹陷"
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-detailed-overlay"
+msgstr "顯示詳細操作"
+
+msgid "net.32ba.lattice-deformation-tool.localization.return-to-simple-overlay"
+msgstr "返回簡易操作"
+
+msgid "net.32ba.lattice-deformation-tool.localization.finish-editing"
+msgstr "結束編輯"
+
 msgid "net.32ba.lattice-deformation-tool.localization.yes"
 msgstr "是"
 

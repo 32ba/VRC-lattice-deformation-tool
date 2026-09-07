@@ -18,8 +18,14 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 │   └── Fixtures/HistoricalReleases/ # 公開14リリースで実保存した移行fixture
 ├── Runtime/             # ランタイムコンポーネント（MonoBehaviour, ScriptableObject）
 ├── Tools~/HistoricalFixtures/ # 隔離Unityプロジェクトで履歴fixtureを再生成するツール
+├── Docs~/Architecture/  # 全体リファクタリングの監査、設計案、基準ファイル記録
 └── package.json         # VPM パッケージ定義
 ```
+
+### 全体リファクタリングの監査と計画
+
+- `Docs~/Architecture/2026-09-07-audit.md` と `2026-09-07-refactoring-plan.md` は、既存データと機能を維持する内部再設計の監査結果と設計案。記載した新構成は未実装であり、現行仕様と混同しない。
+- 監査は `1.4.5-rc.5` の未コミット変更を含む作業ツリーと、ローカルの `1.4.6-beta.1` タグを区別している。実装前に配布版と作業中変更を整理して基準commitを固定し、既存の履歴fixtureと期待値を維持する。
 
 ### 統合 EditorTool アーキテクチャ
 
