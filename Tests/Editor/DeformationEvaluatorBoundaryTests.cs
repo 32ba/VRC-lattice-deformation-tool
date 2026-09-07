@@ -16,6 +16,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         {
             var group = new DeformerGroup();
             var layer = new LatticeLayer();
+            layer.SetType(MeshDeformerLayerType.Brush);
+            layer.EnsureBrushDisplacementCapacity(2);
+            layer.SetBrushDisplacement(0, Vector3.forward);
+            layer.SetBrushDisplacement(1, Vector3.forward);
             group.LayersList.Add(layer);
             if (individualOutput) layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
             else group.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
@@ -28,12 +32,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var source = new[] { Vector3.zero, Vector3.right };
             var output = new Vector3[source.Length];
             var generated = new List<GeneratedBlendShapeOutput>();
-            // Substitute a nonzero geometry contribution to exercise output routing.
-            DeformationEvaluator.Evaluate(input, source, output, new EvaluationWorkspace(), generated,
-                (ignoredLayer, vertices, destination) =>
-                {
-                    for (int i = 0; i < destination.Length; i++) destination[i] += Vector3.forward;
-                });
+            using var workspace = new EvaluationWorkspace();
+            DeformationEvaluator.Evaluate(input, source, output, workspace, generated);
 
             Assert.That(generated.Count, Is.EqualTo(1));
             Assert.That(generated[0].Curve.Evaluate(0.5f), Is.EqualTo(0.5f).Within(1e-6f));

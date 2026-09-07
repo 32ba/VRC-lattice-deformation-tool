@@ -6,6 +6,23 @@ namespace Net._32Ba.LatticeDeformationTool
 {
     internal static class DeformationEvaluationMath
     {
+        internal static int HashVertices(Vector3[] vertices)
+        {
+            if (vertices == null || vertices.Length == 0)
+            {
+                return 0;
+            }
+
+            int hash = vertices.Length;
+            for (int i = 0; i < vertices.Length; i++)
+            {
+                var v = vertices[i];
+                hash = HashCode.Combine(hash, v.x, v.y, v.z);
+            }
+
+            return hash;
+        }
+
         internal static bool TryBuildDeltas(
             Vector3[] sourceVertices,
             Vector3[] deformedVertices,

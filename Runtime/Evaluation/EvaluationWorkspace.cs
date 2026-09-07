@@ -6,13 +6,16 @@ namespace Net._32Ba.LatticeDeformationTool
 {
     // Owned by one component. Results are borrowed until its next evaluation.
     // Callers that retain a result must copy it (Mesh setters do so).
-    internal sealed class EvaluationWorkspace
+    internal sealed class EvaluationWorkspace : IDisposable
     {
         internal Vector3[] DirectDeltas = Array.Empty<Vector3>();
         internal Vector3[] GroupVertices = Array.Empty<Vector3>();
         internal Vector3[] LayerVertices = Array.Empty<Vector3>();
         internal Vector3[] FinalVertices = Array.Empty<Vector3>();
         internal readonly List<GeneratedBlendShapeOutput> GeneratedShapes = new List<GeneratedBlendShapeOutput>();
+        internal readonly LatticeEvaluator Lattice = new LatticeEvaluator();
+
+        public void Dispose() => Lattice.Dispose();
 
         internal void EnsureCapacity(int count)
         {

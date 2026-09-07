@@ -5,13 +5,12 @@ using UnityEngine;
 namespace Net._32Ba.LatticeDeformationTool
 {
     // Shared Group/Layer composition for source evaluation and upstream frames.
-    // Geometry is supplied by the caller while its native workspace is extracted.
+    // Geometry reads the resolved semantics and the caller-owned workspace.
     internal static class DeformationEvaluator
     {
         internal static void Evaluate(in DeformationEvaluationInput input, Vector3[] sourceVertices,
             Vector3[] finalVertices, EvaluationWorkspace workspace,
-            List<GeneratedBlendShapeOutput> generatedBlendShapes,
-            Action<LatticeLayer, Vector3[], Vector3[]> applyLayer)
+            List<GeneratedBlendShapeOutput> generatedBlendShapes)
         {
             if (sourceVertices == null || finalVertices == null || sourceVertices.Length != finalVertices.Length)
                 throw new ArgumentException("Source and output vertex counts must match.");
@@ -52,7 +51,7 @@ namespace Net._32Ba.LatticeDeformationTool
                         if (generatedBlendShapes == null) continue;
                         var layerVertices = workspace.LayerVertices;
                         Array.Copy(sourceVertices, layerVertices, vertexCount);
-                        applyLayer(layer, sourceVertices, layerVertices);
+                        ApplyLayer(layer, sourceVertices, layerVertices, input.Semantics, workspace);
                         if (DeformationEvaluationMath.TryBuildDeltas(sourceVertices, layerVertices, out var layerDeltas))
                         {
                             generatedBlendShapes.Add(new GeneratedBlendShapeOutput(
@@ -68,7 +67,7 @@ namespace Net._32Ba.LatticeDeformationTool
                     {
                         var layerVertices = workspace.LayerVertices;
                         Array.Copy(sourceVertices, layerVertices, vertexCount);
-                        applyLayer(layer, sourceVertices, layerVertices);
+                        ApplyLayer(layer, sourceVertices, layerVertices, input.Semantics, workspace);
                         if (DeformationEvaluationMath.TryBuildDeltas(
                                 sourceVertices,
                                 layerVertices,
@@ -84,7 +83,7 @@ namespace Net._32Ba.LatticeDeformationTool
                     }
                     else
                     {
-                        applyLayer(layer, sourceVertices, groupVertices);
+                        ApplyLayer(layer, sourceVertices, groupVertices, input.Semantics, workspace);
                     }
                 }
 
@@ -125,6 +124,15 @@ namespace Net._32Ba.LatticeDeformationTool
             for (int v = 0; v < vertexCount; v++)
                 finalVertices[v] = sourceVertices[v] + directDeltas[v];
 
+        }
+
+        private static void ApplyLayer(LatticeLayer layer, Vector3[] sourceVertices, Vector3[] outputVertices,
+            in EvaluationSemantics semantics, EvaluationWorkspace workspace)
+        {
+            if (layer.Type == MeshDeformerLayerType.Brush)
+                BrushEvaluator.Apply(layer, sourceVertices, outputVertices);
+            else
+                workspace.Lattice.Apply(layer.SerializedSettings, layer.Weight, semantics, sourceVertices, outputVertices);
         }
     }
 }
