@@ -360,6 +360,9 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `DeformerDataResolver` はEmbeddedの同期借用viewと、ownerごとの独立したProfile評価コピーを返す。queryで保存Group・選択・Profile・dirty stateを変更しない。Profileのidentity、内容、source互換性を検証し、不正な配列・null slot・future payloadは適用前に拒否する。Profile利用中のactive GroupはProfileのGroup数で検証し、Prefab再読込みでコンポーネントの保存済み選択を保持する
 - Profile互換性の再利用は `Deform` / `CreatePreviewMeshFromInput` の同期評価scope内だけに限定する。scopeを成功・早期return・例外時に閉じ、次回は同じMesh instanceの内容変更、Profileの直接編集、Undo/Redoも再検出する。Repaint/frameをまたぐ互換性の無条件cacheへ拡張しない
 - `Runtime/Migration/DeformationMigrationPreflight` は旧/現行のraw保存形状を同期借用し、version・nested asset・selection・Brush/Maskの順に検査する。source頂点数とProfileのGroup数はコンポーネント境界で取得して渡し、検査からRenderer・Mesh・Profile asset・UnityEditorへ触れない。旧選択の既知例外を検査中に補正せず、正規化とversion更新は対応release stepへ残す。読み取りlistの走査はindexを使い、interface enumeratorのboxingを追加しない
+- `DeformationMigrationRunner` が既存release step、構造変換、旧互換規則、rollbackを所有する。`DeformationMigrationState` は作業用scalarとcopy-on-writeのlistを保持し、owner行列・source countは値として受け取る。`TryAdvanceOneRelease` はpreflight後に1境界だけを処理し、失敗時はscalar/listに加え共有nested assetの補間flagとGroup選択も戻す。既存enumの `CurrentDevelopment=15` を再利用・再定義しない
+- コンポーネントへの反映とUnityへの記録もrelease境界の成功条件に含める。記録に失敗したらraw保存fieldを復元し、Editor adapterが捕捉したPrefab override一覧も復元する。値の復元だけでPrefabの記録済みversion/Group数が戻るとは仮定しない。既存のprivate段階移行入口は互換テスト用の委譲として維持し、通常処理からはrunner内のstepを使う
+- `DeformationModelCopy` がLattice設定とcurveの既存コピー規則を共有する。通常のcurrent評価では移行state/snapshotを確保せず、移行前検査だけを行う
 - `Tools~/ArchitectureBaseline/` は隔離Unityでの同期評価Profiler、プロセス上限監視、比較とソース照合を提供する。較正に成功した `GC.Alloc` のsize metadataだけを割当量として扱い、frame読取りにsample名の大量文字列化を使わない。基準は `Docs~/Architecture/2026-09-07-evaluation-performance.md` を参照する
 
 ## 依存関係
