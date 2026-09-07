@@ -340,6 +340,118 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             typeof(LatticeDeformerEditor).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)
                 .Invoke(editor, args);
 
+        [TestCase("add")]
+        [TestCase("duplicate")]
+        [TestCase("remove")]
+        [TestCase("move")]
+        [TestCase("paste")]
+        public void LayerEdit_IsOneUndoAndRedoWithIndependentPayload(string operation)
+        {
+            using var fixture = new Fixture();
+            var d = fixture.Deformer;
+            d.AddLayer("Brush", MeshDeformerLayerType.Brush);
+            d.Layers[1].SetBrushDisplacement(0, Vector3.up);
+            d.Layers[1].VertexMask = new[] { 0.5f, 1f, 1f, 1f };
+            string before = EditorJsonUtility.ToJson(d);
+            bool changed;
+            switch (operation)
+            {
+                case "add": changed = DeformerEditService.AddLayer(d, MeshDeformerLayerType.Brush, "Add"); break;
+                case "duplicate": changed = DeformerEditService.DuplicateLayer(d, 1, "Duplicate"); break;
+                case "remove": changed = DeformerEditService.RemoveLayer(d, 1, "Remove"); break;
+                case "move": changed = DeformerEditService.MoveLayer(d, 1, 0, "Move"); break;
+                default: changed = DeformerEditService.PasteLayer(d, JsonUtility.ToJson(d.Layers[1]), "Paste"); break;
+            }
+            Assert.That(changed, Is.True);
+            string after = EditorJsonUtility.ToJson(d);
+            if (operation == "duplicate" || operation == "paste")
+            {
+                Assert.That(d.Layers[2].BrushDisplacements, Is.Not.SameAs(d.Layers[1].BrushDisplacements));
+                Assert.That(d.Layers[2].VertexMask, Is.Not.SameAs(d.Layers[1].VertexMask));
+            }
+            Undo.PerformUndo();
+            Assert.That(EditorJsonUtility.ToJson(d), Is.EqualTo(before));
+            Undo.PerformRedo();
+            Assert.That(EditorJsonUtility.ToJson(d), Is.EqualTo(after));
+            Assert.That(fixture.Mesh.vertices[0], Is.EqualTo(Vector3.zero));
+        }
+
+        [TestCase("component")]
+        [TestCase("layer-model")]
+        [TestCase("lattice")]
+        public void SerializedLayerEdit_RejectsFutureVersionsBeforeUndoOrMutation(string versionKind)
+        {
+            using var fixture = new Fixture();
+            var d = fixture.Deformer;
+            if (versionKind == "component") SetField(d, "_deformationDataVersion", (DeformationDataVersion)99);
+            else if (versionKind == "layer-model") SetField(d, "_layerModelVersion", 99);
+            else SetField(d.Layers[0].Settings, "_serializationVersion", 99);
+            string before = EditorJsonUtility.ToJson(d);
+            int dirtyCount = EditorUtility.GetDirtyCount(d);
+            int undoGroup = Undo.GetCurrentGroup();
+            Assert.That(DeformerEditService.RemoveLayer(d, 0, "Delete"), Is.False);
+            Assert.That(EditorJsonUtility.ToJson(d), Is.EqualTo(before));
+            Assert.That(EditorUtility.GetDirtyCount(d), Is.EqualTo(dirtyCount));
+            Assert.That(Undo.GetCurrentGroup(), Is.EqualTo(undoGroup));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void BatchEdit_LateFailureRestoresEveryTargetAndEarlierUndo(bool throwAfterEdit)
+        {
+            using var first = new Fixture();
+            using var second = new Fixture();
+            Assert.That(DeformerEditService.AddGroup(first.Deformer, "Earlier"), Is.True);
+            string firstBefore = EditorJsonUtility.ToJson(first.Deformer);
+            string secondBefore = EditorJsonUtility.ToJson(second.Deformer);
+            Func<bool> run = () => DeformerEditService.ExecuteBatch(
+                new[] { first.Deformer, second.Deformer }, "Batch", target =>
+                {
+                    target.AddLayer("Pending", MeshDeformerLayerType.Brush);
+                    if (target == first.Deformer) return true;
+                    if (throwAfterEdit) throw new InvalidOperationException("Late failure");
+                    return false;
+                });
+            if (throwAfterEdit) Assert.Throws<InvalidOperationException>(() => run());
+            else Assert.That(run(), Is.False);
+            Assert.That(EditorJsonUtility.ToJson(first.Deformer), Is.EqualTo(firstBefore));
+            Assert.That(EditorJsonUtility.ToJson(second.Deformer), Is.EqualTo(secondBefore));
+            Undo.PerformUndo();
+            Assert.That(first.Deformer.GroupCount, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void BatchEdit_SuccessUndoesAndRedoesAllTargetsTogether()
+        {
+            using var first = new Fixture();
+            using var second = new Fixture();
+            var targets = new[] { first.Deformer, second.Deformer };
+            var before = targets.Select(EditorJsonUtility.ToJson).ToArray();
+            Assert.That(DeformerEditService.ExecuteBatch(targets, "Batch",
+                d => d.AddLayer("Added", MeshDeformerLayerType.Brush) >= 0), Is.True);
+            var after = targets.Select(EditorJsonUtility.ToJson).ToArray();
+            Undo.PerformUndo();
+            Assert.That(targets.Select(EditorJsonUtility.ToJson), Is.EqualTo(before));
+            Undo.PerformRedo();
+            Assert.That(targets.Select(EditorJsonUtility.ToJson), Is.EqualTo(after));
+        }
+
+        [Test]
+        public void BatchEdit_UnsupportedLaterTargetRejectsBeforeFirstTargetChanges()
+        {
+            using var first = new Fixture();
+            using var second = new Fixture();
+            SetField(second.Deformer, "_deformationDataVersion", (DeformationDataVersion)99);
+            string before = EditorJsonUtility.ToJson(first.Deformer);
+            int dirtyCount = EditorUtility.GetDirtyCount(first.Deformer);
+            int called = 0;
+            Assert.That(DeformerEditService.ExecuteBatch(new[] { first.Deformer, second.Deformer }, "Batch",
+                target => { called++; return target.AddGroup() >= 0; }), Is.False);
+            Assert.That(called, Is.Zero);
+            Assert.That(EditorJsonUtility.ToJson(first.Deformer), Is.EqualTo(before));
+            Assert.That(EditorUtility.GetDirtyCount(first.Deformer), Is.EqualTo(dirtyCount));
+        }
+
         [Test]
         public void GroupEdit_RecordsPrefabOverrideAndSurvivesApplyAndReload()
         {
@@ -369,6 +481,52 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(reloaded.ActiveGroup.Name, Is.EqualTo("Group Copy"));
                 Assert.That(reloaded.GetComponent<MeshFilter>().sharedMesh,
                     Is.SameAs(AssetDatabase.LoadAssetAtPath<Mesh>(folder + "/Source.asset")));
+            }
+            finally
+            {
+                if (loaded != null) PrefabUtility.UnloadPrefabContents(loaded);
+                if (instance != null) Object.DestroyImmediate(instance);
+                AssetDatabase.DeleteAsset(folder);
+            }
+        }
+
+        [Test]
+        public void LayerEdit_PrefabVariantRevertAndApplyPreserveBaseAndSource()
+        {
+            string folder = "Assets/__LayerVariant_" + Guid.NewGuid().ToString("N");
+            AssetDatabase.CreateFolder("Assets", folder.Substring("Assets/".Length));
+            using var fixture = new Fixture();
+            GameObject instance = null;
+            GameObject loaded = null;
+            try
+            {
+                AssetDatabase.CreateAsset(fixture.Mesh, folder + "/Source.asset");
+                var basePrefab = PrefabUtility.SaveAsPrefabAsset(fixture.Root, folder + "/Base.prefab");
+                instance = (GameObject)PrefabUtility.InstantiatePrefab(basePrefab);
+                Assert.That(DeformerEditService.AddLayer(instance.GetComponent<LatticeDeformer>(),
+                    MeshDeformerLayerType.Brush, "Add Brush"), Is.True);
+                var variant = PrefabUtility.SaveAsPrefabAsset(instance, folder + "/Variant.prefab");
+                Assert.That(PrefabUtility.GetPrefabAssetType(variant), Is.EqualTo(PrefabAssetType.Variant));
+                Object.DestroyImmediate(instance);
+                instance = (GameObject)PrefabUtility.InstantiatePrefab(variant);
+                var d = instance.GetComponent<LatticeDeformer>();
+                Assert.That(DeformerEditService.RemoveLayer(d, 1, "Remove Brush"), Is.True);
+                Assert.That(d.Layers.Count, Is.EqualTo(1));
+                PrefabUtility.RevertPrefabInstance(instance, InteractionMode.AutomatedAction);
+                d = instance.GetComponent<LatticeDeformer>();
+                Assert.That(d.Layers.Count, Is.EqualTo(2));
+                Assert.That(d.ActiveLayerIndex, Is.EqualTo(1));
+                Assert.That(DeformerEditService.DuplicateLayer(d, 1, "Duplicate Brush"), Is.True);
+                PrefabUtility.ApplyPrefabInstance(instance, InteractionMode.AutomatedAction);
+                Assert.That(basePrefab.GetComponent<LatticeDeformer>().Layers.Count, Is.EqualTo(1));
+                Object.DestroyImmediate(instance);
+                instance = null;
+                loaded = PrefabUtility.LoadPrefabContents(folder + "/Variant.prefab");
+                var reloaded = loaded.GetComponent<LatticeDeformer>();
+                Assert.That(reloaded.Layers.Count, Is.EqualTo(3));
+                Assert.That(reloaded.ActiveLayerIndex, Is.EqualTo(2));
+                Assert.That(reloaded.GetComponent<MeshFilter>().sharedMesh, Is.SameAs(fixture.Mesh));
+                Assert.That(fixture.Mesh.vertices[0], Is.EqualTo(Vector3.zero));
             }
             finally
             {

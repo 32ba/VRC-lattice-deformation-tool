@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
@@ -38,34 +39,80 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return copy != null && Execute(deformer, undoLabel, target => target.InsertGroup(copy) >= 0);
         }
 
+        internal static bool AddLayer(LatticeDeformer deformer, MeshDeformerLayerType type, string undoLabel) =>
+            Execute(deformer, undoLabel, target => target.AddLayer(layerType: type) >= 0);
+
+        internal static bool DuplicateLayer(LatticeDeformer deformer, int index, string undoLabel) =>
+            Execute(deformer, undoLabel, target => target.DuplicateLayer(index) >= 0);
+
+        internal static bool RemoveLayer(LatticeDeformer deformer, int index, string undoLabel) =>
+            Execute(deformer, undoLabel, target => DeformerStore.RemoveLayer(target, index));
+
+        internal static bool MoveLayer(LatticeDeformer deformer, int from, int to, string undoLabel) =>
+            Execute(deformer, undoLabel, target => DeformerStore.MoveLayer(target, from, to));
+
+        internal static bool PasteLayer(LatticeDeformer deformer, string json, string undoLabel)
+        {
+            if (string.IsNullOrEmpty(json)) return false;
+            var layer = new LatticeLayer();
+            JsonUtility.FromJsonOverwrite(json, layer);
+            return Execute(deformer, undoLabel, target => target.InsertLayer(layer) >= 0);
+        }
+
         internal static bool Execute(LatticeDeformer deformer, string undoLabel, Func<LatticeDeformer, bool> edit)
         {
-            if (deformer == null || edit == null || SerializedDeformerReader.Read(deformer).UsesProfile)
-                return false;
+            return ExecuteBatch(new[] { deformer }, undoLabel, edit);
+        }
+
+        internal static bool ExecuteBatch(IReadOnlyList<LatticeDeformer> deformers, string undoLabel,
+            Func<LatticeDeformer, bool> edit)
+        {
+            if (deformers == null || deformers.Count == 0 || edit == null) return false;
+            var targets = new LatticeDeformer[deformers.Count];
+            var unique = new HashSet<LatticeDeformer>();
+            for (int i = 0; i < deformers.Count; i++)
+            {
+                var deformer = deformers[i];
+                if (deformer == null || !unique.Add(deformer) || !deformer.CanStartAuthoringEdit ||
+                    SerializedDeformerReader.Read(deformer).UsesProfile) return false;
+                targets[i] = deformer;
+            }
 
             Undo.IncrementCurrentGroup();
             int undoGroup = Undo.GetCurrentGroup();
             Undo.SetCurrentGroupName(undoLabel);
-            Undo.RegisterCompleteObjectUndo(deformer, undoLabel);
+            Undo.RegisterCompleteObjectUndo(targets, undoLabel);
             try
             {
-                if (!edit(deformer))
+                foreach (var deformer in targets)
                 {
-                    Undo.RevertAllDownToGroup(undoGroup);
-                    return false;
+                    if (!edit(deformer))
+                    {
+                        RollBack(targets, undoGroup);
+                        return false;
+                    }
                 }
 
-                deformer.InvalidateCache();
-                LatticePrefabUtility.MarkModified(deformer);
+                foreach (var deformer in targets)
+                {
+                    deformer.InvalidateCache();
+                    LatticePrefabUtility.MarkModified(deformer);
+                }
                 Undo.CollapseUndoOperations(undoGroup);
                 return true;
             }
             catch
             {
-                Undo.RevertAllDownToGroup(undoGroup);
-                deformer.InvalidateCache();
+                RollBack(targets, undoGroup);
                 throw;
             }
+        }
+
+        private static void RollBack(IReadOnlyList<LatticeDeformer> deformers, int undoGroup)
+        {
+            Undo.RevertAllDownToGroup(undoGroup);
+            foreach (var deformer in deformers)
+                if (deformer != null) deformer.InvalidateCache();
         }
     }
 }

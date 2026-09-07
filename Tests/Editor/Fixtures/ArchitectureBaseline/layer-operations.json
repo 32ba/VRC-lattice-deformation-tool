@@ -1,0 +1,311 @@
+{
+    "baselineCommit": "c7f499c38e16f386fe6734e0f7937d50c502c529",
+    "cases": [
+        {
+            "operation": "delete-before-active",
+            "activeGroup": 0,
+            "activeLayer": 1,
+            "groupsJson": "{\"groups\":[{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Brush A\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.5,\"y\":0.5,\"z\":0.5},\"m_Extent\":{\"x\":0.5,\"y\":0.5,\"z\":0.5}},\"_controlPointsLocal\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.5,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.5,\"z\":0.0},{\"x\":0.5,\"y\":0.5,\"z\":0.0},{\"x\":1.0,\"y\":0.5,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.5,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.5},{\"x\":0.5,\"y\":0.0,\"z\":0.5},{\"x\":1.0,\"y\":0.0,\"z\":0.5},{\"x\":0.0,\"y\":0.5,\"z\":0.5},{\"x\":0.5,\"y\":0.5,\"z\":0.5},{\"x\":1.0,\"y\":0.5,\"z\":0.5},{\"x\":0.0,\"y\":1.0,\"z\":0.5},{\"x\":0.5,\"y\":1.0,\"z\":0.5},{\"x\":1.0,\"y\":1.0,\"z\":0.5},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.5,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.5,\"z\":1.0},{\"x\":0.5,\"y\":0.5,\"z\":1.0},{\"x\":1.0,\"y\":0.5,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":0.5,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0}],\"_vertexMask\":[0.5,1.0,1.0,1.0],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Brush B\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.5,\"y\":0.5,\"z\":0.5},\"m_Extent\":{\"x\":0.5,\"y\":0.5,\"z\":0.5}},\"_controlPointsLocal\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.5,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.5,\"z\":0.0},{\"x\":0.5,\"y\":0.5,\"z\":0.0},{\"x\":1.0,\"y\":0.5,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.5,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.5},{\"x\":0.5,\"y\":0.0,\"z\":0.5},{\"x\":1.0,\"y\":0.0,\"z\":0.5},{\"x\":0.0,\"y\":0.5,\"z\":0.5},{\"x\":0.5,\"y\":0.5,\"z\":0.5},{\"x\":1.0,\"y\":0.5,\"z\":0.5},{\"x\":0.0,\"y\":1.0,\"z\":0.5},{\"x\":0.5,\"y\":1.0,\"z\":0.5},{\"x\":1.0,\"y\":1.0,\"z\":0.5},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.5,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.5,\"z\":1.0},{\"x\":0.5,\"y\":0.5,\"z\":1.0},{\"x\":1.0,\"y\":0.5,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":0.5,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0}],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":1,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}]}",
+            "hasOutput": true,
+            "vertices": [
+                {
+                    "x": 0.0,
+                    "y": 0.5,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 1.0
+                },
+                {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            ],
+            "sourceVertices": [
+                {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            ]
+        },
+        {
+            "operation": "delete-active-last",
+            "activeGroup": 0,
+            "activeLayer": 1,
+            "groupsJson": "{\"groups\":[{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.5,\"y\":0.5,\"z\":0.5},\"m_Extent\":{\"x\":0.5,\"y\":0.5,\"z\":0.5}},\"_controlPointsLocal\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.5,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.5,\"z\":0.0},{\"x\":0.5,\"y\":0.5,\"z\":0.0},{\"x\":1.0,\"y\":0.5,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.5,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.5},{\"x\":0.5,\"y\":0.0,\"z\":0.5},{\"x\":1.0,\"y\":0.0,\"z\":0.5},{\"x\":0.0,\"y\":0.5,\"z\":0.5},{\"x\":0.5,\"y\":0.5,\"z\":0.5},{\"x\":1.0,\"y\":0.5,\"z\":0.5},{\"x\":0.0,\"y\":1.0,\"z\":0.5},{\"x\":0.5,\"y\":1.0,\"z\":0.5},{\"x\":1.0,\"y\":1.0,\"z\":0.5},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.5,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.5,\"z\":1.0},{\"x\":0.5,\"y\":0.5,\"z\":1.0},{\"x\":1.0,\"y\":0.5,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":0.5,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Brush A\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.5,\"y\":0.5,\"z\":0.5},\"m_Extent\":{\"x\":0.5,\"y\":0.5,\"z\":0.5}},\"_controlPointsLocal\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.5,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.5,\"z\":0.0},{\"x\":0.5,\"y\":0.5,\"z\":0.0},{\"x\":1.0,\"y\":0.5,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.5,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.5},{\"x\":0.5,\"y\":0.0,\"z\":0.5},{\"x\":1.0,\"y\":0.0,\"z\":0.5},{\"x\":0.0,\"y\":0.5,\"z\":0.5},{\"x\":0.5,\"y\":0.5,\"z\":0.5},{\"x\":1.0,\"y\":0.5,\"z\":0.5},{\"x\":0.0,\"y\":1.0,\"z\":0.5},{\"x\":0.5,\"y\":1.0,\"z\":0.5},{\"x\":1.0,\"y\":1.0,\"z\":0.5},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.5,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.5,\"z\":1.0},{\"x\":0.5,\"y\":0.5,\"z\":1.0},{\"x\":1.0,\"y\":0.5,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":0.5,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0}],\"_vertexMask\":[0.5,1.0,1.0,1.0],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":1,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}]}",
+            "hasOutput": true,
+            "vertices": [
+                {
+                    "x": 0.0,
+                    "y": 0.5,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            ],
+            "sourceVertices": [
+                {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            ]
+        },
+        {
+            "operation": "delete-only-layer",
+            "activeGroup": 0,
+            "activeLayer": 0,
+            "groupsJson": "{\"groups\":[{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[],\"_activeLayerIndex\":0,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}]}",
+            "hasOutput": true,
+            "vertices": [
+                {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            ],
+            "sourceVertices": [
+                {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            ]
+        },
+        {
+            "operation": "move-active-last",
+            "activeGroup": 0,
+            "activeLayer": 0,
+            "groupsJson": "{\"groups\":[{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Brush B\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.5,\"y\":0.5,\"z\":0.5},\"m_Extent\":{\"x\":0.5,\"y\":0.5,\"z\":0.5}},\"_controlPointsLocal\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.5,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.5,\"z\":0.0},{\"x\":0.5,\"y\":0.5,\"z\":0.0},{\"x\":1.0,\"y\":0.5,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.5,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.5},{\"x\":0.5,\"y\":0.0,\"z\":0.5},{\"x\":1.0,\"y\":0.0,\"z\":0.5},{\"x\":0.0,\"y\":0.5,\"z\":0.5},{\"x\":0.5,\"y\":0.5,\"z\":0.5},{\"x\":1.0,\"y\":0.5,\"z\":0.5},{\"x\":0.0,\"y\":1.0,\"z\":0.5},{\"x\":0.5,\"y\":1.0,\"z\":0.5},{\"x\":1.0,\"y\":1.0,\"z\":0.5},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.5,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.5,\"z\":1.0},{\"x\":0.5,\"y\":0.5,\"z\":1.0},{\"x\":1.0,\"y\":0.5,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":0.5,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0}],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.5,\"y\":0.5,\"z\":0.5},\"m_Extent\":{\"x\":0.5,\"y\":0.5,\"z\":0.5}},\"_controlPointsLocal\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.5,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.5,\"z\":0.0},{\"x\":0.5,\"y\":0.5,\"z\":0.0},{\"x\":1.0,\"y\":0.5,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.5,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.5},{\"x\":0.5,\"y\":0.0,\"z\":0.5},{\"x\":1.0,\"y\":0.0,\"z\":0.5},{\"x\":0.0,\"y\":0.5,\"z\":0.5},{\"x\":0.5,\"y\":0.5,\"z\":0.5},{\"x\":1.0,\"y\":0.5,\"z\":0.5},{\"x\":0.0,\"y\":1.0,\"z\":0.5},{\"x\":0.5,\"y\":1.0,\"z\":0.5},{\"x\":1.0,\"y\":1.0,\"z\":0.5},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.5,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.5,\"z\":1.0},{\"x\":0.5,\"y\":0.5,\"z\":1.0},{\"x\":1.0,\"y\":0.5,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":0.5,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Brush A\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.5,\"y\":0.5,\"z\":0.5},\"m_Extent\":{\"x\":0.5,\"y\":0.5,\"z\":0.5}},\"_controlPointsLocal\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.5,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.5,\"z\":0.0},{\"x\":0.5,\"y\":0.5,\"z\":0.0},{\"x\":1.0,\"y\":0.5,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.5,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.5},{\"x\":0.5,\"y\":0.0,\"z\":0.5},{\"x\":1.0,\"y\":0.0,\"z\":0.5},{\"x\":0.0,\"y\":0.5,\"z\":0.5},{\"x\":0.5,\"y\":0.5,\"z\":0.5},{\"x\":1.0,\"y\":0.5,\"z\":0.5},{\"x\":0.0,\"y\":1.0,\"z\":0.5},{\"x\":0.5,\"y\":1.0,\"z\":0.5},{\"x\":1.0,\"y\":1.0,\"z\":0.5},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.5,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.5,\"z\":1.0},{\"x\":0.5,\"y\":0.5,\"z\":1.0},{\"x\":1.0,\"y\":0.5,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":0.5,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0}],\"_vertexMask\":[0.5,1.0,1.0,1.0],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":0,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}]}",
+            "hasOutput": true,
+            "vertices": [
+                {
+                    "x": 0.0,
+                    "y": 0.5,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 1.0
+                },
+                {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            ],
+            "sourceVertices": [
+                {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            ]
+        },
+        {
+            "operation": "duplicate-brush",
+            "activeGroup": 0,
+            "activeLayer": 2,
+            "groupsJson": "{\"groups\":[{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.5,\"y\":0.5,\"z\":0.5},\"m_Extent\":{\"x\":0.5,\"y\":0.5,\"z\":0.5}},\"_controlPointsLocal\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.5,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.5,\"z\":0.0},{\"x\":0.5,\"y\":0.5,\"z\":0.0},{\"x\":1.0,\"y\":0.5,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.5,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.5},{\"x\":0.5,\"y\":0.0,\"z\":0.5},{\"x\":1.0,\"y\":0.0,\"z\":0.5},{\"x\":0.0,\"y\":0.5,\"z\":0.5},{\"x\":0.5,\"y\":0.5,\"z\":0.5},{\"x\":1.0,\"y\":0.5,\"z\":0.5},{\"x\":0.0,\"y\":1.0,\"z\":0.5},{\"x\":0.5,\"y\":1.0,\"z\":0.5},{\"x\":1.0,\"y\":1.0,\"z\":0.5},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.5,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.5,\"z\":1.0},{\"x\":0.5,\"y\":0.5,\"z\":1.0},{\"x\":1.0,\"y\":0.5,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":0.5,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Brush A\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.5,\"y\":0.5,\"z\":0.5},\"m_Extent\":{\"x\":0.5,\"y\":0.5,\"z\":0.5}},\"_controlPointsLocal\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.5,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.5,\"z\":0.0},{\"x\":0.5,\"y\":0.5,\"z\":0.0},{\"x\":1.0,\"y\":0.5,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.5,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.5},{\"x\":0.5,\"y\":0.0,\"z\":0.5},{\"x\":1.0,\"y\":0.0,\"z\":0.5},{\"x\":0.0,\"y\":0.5,\"z\":0.5},{\"x\":0.5,\"y\":0.5,\"z\":0.5},{\"x\":1.0,\"y\":0.5,\"z\":0.5},{\"x\":0.0,\"y\":1.0,\"z\":0.5},{\"x\":0.5,\"y\":1.0,\"z\":0.5},{\"x\":1.0,\"y\":1.0,\"z\":0.5},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.5,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.5,\"z\":1.0},{\"x\":0.5,\"y\":0.5,\"z\":1.0},{\"x\":1.0,\"y\":0.5,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":0.5,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0}],\"_vertexMask\":[0.5,1.0,1.0,1.0],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Brush A Copy\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.5,\"y\":0.5,\"z\":0.5},\"m_Extent\":{\"x\":0.5,\"y\":0.5,\"z\":0.5}},\"_controlPointsLocal\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.5,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.5,\"z\":0.0},{\"x\":0.5,\"y\":0.5,\"z\":0.0},{\"x\":1.0,\"y\":0.5,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.5,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.5},{\"x\":0.5,\"y\":0.0,\"z\":0.5},{\"x\":1.0,\"y\":0.0,\"z\":0.5},{\"x\":0.0,\"y\":0.5,\"z\":0.5},{\"x\":0.5,\"y\":0.5,\"z\":0.5},{\"x\":1.0,\"y\":0.5,\"z\":0.5},{\"x\":0.0,\"y\":1.0,\"z\":0.5},{\"x\":0.5,\"y\":1.0,\"z\":0.5},{\"x\":1.0,\"y\":1.0,\"z\":0.5},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.5,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.5,\"z\":1.0},{\"x\":0.5,\"y\":0.5,\"z\":1.0},{\"x\":1.0,\"y\":0.5,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":0.5,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0}],\"_vertexMask\":[0.5,1.0,1.0,1.0],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Brush B\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.5,\"y\":0.5,\"z\":0.5},\"m_Extent\":{\"x\":0.5,\"y\":0.5,\"z\":0.5}},\"_controlPointsLocal\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.5,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.5,\"z\":0.0},{\"x\":0.5,\"y\":0.5,\"z\":0.0},{\"x\":1.0,\"y\":0.5,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.5,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.5},{\"x\":0.5,\"y\":0.0,\"z\":0.5},{\"x\":1.0,\"y\":0.0,\"z\":0.5},{\"x\":0.0,\"y\":0.5,\"z\":0.5},{\"x\":0.5,\"y\":0.5,\"z\":0.5},{\"x\":1.0,\"y\":0.5,\"z\":0.5},{\"x\":0.0,\"y\":1.0,\"z\":0.5},{\"x\":0.5,\"y\":1.0,\"z\":0.5},{\"x\":1.0,\"y\":1.0,\"z\":0.5},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.5,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.5,\"z\":1.0},{\"x\":0.5,\"y\":0.5,\"z\":1.0},{\"x\":1.0,\"y\":0.5,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":0.5,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0}],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":2,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}]}",
+            "hasOutput": true,
+            "vertices": [
+                {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 1.0
+                },
+                {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            ],
+            "sourceVertices": [
+                {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            ]
+        },
+        {
+            "operation": "copy-paste-brush",
+            "activeGroup": 0,
+            "activeLayer": 3,
+            "groupsJson": "{\"groups\":[{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.5,\"y\":0.5,\"z\":0.5},\"m_Extent\":{\"x\":0.5,\"y\":0.5,\"z\":0.5}},\"_controlPointsLocal\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.5,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.5,\"z\":0.0},{\"x\":0.5,\"y\":0.5,\"z\":0.0},{\"x\":1.0,\"y\":0.5,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.5,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.5},{\"x\":0.5,\"y\":0.0,\"z\":0.5},{\"x\":1.0,\"y\":0.0,\"z\":0.5},{\"x\":0.0,\"y\":0.5,\"z\":0.5},{\"x\":0.5,\"y\":0.5,\"z\":0.5},{\"x\":1.0,\"y\":0.5,\"z\":0.5},{\"x\":0.0,\"y\":1.0,\"z\":0.5},{\"x\":0.5,\"y\":1.0,\"z\":0.5},{\"x\":1.0,\"y\":1.0,\"z\":0.5},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.5,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.5,\"z\":1.0},{\"x\":0.5,\"y\":0.5,\"z\":1.0},{\"x\":1.0,\"y\":0.5,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":0.5,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Brush A\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.5,\"y\":0.5,\"z\":0.5},\"m_Extent\":{\"x\":0.5,\"y\":0.5,\"z\":0.5}},\"_controlPointsLocal\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.5,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.5,\"z\":0.0},{\"x\":0.5,\"y\":0.5,\"z\":0.0},{\"x\":1.0,\"y\":0.5,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.5,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.5},{\"x\":0.5,\"y\":0.0,\"z\":0.5},{\"x\":1.0,\"y\":0.0,\"z\":0.5},{\"x\":0.0,\"y\":0.5,\"z\":0.5},{\"x\":0.5,\"y\":0.5,\"z\":0.5},{\"x\":1.0,\"y\":0.5,\"z\":0.5},{\"x\":0.0,\"y\":1.0,\"z\":0.5},{\"x\":0.5,\"y\":1.0,\"z\":0.5},{\"x\":1.0,\"y\":1.0,\"z\":0.5},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.5,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.5,\"z\":1.0},{\"x\":0.5,\"y\":0.5,\"z\":1.0},{\"x\":1.0,\"y\":0.5,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":0.5,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0}],\"_vertexMask\":[0.5,1.0,1.0,1.0],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Brush B\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.5,\"y\":0.5,\"z\":0.5},\"m_Extent\":{\"x\":0.5,\"y\":0.5,\"z\":0.5}},\"_controlPointsLocal\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.5,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.5,\"z\":0.0},{\"x\":0.5,\"y\":0.5,\"z\":0.0},{\"x\":1.0,\"y\":0.5,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.5,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.5},{\"x\":0.5,\"y\":0.0,\"z\":0.5},{\"x\":1.0,\"y\":0.0,\"z\":0.5},{\"x\":0.0,\"y\":0.5,\"z\":0.5},{\"x\":0.5,\"y\":0.5,\"z\":0.5},{\"x\":1.0,\"y\":0.5,\"z\":0.5},{\"x\":0.0,\"y\":1.0,\"z\":0.5},{\"x\":0.5,\"y\":1.0,\"z\":0.5},{\"x\":1.0,\"y\":1.0,\"z\":0.5},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.5,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.5,\"z\":1.0},{\"x\":0.5,\"y\":0.5,\"z\":1.0},{\"x\":1.0,\"y\":0.5,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":0.5,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0}],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Brush A\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.5,\"y\":0.5,\"z\":0.5},\"m_Extent\":{\"x\":0.5,\"y\":0.5,\"z\":0.5}},\"_controlPointsLocal\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.5,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.5,\"z\":0.0},{\"x\":0.5,\"y\":0.5,\"z\":0.0},{\"x\":1.0,\"y\":0.5,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.5,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.5},{\"x\":0.5,\"y\":0.0,\"z\":0.5},{\"x\":1.0,\"y\":0.0,\"z\":0.5},{\"x\":0.0,\"y\":0.5,\"z\":0.5},{\"x\":0.5,\"y\":0.5,\"z\":0.5},{\"x\":1.0,\"y\":0.5,\"z\":0.5},{\"x\":0.0,\"y\":1.0,\"z\":0.5},{\"x\":0.5,\"y\":1.0,\"z\":0.5},{\"x\":1.0,\"y\":1.0,\"z\":0.5},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":0.5,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.5,\"z\":1.0},{\"x\":0.5,\"y\":0.5,\"z\":1.0},{\"x\":1.0,\"y\":0.5,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":0.5,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0}],\"_vertexMask\":[0.5,1.0,1.0,1.0],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":3,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}]}",
+            "hasOutput": true,
+            "vertices": [
+                {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 1.0
+                },
+                {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            ],
+            "sourceVertices": [
+                {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                },
+                {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                }
+            ]
+        }
+    ]
+}

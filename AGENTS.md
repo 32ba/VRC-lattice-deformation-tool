@@ -26,10 +26,13 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 
 - `Docs~/Architecture/2026-09-07-audit.md` と `2026-09-07-refactoring-plan.md` に従い、`2.0.0-beta.1` として実装中。達成範囲と検証記録は `2.0.0-beta.1-progress.md` を参照し、計画全体を実装済みと扱わない。
 - 実装基準は公開済み `1.4.6-beta.1` に作業中のGuided UI・翻訳を統合した `c7f499c38e16f386fe6734e0f7937d50c502c529`。元の `1.4.5-rc.5` 作業ツリーと起動中のPlaygroundのpackage参照は保持し、`codex/refactor-2.0.0-beta` の隔離worktreeで作業する。
-- `Runtime/MeshDeformer/SerializedDeformerReader.cs` は初期化・移行・配列補正・Profile展開を行わず、壊れた保存内容もそのまま読むinternal API。返す参照は同期処理中だけ使う借用viewであり、非同期評価用の不変snapshotではない。ValidatorとInspectorのGroupコピーが利用する。
-- `Editor/MeshDeformer/Authoring/DeformerEditService.cs` はGroup追加・削除・並べ替え・複製・貼付を、1件のUndo、失敗時rollback、cache無効化、Prefab override記録へまとめる。Profile参照中の直接編集は拒否する。再評価とUI更新は呼出し側が担当し、raw readerから実行しない。
-- public `LatticeDeformer.InsertGroup` / `MoveGroup` を追加し、Inspectorのprivate field reflectionを除去した。既存APIの互換入口、保存フィールド、schema version、既存GUID、履歴fixtureと期待値は維持する。Layer操作と各ツールへの展開、評価・移行・Previewの分離は後続作業。
+- `Runtime/MeshDeformer/SerializedDeformerReader.cs` は初期化・移行・配列補正・Profile展開を行わず、壊れた保存内容もそのまま読むinternal API。返す参照は同期処理中だけ使う借用viewであり、非同期評価用の不変snapshotではない。ValidatorとInspectorのGroup/Layerコピーが利用する。
+- `Editor/MeshDeformer/Authoring/DeformerEditService.cs` はGroup/Layer追加・削除・並べ替え・複製・貼付を、1件のUndo、失敗時rollback、cache無効化、Prefab override記録へまとめる。Profile参照中の直接編集は拒否する。再評価とUI更新は呼出し側が担当し、raw readerから実行しない。
+- public `LatticeDeformer.InsertGroup` / `MoveGroup` を追加し、Inspectorのprivate field reflectionを除去した。既存APIの互換入口、保存フィールド、schema version、既存GUID、履歴fixtureと期待値は維持する。各ツールへの展開、評価・移行・Previewの分離は後続作業。
 - `DeformerAuthoringBoundaryTests` はraw読取り、Profile不変、失敗時rollback、Undo/Redo、Inspector callback、Prefab Apply/save-reloadを検証する。今回の隔離Unity batch検証は描画確認を含まないため、GraphicsE2Eと実際のScene View操作は別途実施する。
+- `DeformerStore` はUnityのserialized propertyを変更するadapter。Layer削除後のnumeric selectionとclampは旧Inspectorの契約を保持し、public `RemoveLayer` が持つ選択規則と混同しない。Inspectorの構造操作は `PerformEditOperation` → service → store/API →再評価と表示更新へ統一した。
+- `DeformerEditService.ExecuteBatch` は対象集合を先に固定・検証し、全対象を1つのUndoへ記録する。途中の拒否・例外は全対象をrollbackしてcacheを破棄する。Profileやfuture component/layer-model/lattice versionはUndoを作る前に拒否し、実際の複数選択UIとdragへの接続は後続工程で扱う。
+- `Tests/Editor/Fixtures/ArchitectureBaseline/` は固定commit `c7f499c` の実行結果。`ArchitectureContractSnapshot.Export` と `LayerOperationBaselineFixture.Export` を隔離した基準版Unityで実行して生成し、新実装から期待値を上書きしない。公開API・保存field/path・enum・GUIDの維持と、6種類の旧Inspector操作を独立の互換性テストで照合する。`Docs~/Architecture/2026-09-07-p0-p1-contracts.md` に再実行条件と検証根拠を記録する。
 
 ### 統合 EditorTool アーキテクチャ
 

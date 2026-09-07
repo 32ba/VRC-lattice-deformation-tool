@@ -884,6 +884,11 @@ namespace Net._32Ba.LatticeDeformationTool
 
         internal bool UsesLegacyAbsoluteLatticeEvaluation => _legacyAbsoluteLatticeEvaluation;
 
+        internal bool CanStartAuthoringEdit =>
+            (int)_deformationDataVersion >= 0 && _deformationDataVersion <= CurrentDeformationDataVersion &&
+            _layerModelVersion >= 0 && _layerModelVersion <= k_CurrentLayerModelVersion &&
+            !HasUnsupportedFutureLatticeAsset();
+
         internal SerializedDeformerData ReadSerializedData() => new SerializedDeformerData(
             _groups, _activeGroupIndex, _dataSource, _profile,
             _skinnedMeshRenderer, _meshFilter, _serializedSourceMesh,

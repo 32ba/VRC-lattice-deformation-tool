@@ -27,6 +27,10 @@ namespace Net._32Ba.LatticeDeformationTool
             ? Profile.SerializedGroups : EmbeddedGroups;
         internal int ActiveGroupIndex => UsesProfile
             ? Profile.SerializedActiveGroupIndex : EmbeddedActiveGroupIndex;
+        internal DeformerGroup ActiveGroup => Groups != null && ActiveGroupIndex >= 0 && ActiveGroupIndex < Groups.Count
+            ? Groups[ActiveGroupIndex] : null;
+        internal IReadOnlyList<LatticeLayer> ActiveLayers => ActiveGroup?.SerializedLayers;
+        internal int ActiveLayerIndex => ActiveGroup?.SerializedActiveLayerIndex ?? -1;
 
         internal SerializedDeformerData(
             IReadOnlyList<DeformerGroup> groups, int activeGroupIndex,

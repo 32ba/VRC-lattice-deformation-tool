@@ -585,7 +585,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (target is LatticeDeformer d)
                 {
-                    PerformGroupOperation(() => DeformerEditService.AddGroup(d, "Add Group"));
+                    PerformEditOperation(() => DeformerEditService.AddGroup(d, "Add Group"));
                 }
             }) { text = "+" };
             addGroupBtn.style.width = 25;
@@ -600,7 +600,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (target is LatticeDeformer d && d.GroupCount > 1)
                 {
-                    PerformGroupOperation(() => DeformerEditService.RemoveGroup(d, d.ActiveGroupIndex, "Remove Group"));
+                    PerformEditOperation(() => DeformerEditService.RemoveGroup(d, d.ActiveGroupIndex, "Remove Group"));
                 }
             }) { text = "\u2212" };
             removeGroupBtn.style.width = 25;
@@ -645,7 +645,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.DeleteGroup), _ =>
                 {
                     if (d.GroupCount <= 1) return;
-                    PerformGroupOperation(() => DeformerEditService.RemoveGroup(
+                    PerformEditOperation(() => DeformerEditService.RemoveGroup(
                         d, groupIndex, LatticeLocalization.Tr(LocKey.DeleteGroup)));
                 }, d.GroupCount <= 1 ? DropdownMenuAction.Status.Disabled : DropdownMenuAction.Status.Normal);
             }));
@@ -823,7 +823,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void OnGroupReordered(int oldIndex, int newIndex)
         {
             if (target is not LatticeDeformer d) return;
-            PerformGroupOperation(() => DeformerEditService.MoveGroup(d, oldIndex, newIndex, "Reorder Group"));
+            PerformEditOperation(() => DeformerEditService.MoveGroup(d, oldIndex, newIndex, "Reorder Group"));
         }
 
         private void OnGroupSelectionChanged()
@@ -2341,9 +2341,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.DuplicateLayer), _ =>
                 {
-                    PerformSingleLayerOperation(d, LatticeLocalization.Tr(LocKey.DuplicateLayer), inst =>
-                        inst.DuplicateLayer(layerIndex) >= 0);
-                    RebuildGroupList();
+                    PerformEditOperation(() => DeformerEditService.DuplicateLayer(
+                        d, layerIndex, LatticeLocalization.Tr(LocKey.DuplicateLayer)));
                 });
                 evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.CopyLayer), _ =>
                 {
@@ -2518,16 +2517,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void OnLayerReordered(int oldIndex, int newIndex)
         {
             if (target is not LatticeDeformer deformer) return;
-
-            serializedObject.Update();
-            _layersProp.MoveArrayElement(oldIndex, newIndex);
-            UpdateActiveLayerIndexAfterReorder(oldIndex, newIndex);
-            serializedObject.ApplyModifiedProperties();
-            serializedObject.Update();
-            InitializePendingGridSizes();
-
-            RebuildLayerList();
-            NotifyPropertyChanges();
+            MoveLayer(deformer, oldIndex, newIndex);
         }
 
         private void DrawLayerOperationsImgui()
@@ -2967,31 +2957,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void MoveLayer(LatticeDeformer deformer, int fromIndex, int toIndex)
         {
-            serializedObject.ApplyModifiedProperties();
-            Undo.RecordObject(deformer, "Reorder Layer");
-            _layersProp.MoveArrayElement(fromIndex, toIndex);
-            UpdateActiveLayerIndexAfterReorder(fromIndex, toIndex);
-            serializedObject.ApplyModifiedProperties();
-            serializedObject.Update();
-            InitializePendingGridSizes();
+            PerformEditOperation(() => DeformerEditService.MoveLayer(deformer, fromIndex, toIndex, "Reorder Layer"));
         }
 
         private void DeleteLayer(LatticeDeformer deformer, int index)
         {
-            if (_layersProp.arraySize <= 0) return;
-            serializedObject.ApplyModifiedProperties();
-            Undo.RecordObject(deformer, "Delete Layer");
-            _layersProp.DeleteArrayElementAtIndex(index);
-            ClampActiveLayerIndexProperty();
-            serializedObject.ApplyModifiedProperties();
-            serializedObject.Update();
-            InitializePendingGridSizes();
-
-            deformer.InvalidateCache();
-            deformer.Deform(LatticePreviewUtility.ShouldAssignRuntimeMesh());
-            LatticePrefabUtility.MarkModified(deformer);
-            LatticePreviewUtility.RequestSceneRepaint();
-            SceneView.RepaintAll();
+            PerformEditOperation(() => DeformerEditService.RemoveLayer(deformer, index, "Delete Layer"));
         }
 
         private void ShowLROperationsMenu(LatticeDeformer deformer)
@@ -3022,83 +2993,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 ? LatticeLocalization.Tr(LocKey.AddBrushLayer)
                 : LatticeLocalization.Tr(LocKey.AddLatticeLayer);
 
-            PerformSingleLayerOperation(deformer, undoLabel, instance =>
-            {
-                instance.AddLayer(layerType: layerType);
-                return true;
-            });
-        }
-
-        private void ClampActiveLayerIndexProperty()
-        {
-            if (_layersProp == null || _activeLayerIndexProp == null)
-            {
-                return;
-            }
-
-            int maxIndex = Mathf.Max(0, _layersProp.arraySize - 1);
-            _activeLayerIndexProp.intValue = Mathf.Clamp(_activeLayerIndexProp.intValue, 0, maxIndex);
-        }
-
-        private void UpdateActiveLayerIndexAfterReorder(int oldIndex, int newIndex)
-        {
-            if (_activeLayerIndexProp == null || _layersProp == null || _layersProp.arraySize == 0)
-            {
-                return;
-            }
-
-            int active = Mathf.Clamp(_activeLayerIndexProp.intValue, 0, _layersProp.arraySize - 1);
-            if (active == oldIndex)
-            {
-                active = newIndex;
-            }
-            else if (oldIndex < active && newIndex >= active)
-            {
-                active--;
-            }
-            else if (oldIndex > active && newIndex <= active)
-            {
-                active++;
-            }
-
-            _activeLayerIndexProp.intValue = Mathf.Clamp(active, 0, _layersProp.arraySize - 1);
+            PerformEditOperation(() => DeformerEditService.AddLayer(deformer, layerType, undoLabel));
         }
 
         private void PerformSingleLayerOperation(LatticeDeformer deformer, string undoLabel, System.Func<LatticeDeformer, bool> op)
         {
-            if (deformer == null || op == null)
-            {
-                return;
-            }
-
-            serializedObject.ApplyModifiedProperties();
-
-            Undo.RecordObject(deformer, undoLabel);
-            bool changed = op(deformer);
-            if (!changed)
-            {
-                serializedObject.Update();
-                return;
-            }
-
-            EditorUtility.SetDirty(deformer);
-            LatticePrefabUtility.MarkModified(deformer);
-
-            serializedObject.Update();
-            InitializePendingGridSizes();
-
-            bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-            deformer.InvalidateCache();
-            deformer.Deform(assignRuntimeMesh);
-            SyncActiveToolToLayer(deformer);
-            LatticePreviewUtility.RequestSceneRepaint();
-            SceneView.RepaintAll();
+            PerformEditOperation(() => DeformerEditService.Execute(deformer, undoLabel, op));
         }
 
         private void CopyLayer(LatticeDeformer deformer, int layerIndex)
         {
-            var layers = deformer.Layers;
-            if (layerIndex < 0 || layerIndex >= layers.Count) return;
+            var layers = SerializedDeformerReader.Read(deformer).ActiveLayers;
+            if (layers == null || layerIndex < 0 || layerIndex >= layers.Count) return;
             var layer = layers[layerIndex];
             if (layer == null) return;
             s_copiedLayerJson = JsonUtility.ToJson(layer);
@@ -3107,20 +3013,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void PasteLayer(LatticeDeformer deformer)
         {
-            if (string.IsNullOrEmpty(s_copiedLayerJson)) return;
-
-            var newLayer = new LatticeLayer();
-            JsonUtility.FromJsonOverwrite(s_copiedLayerJson, newLayer);
-
-            PerformSingleLayerOperation(deformer, LatticeLocalization.Tr(LocKey.PasteLayer), instance =>
-            {
-                return instance.InsertLayer(newLayer) >= 0;
-            });
+            PerformEditOperation(() => DeformerEditService.PasteLayer(
+                deformer, s_copiedLayerJson, LatticeLocalization.Tr(LocKey.PasteLayer)));
         }
 
         private void DuplicateGroup(LatticeDeformer deformer, int groupIndex)
         {
-            PerformGroupOperation(() => DeformerEditService.DuplicateGroup(
+            PerformEditOperation(() => DeformerEditService.DuplicateGroup(
                 deformer, groupIndex, LatticeLocalization.Tr(LocKey.DuplicateGroup)));
         }
 
@@ -3133,17 +3032,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void PasteGroup(LatticeDeformer deformer)
         {
-            PerformGroupOperation(() => DeformerEditService.PasteGroup(
+            PerformEditOperation(() => DeformerEditService.PasteGroup(
                 deformer, s_copiedGroupJson, LatticeLocalization.Tr(LocKey.PasteGroup)));
         }
 
-        private void PerformGroupOperation(Func<bool> operation)
+        private void PerformEditOperation(Func<bool> operation)
         {
             serializedObject.ApplyModifiedProperties();
             bool changed = operation();
             serializedObject.Update();
             if (!changed) return;
             ResolveActiveGroupProperties();
+            InitializePendingGridSizes();
             RebuildGroupList();
             NotifyPropertyChanges(true);
         }
