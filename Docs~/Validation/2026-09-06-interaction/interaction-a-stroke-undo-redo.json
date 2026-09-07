@@ -1,0 +1,50 @@
+{
+    "schemaVersion": 1,
+    "scenarioId": "interaction-a-stroke-undo-redo",
+    "inputKind": "inspector-mouse-and-scene-view-mouse",
+    "evaluatedAtUtc": "2026-09-06T11:04:10.3377471Z",
+    "packageVersion": "1.4.6-beta.1",
+    "unityVersion": "2022.3.22f1",
+    "graphicsDevice": "Direct3D11",
+    "installedIntegrationPackages": [
+        "com.anatawa12.avatar-optimizer@1.9.18",
+        "com.ramtype0.meshia.mesh-simplification@3.2.0",
+        "nadena.dev.modular-avatar@1.18.7",
+        "nadena.dev.ndmf@1.14.8"
+    ],
+    "usedIntegrationPackages": [
+        "nadena.dev.ndmf"
+    ],
+    "operationCount": 10,
+    "changedVertexCount": 15,
+    "scenarioElapsedMs": 406.2318999999661,
+    "undoRedoEvaluated": true,
+    "undoMatch": true,
+    "redoMatch": true,
+    "sourceUnchanged": true,
+    "refusalReasonDisplayed": false,
+    "refusalReasonCode": "",
+    "succeeded": true,
+    "failureReason": "",
+    "responses": [
+        {
+            "action": "first-stroke",
+            "measurement": "input-to-final-proxy",
+            "editorUpdates": 3,
+            "elapsedMs": 40.772000000288247
+        },
+        {
+            "action": "undo",
+            "measurement": "input-to-final-proxy",
+            "editorUpdates": 0,
+            "elapsedMs": 8.717199999864534
+        },
+        {
+            "action": "redo",
+            "measurement": "input-to-final-proxy",
+            "editorUpdates": 0,
+            "elapsedMs": 6.127000000105909
+        }
+    ],
+    "observedErrors": []
+}

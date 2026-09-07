@@ -1,0 +1,174 @@
+# 操作の正しさを継続検証する設計
+
+## 目的と実装対象
+
+利用者が編集を開始し、意図した変化を確認し、Undoしてから編集を再開できることを機械的に検証する。
+正しい対象と頂点への編集、表示とデータの一致、復元操作、拒否時のデータ不変を検証する。
+当初の「楽しく」は音声入力の誤変換で、利用者の意図は「正しく操作できること」と確認済み。
+基準は `1.4.6-beta.1`、commit `3efcba79f4baebed127645973a027e59ef77f5bc` とする。
+今回の作業ブランチは `codex/interaction-quality` とする。
+旧作業フォルダーの未コミット変更や案内型UIは取り込まない。
+
+この文書はGPT-5.6 Lunaへの実装依頼と、実装後のレビュー基準を兼ねる。
+GPT-5.6 Lunaが本体と操作契約テストを実装し、親担当が実入力テストの仕上げ、Unityへの接続、実行、結果のレビューを行う。
+Unityを再起動したり、別プロジェクトの設定を変更したりする必要はない。
+
+## 調査で確認した問題
+
+Inspectorの実際のCopyLayerとPasteLayerを呼び、三角形の左右の頂点番号を入れ替えたメッシュへ貼り付けると、対応しない頂点が動いた。
+この場合、Validatorの診断は0件だった。
+頂点数が異なる場合もレイヤーが追加され、その後のDeformはnullとなった。
+既存のStory_CrossDeformerCopyPasteは最後に例外の有無だけを確認するため、どちらの不適切な結果も区別できない。
+
+標準設定ではInspectorのValidationDiagnosticsが無効で、編集画面から原因を調べにくい。
+一方、実際のNDMF、AAO、MA、Meshiaを含む描画テスト8件と探索テスト1件、MAビルドとコピーのテスト2件は調査時に成功した。
+既存の連携テストは維持し、今回の検証を追加する。
+
+## 今回実装する範囲
+
+1. Inspectorとテストが共用する、互換性を検査したコピーと貼り付けの操作。
+2. 貼り付け拒否と編集結果が見えない理由を、その操作を行う画面に表示する仕組み。
+3. 実際のScene View入力を使う操作テストと、構造化された検証結果。
+4. CIで必須テストの未実行やスキップを失敗にする設定と、結果の保存。
+
+新しい案内型UI、公開APIの大規模な置換、migration schemaの変更、版番号の変更、公開リリースは行わない。
+数値計算やNDMFの設計変更は、今回の実入力テストで確認された不具合の最小修正に限定する。
+
+## コピーと貼り付けの契約
+
+Editor内の専用クラスへ操作をまとめる。
+名前の例はMeshDeformerClipboardとし、Inspectorのレイヤー操作とグループ操作が利用する。
+OSのクリップボードは使用せず、従来と同じEditorセッション内のコピーとする。
+結果は成功か拒否かを示すboolだけでなく、stable codeとローカライズ可能な理由を保持する。
+
+コピー時はレイヤーまたはグループの独立したJSONと、コピー元のメッシュ互換性情報を保存する。
+Brush変位、Vertex Maskなど頂点番号に依存するpayloadを含む場合、コピー元の頂点順序とsubmeshごとのtopologyとindex順序を、貼り付け先の元メッシュと比較する。
+元メッシュの順序付き頂点座標も比較するため、同じ頂点数だけでは互換としない。
+同一内容の複製メッシュには貼り付けられることを保証する。
+GUIDが違うという理由だけでは拒否しない。
+同じMeshインスタンスでもコピー後に内容が変わっていたら拒否する。
+位置とindexを含む既存MeshCompatibilityMetadataの契約を参照し、既存schemaを変更せず再利用可能な部分を使用する。
+
+頂点に依存する配列を持たない純粋なLatticeレイヤーは、従来どおり別メッシュへコピーできる。
+Maskなど頂点依存の配列を持つLatticeは互換性確認の対象とする。
+グループに一つでも不適合なレイヤーがあれば、そのグループ全体の貼り付けを拒否する。
+Profileを使う読取り専用の対象には貼り付けない。
+無効化されたレイヤーも将来有効化されるため、コピー時の配列互換性確認を省略しない。
+
+確認はUndo登録、通常getterによる暗黙補正、レイヤー追加、Renderer変更、dirty設定より前に完了させる。
+拒否時は対象のserialized payload、選択中のgroupとlayer、Rendererのmesh、既存の出力を保持する。
+配列の切詰め、padding、空間的な転送を推測で行わない。
+理由はモーダルダイアログではなくInspector内に表示し、操作を修正して成功したら古い拒否表示を消す。
+成功した貼り付けは一回のUndoで戻り、一回のRedoで復元する。
+コピー後に元のレイヤーを変更してもコピー済みpayloadは変わらない。
+
+Read/Write無効のimport meshもEditorの読取り可能なAPIで確認する。
+確認のために元MeshやImporter設定を変更しない。
+情報を取得できない場合は理由付きで拒否する。
+読み取れないデータから互換と推測することはない。
+
+## 編集画面での説明
+
+標準設定でも、ビルドやPreviewを停止するError診断をInspectorで表示する。
+未公開のClearanceやProfileなどの編集機能は公開しない。
+既存の詳細診断を再利用し、次期機能のフラグ全体を有効にしない。
+
+編集開始ボタンの近くとOverlayには、現在の編集が見えない理由を短く表示する。
+対象はcomponent無効、group無効、layer無効、layer weightが0の場合とする。
+BlendShape出力の場合は直接形状が動くモードではないことが分かる案内を表示する。
+利用者の設定を自動で有効化したり、ウェイトを変更したりしない。
+常時長い説明を出す必要はなく、該当する状態で理由と操作先を示す。
+UI文字列はLocKeyと5言語のpoへ追加する。
+
+## テストの層と合格条件
+
+### 操作契約を検証するEditModeテスト
+
+Inspectorが実際に使う操作クラスを呼ぶ。
+テスト内でJSONを複製してInsertLayerを直接呼ぶだけのテストを、UI操作の合格証拠として扱わない。
+少なくとも次のケースを追加する。
+
+- 同一meshと同一内容の別meshへのBrush貼り付けで、既知の頂点が期待量だけ動く。
+- 同数かつ異なる頂点順序、異なる頂点数、同数かつ異なるindex、コピー後のsource変更を拒否する。
+- 拒否の前後でserialized payload、active選択、Renderer参照、出力が変化しない。
+- payload配列長不一致と非finiteデータを拒否する。
+- 成功後のUndoとRedoでレイヤー数と変形結果が往復する。
+- 一つの不適合レイヤーを含むgroup貼り付けを全体として拒否する。
+- 非頂点依存Latticeの異種mesh貼り付けを維持する。
+- コピー済みデータの独立性、Profileへの拒否、Read/Write無効meshを検証する。
+- 拒否理由、非表示の編集理由、成功後の拒否表示解除を実際のUIが使う状態から検証する。
+
+既存の低水準InsertLayer APIの契約は勝手に変更しない。
+既存Story_CrossDeformerCopyPasteは成功する互換meshと拒否する異種meshを区別するテストへ更新するか、低水準JSON複製テストであることを名前とassertで明示する。
+過去リリースのmigrationテストとfixtureは変更しない。
+
+### 実入力によるInteractionE2E
+
+新しいCategoryはInteractionE2Eとし、初期の必須シナリオは3件とする。
+テスト専用EditorWindowまたはSceneView.SendEventを使い、実際のGUIイベントをUnityへ送る。
+少なくともブラシストロークはMouseDown、複数のMouseDrag、MouseUpが実際のMeshDeformerToolからBrushToolHandlerへ届く経路を通す。
+SetDisplacementやApplyBrushを直接呼んで実入力の代わりにしない。
+入力点はテストメッシュの既知のworld座標から現在のScene Viewへ投影し、解像度依存の固定ピクセルにしない。
+
+シナリオA：標準のInspectorにある編集開始操作からツールを開き、一筆のブラシ操作で表示用meshが変化し、Undoで戻り、Redoで同じ結果になる。
+開始操作は、実InspectorのUIをホストしてイベントを送る方法を優先する。
+既存IMGUIの操作位置を知るために必要なら、internalで読取り専用の描画Rect計測口を最小限追加してよい。
+専用のテスト用編集ロジックや、結果を偽装するテスト専用モードは追加しない。
+
+シナリオB：実入力で編集した後に別の対象へ切り替え、元の対象へ戻って次の一筆を入れる。
+それぞれの対象に正しい編集が残り、選択していない対象と元Meshを変更しない。
+ツールの終了と再開を含め、古いhandlerや選択キャッシュで別対象を編集しないことを確認する。
+
+シナリオC：互換性を確認した貼り付けを実Inspectorと同じ操作経路で実行し、表示を確認する。
+不適合な貼り付けを試して理由が表示されること、元の編集が続行できることを確認する。
+貼り付けまでを実UIイベントにすることが難しい場合は共有操作APIを使ってよいが、レポートのinputKindにcommandと記録する。
+この場合でも、再開後のブラシは実Scene View入力とする。
+
+NDMFの実PreviewSessionで最終表示用proxy meshを読み、sourceやRuntimeMeshだけの変化を合格条件にしない。
+実NDMFプレビューが必要なシナリオで代替の模擬proxyへ黙って切り替えない。
+graphics deviceがNullの場合はIgnoreにできるが、CI側の必須category検査で失敗させる。
+既存GraphicsE2Eの8件とそのカテゴリは変更しない。
+
+### 応答と回復の記録
+
+シナリオごとに、schemaVersion、scenarioId、inputKind、package/Unityの版、graphics device、利用した連携package、操作数、changedVertexCount、表示までのeditor update数と経過ms、UndoとRedoの一致、source不変、拒否理由code、成功状態をJSONへ記録する。
+利用者のメッシュ座標や変位配列はレポートへ保存しない。
+テスト専用の合成meshと固定seedを使用する。
+
+無反応、誤った対象への編集、Undo/Redo不一致、理由のない拒否は必須の失敗条件とする。
+表示の更新待ちは最大120 editor updatesかつ5秒を上限とし、無期限に待たない。
+msと更新数を結果として残し、応答が滑らかかを今後同一環境で比較できるようにする。
+初期版では環境差の大きいp95のms値だけでCIを失敗させない。
+5秒はハング検出の上限であり、快適さを保証する目標値ではないと明記する。
+
+JSONは既定でプロジェクトのTemp/LatticeInteractionReportsへ出力する。
+batch modeではUnity終了後のCI収集用にTestResults/LatticeInteractionReportsにも同じ内容を保存する。
+失敗時も観測できたところまでと失敗理由を保存し、古い成功ファイルを今回の成功として残さない。
+レポート生成はテスト側に置き、通常の編集でテレメトリーやファイル出力を行わない。
+
+## 環境の復元とCI
+
+テストは自分のfixtureだけを破棄し、選択、active tool、SceneViewの視点、preview toggle、変更したstatic tool optionをfinallyで復元する。
+各ストロークの入力座標は、選択対象をScene Viewの中央に合わせてから取得し、画面端のOverlayへの誤入力を避ける。
+既存Sceneを保存したり、全体のUndo履歴やConsoleを消したりしない。
+SceneやObjectのinstance IDはTest Runnerの再読み込みで変わるため、手動確認の復元ではscene pathとhierarchy pathも保持する。
+
+既存のEditMode CI jobへInteractionE2Eの必須3件検査を追加する。
+テストが発見されない場合、Ignoreされた場合、件数が足りない場合を合格にしない。
+JSONを既存の結果とともにalwaysでartifactへ保存する。
+既存のGraphicsE2E、MA、探索テストのgateを弱めない。
+
+READMEの開発者向け説明へ検証範囲、実行方法、レポートの意味を短く追記し、この設計書にリンクする。
+追加モジュールとテスト手順はAGENTS.mdへ反映する。
+新しいUnity取込対象ファイルには.metaを付ける。
+Docs~配下にはUnity用の.metaを追加しない。
+
+## 実装担当への受け渡し
+
+作業場所：`C:/Users/Yuki/ghq/github.com/32ba/VRC-lattice-interaction-quality`。
+最初にこの場所のAGENTS.mdを読む。
+この作業場所だけを編集し、元のworktreeやUnityのPackagesリンクを変更しない。
+Unityの起動、テスト実行、接続先変更は親担当が行うため、実装準備ができた段階で知らせる。
+コミットやpushは親担当が判断するので行わない。
+最終報告に変更ファイル、各シナリオの実入力とAPI操作の区別、未検証点を記載する。
+実装が複雑化する場合は、保証を弱めて成功とする前に親担当へ相談する。

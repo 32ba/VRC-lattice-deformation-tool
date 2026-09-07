@@ -95,6 +95,12 @@ English documentation: [README_en.md](README_en.md)
 - NDMF Preview は表示用のプロキシ Mesh を利用し、終了時に上流の Mesh 表示へ戻します。
 - 旧 `BrushDeformer` は Inspector の明示的な移行操作で Brush Layer へコピーできます。移行後の旧コンポーネントは無効なバックアップとして保持されます。
 
+## 操作の正しさの検証
+
+`InteractionE2E` カテゴリの3テストは、標準Inspectorの編集開始、Scene ViewのMouseDown/複数MouseDrag/MouseUp、実NDMF Preview proxy、対象切替、Undo/Redo、互換性拒否後の再開を確認します。編集用MeshやRuntimeMeshだけで判定せず、最終表示proxyの変化を読み取ります。テストはUnity EditorのEditModeから `InteractionE2E` カテゴリを指定して実行してください。
+
+各シナリオのJSONは通常 `Temp/LatticeInteractionReports` に、CIのバッチ実行では永続用の `TestResults/LatticeInteractionReports` にも出力されます。操作数、表示までのEditor update数と経過時間、シナリオ全体時間、Undo/Redo一致、元Mesh不変、拒否理由codeを含み、頂点座標や変位配列は含みません。表示待ちは120 updatesか5秒で打ち切ります。設計とCIの合格条件は [`Docs~/interaction-quality.md`](Docs~/interaction-quality.md) を参照してください。
+
 ## ライセンス
 
 本パッケージは MIT License で提供されています。詳細は [LICENSE](LICENSE) を参照してください。

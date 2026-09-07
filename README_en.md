@@ -95,6 +95,12 @@ Groups that deform vertices directly and Groups that output BlendShapes can coex
 - NDMF Preview uses a display proxy and restores the upstream Mesh display when preview ends.
 - A legacy `BrushDeformer` can be copied into a Brush Layer with the explicit Inspector migration action. The legacy component is retained as a disabled backup.
 
+## Interaction correctness validation
+
+The three tests in the `InteractionE2E` category exercise the standard Inspector edit-start control, Scene View MouseDown/multiple MouseDrag/MouseUp input, the real NDMF Preview proxy, target switching, Undo/Redo, and recovery after an incompatible paste. They judge the final displayed proxy mesh rather than only an editor or runtime mesh. Run them from the Unity Editor EditMode Test Runner with the `InteractionE2E` category.
+
+Each scenario writes JSON to `Temp/LatticeInteractionReports`; batch CI runs also copy it to the persistent `TestResults/LatticeInteractionReports` directory, which CI uploads. Reports include operation count, editor updates and elapsed time until the visible response, full scenario time, Undo/Redo agreement, source-mesh preservation, and any refusal code. Vertex positions and displacement arrays are excluded. Visible-response polling stops after 120 editor updates or five seconds. The design and CI acceptance rules are in [`Docs~/interaction-quality.md`](Docs~/interaction-quality.md).
+
 ## License
 
 This package is provided under the MIT License. See [LICENSE](LICENSE) for details.

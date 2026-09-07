@@ -1,0 +1,50 @@
+{
+    "schemaVersion": 1,
+    "scenarioId": "interaction-c-paste-rejection-resume",
+    "inputKind": "clipboard-command-and-inspector-mouse-and-scene-view-mouse",
+    "evaluatedAtUtc": "2026-09-06T11:04:11.3646862Z",
+    "packageVersion": "1.4.6-beta.1",
+    "unityVersion": "2022.3.22f1",
+    "graphicsDevice": "Direct3D11",
+    "installedIntegrationPackages": [
+        "com.anatawa12.avatar-optimizer@1.9.18",
+        "com.ramtype0.meshia.mesh-simplification@3.2.0",
+        "nadena.dev.modular-avatar@1.18.7",
+        "nadena.dev.ndmf@1.14.8"
+    ],
+    "usedIntegrationPackages": [
+        "nadena.dev.ndmf"
+    ],
+    "operationCount": 21,
+    "changedVertexCount": 15,
+    "scenarioElapsedMs": 526.2620000003153,
+    "undoRedoEvaluated": false,
+    "undoMatch": false,
+    "redoMatch": false,
+    "sourceUnchanged": true,
+    "refusalReasonDisplayed": true,
+    "refusalReasonCode": "LDT_CLIPBOARD_TOPOLOGY_MISMATCH",
+    "succeeded": true,
+    "failureReason": "",
+    "responses": [
+        {
+            "action": "copy-source-stroke",
+            "measurement": "input-to-final-proxy",
+            "editorUpdates": 3,
+            "elapsedMs": 57.313300000259918
+        },
+        {
+            "action": "compatible-paste",
+            "measurement": "input-to-final-proxy",
+            "editorUpdates": 1,
+            "elapsedMs": 13.661700000284327
+        },
+        {
+            "action": "resume-after-refusal",
+            "measurement": "input-to-final-proxy",
+            "editorUpdates": 3,
+            "elapsedMs": 35.02119999984643
+        }
+    ],
+    "observedErrors": []
+}

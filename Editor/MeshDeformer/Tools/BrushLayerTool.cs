@@ -713,7 +713,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     UpdateGeodesicDistanceCache(hit.point);
 
                     BeginStroke(deformer);
-                    Undo.RecordObject(deformer, GetUndoLabel());
+                    // A stroke spans multiple editor frames. Record the complete
+                    // serialized snapshot once at MouseDown so later drags that
+                    // reach new vertices are included in the same Undo operation.
+                    Undo.RegisterCompleteObjectUndo(deformer, GetUndoLabel());
                     deformer.EnsureDisplacementCapacity();
 
                     ApplyBrush(deformer, meshTransform, localHitPoint, hit.point, localHitNormal, evt);

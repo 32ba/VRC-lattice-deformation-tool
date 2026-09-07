@@ -2393,6 +2393,14 @@ namespace Net._32Ba.LatticeDeformationTool
         }
 
 #if UNITY_EDITOR
+        // Clipboard compatibility checks use this read-only Editor path for imported
+        // meshes whose Read/Write flag is disabled. The source asset and importer are
+        // never changed; the caller owns and destroys the returned temporary mesh.
+        internal static Mesh CreateEditorReadableMeshCopyForClipboard(Mesh sourceMesh)
+        {
+            return sourceMesh == null ? null : CreateEditorReadableSourceMesh(sourceMesh);
+        }
+
         private static Mesh CreateEditorReadableSourceMesh(Mesh sourceMesh)
         {
             var readableMesh = new Mesh();
