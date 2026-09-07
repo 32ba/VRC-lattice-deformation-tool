@@ -208,7 +208,7 @@ namespace Net._32Ba.LatticeDeformationTool
                         Grid = new int3(_cache.GridSize.x, _cache.GridSize.y, _cache.GridSize.z),
                         Result = _deformOutputNative
                     };
-    
+
                     bernsteinJob.Schedule(entries.Length, 64).Complete();
                 }
                 else
@@ -219,10 +219,10 @@ namespace Net._32Ba.LatticeDeformationTool
                         Entries = _deformEntriesNative,
                         Result = _deformOutputNative
                     };
-    
+
                     job.Schedule(entries.Length, 64).Complete();
                 }
-    
+
                 _deformOutputNative.CopyToManaged(result);
                 return result;
             }
