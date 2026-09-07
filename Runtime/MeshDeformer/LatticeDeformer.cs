@@ -124,7 +124,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private EvaluationWorkspace _evaluationWorkspace = new EvaluationWorkspace();
         [NonSerialized] private DeformationDataMigrationStatus _migrationStatus =
             DeformationDataMigrationStatus.Uninitialized;
-        private const int k_CurrentLayerModelVersion = 3;
+        private const int k_CurrentLayerModelVersion = DeformationMigrationPreflight.CurrentLayerModelVersion;
         private const string k_PrimaryLayerName = "Lattice Layer";
         private const string k_BrushLayerName = "Brush Layer";
         private const string k_RecoveredLegacyFlatLayersGroupName = "Recovered Legacy Flat Layers";
@@ -1900,6 +1900,29 @@ namespace Net._32Ba.LatticeDeformationTool
         private void RestoreSourceTangents(Mesh mesh) =>
             DeformedMeshWriter.RestoreSourceTangents(_sourceMesh, mesh, GetEvaluationWorkspace().MeshOutput);
 
+        internal DeformationMigrationInput ReadMigrationInput() => new DeformationMigrationInput(
+            _settings, _layers, _activeLayerIndex, _groups, _activeGroupIndex,
+            _deformationDataVersion, _layerModelVersion, _blendShapeOutput,
+            _dataSource == DeformerDataSource.Profile && _profile != null ? _profile.SerializedGroups?.Count ?? 0 : 0);
+
+        private bool ValidateMigrationInput()
+        {
+            var input = ReadMigrationInput();
+            var status = DeformationMigrationPreflight.ValidateSchema(input);
+            if (status != DeformationDataMigrationStatus.Ready)
+            {
+                _migrationStatus = status;
+                return false;
+            }
+            if (DeformationMigrationPreflight.HasIncompatibleVertexData(input, ReadMigrationSourceVertexCount()))
+            {
+                _hasIncompatibleBrushData = true;
+                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
+                return false;
+            }
+            return true;
+        }
+
         private bool EnsureLayerModelReady()
         {
             if (_isEnsuringLayerModelReady)
@@ -1915,43 +1938,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 return false;
             }
 
-            int rawVersion = (int)_deformationDataVersion;
-            if (rawVersion > (int)DeformationDataVersion.CurrentDevelopment)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.UnsupportedFutureVersion;
-                return false;
-            }
-
-            if (_layerModelVersion > k_CurrentLayerModelVersion)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.UnsupportedFutureVersion;
-                return false;
-            }
-
-            if (rawVersion < (int)DeformationDataVersion.Unversioned)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-
-            if (HasUnsupportedFutureLatticeAsset())
-            {
-                _migrationStatus = DeformationDataMigrationStatus.UnsupportedFutureVersion;
-                return false;
-            }
-
-            if (HasMalformedLatticeAsset())
-            {
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-
-            if (HasIncompatibleSerializedVertexIndexedData())
-            {
-                _hasIncompatibleBrushData = true;
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
+            if (!ValidateMigrationInput()) return false;
 
             _isEnsuringLayerModelReady = true;
             try
@@ -2014,43 +2001,7 @@ namespace Net._32Ba.LatticeDeformationTool
         /// </summary>
         internal bool TryUpgradeDeformationDataOneRelease()
         {
-            int rawVersion = (int)_deformationDataVersion;
-            if (rawVersion > (int)DeformationDataVersion.CurrentDevelopment)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.UnsupportedFutureVersion;
-                return false;
-            }
-
-            if (_layerModelVersion > k_CurrentLayerModelVersion)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.UnsupportedFutureVersion;
-                return false;
-            }
-
-            if (rawVersion < (int)DeformationDataVersion.Unversioned)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-
-            if (HasUnsupportedFutureLatticeAsset())
-            {
-                _migrationStatus = DeformationDataMigrationStatus.UnsupportedFutureVersion;
-                return false;
-            }
-
-            if (HasMalformedLatticeAsset())
-            {
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-
-            if (HasIncompatibleSerializedVertexIndexedData())
-            {
-                _hasIncompatibleBrushData = true;
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
+            if (!ValidateMigrationInput()) return false;
 
             if (_deformationDataVersion == DeformationDataVersion.CurrentDevelopment)
             {
@@ -2536,16 +2487,8 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        private bool CanContainPublishedRemoveLastSelectionBug()
-        {
-            if (_deformationDataVersion == DeformationDataVersion.Unversioned)
-            {
-                return HasNonNullGroups(_groups);
-            }
-
-            return _deformationDataVersion >= DeformationDataVersion.V1_2_1 &&
-                   _deformationDataVersion <= DeformationDataVersion.V1_4_0;
-        }
+        private bool CanContainPublishedRemoveLastSelectionBug() =>
+            DeformationMigrationPreflight.CanContainPublishedRemoveLastSelectionBug(ReadMigrationInput());
 
         private bool ShouldPreserveHistoricalGroupBlendShapeSemantics()
         {
@@ -2703,103 +2646,11 @@ namespace Net._32Ba.LatticeDeformationTool
             return false;
         }
 
-        private bool HasUnsupportedFutureLatticeAsset()
-        {
-            if (_settings != null && _settings.HasUnsupportedFutureSerializationVersion)
-            {
-                return true;
-            }
+        private bool HasUnsupportedFutureLatticeAsset() =>
+            DeformationMigrationPreflight.HasUnsupportedFutureLatticeAsset(ReadMigrationInput());
 
-            if (_layers != null)
-            {
-                foreach (var layer in _layers)
-                {
-                    if (layer?.SerializedSettings != null &&
-                        layer.SerializedSettings.HasUnsupportedFutureSerializationVersion)
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            if (_groups != null)
-            {
-                foreach (var group in _groups)
-                {
-                    var layers = group?.SerializedLayers;
-                    if (layers == null) continue;
-                    foreach (var layer in layers)
-                    {
-                        if (layer?.SerializedSettings != null &&
-                            layer.SerializedSettings.HasUnsupportedFutureSerializationVersion)
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        private bool HasMalformedLatticeAsset()
-        {
-            if (HasMalformedSerializedSelection())
-            {
-                return true;
-            }
-
-            if (_blendShapeOutput != BlendShapeOutputMode.Disabled &&
-                _blendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape)
-            {
-                return true;
-            }
-
-            if (_settings != null && _settings.HasMalformedSerializedShape)
-            {
-                return true;
-            }
-
-            if (_layers != null)
-            {
-                foreach (var layer in _layers)
-                {
-                    if (layer != null &&
-                        (layer.HasMalformedSerializedMetadata ||
-                         (layer.SerializedSettings != null &&
-                          layer.SerializedSettings.HasMalformedSerializedShape)))
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            if (_groups != null)
-            {
-                foreach (var group in _groups)
-                {
-                    if (group != null && group.HasMalformedSerializedMetadata)
-                    {
-                        return true;
-                    }
-
-                    var layers = group?.SerializedLayers;
-                    if (layers == null) continue;
-                    foreach (var layer in layers)
-                    {
-                        if (layer != null &&
-                            (layer.HasMalformedSerializedMetadata ||
-                             (layer.SerializedSettings != null &&
-                              layer.SerializedSettings.HasMalformedSerializedShape)))
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
-
-            return false;
-        }
+        private bool HasMalformedLatticeAsset() =>
+            DeformationMigrationPreflight.HasMalformedLatticeAsset(ReadMigrationInput());
 
         /// <summary>
         /// Validates raw selection indices before any migration or model-normalization
@@ -2807,127 +2658,18 @@ namespace Net._32Ba.LatticeDeformationTool
         /// choosing another group/layer would make a corrupt payload appear to migrate
         /// successfully while changing which deformation the Inspector edits.
         /// </summary>
-        private bool HasMalformedSerializedSelection()
-        {
-            // Missing fields from old YAML retain these field-initializer lists. A
-            // runtime null therefore represents an explicit/corrupt payload, and the
-            // normalization paths below must not replace it with a guessed empty list.
-            if (_groups == null || _layers == null)
-            {
-                return true;
-            }
-
-            if (_groups.Count == 0)
-            {
-                int selectionCount = _dataSource == DeformerDataSource.Profile && _profile != null
-                    ? _profile.SerializedGroups?.Count ?? 0 : 0;
-                if (_activeGroupIndex < 0 ||
-                    (selectionCount == 0 ? _activeGroupIndex != 0 : _activeGroupIndex >= selectionCount))
-                    return true;
-            }
-            else
-            {
-                if (_activeGroupIndex < 0 || _activeGroupIndex >= _groups.Count)
-                {
-                    return true;
-                }
-
-                for (int groupIndex = 0; groupIndex < _groups.Count; groupIndex++)
-                {
-                    var group = _groups[groupIndex];
-                    // Group-schema releases never assigned semantics to a null inline
-                    // entry. Dropping it or replacing it with a default group would be
-                    // a guessed repair, even when that entry is not currently selected.
-                    if (group == null)
-                    {
-                        return true;
-                    }
-
-                    var layers = group.SerializedLayers;
-                    int activeLayer = group.SerializedActiveLayerIndex;
-                    if (layers == null)
-                    {
-                        return true;
-                    }
-
-                    if (layers.Count == 0)
-                    {
-                        if (activeLayer != 0)
-                        {
-                            return true;
-                        }
-                    }
-                    else
-                    {
-                        bool knownPublishedRemoveLastPattern =
-                            CanContainPublishedRemoveLastSelectionBug() &&
-                            activeLayer == layers.Count;
-                        if (activeLayer < 0 ||
-                            (activeLayer >= layers.Count && !knownPublishedRemoveLastPattern))
-                        {
-                            return true;
-                        }
-
-                        // As with groups, every inline layer slot must carry an actual
-                        // payload. EnsureGroupsCore must not silently manufacture a
-                        // neutral layer in place of corrupted serialized data.
-                        for (int layerIndex = 0; layerIndex < layers.Count; layerIndex++)
-                        {
-                            if (layers[layerIndex] == null)
-                            {
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (_layers.Count == 0)
-            {
-                // Published group initialization could leave the obsolete component
-                // facade index behind after moving its selected flat layer into a
-                // DeformerGroup. It has no target once the flat list is empty; preserve
-                // it through classification, then canonicalize it at the structural
-                // 1.2.1→1.3.0 boundary. Later/current payloads must already be canonical.
-                bool awaitingPublishedGroupNormalization = _groups.Count > 0 &&
-                    (_deformationDataVersion == DeformationDataVersion.Unversioned ||
-                     _deformationDataVersion == DeformationDataVersion.V1_2_0 ||
-                     _deformationDataVersion == DeformationDataVersion.V1_2_1);
-                if (awaitingPublishedGroupNormalization)
-                {
-                    return false;
-                }
-
-                // The single-settings schema used both the default zero and -1 as the
-                // base-lattice selection sentinel before a flat list existed.
-                return _activeLayerIndex < -1 || _activeLayerIndex > 0;
-            }
-
-            // A conceptual-v2 flat payload could historically contain null holes; the
-            // immutable staged migration contract deterministically filters those while
-            // remapping a non-null active layer. Once authoritative groups exist, the
-            // same null is corruption in the stale backup and must fail closed.
-            if (_groups != null && _groups.Count > 0)
-            {
-                for (int layerIndex = 0; layerIndex < _layers.Count; layerIndex++)
-                {
-                    if (_layers[layerIndex] == null)
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return _activeLayerIndex < 0 || _activeLayerIndex >= _layers.Count ||
-                   _layers[_activeLayerIndex] == null;
-        }
+        private bool HasMalformedSerializedSelection() =>
+            DeformationMigrationPreflight.HasMalformedSerializedSelection(ReadMigrationInput());
 
         /// <summary>
         /// Validates non-empty vertex-indexed payloads without allocating, resizing, or
         /// caching anything. This preflight runs before every release step so a brush or
         /// mask mismatch cannot be committed through later release markers first.
         /// </summary>
-        private bool HasIncompatibleSerializedVertexIndexedData()
+        private bool HasIncompatibleSerializedVertexIndexedData() =>
+            DeformationMigrationPreflight.HasIncompatibleVertexData(ReadMigrationInput(), ReadMigrationSourceVertexCount());
+
+        private int ReadMigrationSourceVertexCount()
         {
             Mesh validationMesh = null;
             if (_skinnedMeshRenderer != null)
@@ -2961,54 +2703,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 validationMesh = _serializedSourceMesh != null ? _serializedSourceMesh : _sourceMesh;
             }
 
-            int expectedVertexCount = validationMesh != null ? validationMesh.vertexCount : -1;
-
-            bool IsIncompatible(LatticeLayer layer)
-            {
-                if (layer == null) return false;
-                if (layer.HasNonFiniteSerializedVertexData) return true;
-
-                int displacementCount = layer.SerializedBrushDisplacementCount;
-                int maskCount = layer.SerializedVertexMaskCount;
-                if (displacementCount == 0 && maskCount == 0)
-                {
-                    return false;
-                }
-
-                if (expectedVertexCount < 0)
-                {
-                    // Vertex identity cannot be established without the source mesh.
-                    // Preserve the payload and allow shape-only migration; it will be
-                    // validated as soon as a source becomes known.
-                    return false;
-                }
-
-                return (displacementCount != 0 && displacementCount != expectedVertexCount) ||
-                       (maskCount != 0 && maskCount != expectedVertexCount);
-            }
-
-            if (_layers != null)
-            {
-                foreach (var layer in _layers)
-                {
-                    if (IsIncompatible(layer)) return true;
-                }
-            }
-
-            if (_groups != null)
-            {
-                foreach (var group in _groups)
-                {
-                    var layers = group?.SerializedLayers;
-                    if (layers == null) continue;
-                    foreach (var layer in layers)
-                    {
-                        if (IsIncompatible(layer)) return true;
-                    }
-                }
-            }
-
-            return false;
+            return validationMesh != null ? validationMesh.vertexCount : -1;
         }
 
         private void TryApplyLayerContribution(LatticeLayer layer, Vector3[] sourceVertices, Vector3[] deformedVertices)
