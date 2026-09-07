@@ -835,57 +835,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return CalculateReferencedMeshBounds(mesh, vertices, mesh.bounds);
         }
 
-        private static Vector3[] EvaluateBlendShapeVertexDelta(Mesh mesh, int shapeIndex, float weight)
-        {
-            int frameCount = mesh.GetBlendShapeFrameCount(shapeIndex);
-            if (frameCount <= 0)
-            {
-                return null;
-            }
-
-            int vertexCount = mesh.vertexCount;
-            var lower = new Vector3[vertexCount];
-            var upper = new Vector3[vertexCount];
-            var normals = new Vector3[vertexCount];
-            var tangents = new Vector3[vertexCount];
-
-            float firstWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, 0);
-            if (weight <= firstWeight || frameCount == 1)
-            {
-                mesh.GetBlendShapeFrameVertices(shapeIndex, 0, lower, normals, tangents);
-                float scale = Mathf.Abs(firstWeight) > Mathf.Epsilon ? weight / firstWeight : 0f;
-                for (int i = 0; i < lower.Length; i++)
-                {
-                    lower[i] *= scale;
-                }
-
-                return lower;
-            }
-
-            for (int frame = 1; frame < frameCount; frame++)
-            {
-                float upperWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, frame);
-                if (weight <= upperWeight)
-                {
-                    float lowerWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, frame - 1);
-                    mesh.GetBlendShapeFrameVertices(shapeIndex, frame - 1, lower, normals, tangents);
-                    mesh.GetBlendShapeFrameVertices(shapeIndex, frame, upper, normals, tangents);
-
-                    float t = Mathf.Abs(upperWeight - lowerWeight) > Mathf.Epsilon
-                        ? Mathf.InverseLerp(lowerWeight, upperWeight, weight)
-                        : 0f;
-                    for (int i = 0; i < lower.Length; i++)
-                    {
-                        lower[i] = Vector3.LerpUnclamped(lower[i], upper[i], t);
-                    }
-
-                    return lower;
-                }
-            }
-
-            mesh.GetBlendShapeFrameVertices(shapeIndex, frameCount - 1, lower, normals, tangents);
-            return lower;
-        }
+        private static Vector3[] EvaluateBlendShapeVertexDelta(Mesh mesh, int shapeIndex, float weight) =>
+            mesh.GetBlendShapeFrameCount(shapeIndex) <= 0 ? null :
+                SourceBlendShapeEvaluator.EvaluateDelta(mesh, shapeIndex, weight,
+                    SourceBlendShapeExtrapolation.ClampLastFrame);
 
         private static Bounds CalculateReferencedMeshBounds(Mesh mesh, Vector3[] vertices, Bounds fallback)
         {

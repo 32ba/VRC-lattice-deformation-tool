@@ -3,7 +3,6 @@ using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -107,9 +106,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private LatticeDeformerCache _cache = new LatticeDeformerCache();
         [NonSerialized] private Mesh _runtimeMesh;
         [NonSerialized] private Mesh _sourceMesh;
-#if UNITY_EDITOR
-        [NonSerialized] private Mesh _editorReadableSourceMeshOverride;
-#endif
+        [NonSerialized] private Mesh _readableSourceMeshOverride;
         [NonSerialized] private int _lastBlendShapeHash;
         [NonSerialized] private int _lastBakedBlendShapeHash;
         [NonSerialized] private List<DeformerGroup> _profileGroups;
@@ -122,8 +119,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private int _deformationDataRevision;
         [NonSerialized] private bool _isEnsuringLayerModelReady;
         [NonSerialized] private bool _hasIncompatibleBrushData;
-        [NonSerialized] private List<Vector3> _sourceVertexScratch = new List<Vector3>();
-        [NonSerialized] private Vector3[] _sourceVerticesBuffer = Array.Empty<Vector3>();
+        [NonSerialized] private SourceVertexWorkspace _sourceVertexWorkspace = new SourceVertexWorkspace();
         [NonSerialized] private EvaluationWorkspace _evaluationWorkspace = new EvaluationWorkspace();
         [NonSerialized] private DeformationDataMigrationStatus _migrationStatus =
             DeformationDataMigrationStatus.Uninitialized;
@@ -1646,146 +1642,25 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public Mesh Deform(bool assignToRenderer = true)
         {
-#if UNITY_EDITOR
+            if (DeformerPlatformServices.EditorMeshDataReader == null)
+                return DeformReadableSource(assignToRenderer);
             Mesh originalSourceMesh = _sourceMesh;
-            Mesh readableSourceMesh = null;
-            if (originalSourceMesh != null && !originalSourceMesh.isReadable)
+            using var sourceLease = SourceMeshAccess.Acquire(originalSourceMesh);
+            if (sourceLease.OwnsMesh)
             {
-                // Imported meshes keep their CPU-side data in the Editor even when
-                // Read/Write is disabled, but the original asset still rejects the
-                // managed vertex getters. Instantiating it gives this deformation a
-                // non-asset working copy whose full mesh data can be read without
-                // changing the importer's Read/Write setting.
-                readableSourceMesh = CreateEditorReadableSourceMesh(originalSourceMesh);
-                _editorReadableSourceMeshOverride = readableSourceMesh;
-                _sourceMesh = readableSourceMesh;
+                _readableSourceMeshOverride = sourceLease.Mesh;
+                _sourceMesh = sourceLease.Mesh;
             }
-
             try
             {
                 return DeformReadableSource(assignToRenderer);
             }
             finally
             {
-                _editorReadableSourceMeshOverride = null;
+                _readableSourceMeshOverride = null;
                 _sourceMesh = originalSourceMesh;
-                if (readableSourceMesh != null)
-                {
-                    DestroyImmediate(readableSourceMesh);
-                }
             }
-#else
-            return DeformReadableSource(assignToRenderer);
-#endif
         }
-
-#if UNITY_EDITOR
-        private static Mesh CreateEditorReadableSourceMesh(Mesh sourceMesh)
-        {
-            var readableMesh = new Mesh();
-            readableMesh.name = sourceMesh.name;
-            readableMesh.hideFlags = HideFlags.HideAndDontSave;
-
-            // NDMF may hand this component a cloned imported mesh whose managed
-            // getters no longer have a CPU copy. MeshUtility can still read its
-            // vertex and index buffers in the Editor, so copy those buffers into
-            // a new readable Mesh without touching the imported asset.
-            using Mesh.MeshDataArray sourceDataArray = UnityEditor.MeshUtility.AcquireReadOnlyMeshData(sourceMesh);
-            Mesh.MeshData sourceData = sourceDataArray[0];
-            Mesh.MeshDataArray writableDataArray = Mesh.AllocateWritableMeshData(1);
-            bool writableDataApplied = false;
-            try
-            {
-                Mesh.MeshData writableData = writableDataArray[0];
-                var attributes = new List<UnityEngine.Rendering.VertexAttributeDescriptor>();
-                foreach (UnityEngine.Rendering.VertexAttribute attribute in
-                         Enum.GetValues(typeof(UnityEngine.Rendering.VertexAttribute)))
-                {
-                    if (sourceData.HasVertexAttribute(attribute))
-                    {
-                        attributes.Add(new UnityEngine.Rendering.VertexAttributeDescriptor(
-                            attribute,
-                            sourceData.GetVertexAttributeFormat(attribute),
-                            sourceData.GetVertexAttributeDimension(attribute),
-                            sourceData.GetVertexAttributeStream(attribute)));
-                    }
-                }
-
-                attributes.Sort((left, right) =>
-                {
-                    int streamOrder = left.stream.CompareTo(right.stream);
-                    return streamOrder != 0
-                        ? streamOrder
-                        : sourceData.GetVertexAttributeOffset(left.attribute)
-                            .CompareTo(sourceData.GetVertexAttributeOffset(right.attribute));
-                });
-
-                writableData.SetVertexBufferParams(sourceData.vertexCount, attributes.ToArray());
-                for (int stream = 0; stream < sourceData.vertexBufferCount; stream++)
-                {
-                    NativeArray<byte> sourceBuffer = sourceData.GetVertexData<byte>(stream);
-                    NativeArray<byte> destinationBuffer = writableData.GetVertexData<byte>(stream);
-                    sourceBuffer.CopyTo(destinationBuffer);
-                }
-
-                NativeArray<byte> sourceIndices = sourceData.GetIndexData<byte>();
-                int indexElementSize = sourceData.indexFormat == UnityEngine.Rendering.IndexFormat.UInt16
-                    ? sizeof(ushort)
-                    : sizeof(uint);
-                writableData.SetIndexBufferParams(
-                    sourceIndices.Length / indexElementSize,
-                    sourceData.indexFormat);
-                sourceIndices.CopyTo(writableData.GetIndexData<byte>());
-
-                writableData.subMeshCount = sourceData.subMeshCount;
-                for (int subMesh = 0; subMesh < sourceData.subMeshCount; subMesh++)
-                {
-                    writableData.SetSubMesh(
-                        subMesh,
-                        sourceData.GetSubMesh(subMesh),
-                        UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds |
-                        UnityEngine.Rendering.MeshUpdateFlags.DontValidateIndices);
-                }
-
-                Mesh.ApplyAndDisposeWritableMeshData(
-                    writableDataArray,
-                    readableMesh,
-                    UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds |
-                    UnityEngine.Rendering.MeshUpdateFlags.DontValidateIndices);
-                writableDataApplied = true;
-
-                readableMesh.bounds = sourceMesh.bounds;
-                Matrix4x4[] bindPoses = sourceMesh.bindposes;
-                if (bindPoses != null && bindPoses.Length > 0)
-                {
-                    readableMesh.bindposes = bindPoses;
-                }
-
-                using NativeArray<byte> bonesPerVertex = sourceMesh.GetBonesPerVertex();
-                using NativeArray<BoneWeight1> boneWeights = sourceMesh.GetAllBoneWeights();
-                if (bonesPerVertex.Length == sourceMesh.vertexCount && boneWeights.Length > 0)
-                {
-                    readableMesh.SetBoneWeights(bonesPerVertex, boneWeights);
-                }
-
-                DeformedMeshWriter.CopyBlendShapes(sourceMesh, readableMesh, new MeshOutputWorkspace());
-            }
-            catch
-            {
-                DestroyImmediate(readableMesh);
-                throw;
-            }
-            finally
-            {
-                if (!writableDataApplied)
-                {
-                    writableDataArray.Dispose();
-                }
-            }
-
-            return readableMesh;
-        }
-#endif
 
         private Mesh DeformReadableSource(bool assignToRenderer)
         {
@@ -3201,97 +3076,14 @@ namespace Net._32Ba.LatticeDeformationTool
             out float[] bakedBlendShapeWeights,
             out int bakedBlendShapeHash)
         {
-            bakedBlendShapeDeltas = null;
-            bakedBlendShapeWeights = null;
-            bakedBlendShapeHash = 0;
-
-            if (!CanReadSourceMeshData(_sourceMesh))
-            {
-                return null;
-            }
-
-            int sourceVertexCount = _sourceMesh.vertexCount;
-            if (sourceVertexCount <= 0)
-            {
-                return Array.Empty<Vector3>();
-            }
-
-            EnsureManagedDeformationBuffers(sourceVertexCount);
-            _sourceVertexScratch ??= new List<Vector3>(sourceVertexCount);
-            if (_sourceVertexScratch.Capacity < sourceVertexCount)
-            {
-                _sourceVertexScratch.Capacity = sourceVertexCount;
-            }
-
-            _sourceMesh.GetVertices(_sourceVertexScratch);
-            if (_sourceVertexScratch.Count != sourceVertexCount)
-            {
-                return null;
-            }
-
-            _sourceVertexScratch.CopyTo(_sourceVerticesBuffer, 0);
-            var vertices = _sourceVerticesBuffer;
-
-            if (_skinnedMeshRenderer == null || _sourceMesh.blendShapeCount == 0)
-            {
-                return vertices;
-            }
-
-            int shapeCount = _sourceMesh.blendShapeCount;
-            int vertexCount = _sourceMesh.vertexCount;
-            Vector3[][] deltas = null;
-            float[] weights = null;
-            bool hasBakedShape = false;
-            int hash = 17;
-
-            for (int s = 0; s < shapeCount; s++)
-            {
-                float weight = _skinnedMeshRenderer.GetBlendShapeWeight(s);
-                if (Mathf.Abs(weight) <= 1e-5f)
-                {
-                    continue;
-                }
-
-                var delta = EvaluateBlendShapeVertexDelta(_sourceMesh, s, weight);
-                deltas ??= new Vector3[shapeCount][];
-                weights ??= new float[shapeCount];
-                deltas[s] = delta;
-                weights[s] = weight;
-                hasBakedShape = true;
-                hash = HashCode.Combine(hash, s, weight);
-
-                for (int v = 0; v < vertexCount; v++)
-                {
-                    vertices[v] += delta[v];
-                }
-            }
-
-            if (!hasBakedShape)
-            {
-                return vertices;
-            }
-
-            bakedBlendShapeDeltas = deltas;
-            bakedBlendShapeWeights = weights;
-            bakedBlendShapeHash = hash;
-            return vertices;
+            _sourceVertexWorkspace ??= new SourceVertexWorkspace();
+            var weights = _sourceVertexWorkspace.CaptureWeights(_skinnedMeshRenderer,
+                _skinnedMeshRenderer != null && _sourceMesh != null ? _sourceMesh.blendShapeCount : 0);
+            return SourceVertexResolver.Resolve(_sourceMesh, weights, _sourceVertexWorkspace,
+                out bakedBlendShapeDeltas, out bakedBlendShapeWeights, out bakedBlendShapeHash);
         }
 
-        private static bool CanReadSourceMeshData(Mesh mesh)
-        {
-            if (mesh == null)
-            {
-                return false;
-            }
-
-#if UNITY_EDITOR
-            // The Editor retains imported mesh data and permits the managed Mesh
-            // getters even when the importer-facing isReadable flag is false.
-            return true;
-#else
-            return mesh.isReadable;
-#endif
-        }
+        private static bool CanReadSourceMeshData(Mesh mesh) => DeformerPlatformServices.CanReadMesh(mesh);
 
         private void EnsureManagedDeformationBuffers(int vertexCount)
         {
@@ -3300,90 +3092,15 @@ namespace Net._32Ba.LatticeDeformationTool
                 throw new ArgumentOutOfRangeException(nameof(vertexCount));
             }
 
-            EnsureVectorBuffer(ref _sourceVerticesBuffer, vertexCount);
             _evaluationWorkspace ??= new EvaluationWorkspace();
             _evaluationWorkspace.EnsureCapacity(vertexCount);
         }
 
-        private static void EnsureVectorBuffer(ref Vector3[] buffer, int length)
-        {
-            if (buffer == null || buffer.Length != length)
-            {
-                buffer = length == 0 ? Array.Empty<Vector3>() : new Vector3[length];
-            }
-        }
+        private static Vector3[] EvaluateBlendShapeVertexDelta(Mesh mesh, int shapeIndex, float weight) =>
+            SourceBlendShapeEvaluator.EvaluateDelta(mesh, shapeIndex, weight);
 
-        private static Vector3[] EvaluateBlendShapeVertexDelta(Mesh mesh, int shapeIndex, float weight)
-        {
-            int frameCount = mesh.GetBlendShapeFrameCount(shapeIndex);
-            int vertexCount = mesh.vertexCount;
-            var lower = new Vector3[vertexCount];
-            var upper = new Vector3[vertexCount];
-            var unusedNormals = new Vector3[vertexCount];
-            var unusedTangents = new Vector3[vertexCount];
-
-            if (frameCount == 0)
-            {
-                return lower;
-            }
-
-            float firstWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, 0);
-            if (weight <= firstWeight || frameCount == 1)
-            {
-                mesh.GetBlendShapeFrameVertices(shapeIndex, 0, lower, unusedNormals, unusedTangents);
-                float scale = Mathf.Abs(firstWeight) > Mathf.Epsilon ? weight / firstWeight : 0f;
-                ScaleDeltas(lower, scale);
-                return lower;
-            }
-
-            for (int frame = 1; frame < frameCount; frame++)
-            {
-                float upperWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, frame);
-                if (weight <= upperWeight)
-                {
-                    float lowerWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, frame - 1);
-                    mesh.GetBlendShapeFrameVertices(shapeIndex, frame - 1, lower, unusedNormals, unusedTangents);
-                    mesh.GetBlendShapeFrameVertices(shapeIndex, frame, upper, unusedNormals, unusedTangents);
-
-                    float t = Mathf.Abs(upperWeight - lowerWeight) > Mathf.Epsilon
-                        ? Mathf.InverseLerp(lowerWeight, upperWeight, weight)
-                        : 0f;
-                    for (int i = 0; i < vertexCount; i++)
-                    {
-                        lower[i] = Vector3.LerpUnclamped(lower[i], upper[i], t);
-                    }
-
-                    return lower;
-                }
-            }
-
-            int lastFrame = frameCount - 1;
-            mesh.GetBlendShapeFrameVertices(shapeIndex, lastFrame, lower, unusedNormals, unusedTangents);
-            float lastWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, lastFrame);
-            float previousWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, lastFrame - 1);
-            float interval = lastWeight - previousWeight;
-            if (Mathf.Abs(interval) > Mathf.Epsilon)
-            {
-                // Unity extrapolates the last frame itself over the final frame interval;
-                // it does not continue the slope between the final two delta arrays.
-                float scale = 1f + (weight - lastWeight) / interval;
-                ScaleDeltas(lower, scale);
-            }
-            return lower;
-        }
-
-        private static void ScaleDeltas(Vector3[] deltas, float scale)
-        {
-            if (deltas == null)
-            {
-                return;
-            }
-
-            for (int i = 0; i < deltas.Length; i++)
-            {
-                deltas[i] *= scale;
-            }
-        }
+        private static void ScaleDeltas(Vector3[] deltas, float scale) =>
+            SourceBlendShapeEvaluator.ScaleDeltas(deltas, scale);
 
         public void RestoreOriginalMesh()
         {
@@ -3716,13 +3433,11 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private void CacheSourceMesh()
         {
-#if UNITY_EDITOR
-            if (_editorReadableSourceMeshOverride != null)
+            if (_readableSourceMeshOverride != null)
             {
-                _sourceMesh = _editorReadableSourceMeshOverride;
+                _sourceMesh = _readableSourceMeshOverride;
                 return;
             }
-#endif
             Mesh nextSource = GetSharedSourceMesh();
 
             if (_runtimeMesh != null && ReferenceEquals(_runtimeMesh, nextSource))
@@ -3758,56 +3473,7 @@ namespace Net._32Ba.LatticeDeformationTool
             EnsureAllBrushLayerDisplacementCapacity(_sourceMesh != null ? _sourceMesh.vertexCount : 0);
         }
 
-        private static int CalculateSourceTopologyHash(Mesh mesh)
-        {
-            if (mesh == null) return 0;
-            try
-            {
-                unchecked
-                {
-                    int hash = 17;
-                    hash = hash * 31 + mesh.vertexCount;
-                    hash = hash * 31 + mesh.subMeshCount;
-#if UNITY_EDITOR
-                    // Mesh.AcquireReadOnlyMeshData and the managed index getters still
-                    // enforce the importer Read/Write flag. MeshUtility is the Editor
-                    // path which can inspect imported mesh data without changing that
-                    // flag, and also works for meshes produced by earlier NDMF passes.
-                    using Mesh.MeshDataArray meshDataArray = UnityEditor.MeshUtility.AcquireReadOnlyMeshData(mesh);
-#else
-                    if (!mesh.isReadable) return 0;
-                    using Mesh.MeshDataArray meshDataArray = Mesh.AcquireReadOnlyMeshData(mesh);
-#endif
-                    Mesh.MeshData data = meshDataArray[0];
-                    bool use16Bit = mesh.indexFormat == UnityEngine.Rendering.IndexFormat.UInt16;
-                    NativeArray<ushort> indices16 = use16Bit
-                        ? data.GetIndexData<ushort>()
-                        : default;
-                    NativeArray<uint> indices32 = !use16Bit
-                        ? data.GetIndexData<uint>()
-                        : default;
-                    for (int subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
-                    {
-                        UnityEngine.Rendering.SubMeshDescriptor descriptor = data.GetSubMesh(subMesh);
-                        hash = hash * 31 + (int)descriptor.topology;
-                        hash = hash * 31 + descriptor.indexCount;
-                        int end = descriptor.indexStart + descriptor.indexCount;
-                        for (int index = descriptor.indexStart; index < end; index++)
-                        {
-                            int value = use16Bit
-                                ? indices16[index] + descriptor.baseVertex
-                                : unchecked((int)indices32[index]) + descriptor.baseVertex;
-                            hash = hash * 31 + value;
-                        }
-                    }
-                    return hash;
-                }
-            }
-            catch
-            {
-                return 0;
-            }
-        }
+        private static int CalculateSourceTopologyHash(Mesh mesh) => SourceMeshTopology.Calculate(mesh);
 
         private Mesh GetSharedSourceMesh()
         {
@@ -3943,23 +3609,8 @@ namespace Net._32Ba.LatticeDeformationTool
 
 #if UNITY_EDITOR
         [ExcludeFromCodeCoverage]
-        private static void MarkDirtyInEditor(UnityEngine.Object target)
-        {
-            UnityEditor.EditorUtility.SetDirty(target);
-            if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(target))
-            {
-                UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(target);
-            }
-
-            if (target is Component component)
-            {
-                var scene = component.gameObject.scene;
-                if (scene.IsValid() && scene.isLoaded)
-                {
-                    UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
-                }
-            }
-        }
+        private static void MarkDirtyInEditor(UnityEngine.Object target) =>
+            DeformerPlatformServices.RecordLegacyMigration?.Invoke(target);
 #endif
 
         private LatticeAsset GetPrimaryLayerSettings()
