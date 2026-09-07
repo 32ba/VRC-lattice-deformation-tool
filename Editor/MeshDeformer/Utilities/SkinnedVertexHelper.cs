@@ -13,88 +13,44 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     /// </summary>
     internal static class SkinnedVertexHelper
     {
-        private static Mesh s_bakeMesh;
-        private static readonly List<Vector3> s_bakedVertices = new List<Vector3>();
+        // Compatibility entry points retain their historical shared lifetime. Scene
+        // tools use their own SkinnedPoseSnapshot instead of borrowing this instance.
+        private static readonly SkinnedPoseSnapshot s_compatibilitySnapshot =
+            new SkinnedPoseSnapshot("Compatibility Posed Surface");
         internal static bool StoreMovesInRestSpace { get; set; }
-        internal static int WorldPositionBakeCountForTests { get; set; }
-
-        static SkinnedVertexHelper()
+        internal static int WorldPositionBakeCountForTests
         {
-            AssemblyReloadEvents.beforeAssemblyReload += ReleaseStaticResources;
+            get => SkinnedPoseSnapshot.BakeCountForTests;
+            set => SkinnedPoseSnapshot.BakeCountForTests = value;
         }
 
         [ExcludeFromCodeCoverage]
-        internal static void ReleaseStaticResources()
-        {
-            if (s_bakeMesh != null)
-            {
-                Object.DestroyImmediate(s_bakeMesh);
-                s_bakeMesh = null;
-            }
-            s_bakedVertices.Clear();
-        }
+        internal static void ReleaseStaticResources() => s_compatibilitySnapshot.Reset();
 
-        /// <summary>
-        /// Computes world-space positions matching the rendered output.
-        /// Returns world-space positions for SkinnedMeshRenderer (via proxy BakeMesh),
-        /// or null for MeshRenderer (caller should use localToWorldMatrix).
-        /// </summary>
+        /// <summary>Returns posed world positions, or null for an unskinned/invalid target.</summary>
         [ExcludeFromCodeCoverage]
         public static Vector3[] ComputeWorldPositions(
             LatticeDeformer deformer,
             Vector3[] localVertices,
             Vector3[] reusableResult = null)
         {
-            if (deformer == null || localVertices == null || localVertices.Length == 0)
+            if (deformer == null || localVertices == null || localVertices.Length == 0 ||
+                !TryGetSkinnedRenderer(deformer, out var renderer))
                 return null;
-
-            if (!TryGetSkinnedRenderer(deformer, out var proxySMR))
-                return null;
-
-            // BakeMesh on the proxy (which has the deformed mesh + correct bones)
-            if (s_bakeMesh == null)
-            {
-                s_bakeMesh = new Mesh();
-                s_bakeMesh.hideFlags = HideFlags.HideAndDontSave;
-            }
 
             UnityEngine.Profiling.Profiler.BeginSample("VertexSelection.BakeMesh");
             try
             {
-                WorldPositionBakeCountForTests++;
-                proxySMR.BakeMesh(s_bakeMesh);
+                return s_compatibilitySnapshot.TryCapture(renderer, localVertices.Length)
+                    ? s_compatibilitySnapshot.CopyWorldPositions(reusableResult)
+                    : null;
             }
             finally
             {
                 UnityEngine.Profiling.Profiler.EndSample();
             }
-
-            if (s_bakeMesh.vertexCount != localVertices.Length)
-                return null;
-
-            // BakeMesh returns vertices in the SMR's local space (without scale).
-            // Convert to world space using the proxy's transform.
-            s_bakedVertices.Clear();
-            s_bakeMesh.GetVertices(s_bakedVertices);
-            var proxyTransform = proxySMR.transform;
-            var matrix = proxyTransform.localToWorldMatrix;
-            int count = s_bakedVertices.Count;
-            var result = reusableResult != null && reusableResult.Length == count
-                ? reusableResult
-                : new Vector3[count];
-
-            for (int i = 0; i < count; i++)
-            {
-                result[i] = matrix.MultiplyPoint3x4(s_bakedVertices[i]);
-            }
-
-            return result;
         }
 
-        /// <summary>
-        /// Captures the posed mesh once and shares it between brush world-position
-        /// visualization and raycasting for the current Scene GUI event.
-        /// </summary>
         [ExcludeFromCodeCoverage]
         internal static bool TryCaptureBrushSnapshot(
             LatticeDeformer deformer,
@@ -109,14 +65,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             bakedMeshMatrix = Matrix4x4.identity;
             if (deformer == null || !TryGetSkinnedRendererReference(deformer, out var renderer))
                 return false;
-
-            return TryCaptureBrushSnapshot(
-                renderer,
-                localVertices,
-                reusableWorldPositions,
-                out worldPositions,
-                out bakedMesh,
-                out bakedMeshMatrix);
+            return TryCaptureBrushSnapshot(renderer, localVertices, reusableWorldPositions,
+                out worldPositions, out bakedMesh, out bakedMeshMatrix);
         }
 
         [ExcludeFromCodeCoverage]
@@ -131,58 +81,26 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             worldPositions = null;
             bakedMesh = null;
             bakedMeshMatrix = Matrix4x4.identity;
-            if (renderer == null || localVertices == null || localVertices.Length == 0)
+            if (localVertices == null ||
+                !s_compatibilitySnapshot.TryCapture(renderer, localVertices.Length))
                 return false;
-
-            if (s_bakeMesh == null)
-            {
-                s_bakeMesh = new Mesh { hideFlags = HideFlags.HideAndDontSave };
-            }
-
-            WorldPositionBakeCountForTests++;
-            renderer.BakeMesh(s_bakeMesh);
-            if (s_bakeMesh.vertexCount != localVertices.Length) return false;
-
-            s_bakedVertices.Clear();
-            s_bakeMesh.GetVertices(s_bakedVertices);
-            int count = s_bakedVertices.Count;
-            worldPositions = reusableWorldPositions != null && reusableWorldPositions.Length == count
-                ? reusableWorldPositions
-                : new Vector3[count];
-            bakedMeshMatrix = renderer.transform.localToWorldMatrix;
-            for (int i = 0; i < count; i++)
-                worldPositions[i] = bakedMeshMatrix.MultiplyPoint3x4(s_bakedVertices[i]);
-            bakedMesh = s_bakeMesh;
+            worldPositions = s_compatibilitySnapshot.CopyWorldPositions(reusableWorldPositions);
+            bakedMesh = s_compatibilitySnapshot.Mesh;
+            bakedMeshMatrix = s_compatibilitySnapshot.LocalToWorld;
             return true;
         }
 
-        /// <summary>
-        /// Returns the baked mesh and its transform for raycasting against the posed mesh.
-        /// For SkinnedMeshRenderer, bakes the proxy (or original) SMR.
-        /// Returns false for MeshRenderer (caller should raycast against source mesh + localToWorldMatrix).
-        /// </summary>
         [ExcludeFromCodeCoverage]
         public static bool TryGetBakedMeshForRaycast(LatticeDeformer deformer,
             out Mesh bakedMesh, out Matrix4x4 bakedMeshMatrix)
         {
             bakedMesh = null;
             bakedMeshMatrix = Matrix4x4.identity;
-
-            if (deformer == null)
+            if (deformer == null || !TryGetSkinnedRenderer(deformer, out var renderer) ||
+                !s_compatibilitySnapshot.TryCapture(renderer, renderer.sharedMesh.vertexCount))
                 return false;
-
-            if (!TryGetSkinnedRenderer(deformer, out var targetSMR))
-                return false;
-
-            if (s_bakeMesh == null)
-            {
-                s_bakeMesh = new Mesh();
-                s_bakeMesh.hideFlags = HideFlags.HideAndDontSave;
-            }
-
-            targetSMR.BakeMesh(s_bakeMesh);
-            bakedMesh = s_bakeMesh;
-            bakedMeshMatrix = targetSMR.transform.localToWorldMatrix;
+            bakedMesh = s_compatibilitySnapshot.Mesh;
+            bakedMeshMatrix = s_compatibilitySnapshot.LocalToWorld;
             return true;
         }
 

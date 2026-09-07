@@ -81,6 +81,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Transform[] _cachedBones;
         private int _cachedRendererDirtyCount;
         private bool _poseRendererResolved;
+        private int _cachedProxyMappingRevision = -1;
+        private readonly SkinnedPoseSnapshot _poseSnapshot = new SkinnedPoseSnapshot("Vertex Selection Posed Surface");
         internal int RefreshCountForTests { get; private set; }
         internal Vector3[] DeformedVerticesForTests => _deformedVertices;
 
@@ -1389,6 +1391,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 RefreshCountForTests++;
                 if (deformer == null || _meshVertices == null)
                 {
+                    _poseSnapshot.Reset();
                     _deformedVertices = _meshVertices;
                     _worldPositions = null;
                     return;
@@ -1414,10 +1417,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
                 }
 
-                _worldPositions = SkinnedVertexHelper.ComputeWorldPositions(
-                    deformer,
-                    _deformedVertices,
-                    _worldPositions);
+                if (_cachedSkinnedRenderer == null)
+                {
+                    _poseSnapshot.Reset();
+                    _worldPositions = null;
+                }
+                else
+                {
+                    Profiler.BeginSample("VertexSelection.BakeMesh");
+                    try
+                    {
+                        _poseSnapshot.TryCapture(_cachedSkinnedRenderer, _deformedVertices.Length);
+                        _worldPositions = _poseSnapshot.CopyWorldPositions(_worldPositions);
+                    }
+                    finally
+                    {
+                        Profiler.EndSample();
+                    }
+                }
             }
             finally
             {
@@ -1430,9 +1447,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Renderer originalRenderer = deformer != null
                 ? deformer.GetComponent<Renderer>()
                 : null;
-            if (!_poseRendererResolved || !ReferenceEquals(_cachedOriginalRenderer, originalRenderer))
+            int mappingRevision = LatticePreviewUtility.ProxyMappingRevision;
+            if (!_poseRendererResolved || !ReferenceEquals(_cachedOriginalRenderer, originalRenderer) ||
+                _cachedProxyMappingRevision != mappingRevision ||
+                (!ReferenceEquals(_cachedSkinnedRenderer, null) && _cachedSkinnedRenderer == null))
             {
                 _cachedOriginalRenderer = originalRenderer;
+                _cachedProxyMappingRevision = mappingRevision;
                 Renderer resolvedRenderer = originalRenderer;
                 if (originalRenderer != null &&
                     NDMFPreviewProxyUtility.TryGetProxyRenderer(originalRenderer, out var proxyRenderer))
@@ -1469,6 +1490,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _cachedBones = null;
             _cachedRendererDirtyCount = 0;
             _poseRendererResolved = false;
+            _cachedProxyMappingRevision = -1;
         }
 
         private static void ReadVertices(Mesh mesh, List<Vector3> scratch)
@@ -1520,6 +1542,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void InvalidateCache()
         {
+            _poseSnapshot.Reset();
             _cachedMesh = null;
             _meshVertices = null;
             _meshNormals = null;

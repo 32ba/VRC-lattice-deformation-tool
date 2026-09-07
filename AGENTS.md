@@ -380,6 +380,8 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - UnityのPrefab overrideのRedoには、開始時の `RegisterCompleteObjectUndo` に加えて各frameの書込み前の `RecordObject` と書込み後のPrefab記録が必要。ミラー・比例編集を含む一連の変更後に記録し、別操作を取り込むUndoの一括collapseを終了時に行わない。MouseUpはHandlesが消費する前のraw eventを保持して終了を判断する
 - Escapeは自身のUndo group（またはUnityがEscape KeyDown用に作った直後の1境界）だけを取り消す。別のUndo操作が割り込んだ場合はそれを戻さず、既存の変形を独立したUndoとして残して終了する。Undo/Redo通知ではsessionを破棄して復元済みpayloadを書き戻さず、assembly reload前にも終了する
 - `DeformerEditSessionTests` はframeをまたぐUndo/Redo、Prefab VariantのApply/save-reload、拒否時のpayload/dirty不変、取消と他のUndo保持を確認する。`AuthoringGestureEndToEndTests` は実Scene Viewへmouse/key eventを送り、Brush・Vertex/Latticeのnative handle・Escape・Layer切替を実NDMFの最終proxyで照合する。private編集methodを直接呼んだ検査をScene View入力の証拠と混同しない。pose/proxy snapshotの共通化とProfilerは引き続きP4/P5の対象とする
+- `SkinnedPoseSnapshot` は各handlerのBakeMesh結果、local頂点、同じ取得時点のTransformを所有する。Brushのworld表示とraycastは同じcaptureを使い、VertexとLatticeも独立したownerを持つ。失敗時は古いposeを公開せず、Deactivate/cache reset/assembly reloadで所有Meshだけを破棄する。旧 `SkinnedVertexHelper` の静的capture APIは互換入口として残すが通常のツールからは使わない
+- Brush/Vertexのpose参照はproxy登録revisionと破棄済みrendererを検出して再解決する。NDMFの登録revisionだけを最終proxyの生存保証としない。`ToolPoseSnapshotTests` は内部の複数owner検証と、実NDMF graphのpose・BlendShape・proxy世代交代の検証を区別する。Latticeのdrag中の固定座標とpending proxy切替は既存の規則を維持する
 
 ## 依存関係
 

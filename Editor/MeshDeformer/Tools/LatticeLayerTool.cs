@@ -107,8 +107,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Matrix4x4? _cachedSkinningCorrection;
         private readonly LatticeControlPointSkinning _controlPointSkinning =
             new LatticeControlPointSkinning();
-        private Mesh _skinningFallbackMesh;
-        private readonly List<Vector3> _skinningBakedVertices = new List<Vector3>();
+        private readonly SkinnedPoseSnapshot _poseSnapshot = new SkinnedPoseSnapshot("Lattice Cage Skinning Bounds");
         private readonly List<int> _skinningTopologyIndices = new List<int>();
         private Bounds _skinningFallbackBounds;
         private bool _hasSkinningFallbackBounds;
@@ -1326,11 +1325,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _hasSkinningFallbackBounds = false;
             _hasSkinningReferenceBounds = false;
             _hasSkinningDisplayBounds = false;
-            if (_skinningFallbackMesh != null)
-            {
-                UnityEngine.Object.DestroyImmediate(_skinningFallbackMesh);
-                _skinningFallbackMesh = null;
-            }
+            _poseSnapshot.Reset();
         }
 
         private void OnUndoRedo()
@@ -1548,30 +1543,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return false;
             }
 
-            if (_skinningFallbackMesh == null)
-            {
-                _skinningFallbackMesh = new Mesh
-                {
-                    name = "Lattice Cage Skinning Bounds",
-                    hideFlags = HideFlags.HideAndDontSave
-                };
-            }
-
             try
             {
-                renderer.BakeMesh(_skinningFallbackMesh);
-                _skinningBakedVertices.Clear();
-                _skinningFallbackMesh.GetVertices(_skinningBakedVertices);
-                if (_skinningBakedVertices.Count == 0)
+                int vertexCount = renderer.sharedMesh != null ? renderer.sharedMesh.vertexCount : 0;
+                if (!_poseSnapshot.TryCapture(renderer, vertexCount))
                 {
                     return false;
                 }
 
                 Matrix4x4 rendererToSource =
-                    worldToSource * renderer.transform.localToWorldMatrix;
+                    worldToSource * _poseSnapshot.LocalToWorld;
                 bounds = CalculateTransformedReferencedBounds(
                     topologyMesh,
-                    _skinningBakedVertices,
+                    _poseSnapshot.LocalVertices,
                     rendererToSource);
                 return IsFinite(bounds.center) &&
                        IsFinite(bounds.size) &&
@@ -1585,7 +1569,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private Bounds CalculateTransformedReferencedBounds(
             Mesh topologyMesh,
-            List<Vector3> vertices,
+            IReadOnlyList<Vector3> vertices,
             Matrix4x4 matrix)
         {
             Bounds bounds = default;

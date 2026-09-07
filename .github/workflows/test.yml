@@ -261,7 +261,16 @@ jobs:
           ./Tools~/Assert-TestResults.ps1
           -TestResultsPath test-artifacts/editmode-results.xml
           -RequiredCategory GraphicsE2E
-          -RequiredCategoryCount 8
+          -RequiredCategoryCount 9
+
+      - name: Verify Authoring Interaction Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -RequiredCategory InteractionE2E
+          -RequiredCategoryCount 6
 
       - name: Upload Test Results
         if: always()

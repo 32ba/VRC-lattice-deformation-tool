@@ -156,6 +156,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly SkinnedVertexHelper.RestSpaceDeltaConverterCache _restSpaceConverterCache =
             new SkinnedVertexHelper.RestSpaceDeltaConverterCache();
         private Mesh _raycastMesh;
+        private readonly SkinnedPoseSnapshot _poseSnapshot = new SkinnedPoseSnapshot("Brush Posed Surface");
         private Matrix4x4 _raycastMatrix;
         private bool _hasBakedRaycastMesh;
         private Renderer _cachedBrushSourceRenderer;
@@ -1506,6 +1507,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (deformer == null || _meshVertices == null)
             {
+                _poseSnapshot.Reset();
                 _worldPositions = null;
                 _raycastMesh = null;
                 _hasBakedRaycastMesh = false;
@@ -1516,6 +1518,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Renderer targetRenderer = ResolveBrushRenderer(deformer);
             if (targetRenderer == null)
             {
+                _poseSnapshot.Reset();
                 _worldPositions = null;
                 _raycastMesh = null;
                 _hasBakedRaycastMesh = false;
@@ -1526,6 +1529,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             SkinnedMeshRenderer renderer = targetRenderer as SkinnedMeshRenderer;
             if (renderer == null)
             {
+                _poseSnapshot.Reset();
                 RefreshStaticWorldPositions(deformer, targetRenderer);
                 return;
             }
@@ -1547,18 +1551,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            // The helper uses this array only to validate the baked vertex count. The
-            // proxy renderer already contains the complete layered deformation, so no
-            // intermediate deformed-vertex array is required here.
+            // The final proxy already includes all layers. Capture its posed surface
+            // once for both visualization and raycasting, owned by this handler.
             using (s_bakeMeshMarker.Auto())
             {
-                _hasBakedRaycastMesh = SkinnedVertexHelper.TryCaptureBrushSnapshot(
-                    renderer,
-                    _meshVertices,
-                    _worldPositions,
-                    out _worldPositions,
-                    out _raycastMesh,
-                    out _raycastMatrix);
+                _hasBakedRaycastMesh = _poseSnapshot.TryCapture(renderer, _meshVertices.Length);
+                _worldPositions = _poseSnapshot.CopyWorldPositions(_worldPositions);
+                _raycastMesh = _poseSnapshot.Mesh;
+                _raycastMatrix = _poseSnapshot.LocalToWorld;
             }
 
             unchecked
@@ -1637,6 +1637,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void InvalidateCache()
         {
+            _poseSnapshot.Reset();
             _cachedMesh = null;
             _cachedMeshDirtyCount = -1;
             _meshVertices = null;
@@ -1671,7 +1672,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Renderer sourceRenderer = deformer != null ? deformer.GetComponent<Renderer>() : null;
             int mappingRevision = LatticePreviewUtility.ProxyMappingRevision;
             if (ReferenceEquals(sourceRenderer, _cachedBrushSourceRenderer) &&
-                _cachedBrushProxyMappingRevision == mappingRevision)
+                _cachedBrushProxyMappingRevision == mappingRevision &&
+                (_cachedBrushTargetRenderer != null || sourceRenderer == null))
                 return _cachedBrushTargetRenderer;
 
             _cachedBrushSourceRenderer = sourceRenderer;
