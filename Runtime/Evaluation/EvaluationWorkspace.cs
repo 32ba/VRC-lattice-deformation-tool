@@ -14,6 +14,7 @@ namespace Net._32Ba.LatticeDeformationTool
         internal Vector3[] FinalVertices = Array.Empty<Vector3>();
         internal readonly List<GeneratedBlendShapeOutput> GeneratedShapes = new List<GeneratedBlendShapeOutput>();
         internal readonly LatticeEvaluator Lattice = new LatticeEvaluator();
+        internal readonly MeshOutputWorkspace MeshOutput = new MeshOutputWorkspace();
 
         public void Dispose() => Lattice.Dispose();
 

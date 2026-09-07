@@ -846,8 +846,6 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private bool _isEnsuringLayerModelReady;
         [NonSerialized] private bool _hasIncompatibleBrushData;
         [NonSerialized] private List<Vector3> _sourceVertexScratch = new List<Vector3>();
-        [NonSerialized] private List<Vector3> _sourceNormalScratch = new List<Vector3>();
-        [NonSerialized] private List<Vector4> _sourceTangentScratch = new List<Vector4>();
         [NonSerialized] private Vector3[] _sourceVerticesBuffer = Array.Empty<Vector3>();
         [NonSerialized] private EvaluationWorkspace _evaluationWorkspace = new EvaluationWorkspace();
         [NonSerialized] private DeformationDataMigrationStatus _migrationStatus =
@@ -2493,7 +2491,7 @@ namespace Net._32Ba.LatticeDeformationTool
                     readableMesh.SetBoneWeights(bonesPerVertex, boneWeights);
                 }
 
-                CopyBlendShapes(sourceMesh, readableMesh);
+                DeformedMeshWriter.CopyBlendShapes(sourceMesh, readableMesh, new MeshOutputWorkspace());
             }
             catch
             {
@@ -2590,13 +2588,14 @@ namespace Net._32Ba.LatticeDeformationTool
                     _lastBlendShapeHash = blendShapeHash;
 
                     mesh.ClearBlendShapes();
-                    CopyBlendShapes(_sourceMesh, mesh, bakedBlendShapeDeltas, bakedBlendShapeWeights);
+                    DeformedMeshWriter.CopyBlendShapes(_sourceMesh, mesh, _evaluationWorkspace.MeshOutput, bakedBlendShapeDeltas, bakedBlendShapeWeights);
 
-                    var usedNames = CollectBlendShapeNames(mesh);
+                    var usedNames = DeformedMeshWriter.CollectBlendShapeNames(mesh);
                     foreach (var generated in generatedBlendShapes)
                     {
-                        string shapeName = MakeUniqueBlendShapeName(generated.Name, usedNames);
-                        AddGeneratedBlendShapeFrames(mesh, shapeName, finalVertices, generated);
+                        string shapeName = DeformedMeshWriter.MakeUniqueBlendShapeName(generated.Name, usedNames);
+                        DeformedMeshWriter.AddGeneratedBlendShapeFrames(mesh, shapeName, finalVertices, generated,
+                            GetMeshOutputOptions(), _evaluationWorkspace.MeshOutput);
                     }
                     _blendShapeOutputDirty = false;
                     UnityEngine.Profiling.Profiler.EndSample();
@@ -2608,14 +2607,14 @@ namespace Net._32Ba.LatticeDeformationTool
                 if (_blendShapeOutputDirty || _lastBlendShapeHash != 0)
                 {
                     mesh.ClearBlendShapes();
-                    CopyBlendShapes(_sourceMesh, mesh, bakedBlendShapeDeltas, bakedBlendShapeWeights);
+                    DeformedMeshWriter.CopyBlendShapes(_sourceMesh, mesh, _evaluationWorkspace.MeshOutput, bakedBlendShapeDeltas, bakedBlendShapeWeights);
                     _lastBlendShapeHash = 0;
                     _blendShapeOutputDirty = false;
                 }
                 else if (bakedBlendShapeHash != _lastBakedBlendShapeHash)
                 {
                     mesh.ClearBlendShapes();
-                    CopyBlendShapes(_sourceMesh, mesh, bakedBlendShapeDeltas, bakedBlendShapeWeights);
+                    DeformedMeshWriter.CopyBlendShapes(_sourceMesh, mesh, _evaluationWorkspace.MeshOutput, bakedBlendShapeDeltas, bakedBlendShapeWeights);
                 }
             }
 
@@ -2623,41 +2622,8 @@ namespace Net._32Ba.LatticeDeformationTool
 
             mesh.vertices = finalVertices;
 
-            if (_recalculateNormals)
-            {
-                if (_normalsRecalculationMode == NormalsRecalculationMode.PreserveSourceSmoothing)
-                {
-                    mesh.SetNormals(SeamAwareMeshNormalCalculator.Calculate(mesh, _sourceMesh));
-                }
-                else
-                {
-                    mesh.RecalculateNormals();
-                }
-            }
-            else
-            {
-                RestoreSourceNormals(mesh);
-            }
-
-            if (_recalculateTangents)
-            {
-                mesh.RecalculateTangents();
-            }
-            else
-            {
-                RestoreSourceTangents(mesh);
-            }
-
-            if (_recalculateBounds)
-            {
-                mesh.RecalculateBounds();
-            }
-            else
-            {
-                mesh.bounds = _sourceMesh.bounds;
-            }
-
-            mesh.UploadMeshData(false);
+            DeformedMeshWriter.FinalizeSurface(_sourceMesh, mesh, GetMeshOutputOptions(),
+                _evaluationWorkspace.MeshOutput, _normalsRecalculationMode);
 
             if (assignToRenderer)
                 AssignRuntimeMesh(mesh);
@@ -2688,61 +2654,8 @@ namespace Net._32Ba.LatticeDeformationTool
             if (sourceTopologyMatches && !EnsureAllBrushLayerDisplacementCapacity(inputMesh.vertexCount))
                 return null;
 
-            int vertexCount = inputMesh.vertexCount;
-            EnsureManagedDeformationBuffers(vertexCount);
-            var inputVertices = inputMesh.vertices;
-            var outputVertices = new Vector3[vertexCount];
-            var generated = new List<GeneratedBlendShapeOutput>();
-            EvaluateLayerStack(inputVertices, outputVertices, generated);
-
-            var output = Instantiate(inputMesh);
-            output.name = inputMesh.name + " (Lattice Preview)";
-            output.vertices = outputVertices;
-            output.ClearBlendShapes();
-
-            var deltaVertices = new Vector3[vertexCount];
-            var deltaNormals = new Vector3[vertexCount];
-            var deltaTangents = new Vector3[vertexCount];
-            var combined = new Vector3[vertexCount];
-            var deformedCombined = new Vector3[vertexCount];
-            var outputDelta = new Vector3[vertexCount];
-            for (int shape = 0; shape < inputMesh.blendShapeCount; shape++)
-            {
-                string shapeName = inputMesh.GetBlendShapeName(shape);
-                int frameCount = inputMesh.GetBlendShapeFrameCount(shape);
-                for (int frame = 0; frame < frameCount; frame++)
-                {
-                    inputMesh.GetBlendShapeFrameVertices(
-                        shape, frame, deltaVertices, deltaNormals, deltaTangents);
-                    for (int vertex = 0; vertex < vertexCount; vertex++)
-                        combined[vertex] = inputVertices[vertex] + deltaVertices[vertex];
-
-                    EvaluateLayerStack(combined, deformedCombined, null);
-                    for (int vertex = 0; vertex < vertexCount; vertex++)
-                        outputDelta[vertex] = deformedCombined[vertex] - outputVertices[vertex];
-
-                    output.AddBlendShapeFrame(
-                        shapeName,
-                        inputMesh.GetBlendShapeFrameWeight(shape, frame),
-                        outputDelta,
-                        deltaNormals,
-                        deltaTangents);
-                }
-            }
-
-            var usedNames = CollectBlendShapeNames(output);
-            foreach (var generatedShape in generated)
-            {
-                string name = MakeUniqueBlendShapeName(generatedShape.Name, usedNames);
-                AddGeneratedBlendShapeFrames(output, name, outputVertices, generatedShape);
-            }
-
-            if (_recalculateNormals) output.RecalculateNormals();
-            if (_recalculateTangents) output.RecalculateTangents();
-            if (_recalculateBounds) output.RecalculateBounds();
-            else output.bounds = inputMesh.bounds;
-            output.UploadMeshData(false);
-            return output;
+            return DeformationPipeline.CreatePreviewMeshFromInput(inputMesh, ResolveEvaluationInput(true),
+                GetMeshOutputOptions(), GetEvaluationWorkspace());
         }
 
         /// <summary>
@@ -2780,12 +2693,11 @@ namespace Net._32Ba.LatticeDeformationTool
             _legacyPublishedBlendShapeSemantics, _legacyAbsoluteLatticeEvaluation,
             _legacyAbsoluteLatticeEvaluation ? MeshTransform.worldToLocalMatrix : Matrix4x4.identity);
 
-        private void EvaluateLayerStack(Vector3[] sourceVertices, Vector3[] finalVertices,
-            List<GeneratedBlendShapeOutput> generatedBlendShapes)
+        private DeformationEvaluationInput ResolveEvaluationInput(bool collectGeneratedShapes)
         {
             var groups = GetGroupStorage();
             string defaultOutputName = null;
-            if (generatedBlendShapes != null)
+            if (collectGeneratedShapes)
             {
                 for (int i = 0; i < groups.Count; i++)
                 {
@@ -2799,49 +2711,27 @@ namespace Net._32Ba.LatticeDeformationTool
                     break;
                 }
             }
-            var input = new DeformationEvaluationInput(groups, defaultOutputName,
+            return new DeformationEvaluationInput(groups, defaultOutputName,
                 ResolveEvaluationSemantics());
+        }
+
+        private MeshOutputOptions GetMeshOutputOptions() => new MeshOutputOptions(
+            _recalculateNormals, _recalculateTangents, _recalculateBounds, _normalsRecalculationMode,
+            _legacyPublishedBlendShapeSemantics);
+
+        private void EvaluateLayerStack(Vector3[] sourceVertices, Vector3[] finalVertices,
+            List<GeneratedBlendShapeOutput> generatedBlendShapes)
+        {
+            var input = ResolveEvaluationInput(generatedBlendShapes != null);
             DeformationEvaluator.Evaluate(input, sourceVertices, finalVertices,
                 GetEvaluationWorkspace(), generatedBlendShapes);
         }
 
-        private void RestoreSourceNormals(Mesh mesh)
-        {
-            if (mesh == null || _sourceMesh == null)
-            {
-                return;
-            }
+        private void RestoreSourceNormals(Mesh mesh) =>
+            DeformedMeshWriter.RestoreSourceNormals(_sourceMesh, mesh, GetEvaluationWorkspace().MeshOutput);
 
-            _sourceNormalScratch ??= new List<Vector3>(mesh.vertexCount);
-            _sourceMesh.GetNormals(_sourceNormalScratch);
-            if (_sourceNormalScratch.Count == mesh.vertexCount)
-            {
-                mesh.SetNormals(_sourceNormalScratch);
-            }
-            else
-            {
-                mesh.normals = Array.Empty<Vector3>();
-            }
-        }
-
-        private void RestoreSourceTangents(Mesh mesh)
-        {
-            if (mesh == null || _sourceMesh == null)
-            {
-                return;
-            }
-
-            _sourceTangentScratch ??= new List<Vector4>(mesh.vertexCount);
-            _sourceMesh.GetTangents(_sourceTangentScratch);
-            if (_sourceTangentScratch.Count == mesh.vertexCount)
-            {
-                mesh.SetTangents(_sourceTangentScratch);
-            }
-            else
-            {
-                mesh.tangents = Array.Empty<Vector4>();
-            }
-        }
+        private void RestoreSourceTangents(Mesh mesh) =>
+            DeformedMeshWriter.RestoreSourceTangents(_sourceMesh, mesh, GetEvaluationWorkspace().MeshOutput);
 
         private bool EnsureLayerModelReady()
         {
@@ -3995,188 +3885,9 @@ namespace Net._32Ba.LatticeDeformationTool
             Vector3[] deltas,
             AnimationCurve curve)
         {
-            AddGeneratedBlendShapeFrames(
-                mesh,
-                shapeName,
-                baseVertices,
-                new GeneratedBlendShapeOutput(shapeName, curve, deltas));
-        }
-
-        private void AddGeneratedBlendShapeFrames(
-            Mesh mesh,
-            string shapeName,
-            Vector3[] baseVertices,
-            GeneratedBlendShapeOutput generated)
-        {
-            var candidates = generated.Candidates;
-            if (mesh == null || string.IsNullOrEmpty(shapeName) || baseVertices == null ||
-                candidates == null || candidates.Length == 0)
-            {
-                return;
-            }
-
-            int vertexCount = mesh.vertexCount;
-            if (baseVertices.Length != vertexCount)
-            {
-                return;
-            }
-            for (int candidate = 0; candidate < candidates.Length; candidate++)
-            {
-                if (candidates[candidate] == null || candidates[candidate].Length != vertexCount)
-                    return;
-            }
-
-            var curve = generated.Curve ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
-
-            Vector3[][] candidateDeltaNormals = null;
-            Vector3[][] candidateDeltaTangents = null;
-            bool outputsCandidateWeightsDirectly = generated.CandidateWeights != null &&
-                generated.CandidateWeights.Length == candidates.Length;
-            bool recomputeComposedSurfaceDeltas = !_legacyPublishedBlendShapeSemantics &&
-                generated.Composition != BlendShapeCompositionMode.Single &&
-                (_recalculateNormals || _recalculateTangents);
-            if ((outputsCandidateWeightsDirectly || !recomputeComposedSurfaceDeltas) &&
-                !_legacyPublishedBlendShapeSemantics &&
-                (_recalculateNormals || _recalculateTangents))
-            {
-                candidateDeltaNormals = _recalculateNormals ? new Vector3[candidates.Length][] : null;
-                candidateDeltaTangents = _recalculateTangents ? new Vector3[candidates.Length][] : null;
-                for (int candidate = 0; candidate < candidates.Length; candidate++)
-                {
-                    CalculateGeneratedSurfaceDeltasWithNormalsMode(
-                        mesh,
-                        baseVertices,
-                        candidates[candidate],
-                        _normalsRecalculationMode,
-                        _recalculateNormals,
-                        _recalculateTangents,
-                        out var normals,
-                        out var tangents);
-                    if (candidateDeltaNormals != null) candidateDeltaNormals[candidate] = normals;
-                    if (candidateDeltaTangents != null) candidateDeltaTangents[candidate] = tangents;
-                }
-            }
-
-            if (outputsCandidateWeightsDirectly)
-            {
-                for (int candidate = 0; candidate < candidates.Length; candidate++)
-                {
-                    mesh.AddBlendShapeFrame(
-                        shapeName,
-                        generated.CandidateWeights[candidate],
-                        candidates[candidate],
-                        candidateDeltaNormals?[candidate],
-                        candidateDeltaTangents?[candidate]);
-                }
-                return;
-            }
-
-            const int sampleCount = 100;
-            for (int f = 0; f < sampleCount; f++)
-            {
-                float t = (f + 1f) / sampleCount;
-                float frameWeight = t * 100f;
-                float curveValue = curve.Evaluate(t);
-                if (generated.Composition != BlendShapeCompositionMode.Single)
-                {
-                    curveValue = Mathf.Clamp01(curveValue);
-                }
-
-                var frameDeltas = ComposeBlendShapeCandidates(
-                    candidates, generated.Composition, curveValue, vertexCount);
-                Vector3[] frameNormals;
-                Vector3[] frameTangents;
-                if (recomputeComposedSurfaceDeltas)
-                {
-                    CalculateGeneratedSurfaceDeltasWithNormalsMode(
-                        mesh,
-                        baseVertices,
-                        frameDeltas,
-                        _normalsRecalculationMode,
-                        _recalculateNormals,
-                        _recalculateTangents,
-                        out frameNormals,
-                        out frameTangents);
-                }
-                else
-                {
-                    frameNormals = candidateDeltaNormals != null
-                        ? ComposeBlendShapeCandidates(
-                            candidateDeltaNormals, generated.Composition, curveValue, vertexCount)
-                        : null;
-                    frameTangents = candidateDeltaTangents != null
-                        ? ComposeBlendShapeCandidates(
-                            candidateDeltaTangents, generated.Composition, curveValue, vertexCount)
-                        : null;
-                }
-
-                mesh.AddBlendShapeFrame(shapeName, frameWeight, frameDeltas, frameNormals, frameTangents);
-            }
-        }
-
-        private static Vector3[] ComposeBlendShapeCandidates(
-            Vector3[][] candidates,
-            BlendShapeCompositionMode composition,
-            float normalizedProgress,
-            int vertexCount)
-        {
-            var result = new Vector3[vertexCount];
-            if (candidates == null || candidates.Length == 0) return result;
-
-            if (composition == BlendShapeCompositionMode.Single || candidates.Length == 1)
-            {
-                float scale = normalizedProgress;
-                var candidate = candidates[0];
-                if (candidate == null || candidate.Length != vertexCount) return result;
-                for (int vertex = 0; vertex < vertexCount; vertex++)
-                    result[vertex] = candidate[vertex] * scale;
-                return result;
-            }
-
-            normalizedProgress = Mathf.Clamp01(normalizedProgress);
-            float stageProgress = normalizedProgress * candidates.Length;
-            if (composition == BlendShapeCompositionMode.Progressive)
-            {
-                int completedStages = Mathf.Min(Mathf.FloorToInt(stageProgress), candidates.Length);
-                for (int stage = 0; stage < completedStages; stage++)
-                {
-                    var candidate = candidates[stage];
-                    if (candidate == null || candidate.Length != vertexCount) continue;
-                    for (int vertex = 0; vertex < vertexCount; vertex++)
-                        result[vertex] += candidate[vertex];
-                }
-
-                if (completedStages < candidates.Length)
-                {
-                    float fraction = stageProgress - completedStages;
-                    var candidate = candidates[completedStages];
-                    if (candidate == null || candidate.Length != vertexCount) return result;
-                    for (int vertex = 0; vertex < vertexCount; vertex++)
-                        result[vertex] += candidate[vertex] * fraction;
-                }
-                return result;
-            }
-
-            if (stageProgress <= 1f)
-            {
-                var first = candidates[0];
-                if (first == null || first.Length != vertexCount) return result;
-                for (int vertex = 0; vertex < vertexCount; vertex++)
-                    result[vertex] = first[vertex] * stageProgress;
-                return result;
-            }
-
-            int lower = Mathf.Min(Mathf.FloorToInt(stageProgress) - 1, candidates.Length - 1);
-            int upper = Mathf.Min(lower + 1, candidates.Length - 1);
-            float blend = upper == lower ? 0f : stageProgress - Mathf.Floor(stageProgress);
-            if (candidates[lower] == null || candidates[upper] == null ||
-                candidates[lower].Length != vertexCount || candidates[upper].Length != vertexCount)
-            {
-                return result;
-            }
-            for (int vertex = 0; vertex < vertexCount; vertex++)
-                result[vertex] = Vector3.LerpUnclamped(candidates[lower][vertex], candidates[upper][vertex], blend);
-            return result;
+            DeformedMeshWriter.AddGeneratedBlendShapeFrames(mesh, shapeName, baseVertices,
+                new GeneratedBlendShapeOutput(shapeName, curve, deltas), GetMeshOutputOptions(),
+                GetEvaluationWorkspace().MeshOutput);
         }
 
         // Kept with the original name and seven-argument signature for existing
@@ -4191,7 +3902,7 @@ namespace Net._32Ba.LatticeDeformationTool
             out Vector3[] deltaNormals,
             out Vector3[] deltaTangents)
         {
-            CalculateGeneratedSurfaceDeltasWithNormalsMode(
+            DeformedMeshWriter.CalculateGeneratedSurfaceDeltasWithNormalsMode(
                 template,
                 baseVertices,
                 deltas,
@@ -4202,210 +3913,11 @@ namespace Net._32Ba.LatticeDeformationTool
                 out deltaTangents);
         }
 
-        private static void CalculateGeneratedSurfaceDeltasWithNormalsMode(
-            Mesh template,
-            Vector3[] baseVertices,
-            Vector3[] deltas,
-            NormalsRecalculationMode normalsMode,
-            bool includeNormals,
-            bool includeTangents,
-            out Vector3[] deltaNormals,
-            out Vector3[] deltaTangents)
-        {
-            deltaNormals = null;
-            deltaTangents = null;
+        private static HashSet<string> CollectBlendShapeNames(Mesh mesh) => DeformedMeshWriter.CollectBlendShapeNames(mesh);
 
-            if (template == null || baseVertices == null || deltas == null || baseVertices.Length != deltas.Length)
-            {
-                return;
-            }
+        private static string MakeUniqueBlendShapeName(string requestedName, HashSet<string> usedNames) => DeformedMeshWriter.MakeUniqueBlendShapeName(requestedName, usedNames);
 
-            Mesh baseMesh = null;
-            Mesh targetMesh = null;
-            try
-            {
-                baseMesh = UnityEngine.Object.Instantiate(template);
-                targetMesh = UnityEngine.Object.Instantiate(template);
-
-                int vertexCount = baseVertices.Length;
-                var targetVertices = new Vector3[vertexCount];
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    targetVertices[i] = baseVertices[i] + deltas[i];
-                }
-
-                baseMesh.vertices = baseVertices;
-                targetMesh.vertices = targetVertices;
-
-                if (includeNormals)
-                {
-                    RecalculateSurfaceNormals(baseMesh, template, normalsMode);
-                    RecalculateSurfaceNormals(targetMesh, template, normalsMode);
-
-                    var baseNormals = baseMesh.normals;
-                    var targetNormals = targetMesh.normals;
-                    if (baseNormals != null && targetNormals != null &&
-                        baseNormals.Length == vertexCount && targetNormals.Length == vertexCount)
-                    {
-                        deltaNormals = new Vector3[vertexCount];
-                        for (int i = 0; i < vertexCount; i++)
-                        {
-                            deltaNormals[i] = targetNormals[i] - baseNormals[i];
-                        }
-                    }
-                }
-
-                if (includeTangents)
-                {
-                    RecalculateSurfaceNormals(baseMesh, template, normalsMode);
-                    RecalculateSurfaceNormals(targetMesh, template, normalsMode);
-                    baseMesh.RecalculateTangents();
-                    targetMesh.RecalculateTangents();
-
-                    var baseTangents = baseMesh.tangents;
-                    var targetTangents = targetMesh.tangents;
-                    if (baseTangents != null && targetTangents != null &&
-                        baseTangents.Length == vertexCount && targetTangents.Length == vertexCount)
-                    {
-                        deltaTangents = new Vector3[vertexCount];
-                        for (int i = 0; i < vertexCount; i++)
-                        {
-                            deltaTangents[i] = new Vector3(
-                                targetTangents[i].x - baseTangents[i].x,
-                                targetTangents[i].y - baseTangents[i].y,
-                                targetTangents[i].z - baseTangents[i].z);
-                        }
-                    }
-                }
-            }
-            finally
-            {
-                DestroyTemporaryMesh(baseMesh);
-                DestroyTemporaryMesh(targetMesh);
-            }
-        }
-
-        private static void RecalculateSurfaceNormals(
-            Mesh mesh,
-            Mesh sourceMesh,
-            NormalsRecalculationMode normalsMode)
-        {
-            if (normalsMode == NormalsRecalculationMode.PreserveSourceSmoothing)
-            {
-                mesh.SetNormals(SeamAwareMeshNormalCalculator.Calculate(mesh, sourceMesh));
-            }
-            else
-            {
-                mesh.RecalculateNormals();
-            }
-        }
-
-        private static HashSet<string> CollectBlendShapeNames(Mesh mesh)
-        {
-            var names = new HashSet<string>(StringComparer.Ordinal);
-            if (mesh == null)
-            {
-                return names;
-            }
-
-            for (int i = 0; i < mesh.blendShapeCount; i++)
-            {
-                names.Add(mesh.GetBlendShapeName(i));
-            }
-
-            return names;
-        }
-
-        private static string MakeUniqueBlendShapeName(string requestedName, HashSet<string> usedNames)
-        {
-            usedNames ??= new HashSet<string>(StringComparer.Ordinal);
-
-            string baseName = string.IsNullOrWhiteSpace(requestedName) ? "BlendShape" : requestedName.Trim();
-            string name = baseName;
-            int suffix = 1;
-            while (usedNames.Contains(name))
-            {
-                name = $"{baseName} {suffix}";
-                suffix++;
-            }
-
-            usedNames.Add(name);
-            return name;
-        }
-
-        private static void DestroyTemporaryMesh(Mesh mesh)
-        {
-            if (mesh == null)
-            {
-                return;
-            }
-
-            // The release gate is EditMode-only; PlayMode destruction is a Unity branch.
-#line hidden
-            if (Application.isPlaying)
-            {
-                UnityEngine.Object.Destroy(mesh);
-            }
-            else
-            {
-                UnityEngine.Object.DestroyImmediate(mesh);
-            }
-#line default
-        }
-
-        private static void CopyBlendShapes(
-            Mesh source,
-            Mesh destination,
-            Vector3[][] bakedBlendShapeDeltas = null,
-            float[] bakedBlendShapeWeights = null)
-        {
-            int shapeCount = source.blendShapeCount;
-            int vertexCount = source.vertexCount;
-            for (int s = 0; s < shapeCount; s++)
-            {
-                string name = source.GetBlendShapeName(s);
-                int frameCount = source.GetBlendShapeFrameCount(s);
-                var baked = bakedBlendShapeDeltas != null && s < bakedBlendShapeDeltas.Length
-                    ? bakedBlendShapeDeltas[s]
-                    : null;
-                float bakedWeight = bakedBlendShapeWeights != null && s < bakedBlendShapeWeights.Length
-                    ? bakedBlendShapeWeights[s]
-                    : 0f;
-                bool hasBakedShape = baked != null && baked.Length == vertexCount;
-
-                if (hasBakedShape && frameCount > 0)
-                {
-                    float firstWeight = source.GetBlendShapeFrameWeight(s, 0);
-                    if (bakedWeight < firstWeight - 1e-5f)
-                    {
-                        destination.AddBlendShapeFrame(
-                            name,
-                            bakedWeight,
-                            new Vector3[vertexCount],
-                            new Vector3[vertexCount],
-                            new Vector3[vertexCount]);
-                    }
-                }
-
-                for (int f = 0; f < frameCount; f++)
-                {
-                    float weight = source.GetBlendShapeFrameWeight(s, f);
-                    var dv = new Vector3[vertexCount];
-                    var dn = new Vector3[vertexCount];
-                    var dt = new Vector3[vertexCount];
-                    source.GetBlendShapeFrameVertices(s, f, dv, dn, dt);
-                    if (hasBakedShape)
-                    {
-                        for (int v = 0; v < vertexCount; v++)
-                        {
-                            dv[v] -= baked[v];
-                        }
-                    }
-
-                    destination.AddBlendShapeFrame(name, weight, dv, dn, dt);
-                }
-            }
-        }
+        private static void DestroyTemporaryMesh(Mesh mesh) => DeformedMeshWriter.DestroyTemporaryMesh(mesh);
 
         private Vector3[] BuildCurrentSourceVertices(
             out Vector3[][] bakedBlendShapeDeltas,
