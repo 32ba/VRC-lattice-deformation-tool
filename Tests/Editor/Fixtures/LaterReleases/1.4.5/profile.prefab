@@ -1,0 +1,222 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &4960551478511208588
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6031974866220906971}
+  - component: {fileID: 7732647237525118937}
+  - component: {fileID: 9071393827672138448}
+  - component: {fileID: 5785984959958561247}
+  m_Layer: 0
+  m_Name: profile
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!4 &6031974866220906971
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4960551478511208588}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.056536715, y: -0.09822657, z: 0.04918326, w: 0.9923387}
+  m_LocalPosition: {x: 0.35, y: -0.2, z: 0.15}
+  m_LocalScale: {x: 1.1, y: 0.9, z: 1.2}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!33 &7732647237525118937
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4960551478511208588}
+  m_Mesh: {fileID: 4300000, guid: 547c312c3296685bbf4a4674cba84fa9, type: 2}
+--- !u!23 &9071393827672138448
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4960551478511208588}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 0}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &5785984959958561247
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4960551478511208588}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29946ddaafa0c41468ecfc2a1a3a4297, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _settings:
+    _gridSize: {x: 3, y: 3, z: 3}
+    _localBounds:
+      m_Center: {x: 0, y: 0, z: 0.1}
+      m_Extent: {x: 1, y: 1, z: 0.1}
+    _controlPointsLocal:
+    - {x: -1, y: -1, z: 0}
+    - {x: 0, y: -1, z: 0}
+    - {x: 1, y: -1, z: 0}
+    - {x: -1, y: 0, z: 0}
+    - {x: 0, y: 0, z: 0}
+    - {x: 1, y: 0, z: 0}
+    - {x: -1, y: 1, z: 0}
+    - {x: 0, y: 1, z: 0}
+    - {x: 1, y: 1, z: 0}
+    - {x: -1, y: -1, z: 0.1}
+    - {x: 0, y: -1, z: 0.1}
+    - {x: 1, y: -1, z: 0.1}
+    - {x: -1, y: 0, z: 0.1}
+    - {x: 0, y: 0, z: 0.1}
+    - {x: 1, y: 0, z: 0.1}
+    - {x: -1, y: 1, z: 0.1}
+    - {x: 0, y: 1, z: 0.1}
+    - {x: 1, y: 1, z: 0.1}
+    - {x: -1, y: -1, z: 0.2}
+    - {x: 0, y: -1, z: 0.2}
+    - {x: 1, y: -1, z: 0.2}
+    - {x: -1, y: 0, z: 0.2}
+    - {x: 0, y: 0, z: 0.2}
+    - {x: 1, y: 0, z: 0.2}
+    - {x: -1, y: 1, z: 0.2}
+    - {x: 0, y: 1, z: 0.2}
+    - {x: 1, y: 1, z: 0.2}
+    _interpolation: 0
+    _legacyTrilinearInterpolation: 0
+    _applySpace: 0
+    _serializationVersion: 1
+  _layers: []
+  _activeLayerIndex: 0
+  _layerModelVersion: 3
+  _blendShapeOutput: 0
+  _blendShapeName: 
+  _blendShapeCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 1
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 1
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _deformationDataVersion: 15
+  _deformationDataSourceVersion: 15
+  _legacyAbsoluteLatticeEvaluation: 0
+  _legacyPublishedBlendShapeSemantics: 0
+  _groups: []
+  _activeGroupIndex: 0
+  _dataSource: 1
+  _profile: {fileID: 11400000, guid: ae7ba7c30592256566cde2dc3e10502d, type: 2}
+  _skinnedMeshRenderer: {fileID: 0}
+  _meshFilter: {fileID: 7732647237525118937}
+  _recalculateNormals: 1
+  _recalculateTangents: 1
+  _recalculateBounds: 1
+  _recalculateBoneWeights: 0
+  _weightTransferSettings:
+    maxTransferDistance: 0.05
+    normalAngleThreshold: 60
+    enableInpainting: 1
+    maxIterations: 1000
+    tolerance: 0.000001
+  _showClearanceHeatmap: 0
+  _clearanceReferenceRenderer: {fileID: 0}
+  _clearanceQueryMode: 0
+  _clearanceHeatmapDisplayMode: 1
+  _clearanceWarningDistance: 0.005
+  _clearanceTargetDistance: 0.01
+  _clearanceDisplayStride: 1
+  _clearanceUpdateInterval: 0.1
+  _clearanceScanSet: {fileID: 0}
+  _clearanceScanAvatarRoot: {fileID: 0}
+  _fitCorrectionScope: 2
+  _fitCorrectionMaximumMove: 0.02
+  _fitCorrectionUseVertexMask: 1
+  _fitCorrectionPinOpenBoundaries: 1
+  _fitCorrectionIsolateComponents: 1
+  _fitCorrectionSmoothSurface: 1
+  _fitCorrectionSmoothingIterations: 2
+  _fitCorrectionSmoothingStrength: 0.5
+  _fitCorrectionPreserveClearance: 1
+  _fitCorrectionUseSymmetry: 0
+  _fitCorrectionSymmetryAxis: 0
+  _fitCorrectionSymmetryTolerance: 0.001
+  _fitCorrectionPreview: 1
+  _hasInitializedFromSource: 1
+  _serializedSourceMesh: {fileID: 4300000, guid: 547c312c3296685bbf4a4674cba84fa9, type: 2}
+  _serializedSourceVertexCount: 9
+  _serializedSourceTopologyHash: 861291898
+  _initialBlendShapeWeights: []
+  _hasInitialBlendShapeWeightBaseline: 1
+  _alignMode: 0
+  _centerClampMulXY: 0
+  _centerClampMinXY: 0
+  _centerClampMulZ: 0
+  _centerClampMinZ: 0
+  _allowCenterOffsetWhenBoundsSkipped: 0
+  _alignAutoInitialized: 0
+  _manualOffsetProxy: {x: 0, y: 0, z: 0}
+  _manualScaleProxy: {x: 1, y: 1, z: 1}

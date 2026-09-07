@@ -15,7 +15,9 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 │   │   └── BurstSolver/ # Burst 対応の疎行列/線形ソルバ
 │   └── VRChat/          # VRChat 固有の機能
 ├── Tests/Editor/        # EditMode テスト（レイヤースタック挙動など）
-│   └── Fixtures/HistoricalReleases/ # 公開14リリースで実保存した移行fixture
+│   └── Fixtures/
+│       ├── HistoricalReleases/ # 公開14リリースで実保存した移行fixture
+│       └── LaterReleases/ # 後続公開28リリースの83ケース（独立corpus）
 ├── Runtime/             # ランタイムコンポーネント（MonoBehaviour, ScriptableObject）
 ├── Tools~/HistoricalFixtures/ # 隔離Unityプロジェクトで履歴fixtureを再生成するツール
 ├── Docs~/Architecture/  # 全体リファクタリングの監査、設計案、基準ファイル記録
@@ -245,6 +247,8 @@ VRChat アバターの対称ワークフロー向けのレイヤー操作機能�
 - 公開YAMLにはexact release markerがないため、同形のsingle-settings schema (`0.0.1` Local〜`1.2.0`) は最古識別可能な `V0_0_1`、group schema (`1.2.1`〜`1.4.0`) は `V1_2_1` と分類し、そこから全boundaryを順に実行する。exact tag provenanceはfixture manifestだけが保持する
 - 既知制約: `0.0.1` の World-space marker (`_applySpace`) は `0.0.2` で削除された。`0.0.2` 以降で既に保存されmarkerを失ったassetはLocal/Worldを自動判別できないため、推測移行せずバックアップからの復元または明示的な手動判断を必要とする
 - `Tests/Editor/Fixtures/HistoricalReleases/` は上記14タグそれぞれのtag時点のRuntimeをUnity 2022.3.22f1で実行し、inactive/disabled Prefab、source mesh、旧 `Deform(false)` の期待snapshot、tagのpeeled SHA・package version・Unity/generator/runner hashを含むmanifestを保存する。生成物の`.meta` GUIDは`sha256-v1:tag/relative-asset-path`、Prefab local fileIDは`sha256-v1:tag/relative-prefab/class/ordinal`で決定的に正規化し、同一入力の再生成は全corpusがbyte-identicalでなければならない。このcorpusと `HistoricalReleaseFixtureTests.cs` の全検証を移行変更の必須release gateとする
+- 後続公開28件（`1.4.1`〜`1.4.6-beta.1`、公開RC/betaを含む）は `Tests/Editor/Fixtures/LaterReleases/` に独立保存する。Embeddedのchannel保持/再構築56件とProfile 27件の計83ケースについて、実tag Runtimeの保存値と全Mesh channelを `LaterReleaseFixtureTests` でdirect/stepwise/save-reload照合する。旧14件の期待値を更新して代用しない
+- 後続corpusの生成は `Tools~/HistoricalFixtures/LaterReleases/` を使用し、4helperのhash・公開tag SHA・決定的GUID/fileIDを検証する。別の隔離projectで全28件を再生成し、526fileすべてのbyte一致を要求する。helperは既存のLF規約を守り、参照propertyのlive `m_FileID` を保存せず、永続GUID/local fileIDまたは同じowner内のcomponent型で照合する。`1.4.1` はunversioned group schema、他27件は値15を共有しており、exact releaseはpayloadから推測しない
 
 ## 開発ガイドライン
 
