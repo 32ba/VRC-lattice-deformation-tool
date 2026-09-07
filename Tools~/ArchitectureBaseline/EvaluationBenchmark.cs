@@ -30,6 +30,7 @@ public static class EvaluationBenchmark
         public string name;
         public int vertices, groups;
         public bool generatedBlendShape;
+        public bool profileSource;
         public bool recalculateNormals, recalculateTangents;
         public bool recalculateBounds = true;
         public Measurement firstEvaluation;
@@ -114,7 +115,7 @@ public static class EvaluationBenchmark
         };
         if (calibrationOnly) yield break;
         foreach (int vertices in new[] { 70000, 200000 })
-            foreach (string kind in new[] { "direct", "groups", "generated" })
+            foreach (string kind in new[] { "direct", "groups", "generated", "profile" })
             {
                 string scenarioName = kind + "-" + vertices;
                 if (!string.IsNullOrEmpty(s_document.scenarioFilter) &&
@@ -130,10 +131,12 @@ public static class EvaluationBenchmark
         int meshCountBefore = Resources.FindObjectsOfTypeAll<Mesh>().Length;
         var root = new GameObject("Evaluation benchmark");
         var mesh = CreateMesh(vertexCount);
+        MeshDeformerProfile profile = null;
         var result = new Scenario
         {
             name = kind + "-" + vertexCount, vertices = vertexCount, groups = kind == "groups" ? 4 : 1,
-            generatedBlendShape = kind == "generated", unchanged = new Measurement[samples], edited = new Measurement[samples]
+            generatedBlendShape = kind == "generated", profileSource = kind == "profile",
+            unchanged = new Measurement[samples], edited = new Measurement[samples]
         };
         try
         {
@@ -170,7 +173,15 @@ public static class EvaluationBenchmark
                 serialized.FindProperty("_recalculateTangents").boolValue = false;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
             }
-            var lattice = deformer.Layers[0].Settings;
+            if (result.profileSource)
+            {
+                profile = ScriptableObject.CreateInstance<MeshDeformerProfile>();
+                profile.Capture(deformer.Groups, 0, mesh);
+                if (!deformer.UseProfile(profile)) throw new InvalidOperationException("Profile was rejected.");
+            }
+            // Profile edits change the shared asset, exercising external change
+            // detection and replacement of the owner's independent evaluation copy.
+            var lattice = result.profileSource ? profile.Groups[0].Layers[0].Settings : deformer.Layers[0].Settings;
             var startPoint = lattice.GetControlPointLocal(0);
             // Bind once outside measurement; avoid reflection allocation per sample.
             var notify = (Action)Delegate.CreateDelegate(typeof(Action), deformer,
@@ -188,7 +199,7 @@ public static class EvaluationBenchmark
             Action editedEvaluation = () =>
             {
                 lattice.SetControlPointLocal(0, startPoint + Vector3.up * ((++edit % 2 == 0) ? 0.01f : -0.01f));
-                notify();
+                if (!result.profileSource) notify();
                 evaluate();
             };
             yield return new Work { action = evaluate, accept = value => result.firstEvaluation = value,
@@ -215,6 +226,7 @@ public static class EvaluationBenchmark
         finally
         {
             Object.DestroyImmediate(root);
+            if (profile != null) Object.DestroyImmediate(profile);
             Object.DestroyImmediate(mesh);
         }
         result.meshCountDeltaAfterDispose = Resources.FindObjectsOfTypeAll<Mesh>().Length - meshCountBefore;

@@ -41,6 +41,10 @@ if (($baseline.scenarios.name | ConvertTo-Json -Compress) -ne ($candidate.scenar
 }
 $rows = foreach ($after in $candidate.scenarios) {
     $before = $baseline.scenarios | Where-Object name -EQ $after.name
+    # Older captures predate the Profile scenario and omit this false field.
+    if ([bool]$before.profileSource -ne [bool]$after.profileSource) {
+        throw ('Scenario input differs: ' + $after.name + ' profileSource')
+    }
     foreach ($field in @('vertices', 'groups', 'generatedBlendShape', 'recalculateNormals', 'recalculateTangents', 'recalculateBounds')) {
         if ($before.$field -ne $after.$field) { throw ('Scenario input differs: ' + $after.name + ' ' + $field) }
     }

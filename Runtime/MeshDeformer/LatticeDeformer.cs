@@ -109,11 +109,12 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private Mesh _readableSourceMeshOverride;
         [NonSerialized] private int _lastBlendShapeHash;
         [NonSerialized] private int _lastBakedBlendShapeHash;
+        // Retained for historical private read-only test probes; cache owns the data.
         [NonSerialized] private List<DeformerGroup> _profileGroups;
-        [NonSerialized] private List<DeformerGroup> _blockedProfileGroups;
+        [NonSerialized] private DeformerDataResolver _dataResolver = new DeformerDataResolver();
+        [NonSerialized] private int _appliedProfileRevision;
         [NonSerialized] private List<DeformerGroup> _readOnlyGroupSource;
         [NonSerialized] private ReadOnlyCollection<DeformerGroup> _readOnlyGroups;
-        [NonSerialized] private string _profileFingerprint;
         [NonSerialized] private bool _blendShapeOutputDirty = true;
         [NonSerialized] private int _runtimeMeshRevision;
         [NonSerialized] private int _deformationDataRevision;
@@ -238,7 +239,8 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 if (_dataSource == value) return;
                 if (value == DeformerDataSource.Profile && _profile != null &&
-                    EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch)
+                    (EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch ||
+                     !HasValidProfileForSource(_profile)))
                 {
                     return;
                 }
@@ -246,8 +248,10 @@ namespace Net._32Ba.LatticeDeformationTool
                 if (_dataSource == DeformerDataSource.Profile && _profile != null)
                 {
                     _groups?.Clear();
+                    _activeGroupIndex = _profile.SerializedActiveGroupIndex;
                 }
-                _profileFingerprint = null;
+                else if (_groups == null || _groups.Count == 0) _activeGroupIndex = 0;
+                _dataResolver?.Invalidate();
                 EnsureGroups();
                 InvalidateCache();
             }
@@ -260,7 +264,8 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 if (_profile == value) return;
                 if (_dataSource == DeformerDataSource.Profile && value != null &&
-                    EvaluateProfileCompatibility(value) == ProfileCompatibilityStatus.TopologyMismatch)
+                    (EvaluateProfileCompatibility(value) == ProfileCompatibilityStatus.TopologyMismatch ||
+                     !HasValidProfileForSource(value)))
                 {
                     return;
                 }
@@ -268,8 +273,10 @@ namespace Net._32Ba.LatticeDeformationTool
                 if (_dataSource == DeformerDataSource.Profile && _profile != null)
                 {
                     _groups?.Clear();
+                    _activeGroupIndex = _profile.SerializedActiveGroupIndex;
                 }
-                _profileFingerprint = null;
+                else if (_groups == null || _groups.Count == 0) _activeGroupIndex = 0;
+                _dataResolver?.Invalidate();
                 EnsureGroups();
                 InvalidateCache();
             }
@@ -277,14 +284,14 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public bool UseProfile(MeshDeformerProfile profile)
         {
-            if (profile == null) return false;
+            if (profile == null || !HasValidProfileForSource(profile)) return false;
             if (EvaluateProfileCompatibility(profile) == ProfileCompatibilityStatus.TopologyMismatch) return false;
             _profile = profile;
             _dataSource = DeformerDataSource.Profile;
             _groups?.Clear();
+            _activeGroupIndex = profile.SerializedActiveGroupIndex;
             _profileGroups = null;
-            _blockedProfileGroups = null;
-            _profileFingerprint = null;
+            _dataResolver?.Clear();
             EnsureGroups();
             InvalidateCache();
             return true;
@@ -292,7 +299,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public bool CopyProfileToEmbedded()
         {
-            if (_profile == null) return false;
+            if (_profile == null || !HasValidProfileForSource(_profile)) return false;
             if (EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch)
                 return false;
             var payload = _profile.CreateIndependentPayload();
@@ -300,8 +307,7 @@ namespace Net._32Ba.LatticeDeformationTool
             _activeGroupIndex = payload.ActiveGroupIndex;
             _dataSource = DeformerDataSource.Embedded;
             _profileGroups = null;
-            _blockedProfileGroups = null;
-            _profileFingerprint = null;
+            _dataResolver?.Clear();
             EnsureGroups();
             InvalidateCache();
             return true;
@@ -309,7 +315,8 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public bool SaveToProfile(MeshDeformerProfile destination)
         {
-            if (destination == null) return false;
+            if (destination == null || (_dataSource == DeformerDataSource.Profile &&
+                _profile != null && !HasValidProfileForSource(_profile))) return false;
             CacheSourceMesh();
             if (_dataSource == DeformerDataSource.Profile && _profile != null &&
                 EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch)
@@ -320,9 +327,15 @@ namespace Net._32Ba.LatticeDeformationTool
             destination.Capture(GetGroupStorage(), _activeGroupIndex, _sourceMesh);
             if (_profile == destination)
             {
-                _profileFingerprint = null;
+                _dataResolver?.Invalidate();
             }
             return true;
+        }
+
+        private bool HasValidProfileForSource(MeshDeformerProfile profile)
+        {
+            var source = GetCompatibilitySourceMesh();
+            return DeformerDataResolver.HasValidProfilePayload(profile, source != null ? source.vertexCount : -1);
         }
 
         public ProfileCompatibilityStatus EvaluateProfileCompatibility(
@@ -1847,7 +1860,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private DeformationEvaluationInput ResolveEvaluationInput(bool collectGeneratedShapes)
         {
-            var groups = GetGroupStorage();
+            var groups = ReadResolvedData().Groups;
             string defaultOutputName = null;
             if (collectGeneratedShapes)
             {
@@ -1891,6 +1904,13 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 return _deformationDataVersion == DeformationDataVersion.CurrentDevelopment &&
                        !_hasIncompatibleBrushData;
+            }
+
+            if (_dataSource == DeformerDataSource.Profile && _profile != null &&
+                !HasValidProfileForSource(_profile))
+            {
+                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
+                return false;
             }
 
             int rawVersion = (int)_deformationDataVersion;
@@ -2797,10 +2817,11 @@ namespace Net._32Ba.LatticeDeformationTool
 
             if (_groups.Count == 0)
             {
-                if (_activeGroupIndex != 0)
-                {
+                int selectionCount = _dataSource == DeformerDataSource.Profile && _profile != null
+                    ? _profile.SerializedGroups?.Count ?? 0 : 0;
+                if (_activeGroupIndex < 0 ||
+                    (selectionCount == 0 ? _activeGroupIndex != 0 : _activeGroupIndex >= selectionCount))
                     return true;
-                }
             }
             else
             {
@@ -3380,48 +3401,34 @@ namespace Net._32Ba.LatticeDeformationTool
                 EnsureAllBrushLayerDisplacementCapacity(_sourceMesh.vertexCount);
         }
 
+        internal ResolvedDeformerData ReadResolvedData()
+        {
+            _dataResolver ??= new DeformerDataResolver();
+            var resolved = _dataResolver.Resolve(_dataSource, _groups, _activeGroupIndex, _profile,
+                _dataSource == DeformerDataSource.Profile && _profile != null ? GetCompatibilitySourceMesh() : null);
+            _profileGroups = _dataResolver.ProfileGroups;
+            return resolved;
+        }
+
         private List<DeformerGroup> GetGroupStorage()
         {
+            // Legacy mutable facade: its normalization remains explicit here.
+            // New evaluation/query code uses the resolver's read-only result.
             if (_groups == null) _groups = new List<DeformerGroup>();
-            if (_dataSource != DeformerDataSource.Profile || _profile == null)
-            {
-                return _groups;
-            }
+            var resolved = ReadResolvedData();
+            if (resolved.Status == DeformerDataResolutionStatus.Embedded) return _groups;
+            if (resolved.Status != DeformerDataResolutionStatus.Profile)
+                return _dataResolver.BlockedGroups;
 
-            if (EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch)
+            _groups.Clear();
+            if (_appliedProfileRevision != resolved.ProfileRevision)
             {
-                _profileGroups = null;
-                _profileFingerprint = null;
-                if (_blockedProfileGroups == null)
-                {
-                    _blockedProfileGroups = new List<DeformerGroup>
-                    {
-                        new DeformerGroup
-                        {
-                            Name = "Incompatible Profile",
-                            Enabled = false
-                        }
-                    };
-                }
-                return _blockedProfileGroups;
-            }
-
-            if (_groups.Count > 0)
-            {
-                _groups.Clear();
-            }
-
-            string fingerprint = _profile.GetContentFingerprint();
-            if (_profileGroups == null || !string.Equals(_profileFingerprint, fingerprint, StringComparison.Ordinal))
-            {
-                var payload = _profile.CreateIndependentPayload();
-                _profileGroups = payload.Groups;
-                _blockedProfileGroups = null;
-                _activeGroupIndex = payload.ActiveGroupIndex;
-                _profileFingerprint = fingerprint;
+                // Explicit Profile assignment sets its default selection. On load,
+                // preserve the component's already serialized, validated selection.
+                if (_appliedProfileRevision != 0) _activeGroupIndex = resolved.ActiveGroupIndex;
+                _appliedProfileRevision = resolved.ProfileRevision;
                 InvalidateCache();
             }
-
             return _profileGroups;
         }
 
