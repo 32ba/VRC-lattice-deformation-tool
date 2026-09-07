@@ -95,6 +95,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string SourceMeshNotReadable = "MDV020";
         internal const string InvalidBrushData = "MDV021";
         internal const string InvalidMaskData = "MDV022";
+        internal const string InvalidMigrationJournal = "MDV023";
 
         internal static IReadOnlyList<MeshDeformerDiagnostic> Validate(
             LatticeDeformer deformer,
@@ -104,6 +105,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ValidateCount++;
             var results = new List<MeshDeformerDiagnostic>();
             if (deformer == null || !deformer.enabled) return results;
+
+            if (DeformationReleaseManifest.ValidateCursor(deformer.SerializedMigrationReleaseIndex) !=
+                DeformationDataMigrationStatus.Ready)
+            {
+                Add(results, InvalidMigrationJournal, MeshDeformerDiagnosticSeverity.Error, deformer,
+                    LatticeLocalization.Tr(LocKey.InvalidMigrationJournal), property: "_migrationReleaseIndex");
+                return results;
+            }
 
             var data = SerializedDeformerReader.Read(deformer);
             var renderer = ResolveRenderer(data);
@@ -172,6 +181,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 int activeGroupIndex = data.ActiveGroupIndex;
                 int hash = 17;
                 hash = hash * 31 + (int)deformer.DataSource;
+                hash = hash * 31 + deformer.SerializedMigrationReleaseIndex;
                 hash = hash * 31 + activeGroupIndex;
                 int groupCount = groups?.Count ?? -1;
                 hash = hash * 31 + groupCount;

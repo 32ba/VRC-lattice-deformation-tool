@@ -1450,3 +1450,6 @@ msgstr "Save Support Information Image"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information-copied"
 msgstr "The support information image was saved. Attach it to your support message."
+
+msgid "net.32ba.lattice-deformation-tool.localization.invalid-migration-journal"
+msgstr "The saved migration information is unsupported or invalid. Processing was stopped without changing the saved data."

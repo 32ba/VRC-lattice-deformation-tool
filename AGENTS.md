@@ -355,7 +355,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `Runtime/Model/` は既存の `LatticeLayer` / `DeformerGroup` とenumを同一namespace・assembly・保存fieldのまま配置する。`LatticeDeformer.cs` と既存metaはコンポーネントの互換入口として維持し、ファイル移動をschema変更として扱わない
 - `DeformationOutputBaselineFixture.cs` は固定commitの隔離Unityでのみ期待出力を生成する。候補実装でfixtureを更新して差を吸収しない
 - `DeformationOutputCompatibilityTests.cs` は13条件について全Mesh channel、BlendShape全frame、source/upstream不変を比較する。基準と検証hashは `Docs~/Architecture/2026-09-07-output-contracts.md` を参照する
-- 既存14タグcorpusを維持したまま、後続公開28件の対応を `2026-09-07-published-releases.json` に基づいて追加する。棚卸しと実保存fixtureの完成を区別する
+- 既存14タグcorpusは維持し、後続公開28件の83ケースは `Tests/Editor/Fixtures/LaterReleases/` に独立追加する。`Tools~/HistoricalFixtures/LaterReleases/` が各tagのRuntimeで生成し、manifestの4 helper hashと決定的GUID/fileIDを検証する。helperまたは期待schemaの変更時は28件すべてを独立に2回生成し、526fileのbyte-identicalと旧/新corpusの全テストを確認する。履歴fixtureを候補実装の出力で更新しない
 - `Runtime/Evaluation/` の `DeformationEvaluator` が通常Deformと上流PreviewのGroup/Layer合成を共有する。入力は検証済みの同期借用view、managed workspaceはコンポーネント所有とし、非同期処理へ渡さない
 - `GeneratedBlendShapeOutput` の候補は中間頂点bufferから独立させ、上流frameを評価しても保持済み候補を書き換えない。private互換wrapperは既存テスト用に残し、通常の内部利用を追加しない
 - `LatticeEvaluator` が補間cache・managed scratch・NativeArray・Burst Jobsを所有し、`BrushEvaluator` がmaskを含むBrush加算を扱う。owner行列と旧絶対評価規則は `EvaluationSemantics` へ明示し、数値評価からコンポーネント・Renderer・Transformを参照しない。Disable/Destroy/Invalidateと確保途中の例外は同じNative解放処理を通す
@@ -367,6 +367,10 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `DeformationMigrationRunner` が既存release step、構造変換、旧互換規則、rollbackを所有する。`DeformationMigrationState` は作業用scalarとcopy-on-writeのlistを保持し、owner行列・source countは値として受け取る。`TryAdvanceOneRelease` はpreflight後に1境界だけを処理し、失敗時はscalar/listに加え共有nested assetの補間flagとGroup選択も戻す。既存enumの `CurrentDevelopment=15` を再利用・再定義しない
 - コンポーネントへの反映とUnityへの記録もrelease境界の成功条件に含める。記録に失敗したらraw保存fieldを復元し、Editor adapterが捕捉したPrefab override一覧も復元する。値の復元だけでPrefabの記録済みversion/Group数が戻るとは仮定しない。既存のprivate段階移行入口は互換テスト用の委譲として維持し、通常処理からはrunner内のstepを使う
 - `DeformationModelCopy` がLattice設定とcurveの既存コピー規則を共有する。通常のcurrent評価では移行state/snapshotを確保せず、移行前検査だけを行う
+- `DeformationReleaseManifest` は棚卸し済み42公開リリースと `2.0.0-beta.1` の順序をappend-onlyで管理する。新しい `_migrationReleaseIndex` は0が未分類、1〜43が完了済み境界であり、既存 `_layerModelVersion=3` / `CurrentDevelopment=15` の意味を変えない。1〜14は旧enumと対応し、15は1.4.1（旧enum14）、16は1.4.2-rc.1（旧enum15）、43が2.0 beta。exact tagを識別できない旧enum15は16から開始し、fixture manifestのprovenanceを保存データの推測に使わない
+- `PublishedDeformationMigrationRunner` が通常の移行入口となり、既存の変換は旧runnerへ委譲する。1.4.0→1.4.1と16以降の境界は明示的no-opだが、境界ごとに記録成功後だけ進捗を確定する。負の進捗、未来の進捗、破損payloadを変更せず拒否し、Editorの共通診断は `MDV023` を5言語で返す
+- 進捗番号はschema識別そのものではない。Prefab Variantが更新済みの親から進捗を継承し、自身のoverrideに古いschemaを残す場合は、純粋なpreflightを通ったraw markerから進捗を再開する。既知のstale-current構造の復旧もraw fieldとPrefab overrideを含む同じ原子的commitに入れる。未知の破損や範囲外の選択をこの処理で補正しない
+- `PublishedDeformationMigrationTests` は全42境界の失敗・再試行、途中保存、Prefab Variantの継承/Apply/Revert、Undo、拒否時の不変を確認する。`ReleaseJournalFixtureTests` は旧/後続corpusのLatticeDeformer 102ケースで新しい全release入口のdirect/stepwise/save-reloadを照合する。既存の旧enum段階テストとfixture期待値は変更しない
 - `Tools~/ArchitectureBaseline/` は隔離Unityでの同期評価Profiler、プロセス上限監視、比較とソース照合を提供する。較正に成功した `GC.Alloc` のsize metadataだけを割当量として扱い、frame読取りにsample名の大量文字列化を使わない。基準は `Docs~/Architecture/2026-09-07-evaluation-performance.md` を参照する
 
 ## 依存関係

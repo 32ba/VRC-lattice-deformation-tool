@@ -37,6 +37,10 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, HideInInspector]
         private DeformationDataVersion _deformationDataSourceVersion = DeformationDataVersion.Unversioned;
 
+        // Append-only release journal. The legacy enum value 15 and layer model
+        // version 3 keep their existing meaning; absent journal data starts at 0.
+        [SerializeField, HideInInspector] private int _migrationReleaseIndex;
+
         // Historical releases evaluated interpolated absolute control points. Current
         // data evaluates a neutral-relative offset field. Existing data keeps the former
         // behavior so Bounds-external vertices remain byte-for-byte compatible.
@@ -139,12 +143,14 @@ namespace Net._32Ba.LatticeDeformationTool
                 : _deformationDataSourceVersion;
 
         internal DeformationDataMigrationStatus MigrationStatus => _migrationStatus;
+        internal int SerializedMigrationReleaseIndex => _migrationReleaseIndex;
 
         internal bool UsesLegacyAbsoluteLatticeEvaluation => _legacyAbsoluteLatticeEvaluation;
 
         internal bool CanStartAuthoringEdit =>
             (int)_deformationDataVersion >= 0 && _deformationDataVersion <= CurrentDeformationDataVersion &&
             _layerModelVersion >= 0 && _layerModelVersion <= k_CurrentLayerModelVersion &&
+            DeformationReleaseManifest.ValidateCursor(_migrationReleaseIndex) == DeformationDataMigrationStatus.Ready &&
             !HasUnsupportedFutureLatticeAsset();
 
         internal SerializedDeformerData ReadSerializedData() => new SerializedDeformerData(
@@ -1555,6 +1561,13 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
+            var cursorStatus = DeformationReleaseManifest.ValidateCursor(_migrationReleaseIndex);
+            if (cursorStatus != DeformationDataMigrationStatus.Ready)
+            {
+                _migrationStatus = cursorStatus;
+                return;
+            }
+
             if (_skinnedMeshRenderer == null)
             {
                 _skinnedMeshRenderer = GetComponent<SkinnedMeshRenderer>();
@@ -1583,8 +1596,7 @@ namespace Net._32Ba.LatticeDeformationTool
         }
         private void OnEnable()
         {
-            EnsureLayerModelReady();
-            CaptureMissingBlendShapeBaseline();
+            if (EnsureLayerModelReady()) CaptureMissingBlendShapeBaseline();
         }
 
         private void CaptureMissingBlendShapeBaseline()
@@ -1886,6 +1898,8 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             var input = ReadMigrationInput();
             var status = DeformationMigrationPreflight.ValidateSchema(input);
+            if (status == DeformationDataMigrationStatus.Ready)
+                status = DeformationReleaseManifest.ValidateCursor(_migrationReleaseIndex);
             if (status != DeformationDataMigrationStatus.Ready)
             {
                 _migrationStatus = status;
@@ -1905,6 +1919,7 @@ namespace Net._32Ba.LatticeDeformationTool
             if (_isEnsuringLayerModelReady)
             {
                 return _deformationDataVersion == DeformationDataVersion.CurrentDevelopment &&
+                       _migrationReleaseIndex == DeformationReleaseManifest.Current &&
                        !_hasIncompatibleBrushData;
             }
 
@@ -1920,11 +1935,11 @@ namespace Net._32Ba.LatticeDeformationTool
             _isEnsuringLayerModelReady = true;
             try
             {
-                RecoverStaleCurrentStructureVersionIfNeeded();
-
-                while (_deformationDataVersion != DeformationDataVersion.CurrentDevelopment)
+                while (_migrationReleaseIndex != DeformationReleaseManifest.Current ||
+                       _deformationDataVersion != DeformationDataVersion.CurrentDevelopment ||
+                       NeedsStaleCurrentStructureRecovery())
                 {
-                    if (!TryUpgradeDeformationDataOneRelease())
+                    if (!TryUpgradePublishedDeformationDataOneRelease())
                     {
                         return false;
                     }
@@ -1962,6 +1977,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 Settings = _settings, FlatLayers = _layers, Groups = _groups,
                 ActiveLayerIndex = _activeLayerIndex, ActiveGroupIndex = _activeGroupIndex,
                 LayerModelVersion = _layerModelVersion, Version = _deformationDataVersion,
+                ReleaseIndex = _migrationReleaseIndex,
                 SourceVersion = _deformationDataSourceVersion, BlendShapeOutput = _blendShapeOutput,
                 BlendShapeName = _blendShapeName, BlendShapeCurve = _blendShapeCurve,
                 LegacyAbsoluteEvaluation = _legacyAbsoluteLatticeEvaluation,
@@ -1986,6 +2002,7 @@ namespace Net._32Ba.LatticeDeformationTool
             _activeGroupIndex = state.ActiveGroupIndex;
             _layerModelVersion = state.LayerModelVersion;
             _deformationDataVersion = state.Version;
+            _migrationReleaseIndex = state.ReleaseIndex;
             _deformationDataSourceVersion = state.SourceVersion;
             _legacyAbsoluteLatticeEvaluation = state.LegacyAbsoluteEvaluation;
             _legacyPublishedBlendShapeSemantics = state.LegacyPublishedBlendShapeSemantics;
@@ -2004,40 +2021,45 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private void RecoverStaleCurrentStructureVersionIfNeeded()
         {
-            // Keep the current-data hot path allocation-free.
-            if (_deformationDataVersion != DeformationDataVersion.CurrentDevelopment ||
-                _layerModelVersion >= k_CurrentLayerModelVersion) return;
-            RunLegacyMigration(runner => { runner.RecoverStaleCurrentStructureVersionIfNeeded(); return true; });
+            if (NeedsStaleCurrentStructureRecovery()) TryUpgradePublishedDeformationDataOneRelease();
         }
 
-        /// <summary>
-        /// Advances exactly one published release boundary. Unversioned data is first
-        /// classified by its oldest unambiguous serialized shape; no release-specific
-        /// mutation occurs until the following call. A failed step never advances the
-        /// version and must leave its source payload intact.
-        /// </summary>
-        internal bool TryUpgradeDeformationDataOneRelease()
+        // The normal current-model path does not allocate a migration state.
+        private bool NeedsStaleCurrentStructureRecovery() =>
+            _deformationDataVersion == DeformationDataVersion.CurrentDevelopment &&
+            _layerModelVersion < k_CurrentLayerModelVersion &&
+            new DeformationMigrationRunner(CaptureMigrationState()).NeedsStaleCurrentStructureRecovery;
+
+        internal bool TryUpgradePublishedDeformationDataOneRelease()
         {
-            if (_deformationDataVersion == DeformationDataVersion.CurrentDevelopment)
+            if (_migrationReleaseIndex == DeformationReleaseManifest.Current &&
+                _deformationDataVersion == DeformationDataVersion.CurrentDevelopment &&
+                _layerModelVersion >= k_CurrentLayerModelVersion)
             {
                 if (!ValidateMigrationInput()) return false;
                 _migrationStatus = _hasIncompatibleBrushData ? DeformationDataMigrationStatus.InvalidData
                     : DeformationDataMigrationStatus.Ready;
                 return false;
             }
-            var runner = new DeformationMigrationRunner(CaptureMigrationState());
+            var runner = new PublishedDeformationMigrationRunner(CaptureMigrationState());
+            return CommitOwnedMigration(runner.State, commit => runner.TryAdvanceOneRelease(commit));
+        }
+
+        private bool CommitOwnedMigration(DeformationMigrationState state,
+            Func<Action<DeformationMigrationState>, bool> advance)
+        {
             bool ownerCommitStarted = false;
             Action rollbackRecord = null;
-            bool succeeded = runner.TryAdvanceOneRelease(state =>
+            bool succeeded = advance(next =>
             {
                 rollbackRecord = DeformerPlatformServices.CaptureLegacyMigrationRecordRollback?.Invoke(this);
                 ownerCommitStarted = true;
-                ApplyMigrationState(state);
-                if (state.CommitRequested) MarkMigrationCommitted();
+                ApplyMigrationState(next);
+                if (next.CommitRequested) MarkMigrationCommitted();
             });
             if (!succeeded)
             {
-                ApplyMigrationState(runner.State);
+                ApplyMigrationState(state);
                 if (ownerCommitStarted)
                 {
                     rollbackRecord?.Invoke();
@@ -2045,6 +2067,26 @@ namespace Net._32Ba.LatticeDeformationTool
                 }
             }
             return succeeded;
+        }
+
+        /// <summary>
+        /// Preserves the frozen legacy-enum stepping contract. Normal initialization
+        /// uses the complete published-release journal instead. Unversioned data is first
+        /// classified by its oldest unambiguous serialized shape; no release-specific
+        /// mutation occurs until the following call. A failed step never advances the
+        /// version and must leave its source payload intact.
+        /// </summary>
+        internal bool TryUpgradeDeformationDataOneRelease()
+        {
+            if (!ValidateMigrationInput()) return false;
+            if (_deformationDataVersion == DeformationDataVersion.CurrentDevelopment)
+            {
+                _migrationStatus = _hasIncompatibleBrushData ? DeformationDataMigrationStatus.InvalidData
+                    : DeformationDataMigrationStatus.Ready;
+                return false;
+            }
+            var runner = new DeformationMigrationRunner(CaptureMigrationState());
+            return CommitOwnedMigration(runner.State, commit => runner.TryAdvanceOneRelease(commit));
         }
 
         private void NormalizeAuthoritativeGroupShapeVersion() =>

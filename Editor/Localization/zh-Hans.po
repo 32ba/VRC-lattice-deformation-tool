@@ -1450,3 +1450,6 @@ msgstr "保存支持信息图像"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information-copied"
 msgstr "支持信息图像已保存。请将其附加到支持消息中。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.invalid-migration-journal"
+msgstr "保存数据的迁移信息不受支持或无效，已停止处理，未更改保存的数据。"

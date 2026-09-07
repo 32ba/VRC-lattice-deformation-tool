@@ -12,6 +12,7 @@ namespace Net._32Ba.LatticeDeformationTool
         internal List<LatticeLayer> FlatLayers;
         internal List<DeformerGroup> Groups;
         internal int ActiveLayerIndex, ActiveGroupIndex, LayerModelVersion, ProfileGroupCount, SourceVertexCount;
+        internal int ReleaseIndex;
         internal DeformationDataVersion Version, SourceVersion;
         internal BlendShapeOutputMode BlendShapeOutput;
         internal string BlendShapeName;
@@ -35,6 +36,7 @@ namespace Net._32Ba.LatticeDeformationTool
             LayerModelVersion = source.LayerModelVersion;
             ProfileGroupCount = source.ProfileGroupCount;
             SourceVertexCount = source.SourceVertexCount;
+            ReleaseIndex = source.ReleaseIndex;
             Version = source.Version;
             SourceVersion = source.SourceVersion;
             BlendShapeOutput = source.BlendShapeOutput;
@@ -173,12 +175,15 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
+        internal bool NeedsStaleCurrentStructureRecovery =>
+            _state.Version == DeformationDataVersion.CurrentDevelopment &&
+            _state.LayerModelVersion < k_CurrentLayerModelVersion &&
+            !HasNonNullGroups(_state.Groups) &&
+            (HasNonNullLayers(_state.FlatLayers) || HasMeaningfulBaseSettings());
+
         internal void RecoverStaleCurrentStructureVersionIfNeeded()
         {
-            if (_state.Version != DeformationDataVersion.CurrentDevelopment ||
-                _state.LayerModelVersion >= k_CurrentLayerModelVersion ||
-                HasNonNullGroups(_state.Groups) ||
-                (!HasNonNullLayers(_state.FlatLayers) && !HasMeaningfulBaseSettings()))
+            if (!NeedsStaleCurrentStructureRecovery)
             {
                 return;
             }

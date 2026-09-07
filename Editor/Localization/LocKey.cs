@@ -12,6 +12,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string No = "net.32ba.lattice-deformation-tool.localization.no";
         internal const string Apply = "net.32ba.lattice-deformation-tool.localization.apply";
         internal const string Revert = "net.32ba.lattice-deformation-tool.localization.revert";
+        internal const string InvalidMigrationJournal = "net.32ba.lattice-deformation-tool.localization.invalid-migration-journal";
         internal const string Settings = "net.32ba.lattice-deformation-tool.localization.settings";
         internal const string Copy = "net.32ba.lattice-deformation-tool.localization.copy";
         internal const string Paste = "net.32ba.lattice-deformation-tool.localization.paste";

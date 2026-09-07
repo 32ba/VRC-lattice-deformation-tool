@@ -1450,3 +1450,6 @@ msgstr "지원 정보 이미지 저장"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information-copied"
 msgstr "지원 정보 이미지를 저장했습니다. 지원 메시지에 첨부해 주세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.invalid-migration-journal"
+msgstr "저장된 데이터의 마이그레이션 정보가 지원되지 않거나 올바르지 않아 데이터를 변경하지 않고 처리를 중단했습니다."
