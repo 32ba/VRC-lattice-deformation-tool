@@ -215,6 +215,69 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(fixture.Target.Deform(false).vertices, Is.EqualTo(edited));
         }
 
+        [TestCase("deform")]
+        [TestCase("renderer")]
+        [TestCase("preview")]
+        public void ConsecutiveEvaluations_RecheckProfileAndInPlaceSourceChanges(string mode)
+        {
+            using var fixture = new Fixture();
+            Assert.That(fixture.Target.UseProfile(fixture.Profile), Is.True);
+            Vector3[] Evaluate()
+            {
+                var output = mode == "preview" ? fixture.Target.CreatePreviewMeshFromInput(fixture.Mesh)
+                    : fixture.Target.Deform(mode == "renderer");
+                if (output == null) return null;
+                try { return output.vertices; }
+                finally { if (mode == "preview") Object.DestroyImmediate(output); }
+            }
+
+            var original = Evaluate();
+            Assert.That(original, Is.Not.Null);
+            var layer = fixture.Profile.Groups[0].Layers[0];
+            var originalDelta = layer.BrushDisplacements[0];
+            layer.SetBrushDisplacement(0, originalDelta + Vector3.up);
+            var edited = Evaluate();
+            Assert.That(Vector3.Distance(edited[0], original[0] + Vector3.up), Is.LessThan(1e-5f));
+
+            // An early return must close the same scope as a successful evaluation.
+            layer.BrushDisplacements[0] = new Vector3(float.NaN, 0f, 0f);
+            Assert.That(Evaluate(), Is.Null);
+            layer.SetBrushDisplacement(0, originalDelta);
+            Assert.That(Evaluate(), Is.EqualTo(original));
+
+            var source = fixture.Mesh.vertices;
+            var moved = (Vector3[])source.Clone();
+            moved[0] += Vector3.right;
+            fixture.Mesh.vertices = moved;
+            var incompatible = Evaluate();
+            // Existing compatibility policy may reject evaluation or return the
+            // source through a disabled group; neither may reuse Profile deltas.
+            if (incompatible != null) Assert.That(incompatible, Is.EqualTo(moved));
+            fixture.Mesh.vertices = source;
+            Assert.That(Evaluate(), Is.EqualTo(original));
+        }
+
+        [Test]
+        public void EvaluationScope_ExceptionReleasesNestedReadResults()
+        {
+            using var fixture = new Fixture();
+            var resolver = new DeformerDataResolver();
+            ResolvedDeformerData first = default;
+            Assert.Throws<InvalidOperationException>(() =>
+            {
+                using var outer = resolver.BeginEvaluation();
+                using var inner = resolver.BeginEvaluation();
+                first = resolver.Resolve(DeformerDataSource.Profile, null, 0, fixture.Profile, fixture.Mesh);
+                throw new InvalidOperationException("Evaluation aborted");
+            });
+            fixture.Profile.Groups[0].Layers[0].SetBrushDisplacement(0, Vector3.one * 4f);
+            using var nextScope = resolver.BeginEvaluation();
+            var next = resolver.Resolve(DeformerDataSource.Profile, null, 0, fixture.Profile, fixture.Mesh);
+            Assert.That(next.ProfileRevision, Is.GreaterThan(first.ProfileRevision));
+            Assert.That(next.Groups, Is.Not.SameAs(first.Groups));
+            Assert.That(next.Groups[0].Layers[0].BrushDisplacements[0], Is.EqualTo(Vector3.one * 4f));
+        }
+
         private static MeshDeformerProfile CreateProfile(Mesh mesh)
         {
             var profile = ScriptableObject.CreateInstance<MeshDeformerProfile>();

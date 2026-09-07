@@ -35,6 +35,11 @@ namespace Net._32Ba.LatticeDeformationTool
         private string _fingerprint;
         private int _profileActiveGroupIndex;
         private int _profileRevision;
+        private int _evaluationDepth;
+        private bool _hasEvaluationResult;
+        private MeshDeformerProfile _evaluationProfile;
+        private Mesh _evaluationSource;
+        private ResolvedDeformerData _evaluationResult;
 
         internal List<DeformerGroup> ProfileGroups => _profileGroups;
 
@@ -43,7 +48,40 @@ namespace Net._32Ba.LatticeDeformationTool
             new DeformerGroup { Name = "Incompatible Profile", Enabled = false }
         };
 
-        internal void Invalidate() => _fingerprint = null;
+        // Only synchronous evaluation may share a compatibility check. The last
+        // scope releases its borrowed result, so the next evaluation observes
+        // external Profile edits and in-place source Mesh changes again.
+        internal EvaluationScope BeginEvaluation()
+        {
+            _evaluationDepth++;
+            return new EvaluationScope(this);
+        }
+
+        internal struct EvaluationScope : IDisposable
+        {
+            private DeformerDataResolver _owner;
+            internal EvaluationScope(DeformerDataResolver owner) => _owner = owner;
+            public void Dispose()
+            {
+                if (_owner == null) return;
+                if (--_owner._evaluationDepth == 0) _owner.ClearEvaluationResult();
+                _owner = null;
+            }
+        }
+
+        private void ClearEvaluationResult()
+        {
+            _hasEvaluationResult = false;
+            _evaluationProfile = null;
+            _evaluationSource = null;
+            _evaluationResult = default;
+        }
+
+        internal void Invalidate()
+        {
+            _fingerprint = null;
+            ClearEvaluationResult();
+        }
 
         internal void Clear()
         {
@@ -51,6 +89,7 @@ namespace Net._32Ba.LatticeDeformationTool
             _profileGroups = null;
             _blockedGroups = null;
             _fingerprint = null;
+            ClearEvaluationResult();
         }
 
         internal ResolvedDeformerData Resolve(DeformerDataSource dataSource,
@@ -61,6 +100,23 @@ namespace Net._32Ba.LatticeDeformationTool
                 return new ResolvedDeformerData(embeddedGroups, embeddedActiveGroupIndex,
                     DeformerDataResolutionStatus.Embedded);
 
+            if (_evaluationDepth > 0 && _hasEvaluationResult &&
+                ReferenceEquals(_evaluationProfile, profile) && ReferenceEquals(_evaluationSource, compatibilitySource))
+                return _evaluationResult;
+
+            var resolved = ResolveProfile(profile, compatibilitySource);
+            if (_evaluationDepth > 0)
+            {
+                _evaluationProfile = profile;
+                _evaluationSource = compatibilitySource;
+                _evaluationResult = resolved;
+                _hasEvaluationResult = true;
+            }
+            return resolved;
+        }
+
+        private ResolvedDeformerData ResolveProfile(MeshDeformerProfile profile, Mesh compatibilitySource)
+        {
             if (!HasValidProfilePayload(profile, compatibilitySource != null ? compatibilitySource.vertexCount : -1))
             {
                 Clear();

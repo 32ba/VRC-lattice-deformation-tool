@@ -1677,6 +1677,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private Mesh DeformReadableSource(bool assignToRenderer)
         {
+            using var dataScope = BeginEvaluationDataRead();
             UnityEngine.Profiling.Profiler.BeginSample("LatticeDeformer.Deform");
             if (!EnsureLayerModelReady())
             {
@@ -1810,6 +1811,7 @@ namespace Net._32Ba.LatticeDeformationTool
         /// </summary>
         public Mesh CreatePreviewMeshFromInput(Mesh inputMesh)
         {
+            using var dataScope = BeginEvaluationDataRead();
             if (!EnsureLayerModelReady() || inputMesh == null || !inputMesh.isReadable ||
                 _sourceMesh == null)
                 return null;
@@ -3399,6 +3401,12 @@ namespace Net._32Ba.LatticeDeformationTool
 
             if (_sourceMesh != null)
                 EnsureAllBrushLayerDisplacementCapacity(_sourceMesh.vertexCount);
+        }
+
+        private DeformerDataResolver.EvaluationScope BeginEvaluationDataRead()
+        {
+            _dataResolver ??= new DeformerDataResolver();
+            return _dataResolver.BeginEvaluation();
         }
 
         internal ResolvedDeformerData ReadResolvedData()
