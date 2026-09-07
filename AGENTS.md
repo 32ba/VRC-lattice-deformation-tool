@@ -357,6 +357,8 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `LatticeEvaluator` が補間cache・managed scratch・NativeArray・Burst Jobsを所有し、`BrushEvaluator` がmaskを含むBrush加算を扱う。owner行列と旧絶対評価規則は `EvaluationSemantics` へ明示し、数値評価からコンポーネント・Renderer・Transformを参照しない。Disable/Destroy/Invalidateと確保途中の例外は同じNative解放処理を通す
 - `DeformedMeshWriter` が既存/生成BlendShapeとsurface channelを書込み、`BlendShapeComposer` は所有者の `MeshOutputWorkspace` に100フレームを順次合成する。Meshへのコピー後だけbufferを再利用し、候補配列・sourceは変更しない。`DeformationPipeline` が上流Previewの評価と出力cloneを管理し、失敗時は自身のcloneを破棄する。Preview最終法線の旧再計算規則も維持する
 - `SourceMeshAccess` はR/W無効Meshの全channelコピーをleaseとして所有し、`SourceVertexResolver` は取得済みweight値から元頂点とBlendShapeを評価する。通常評価の最終frame外挿と表示範囲計算の最終frame固定は `SourceBlendShapeExtrapolation` で区別する。`DeformerPlatformAdapter` がassembly load時にMeshUtility読取りと旧移行の保存記録を登録し、RuntimeからUnityEditor/NDMF assemblyを直接参照しない
+- `DeformerDataResolver` はEmbeddedの同期借用viewと、ownerごとの独立したProfile評価コピーを返す。queryで保存Group・選択・Profile・dirty stateを変更しない。Profileのidentity、内容、source互換性を検証し、不正な配列・null slot・future payloadは適用前に拒否する。Profile利用中のactive GroupはProfileのGroup数で検証し、Prefab再読込みでコンポーネントの保存済み選択を保持する
+- Profile互換性の再利用は `Deform` / `CreatePreviewMeshFromInput` の同期評価scope内だけに限定する。scopeを成功・早期return・例外時に閉じ、次回は同じMesh instanceの内容変更、Profileの直接編集、Undo/Redoも再検出する。Repaint/frameをまたぐ互換性の無条件cacheへ拡張しない
 - `Tools~/ArchitectureBaseline/` は隔離Unityでの同期評価Profiler、プロセス上限監視、比較とソース照合を提供する。較正に成功した `GC.Alloc` のsize metadataだけを割当量として扱い、frame読取りにsample名の大量文字列化を使わない。基準は `Docs~/Architecture/2026-09-07-evaluation-performance.md` を参照する
 
 ## 依存関係

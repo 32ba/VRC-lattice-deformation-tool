@@ -20,7 +20,10 @@ Editor側は非同期にProfiler frameを回収してから自分で終了する
 
 ## 測定範囲
 
-70,000と200,000頂点それぞれで、Lattice、4 GroupのLattice/Brush混在、100 frameの生成BlendShapeを評価する。
+70,000と200,000頂点それぞれで、Lattice、4 GroupのLattice/Brush混在、100 frameの生成BlendShape、ProfileのLatticeを評価する。
+Profile条件は共有assetの制御点を直接変更し、コンポーネントへの通知なしで変更検知と独立コピーの更新を測る。
+`-Filter 'profile-70000;profile-200000'` でこの2条件だけを測定できる。
+Profile追加前の記録は6条件であり、新しい8条件の実行と混同しない。
 法線・tangent再計算は無効、bounds再計算は有効。
 初回、3回のwarmup後の変更なし15回、3回の編集warmup後の制御点変更15回を記録する。
 `-Samples` と `-Filter 'direct-70000;generated-200000'` で範囲を指定できる。
@@ -55,6 +58,10 @@ p95が10%を超えて増加した条件、最大GC割当の増加、破棄後の
 ソース照合は改行とUnityが空のimporter値へ追加する空白だけを明示的に正規化し、GUIDやC#本文の違いを許容しない。
 
 このharnessはScene Viewの描画、drag入力、上流Preview、Clearance、Weight Transferの測定を代替しない。
+
+`ProfileSelectionBaselineProbe.cs` は固定基準 `c7f499c` 専用の再現probe。
+隔離基準hostの `Assets/Editor/` へコピーして `-executeMethod ProfileSelectionBaselineProbe.Run -quit` で実行すると、2番目のGroupを選んだProfileの適用結果、raw/public選択、Group数、Mesh生成可否をJSONに記録する。
+候補の検証には `DeformerDataResolverTests` を使い、この基準probeのcommit表示を候補結果として流用しない。
 
 ## Runtimeのassembly依存
 
