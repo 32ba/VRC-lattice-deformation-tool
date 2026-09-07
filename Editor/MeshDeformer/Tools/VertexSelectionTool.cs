@@ -285,8 +285,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _selectionStartPos = Vector2.zero;
         }
 
+        private DeformerEditSession _editSession;
+
         private void ResetTransformGesture()
         {
+            _editSession?.Abandon();
+            _editSession = null;
             _isTransforming = false;
             _preTransformWorldPositionsValid = false;
             InvalidateProportionalInfluenceCache();
@@ -296,11 +300,30 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal void OnToolGUI(EditorWindow window, LatticeDeformer deformer)
         {
+            // Handles may consume MouseUp; retain its original type for finalization.
+            bool endsGesture = Event.current != null && Event.current.rawType == EventType.MouseUp && Event.current.button == 0;
             Profiler.BeginSample("VertexSelection.OnToolGUI");
             try
             {
                 if (Event.current != null && Event.current.commandName == "UndoRedoPerformed")
                 {
+                    return;
+                }
+
+                if (_isTransforming && (_editSession == null || !_editSession.MatchesTarget(deformer)))
+                {
+                    EndTransform();
+                    ResetSelectionGesture();
+                    ClearSelection();
+                    GUIUtility.hotControl = 0;
+                    return;
+                }
+                if (_isTransforming && Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Escape)
+                {
+                    _editSession.TryCancel();
+                    ResetTransformGesture();
+                    GUIUtility.hotControl = 0;
+                    Event.current.Use();
                     return;
                 }
 
@@ -370,6 +393,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
             finally
             {
+                if (endsGesture) EndTransform();
                 Profiler.EndSample();
             }
         }
@@ -787,6 +811,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         BeginTransform(deformer);
                     }
 
+                    if (!_isTransforming || !_editSession.TryPrepareWrite(deformer)) { EndTransform(); return; }
+
                     var localDelta = meshTransform.InverseTransformVector(delta);
                     ApplyMoveDelta(deformer, localDelta);
                 }
@@ -815,6 +841,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     BeginTransform(deformer);
                     _handleRotation = rotation;
                 }
+
+                if (!_isTransforming || !_editSession.TryPrepareWrite(deformer)) { EndTransform(); return; }
 
                 var deltaRotation = newRotation * Quaternion.Inverse(_handleRotation);
                 _handleRotation = newRotation;
@@ -845,6 +873,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     _handleScale = Vector3.one;
                 }
 
+                if (!_isTransforming || !_editSession.TryPrepareWrite(deformer)) { EndTransform(); return; }
+
                 // Compute relative scale from previous
                 var relativeScale = new Vector3(
                     _handleScale.x != 0f ? newScale.x / _handleScale.x : 1f,
@@ -863,7 +893,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void BeginTransform(LatticeDeformer deformer)
         {
-            Undo.RecordObject(deformer, GetUndoLabel());
+            EndTransform();
+            _editSession = DeformerEditSession.TryBegin(deformer, MeshDeformerLayerType.Brush, GetUndoLabel());
+            if (_editSession == null) return;
             deformer.EnsureDisplacementCapacity();
             _isTransforming = true;
             _preTransformWorldPositionsValid = false;
@@ -895,10 +927,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             try
             {
-                if (_isTransforming && _activeDeformer != null)
-                {
-                    LatticePrefabUtility.MarkModified(_activeDeformer);
-                }
+                _editSession?.Dispose();
             }
             finally
             {
@@ -924,6 +953,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 ApplyProportionalMove(deformer, localDelta, restSpaceConverter);
             }
 
+            _editSession?.RecordChange();
             LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
         }
 
@@ -952,6 +982,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 ApplyProportionalRotation(deformer, meshTransform, worldCentroid, deltaRotation);
             }
 
+            _editSession?.RecordChange();
             LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
         }
 
@@ -984,6 +1015,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 ApplyProportionalScale(deformer, meshTransform, worldCentroid, relativeScale);
             }
 
+            _editSession?.RecordChange();
             LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
         }
 

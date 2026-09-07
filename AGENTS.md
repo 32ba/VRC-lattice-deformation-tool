@@ -376,6 +376,10 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `PreviewMeshLease` は生成Meshだけを所有し、各proxyで置き換えた上流Meshを借用する。終了時はproxyが自身の一意な出力Meshをまだ参照している場合だけ復元し、別世代・後段の割当てを上書きしない。元Renderer、上流Mesh、既存のproxy generation/token登録を変更・破棄しない。遅れて届いたproxyにも独立した復元先を保持し、終了・二重終了・破棄済みproxyを同じ処理で扱う
 - NDMF Bakeは対象componentの破棄中だけ `SuppressMeshRestoration()` のscopeを使用する。scopeはownerごとに入れ子と二重Disposeを処理し、例外・native component破棄後にも閉じられる。既存public `SuppressRestoreOnDisable` の意味とAPIは互換用に維持するが、通常のBuildはglobal値を書き換えない
 - `PreviewOwnershipTests` と `MeshRestorationScopeTests` は終了時復元、世代交代、外部割当て、遅延proxy、破棄順、評価拒否と再試行、二重終了後のUndo、owner限定の復元抑止を確認する。実Scene View/NDMFの検証には起動済みの正常な `Plugin-dev-playground` を使用し、元のシーン・package参照を保全して一時Sceneで比較する。`Mayo` など別projectを代用しない
+- `DeformerEditSession` はBrush/Vertex/Latticeの複数frame編集で完全なUndo snapshot、対象Group/Layer/sourceのidentity確認、Prefab記録と終了を共有する。開始前にraw payloadを純粋に検査し、Layout/Repaintはidentity確認、実書込み前は元Meshのtopologyとpayloadを再検証する。Profile・破損・未来版・対象変更を補正して編集しない
+- UnityのPrefab overrideのRedoには、開始時の `RegisterCompleteObjectUndo` に加えて各frameの書込み前の `RecordObject` と書込み後のPrefab記録が必要。ミラー・比例編集を含む一連の変更後に記録し、別操作を取り込むUndoの一括collapseを終了時に行わない。MouseUpはHandlesが消費する前のraw eventを保持して終了を判断する
+- Escapeは自身のUndo group（またはUnityがEscape KeyDown用に作った直後の1境界）だけを取り消す。別のUndo操作が割り込んだ場合はそれを戻さず、既存の変形を独立したUndoとして残して終了する。Undo/Redo通知ではsessionを破棄して復元済みpayloadを書き戻さず、assembly reload前にも終了する
+- `DeformerEditSessionTests` はframeをまたぐUndo/Redo、Prefab VariantのApply/save-reload、拒否時のpayload/dirty不変、取消と他のUndo保持を確認する。`AuthoringGestureEndToEndTests` は実Scene Viewへmouse/key eventを送り、Brush・Vertex/Latticeのnative handle・Escape・Layer切替を実NDMFの最終proxyで照合する。private編集methodを直接呼んだ検査をScene View入力の証拠と混同しない。pose/proxy snapshotの共通化とProfilerは引き続きP4/P5の対象とする
 
 ## 依存関係
 

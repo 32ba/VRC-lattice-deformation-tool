@@ -286,6 +286,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal void Deactivate()
         {
+            _editSession?.Dispose();
+            _editSession = null;
             Undo.undoRedoPerformed -= OnUndoRedo;
             EditorApplication.hierarchyChanged -= InvalidateProxyCache;
             EditorApplication.projectChanged -= InvalidateProxyCache;
@@ -294,10 +296,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _activeDeformer = null;
         }
 
+        private DeformerEditSession _editSession;
+
         internal void OnToolGUI(EditorWindow window, LatticeDeformer deformer)
         {
             if (Event.current != null && Event.current.commandName == "UndoRedoPerformed")
             {
+                return;
+            }
+
+            if (_editSession != null && !_editSession.MatchesTarget(deformer))
+            {
+                _editSession.Dispose();
+                _editSession = null;
+                InvalidateProxyCache(true);
+                ClearSelection();
+                GUIUtility.hotControl = 0;
+                return;
+            }
+            if (_editSession != null && Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Escape)
+            {
+                _editSession.TryCancel();
+                _editSession = null;
+                InvalidateProxyCache(true);
+                GUIUtility.hotControl = 0;
+                Event.current.Use();
                 return;
             }
 
@@ -323,12 +346,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
 
             Profiler.BeginSample("LatticeTool.DrawHandles");
+            bool endsGesture = Event.current.rawType == EventType.MouseUp && Event.current.button == 0;
             try
             {
                 DrawControlHandles(deformer, settings, controlCount);
             }
             finally
             {
+                if (endsGesture)
+                {
+                    _editSession?.Dispose();
+                    _editSession = null;
+                }
                 Profiler.EndSample();
             }
         }
@@ -745,7 +774,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         var delta = newPivot - pivot;
                         if (delta != Vector3.zero)
                         {
-                            Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.MoveLatticeControls));
+                            _editSession ??= DeformerEditSession.TryBegin(deformer, MeshDeformerLayerType.Lattice,
+                                LatticeLocalization.Tr(LocKey.MoveLatticeControls));
+                            if (_editSession == null || !_editSession.TryPrepareWrite(deformer)) return;
 
                             var deltaProxy = worldToProxy.MultiplyVector(delta);
                             _processedIndices.Clear();
@@ -923,10 +954,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                             // Grid size, bounds, interpolation and source vertices are
                             // unchanged, so keep the per-vertex interpolation cache and
                             // persistent NativeArrays alive throughout the drag.
+                            _editSession.RecordChange();
                             deformer.NotifyDeformationDataChanged();
                             bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
                             deformer.Deform(assignRuntimeMesh);
-                            LatticePrefabUtility.MarkModified(deformer);
                             LatticePreviewUtility.PublishInteractiveDeformation(deformer);
                         }
                     }
@@ -1304,6 +1335,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void OnUndoRedo()
         {
+            _editSession?.Abandon();
+            _editSession = null;
             InvalidateProxyCache();
             if (_activeDeformer == null)
             {

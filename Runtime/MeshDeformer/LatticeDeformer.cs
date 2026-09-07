@@ -177,6 +177,12 @@ namespace Net._32Ba.LatticeDeformationTool
             DeformationReleaseManifest.ValidateCursor(_migrationReleaseIndex) == DeformationDataMigrationStatus.Ready &&
             !HasUnsupportedFutureLatticeAsset();
 
+        // Pure preflight for interactive writes, including disabled authoring data.
+        // The command boundary may intentionally repair data; a drag must not do so.
+        internal bool HasValidSerializedAuthoringData => CanStartAuthoringEdit &&
+            DeformationMigrationPreflight.ValidateSchema(ReadMigrationInput()) == DeformationDataMigrationStatus.Ready &&
+            !HasIncompatibleSerializedVertexIndexedData();
+
         internal SerializedDeformerData ReadSerializedData() => new SerializedDeformerData(
             _groups, _activeGroupIndex, _dataSource, _profile,
             _skinnedMeshRenderer, _meshFilter, _serializedSourceMesh,

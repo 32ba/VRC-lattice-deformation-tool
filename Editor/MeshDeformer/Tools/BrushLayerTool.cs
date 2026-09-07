@@ -191,8 +191,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private PenetrationDetectionCacheKey _penetrationCacheKey;
         private bool _hasPenetrationCacheKey;
         private bool _isStrokeActive;
-        private int _strokeInitialStateHash;
-        private LatticeDeformer _strokeDeformer;
+        private DeformerEditSession _editSession;
 
         private delegate bool IntersectRayMeshDelegate(
             Ray ray,
@@ -448,27 +447,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void BeginStroke(LatticeDeformer deformer)
         {
             EndStroke();
-            _isStrokeActive = deformer != null;
-            _strokeDeformer = deformer;
-            _strokeInitialStateHash = deformer != null ? deformer.ComputeLayeredStateHash() : 0;
+            _editSession = DeformerEditSession.TryBegin(deformer, MeshDeformerLayerType.Brush, GetUndoLabel());
+            _isStrokeActive = _editSession != null;
         }
 
         private void EndStroke()
         {
-            if (_isStrokeActive && _strokeDeformer != null &&
-                _strokeDeformer.ComputeLayeredStateHash() != _strokeInitialStateHash)
-            {
-                LatticePrefabUtility.MarkModified(_strokeDeformer);
-            }
-
+            _editSession?.Dispose();
             ResetStrokeState();
         }
 
         private void ResetStrokeState()
         {
             _isStrokeActive = false;
-            _strokeInitialStateHash = 0;
-            _strokeDeformer = null;
+            _editSession?.Abandon();
+            _editSession = null;
         }
 
         internal void OnToolGUI(EditorWindow window, LatticeDeformer deformer)
@@ -483,6 +476,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 var evt = Event.current;
                 if (evt == null) return;
+
+                if (_isStrokeActive && !_editSession.MatchesTarget(deformer)) EndStroke();
+                if (_isStrokeActive && evt.type == EventType.KeyDown && evt.keyCode == KeyCode.Escape)
+                {
+                    _editSession.TryCancel();
+                    ResetStrokeState();
+                    ClearConnectedVerticesCache();
+                    ClearGeodesicDistanceCache();
+                    evt.Use();
+                    return;
+                }
 
                 // Layout only registers control ownership. Baking a posed mesh and
                 // raycasting here duplicates the following Repaint event in the same
@@ -694,6 +698,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 // Handle brush painting on left mouse drag
                 if (evt.type == EventType.MouseDrag && evt.button == 0 && !evt.alt && _isStrokeActive)
                 {
+                    if (!_editSession.TryPrepareWrite(deformer)) { EndStroke(); return; }
                     // Keep topology-limited and geodesic falloff centered on the
                     // current stroke position. The cache keys above make this a no-op
                     // while the nearest vertex and geometry remain unchanged.
@@ -713,7 +718,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     UpdateGeodesicDistanceCache(hit.point);
 
                     BeginStroke(deformer);
-                    Undo.RecordObject(deformer, GetUndoLabel());
+                    if (!_isStrokeActive) return;
                     deformer.EnsureDisplacementCapacity();
 
                     ApplyBrush(deformer, meshTransform, localHitPoint, hit.point, localHitNormal, evt);
@@ -781,6 +786,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     ApplyMirror(deformer, localHitPoint, worldHitPoint, worldRadius, strength, direction);
                 }
 
+                _editSession?.RecordChange();
                 using (s_deformMarker.Auto())
                     LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
             }
