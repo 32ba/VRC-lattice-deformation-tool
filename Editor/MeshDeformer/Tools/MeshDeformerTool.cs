@@ -189,6 +189,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
+            string visibilityReason = LatticeDeformerEditor.GetEditingVisibilityReasonKey(selectedDeformer);
+            if (!string.IsNullOrEmpty(visibilityReason))
+            {
+                EditorGUILayout.HelpBox(LatticeLocalization.Tr(visibilityReason), MessageType.Info);
+            }
+            if (MeshDeformerClipboard.LastTarget == selectedDeformer &&
+                MeshDeformerClipboard.LastResult != null &&
+                !MeshDeformerClipboard.LastResult.Succeeded)
+            {
+                EditorGUILayout.HelpBox(
+                    $"{LatticeLocalization.Tr(MeshDeformerClipboard.LastResult.MessageKey)}\n[{MeshDeformerClipboard.LastResult.Code}]",
+                    MessageType.Warning);
+            }
+
             using (new GUILayout.VerticalScope(GUILayout.MinWidth(260f)))
             {
                 // Layer selector

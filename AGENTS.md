@@ -316,6 +316,8 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
   - `GeneratedBlendShape_RecalculateNormals_WritesNormalDeltas`
   - `ImportBlendShapeAsLayer_CreatesMatchingBrushLayer`
   - `GetSourceBlendShapeNames_ReturnsCorrectNames`
+- `Tests/Editor/MeshDeformerClipboardTests.cs` はInspector共有のClipboard契約を、MeshCompatibilityMetadata、配列長、非finite値、Profile、Read/Write無効Mesh、Group全体拒否、Undo/Redo、拒否理由で検証する。Clipboardの拒否経路では通常getterの暗黙補正やUndo登録を先に行わない
+- `Tests/Editor/InteractionE2ETests.cs` の `InteractionE2E` 3件は実Inspector/Scene View入力と実NDMF Preview proxyを使う。結果JSONはテスト時だけ `Temp/LatticeInteractionReports` へ保存し、CIは `.github/workflows/test.yml` のカテゴリ件数ゲートで未発見・Ignore・失敗を許容しない。設計と待ち時間上限は `Docs~/interaction-quality.md` を参照する
 - UnityMCP で対象アセンブリのみ実行する例:
   - `unity-mcp raw run_tests '{"mode":"EditMode","assemblyNames":["net.32ba.lattice-deformation-tool.tests.editor"],"includeDetails":true}'`
 - 対話エディタ経由のローカル実行では環境起因の偽失敗に注意する:

@@ -92,9 +92,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_showClearanceHeatmapSettings = false;
         private static bool s_showSupportInformation = false;
         private static readonly Dictionary<long, Vector3Int> s_pendingGridSizes = new();
-        private static string s_copiedLayerJson = null;
-        private static MeshDeformerLayerType s_copiedLayerType;
-        private static string s_copiedGroupJson = null;
+        internal Rect EditStartButtonScreenRect { get; private set; }
+        internal string LastDrawnClipboardCode { get; private set; } = string.Empty;
 
         // UI Toolkit layer list
         private ListView _layerListView;
@@ -423,14 +422,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 });
                 evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.PasteGroup), _ =>
                 {
-                    Undo.RecordObject(d, LatticeLocalization.Tr(LocKey.PasteGroup));
-                    PasteGroup(d);
-                    EditorUtility.SetDirty(d);
-                    serializedObject.Update();
-                    ResolveActiveGroupProperties();
-                    RebuildGroupList();
-                    NotifyPropertyChanges();
-                }, string.IsNullOrEmpty(s_copiedGroupJson) ? DropdownMenuAction.Status.Disabled : DropdownMenuAction.Status.Normal);
+                    var result = PasteGroup(d);
+                    if (result.Succeeded)
+                    {
+                        serializedObject.Update();
+                        ResolveActiveGroupProperties();
+                        RebuildGroupList();
+                        NotifyPropertyChanges();
+                    }
+                    else
+                    {
+                        Repaint();
+                    }
+                }, !MeshDeformerClipboard.HasGroup ? DropdownMenuAction.Status.Disabled : DropdownMenuAction.Status.Normal);
                 evt.menu.AppendSeparator();
                 evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.DeleteGroup), _ =>
                 {
@@ -916,27 +920,48 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 NotifyPropertyChanges();
             }
 
-            if (LatticeDeformationFeatureFlags.ValidationDiagnostics)
-            {
-                DrawValidationDiagnostics();
-            }
+            DrawEditStartButton();
+
+            // Error diagnostics stop Preview/Bake and are always visible in the
+            // standard Inspector. Warnings remain behind the existing opt-in flag.
+            DrawValidationDiagnostics();
 
             EditorGUILayout.Space();
+
+            if (target is LatticeDeformer interactionDeformer)
+            {
+                DrawInteractionStatus(interactionDeformer);
+            }
+
+            DrawSupportReport();
+        }
+
+        private void DrawEditStartButton()
+        {
+            if (targets.Length != 1 || target is not LatticeDeformer deformer)
+            {
+                EditStartButtonScreenRect = Rect.zero;
+                return;
+            }
 
             bool hasLayers = _layersProp != null && _layersProp.arraySize > 0;
             using (new EditorGUI.DisabledScope(!hasLayers))
             {
-                bool openBrushTool = hasLayers && GetSerializedActiveLayerType() == MeshDeformerLayerType.Brush;
-                if (GUILayout.Button(openBrushTool
+                bool openBrushTool = hasLayers &&
+                    GetSerializedActiveLayerType() == MeshDeformerLayerType.Brush;
+                string label = openBrushTool
                     ? LatticeLocalization.Tr(LocKey.OpenBrushEditor)
-                    : LatticeLocalization.Tr(LocKey.OpenLatticeEditor)))
+                    : LatticeLocalization.Tr(LocKey.OpenLatticeEditor);
+                Rect buttonRect = GUILayoutUtility.GetRect(
+                    new GUIContent(label), GUI.skin.button);
+                if (Event.current != null && Event.current.type == EventType.Repaint)
+                    EditStartButtonScreenRect = GUIUtility.GUIToScreenRect(buttonRect);
+                if (GUI.Button(buttonRect, label))
                 {
                     ToolManager.SetActiveTool<MeshDeformerTool>();
                     LatticePreviewUtility.RequestSceneRepaint();
                 }
             }
-
-            DrawSupportReport();
         }
 
         private void DrawSupportReport()
@@ -990,12 +1015,27 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (targets.Length != 1 || target is not LatticeDeformer deformer) return;
             var diagnostics = GetCachedValidationDiagnostics(deformer);
-            if (diagnostics.Count == 0) return;
+            bool hasVisibleDiagnostic = false;
+            for (int i = 0; i < diagnostics.Count; i++)
+            {
+                if (diagnostics[i].Severity == MeshDeformerDiagnosticSeverity.Error ||
+                    LatticeDeformationFeatureFlags.ValidationDiagnostics)
+                {
+                    hasVisibleDiagnostic = true;
+                    break;
+                }
+            }
+            if (!hasVisibleDiagnostic) return;
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.Validation), EditorStyles.boldLabel);
             foreach (var diagnostic in diagnostics)
             {
+                if (diagnostic.Severity != MeshDeformerDiagnosticSeverity.Error &&
+                    !LatticeDeformationFeatureFlags.ValidationDiagnostics)
+                {
+                    continue;
+                }
                 var messageType = diagnostic.Severity switch
                 {
                     MeshDeformerDiagnosticSeverity.Error => MessageType.Error,
@@ -1011,6 +1051,45 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     NotifyPropertyChanges();
                     GUIUtility.ExitGUI();
                 }
+            }
+        }
+
+        internal static string GetEditingVisibilityReasonKey(LatticeDeformer deformer)
+        {
+            if (deformer == null || !deformer.enabled) return LocKey.EditUnavailableComponent;
+            var group = deformer.ActiveGroup;
+            if (group == null || !group.Enabled) return LocKey.EditUnavailableGroup;
+            if (!deformer.TryGetActiveLayerFast(out var layer) || layer == null || !layer.Enabled)
+                return LocKey.EditUnavailableLayer;
+            if (layer.Weight <= 0f) return LocKey.EditUnavailableWeight;
+            if (group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape ||
+                layer.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
+                return LocKey.EditBlendShapeOutputInfo;
+            return string.Empty;
+        }
+
+        private void DrawInteractionStatus(LatticeDeformer deformer)
+        {
+            LastDrawnClipboardCode = string.Empty;
+            if (deformer == null) return;
+            string visibilityReason = GetEditingVisibilityReasonKey(deformer);
+            if (!string.IsNullOrEmpty(visibilityReason))
+            {
+                EditorGUILayout.HelpBox(LatticeLocalization.Tr(visibilityReason), MessageType.Info);
+            }
+
+            if (MeshDeformerClipboard.LastTarget == deformer &&
+                MeshDeformerClipboard.LastResult != null &&
+                !MeshDeformerClipboard.LastResult.Succeeded)
+            {
+                string message = LatticeLocalization.Tr(MeshDeformerClipboard.LastResult.MessageKey);
+                if (!string.IsNullOrEmpty(MeshDeformerClipboard.LastResult.Detail))
+                    message += "\n" + MeshDeformerClipboard.LastResult.Detail;
+                EditorGUILayout.HelpBox(
+                    $"{message}\n[{MeshDeformerClipboard.LastResult.Code}]",
+                    MessageType.Warning);
+                if (Event.current != null && Event.current.type == EventType.Repaint)
+                    LastDrawnClipboardCode = MeshDeformerClipboard.LastResult.Code;
             }
         }
 
@@ -2154,9 +2233,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 });
                 evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.PasteLayer), _ =>
                 {
-                    PasteLayer(d);
-                    RebuildGroupList();
-                }, string.IsNullOrEmpty(s_copiedLayerJson) ? DropdownMenuAction.Status.Disabled : DropdownMenuAction.Status.Normal);
+                    var result = PasteLayer(d);
+                    if (result.Succeeded)
+                        RebuildGroupList();
+                    else
+                        Repaint();
+                }, !MeshDeformerClipboard.HasLayer ? DropdownMenuAction.Status.Disabled : DropdownMenuAction.Status.Normal);
                 evt.menu.AppendSeparator();
                 evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.DeleteLayer), _ =>
                 {
@@ -2900,25 +2982,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void CopyLayer(LatticeDeformer deformer, int layerIndex)
         {
-            var layers = deformer.Layers;
-            if (layerIndex < 0 || layerIndex >= layers.Count) return;
-            var layer = layers[layerIndex];
-            if (layer == null) return;
-            s_copiedLayerJson = JsonUtility.ToJson(layer);
-            s_copiedLayerType = layer.Type;
+            MeshDeformerClipboard.CopyLayer(deformer, layerIndex);
+            Repaint();
         }
 
-        private void PasteLayer(LatticeDeformer deformer)
+        private MeshDeformerClipboardResult PasteLayer(LatticeDeformer deformer)
         {
-            if (string.IsNullOrEmpty(s_copiedLayerJson)) return;
-
-            var newLayer = new LatticeLayer();
-            JsonUtility.FromJsonOverwrite(s_copiedLayerJson, newLayer);
-
-            PerformSingleLayerOperation(deformer, LatticeLocalization.Tr(LocKey.PasteLayer), instance =>
+            var result = MeshDeformerClipboard.PasteLayer(deformer);
+            if (result.Succeeded)
             {
-                return instance.InsertLayer(newLayer) >= 0;
-            });
+                serializedObject.Update();
+                InitializePendingGridSizes();
+                SyncActiveToolToLayer(deformer);
+            }
+            Repaint();
+            return result;
         }
 
         private void DuplicateGroup(LatticeDeformer deformer, int groupIndex)
@@ -2943,23 +3021,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void CopyGroup(LatticeDeformer deformer, int groupIndex)
         {
-            var groups = deformer.Groups;
-            if (groupIndex < 0 || groupIndex >= groups.Count) return;
-            s_copiedGroupJson = JsonUtility.ToJson(groups[groupIndex]);
+            MeshDeformerClipboard.CopyGroup(deformer, groupIndex);
+            Repaint();
         }
 
-        private void PasteGroup(LatticeDeformer deformer)
+        private MeshDeformerClipboardResult PasteGroup(LatticeDeformer deformer)
         {
-            if (string.IsNullOrEmpty(s_copiedGroupJson)) return;
-            var newGroup = new DeformerGroup();
-            JsonUtility.FromJsonOverwrite(s_copiedGroupJson, newGroup);
-
-            var groupsField = typeof(LatticeDeformer).GetField("_groups", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (groupsField?.GetValue(deformer) is List<DeformerGroup> groupsList)
+            var result = MeshDeformerClipboard.PasteGroup(deformer);
+            if (result.Succeeded)
             {
-                groupsList.Add(newGroup);
-                deformer.ActiveGroupIndex = groupsList.Count - 1;
+                serializedObject.Update();
+                InitializePendingGridSizes();
+                SyncActiveToolToLayer(deformer);
             }
+            Repaint();
+            return result;
         }
 
         private static void SyncActiveToolToLayer(LatticeDeformer deformer)

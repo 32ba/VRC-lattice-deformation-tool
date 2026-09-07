@@ -263,10 +263,22 @@ jobs:
           -RequiredCategory GraphicsE2E
           -RequiredCategoryCount 8
 
+      - name: Verify InteractionE2E Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -RequiredCategory InteractionE2E
+          -RequiredCategoryCount 3
+
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: editmode-test-results
-          path: ${{ steps.tests.outputs.artifactsPath }}
+          path: |
+            ${{ steps.tests.outputs.artifactsPath }}
+            ci-project/Temp/LatticeInteractionReports
+            ci-project/TestResults/LatticeInteractionReports
           if-no-files-found: warn

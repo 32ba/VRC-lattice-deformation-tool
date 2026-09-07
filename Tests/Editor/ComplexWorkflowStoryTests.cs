@@ -530,7 +530,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         // ========================================================================
 
         [Test]
-        public void Story_CrossDeformerCopyPaste()
+        public void Story_CrossDeformerCopyPaste_LowLevelJsonRoundTrip()
         {
             var meshA = TestMeshFactory.CreateCylinder(16, 8, 0.05f, 0.4f);
             var meshB = TestMeshFactory.CreateCylinder(12, 6, 0.03f, 0.3f);
