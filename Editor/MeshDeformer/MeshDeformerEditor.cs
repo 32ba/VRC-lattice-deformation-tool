@@ -59,13 +59,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SerializedProperty _fitCorrectionSymmetryAxisProp;
         private SerializedProperty _fitCorrectionSymmetryToleranceProp;
         private SerializedProperty _fitCorrectionPreviewProp;
-        private bool _blendShapeTestMode = false;
-        private float _blendShapeTestWeight = 0f;
-        private Mesh _preTestMesh = null;
-        private string[] _preTestBlendShapeNames = Array.Empty<string>();
-        private float[] _preTestBlendShapeWeights = Array.Empty<float>();
-        private bool _preTestMeshWasOverridden = false;
-        private bool _preTestWeightsWereOverridden = false;
+        private BlendShapeTestSession _blendShapeTestSession;
         private SerializedProperty _weightTransferSettingsProp;
         private SerializedProperty _alignModeProp;
         private SerializedProperty _clampMulXYProp;
@@ -2280,20 +2274,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void ReapplyBlendShapeTestWeight(LatticeDeformer deformer)
         {
-            if (!_blendShapeTestMode) return;
-            if (deformer.BlendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape) return;
-
-            var smr = deformer.GetComponent<SkinnedMeshRenderer>();
-            if (smr == null) return;
-
-            // Re-assign runtime mesh after Deform() rebuild
-            var runtimeMesh = deformer.RuntimeMesh;
-            if (runtimeMesh != null && smr.sharedMesh != runtimeMesh)
-            {
-                smr.sharedMesh = runtimeMesh;
-            }
-
-            ApplyBlendShapeTestWeight(deformer, smr);
+            if (_blendShapeTestSession != null && _blendShapeTestSession.Owns(deformer))
+                _blendShapeTestSession.Refresh();
         }
 
         private void CheckAndRebuildLayers()
@@ -3468,7 +3450,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             EditorGUILayout.Space(2);
 
-            if (!_blendShapeTestMode)
+            if (_blendShapeTestSession == null || !_blendShapeTestSession.IsActive)
             {
                 if (GUILayout.Button(LatticeLocalization.Tr(LocKey.EnterTestMode)))
                 {
@@ -3480,12 +3462,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.BlendShapeTestMode), MessageType.Info);
 
                 EditorGUI.BeginChangeCheck();
-                _blendShapeTestWeight = EditorGUILayout.Slider(
+                float weight = EditorGUILayout.Slider(
                     new GUIContent(LatticeLocalization.Tr(LocKey.TestWeight)),
-                    _blendShapeTestWeight, 0f, 100f);
+                    _blendShapeTestSession.Weight, 0f, 100f);
                 if (EditorGUI.EndChangeCheck())
                 {
-                    ApplyBlendShapeTestWeight(deformer, smr);
+                    _blendShapeTestSession.SetWeight(weight);
+                    SceneView.RepaintAll();
                 }
 
                 if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ExitTestMode)))
@@ -3495,130 +3478,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
+        // Historical Inspector entry points also keep the existing private-call regression test.
         private void EnterBlendShapeTestMode(LatticeDeformer deformer, SkinnedMeshRenderer smr)
         {
-            _preTestMesh = smr.sharedMesh;
-            CapturePreTestBlendShapeWeights(smr, _preTestMesh);
-
-            // Record which properties were already overridden before test mode
-            if (PrefabUtility.IsPartOfPrefabInstance(smr))
-            {
-                var so = new SerializedObject(smr);
-                var meshProp = so.FindProperty("m_Mesh");
-                var weightsProp = so.FindProperty("m_BlendShapeWeights");
-                _preTestMeshWasOverridden = meshProp != null && meshProp.prefabOverride;
-                _preTestWeightsWereOverridden = weightsProp != null && weightsProp.prefabOverride;
-            }
-
-            _blendShapeTestMode = true;
-            _blendShapeTestWeight = 0f;
-
-            // Force Deform with assignment so the BlendShape is on the SMR
-            deformer.InvalidateCache();
-            deformer.Deform(true);
+            _blendShapeTestSession?.Dispose();
+            _blendShapeTestSession = BlendShapeTestSession.TryBegin(deformer, smr);
             SceneView.RepaintAll();
         }
 
         private void ExitBlendShapeTestMode()
         {
-            if (!_blendShapeTestMode) return;
-            _blendShapeTestMode = false;
-            _blendShapeTestWeight = 0f;
-
-            if (target is LatticeDeformer deformer)
-            {
-                var smr = deformer.GetComponent<SkinnedMeshRenderer>();
-                if (smr != null)
-                {
-                    // Restore only what test mode changed: sharedMesh
-                    if (_preTestMesh != null)
-                    {
-                        smr.sharedMesh = _preTestMesh;
-                        RestorePreTestBlendShapeWeights(smr, _preTestMesh);
-                    }
-
-                    // Revert only the prefab overrides that test mode created
-                    if (PrefabUtility.IsPartOfPrefabInstance(smr))
-                    {
-                        var so = new SerializedObject(smr);
-                        if (!_preTestMeshWasOverridden)
-                        {
-                            var meshProp = so.FindProperty("m_Mesh");
-                            if (meshProp != null && meshProp.prefabOverride)
-                                PrefabUtility.RevertPropertyOverride(meshProp, InteractionMode.AutomatedAction);
-                        }
-                        if (!_preTestWeightsWereOverridden)
-                        {
-                            var weightsProp = so.FindProperty("m_BlendShapeWeights");
-                            if (weightsProp != null && weightsProp.prefabOverride)
-                                PrefabUtility.RevertPropertyOverride(weightsProp, InteractionMode.AutomatedAction);
-                        }
-                    }
-                }
-            }
-
-            _preTestMesh = null;
-            _preTestBlendShapeNames = Array.Empty<string>();
-            _preTestBlendShapeWeights = Array.Empty<float>();
-            _preTestMeshWasOverridden = false;
-            _preTestWeightsWereOverridden = false;
-            SceneView.RepaintAll();
-        }
-
-        private void CapturePreTestBlendShapeWeights(SkinnedMeshRenderer smr, Mesh mesh)
-        {
-            if (smr == null || mesh == null || mesh.blendShapeCount == 0)
-            {
-                _preTestBlendShapeNames = Array.Empty<string>();
-                _preTestBlendShapeWeights = Array.Empty<float>();
-                return;
-            }
-
-            int count = mesh.blendShapeCount;
-            _preTestBlendShapeNames = new string[count];
-            _preTestBlendShapeWeights = new float[count];
-            for (int i = 0; i < count; i++)
-            {
-                _preTestBlendShapeNames[i] = mesh.GetBlendShapeName(i);
-                _preTestBlendShapeWeights[i] = smr.GetBlendShapeWeight(i);
-            }
-        }
-
-        private void RestorePreTestBlendShapeWeights(SkinnedMeshRenderer smr, Mesh mesh)
-        {
-            if (smr == null || mesh == null ||
-                _preTestBlendShapeNames == null || _preTestBlendShapeWeights == null)
-            {
-                return;
-            }
-
-            int count = Mathf.Min(_preTestBlendShapeNames.Length, _preTestBlendShapeWeights.Length);
-            for (int i = 0; i < count; i++)
-            {
-                string shapeName = _preTestBlendShapeNames[i];
-                if (string.IsNullOrEmpty(shapeName))
-                {
-                    continue;
-                }
-
-                int shapeIndex = mesh.GetBlendShapeIndex(shapeName);
-                if (shapeIndex >= 0)
-                {
-                    smr.SetBlendShapeWeight(shapeIndex, _preTestBlendShapeWeights[i]);
-                }
-            }
-        }
-
-        private void ApplyBlendShapeTestWeight(LatticeDeformer deformer, SkinnedMeshRenderer smr)
-        {
-            var runtimeMesh = deformer.RuntimeMesh;
-            if (runtimeMesh == null) return;
-
-            string shapeName = deformer.EffectiveBlendShapeName;
-            int shapeIndex = runtimeMesh.GetBlendShapeIndex(shapeName);
-            if (shapeIndex < 0) return;
-
-            smr.SetBlendShapeWeight(shapeIndex, _blendShapeTestWeight);
+            _blendShapeTestSession?.Dispose();
+            _blendShapeTestSession = null;
             SceneView.RepaintAll();
         }
 
