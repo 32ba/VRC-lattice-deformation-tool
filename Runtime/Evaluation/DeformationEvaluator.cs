@@ -57,7 +57,7 @@ namespace Net._32Ba.LatticeDeformationTool
                         {
                             generatedBlendShapes.Add(new GeneratedBlendShapeOutput(
                                 layer.EffectiveBlendShapeName,
-                                layer.BlendShapeCurve,
+                                layer.SerializedBlendShapeCurve,
                                 layerDeltas));
                         }
 
@@ -100,7 +100,7 @@ namespace Net._32Ba.LatticeDeformationTool
                             : null;
                         generatedBlendShapes.Add(new GeneratedBlendShapeOutput(
                             group.EffectiveBlendShapeName(input.DefaultOutputName),
-                            group.BlendShapeCurve,
+                            group.SerializedBlendShapeCurve,
                             group.BlendShapeComposition,
                             stageCandidates.ToArray(),
                             candidateWeights));
@@ -110,7 +110,7 @@ namespace Net._32Ba.LatticeDeformationTool
                     {
                         generatedBlendShapes.Add(new GeneratedBlendShapeOutput(
                             group.EffectiveBlendShapeName(input.DefaultOutputName),
-                            group.BlendShapeCurve,
+                            group.SerializedBlendShapeCurve,
                             groupDeltas));
                     }
                 }

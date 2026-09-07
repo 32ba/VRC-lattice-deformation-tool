@@ -1,4 +1,6 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -8,6 +10,66 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class DeformationEvaluatorBoundaryTests
     {
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Composition_UsesDefaultCurveWithoutChangingBorrowedPayload(bool individualOutput)
+        {
+            var group = new DeformerGroup();
+            var layer = new LatticeLayer();
+            group.LayersList.Add(layer);
+            if (individualOutput) layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+            else group.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+            typeof(LatticeLayer).GetField("_blendShapeCurve", BindingFlags.Instance | BindingFlags.NonPublic)
+                .SetValue(layer, null);
+            typeof(DeformerGroup).GetField("_blendShapeCurve", BindingFlags.Instance | BindingFlags.NonPublic)
+                .SetValue(group, null);
+            string before = JsonUtility.ToJson(group);
+            var input = new DeformationEvaluationInput(new[] { group }, "Fallback", new EvaluationSemantics(false));
+            var source = new[] { Vector3.zero, Vector3.right };
+            var output = new Vector3[source.Length];
+            var generated = new List<GeneratedBlendShapeOutput>();
+            // Substitute a nonzero geometry contribution to exercise output routing.
+            DeformationEvaluator.Evaluate(input, source, output, new EvaluationWorkspace(), generated,
+                (ignoredLayer, vertices, destination) =>
+                {
+                    for (int i = 0; i < destination.Length; i++) destination[i] += Vector3.forward;
+                });
+
+            Assert.That(generated.Count, Is.EqualTo(1));
+            Assert.That(generated[0].Curve.Evaluate(0.5f), Is.EqualTo(0.5f).Within(1e-6f));
+            Assert.That(JsonUtility.ToJson(group), Is.EqualTo(before));
+            Assert.That(layer.SerializedBlendShapeCurve, Is.Null);
+            Assert.That(group.SerializedBlendShapeCurve, Is.Null);
+            Assert.That(source, Is.EqualTo(new[] { Vector3.zero, Vector3.right }));
+        }
+
+        [Test]
+        public void BlankGroupOutputName_UsesCurrentOwnerNameAfterRename()
+        {
+            var root = new GameObject("Original owner");
+            var mesh = DeformationOutputBaselineFixture.CreateMesh(3);
+            try
+            {
+                root.AddComponent<MeshFilter>().sharedMesh = mesh;
+                root.AddComponent<MeshRenderer>();
+                var deformer = root.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                AddBrush(deformer, "Output", Vector3.up * 0.1f);
+                deformer.ActiveGroup.BlendShapeName = "";
+                deformer.ActiveGroup.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                Assert.That(deformer.Deform(false).GetBlendShapeIndex("Original owner"), Is.GreaterThanOrEqualTo(0));
+                root.name = "Renamed owner";
+                var output = deformer.Deform(false);
+                Assert.That(output.GetBlendShapeIndex("Renamed owner"), Is.GreaterThanOrEqualTo(0));
+                Assert.That(output.GetBlendShapeIndex("Original owner"), Is.EqualTo(-1));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
         [TestCase(BlendShapeCompositionMode.Single, false)]
         [TestCase(BlendShapeCompositionMode.Single, true)]
         [TestCase(BlendShapeCompositionMode.Progressive, false)]

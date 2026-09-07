@@ -184,6 +184,8 @@ namespace Net._32Ba.LatticeDeformationTool
             set => _blendShapeCurve = value ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
         }
 
+        internal AnimationCurve SerializedBlendShapeCurve => _blendShapeCurve;
+
         public string EffectiveBlendShapeName => string.IsNullOrWhiteSpace(_blendShapeName) ? Name : _blendShapeName;
 
         public bool IsFitCorrection => _isFitCorrection;
@@ -718,6 +720,8 @@ namespace Net._32Ba.LatticeDeformationTool
             get => _blendShapeCurve ?? (_blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f));
             set => _blendShapeCurve = value ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
         }
+
+        internal AnimationCurve SerializedBlendShapeCurve => _blendShapeCurve;
 
         public BlendShapeCompositionMode BlendShapeComposition
         {
@@ -2780,7 +2784,23 @@ namespace Net._32Ba.LatticeDeformationTool
         private void EvaluateLayerStack(Vector3[] sourceVertices, Vector3[] finalVertices,
             List<GeneratedBlendShapeOutput> generatedBlendShapes)
         {
-            var input = new DeformationEvaluationInput(GetGroupStorage(), gameObject.name,
+            var groups = GetGroupStorage();
+            string defaultOutputName = null;
+            if (generatedBlendShapes != null)
+            {
+                for (int i = 0; i < groups.Count; i++)
+                {
+                    var group = groups[i];
+                    if (group == null || !group.Enabled ||
+                        group.BlendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape ||
+                        !string.IsNullOrWhiteSpace(group.BlendShapeName)) continue;
+                    // Unity allocates a managed string on every name read. Direct
+                    // evaluation needs no owner name; resolve only actual fallbacks.
+                    defaultOutputName = gameObject.name;
+                    break;
+                }
+            }
+            var input = new DeformationEvaluationInput(groups, defaultOutputName,
                 new EvaluationSemantics(_legacyPublishedBlendShapeSemantics));
             _applyLayerContribution ??= TryApplyLayerContribution;
             DeformationEvaluator.Evaluate(input, sourceVertices, finalVertices,
