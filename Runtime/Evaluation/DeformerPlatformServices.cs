@@ -9,6 +9,7 @@ namespace Net._32Ba.LatticeDeformationTool
     {
         internal static Func<Mesh, Mesh.MeshDataArray> EditorMeshDataReader;
         internal static Action<UnityEngine.Object> RecordLegacyMigration;
+        internal static Func<UnityEngine.Object, Action> CaptureLegacyMigrationRecordRollback;
 
         internal static bool CanReadMesh(Mesh mesh) =>
             mesh != null && (mesh.isReadable || EditorMeshDataReader != null);

@@ -2027,8 +2027,10 @@ namespace Net._32Ba.LatticeDeformationTool
             }
             var runner = new DeformationMigrationRunner(CaptureMigrationState());
             bool ownerCommitStarted = false;
+            Action rollbackRecord = null;
             bool succeeded = runner.TryAdvanceOneRelease(state =>
             {
+                rollbackRecord = DeformerPlatformServices.CaptureLegacyMigrationRecordRollback?.Invoke(this);
                 ownerCommitStarted = true;
                 ApplyMigrationState(state);
                 if (state.CommitRequested) MarkMigrationCommitted();
@@ -2036,7 +2038,11 @@ namespace Net._32Ba.LatticeDeformationTool
             if (!succeeded)
             {
                 ApplyMigrationState(runner.State);
-                if (ownerCommitStarted) InvalidateCache();
+                if (ownerCommitStarted)
+                {
+                    rollbackRecord?.Invoke();
+                    InvalidateCache();
+                }
             }
             return succeeded;
         }

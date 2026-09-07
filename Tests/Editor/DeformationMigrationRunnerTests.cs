@@ -109,14 +109,18 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(commits, Is.Zero);
         }
 
-        [TestCase(DeformationDataVersion.V1_2_0)]
-        [TestCase(DeformationDataVersion.V1_2_1)]
-        [TestCase(DeformationDataVersion.V1_4_0)]
-        public void OwnerRecordFailure_RestoresComponentPayloadAndAllowsRetry(DeformationDataVersion version)
+        [TestCase(DeformationDataVersion.V1_2_0, false)]
+        [TestCase(DeformationDataVersion.V1_2_1, false)]
+        [TestCase(DeformationDataVersion.V1_4_0, false)]
+        [TestCase(DeformationDataVersion.V1_2_0, true)]
+        [TestCase(DeformationDataVersion.V1_2_1, true)]
+        [TestCase(DeformationDataVersion.V1_4_0, true)]
+        public void OwnerRecordFailure_RestoresComponentPayloadAndAllowsRetry(DeformationDataVersion version, bool prefab)
         {
             var mesh = DeformationOutputBaselineFixture.CreateMesh(2);
             var root = new GameObject("Migration owner rollback");
             var previousRecorder = DeformerPlatformServices.RecordLegacyMigration;
+            string folder = null;
             try
             {
                 root.SetActive(false);
@@ -125,6 +129,19 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 root.AddComponent<MeshRenderer>();
                 var target = root.AddComponent<LatticeDeformer>();
                 target.Reset();
+                if (prefab)
+                {
+                    folder = "Assets/__MigrationOwner_" + Guid.NewGuid().ToString("N");
+                    AssetDatabase.CreateFolder("Assets", folder.Substring("Assets/".Length));
+                    AssetDatabase.CreateAsset(mesh, folder + "/source.asset");
+                    var asset = PrefabUtility.SaveAsPrefabAsset(root, folder + "/base.prefab");
+                    UnityEngine.Object.DestroyImmediate(root);
+                    root = (GameObject)PrefabUtility.InstantiatePrefab(asset);
+                    target = root.GetComponent<LatticeDeformer>();
+                    filter = root.GetComponent<MeshFilter>();
+                    root.transform.localPosition = new Vector3(0.21f, 0.37f, 0.42f);
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(root.transform);
+                }
                 var state = CreateState(version);
                 var rawFields = new Dictionary<string, object>
                 {
@@ -139,18 +156,22 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 foreach (var field in rawFields)
                     typeof(LatticeDeformer).GetField(field.Key, BindingFlags.Instance | BindingFlags.NonPublic)
                         .SetValue(target, field.Value);
+                if (prefab) PrefabUtility.RecordPrefabInstancePropertyModifications(target);
                 string before = EditorJsonUtility.ToJson(target);
+                var modificationsBefore = prefab ? CapturePrefabModifications(root) : null;
                 var source = mesh.vertices;
                 int recordedVersion = -1;
                 DeformerPlatformServices.RecordLegacyMigration = value =>
                 {
                     recordedVersion = (int)((LatticeDeformer)value).SerializedDeformationDataVersion;
+                    previousRecorder?.Invoke(value);
                     throw new InvalidOperationException("Injected owner record failure");
                 };
                 Assert.That(target.TryUpgradeDeformationDataOneRelease(), Is.False);
                 Assert.That(recordedVersion, Is.EqualTo((int)version + 1));
                 Assert.That(target.MigrationStatus, Is.EqualTo(DeformationDataMigrationStatus.InvalidData));
                 Assert.That(EditorJsonUtility.ToJson(target), Is.EqualTo(before));
+                if (prefab) Assert.That(CapturePrefabModifications(root), Is.EquivalentTo(modificationsBefore));
                 Assert.That(filter.sharedMesh, Is.SameAs(mesh));
                 Assert.That(mesh.vertices, Is.EqualTo(source));
                 DeformerPlatformServices.RecordLegacyMigration = previousRecorder;
@@ -161,8 +182,19 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 DeformerPlatformServices.RecordLegacyMigration = previousRecorder;
                 UnityEngine.Object.DestroyImmediate(root);
-                UnityEngine.Object.DestroyImmediate(mesh);
+                if (folder != null) AssetDatabase.DeleteAsset(folder);
+                else UnityEngine.Object.DestroyImmediate(mesh);
             }
+        }
+
+        private static List<string> CapturePrefabModifications(GameObject root)
+        {
+            var result = new List<string>();
+            foreach (var modification in PrefabUtility.GetPropertyModifications(root) ?? Array.Empty<PropertyModification>())
+                result.Add((modification.target != null ? modification.target.GetInstanceID() : 0) + "|" +
+                    modification.propertyPath + "|" + modification.value + "|" +
+                    (modification.objectReference != null ? modification.objectReference.GetInstanceID() : 0));
+            return result;
         }
 
         private static DeformationMigrationState CreateState(DeformationDataVersion version)
