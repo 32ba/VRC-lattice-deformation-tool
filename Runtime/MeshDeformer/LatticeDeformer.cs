@@ -848,13 +848,9 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private List<Vector3> _sourceNormalScratch = new List<Vector3>();
         [NonSerialized] private List<Vector4> _sourceTangentScratch = new List<Vector4>();
         [NonSerialized] private Vector3[] _sourceVerticesBuffer = Array.Empty<Vector3>();
-        [NonSerialized] private Vector3[] _directDeltasBuffer = Array.Empty<Vector3>();
-        [NonSerialized] private Vector3[] _groupVerticesBuffer = Array.Empty<Vector3>();
-        [NonSerialized] private Vector3[] _layerVerticesBuffer = Array.Empty<Vector3>();
-        [NonSerialized] private Vector3[] _finalVerticesBuffer = Array.Empty<Vector3>();
+        [NonSerialized] private EvaluationWorkspace _evaluationWorkspace = new EvaluationWorkspace();
+        [NonSerialized] private Action<LatticeLayer, Vector3[], Vector3[]> _applyLayerContribution;
         [NonSerialized] private Vector3[] _latticeOutputBuffer = Array.Empty<Vector3>();
-        [NonSerialized] private List<GeneratedBlendShape> _generatedBlendShapeBuffer =
-            new List<GeneratedBlendShape>();
         [NonSerialized] private NativeArray<float3> _deformControlNative;
         [NonSerialized] private NativeArray<LatticeCacheEntry> _deformEntriesNative;
         [NonSerialized] private NativeArray<float3> _deformOutputNative;
@@ -894,31 +890,13 @@ namespace Net._32Ba.LatticeDeformationTool
             _skinnedMeshRenderer, _meshFilter, _serializedSourceMesh,
             _serializedSourceVertexCount, _serializedSourceTopologyHash);
 
+        // Historical private reflection seam. Production uses the evaluation result type.
         private readonly struct GeneratedBlendShape
         {
-            public readonly string Name;
-            public readonly AnimationCurve Curve;
-            public readonly BlendShapeCompositionMode Composition;
-            public readonly Vector3[][] Candidates;
-            public readonly float[] CandidateWeights;
-
+            internal readonly GeneratedBlendShapeOutput Value;
             public GeneratedBlendShape(string name, AnimationCurve curve, Vector3[] deltas)
-                : this(name, curve, BlendShapeCompositionMode.Single, new[] { deltas }, null)
             {
-            }
-
-            public GeneratedBlendShape(
-                string name,
-                AnimationCurve curve,
-                BlendShapeCompositionMode composition,
-                Vector3[][] candidates,
-                float[] candidateWeights = null)
-            {
-                Name = name;
-                Curve = curve ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
-                Composition = composition;
-                Candidates = candidates;
-                CandidateWeights = candidateWeights;
+                Value = new GeneratedBlendShapeOutput(name, curve, deltas);
             }
         }
 
@@ -2599,119 +2577,16 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 #line default
 
-            // Accumulate direct-deform deltas across all groups
             EnsureManagedDeformationBuffers(vertexCount);
-            var directDeltas = _directDeltasBuffer;
-            Array.Clear(directDeltas, 0, vertexCount);
-            // Collect generated BlendShapes from groups and individual layers.
-            var generatedBlendShapes = _generatedBlendShapeBuffer;
-            generatedBlendShapes.Clear();
-            var groups = GetGroupStorage();
-
-            for (int g = 0; g < groups.Count; g++)
-            {
-                var group = groups[g];
-                if (group == null || !group.Enabled) continue;
-
-                var groupVertices = _groupVerticesBuffer;
-                Array.Copy(sourceVertices, groupVertices, vertexCount);
-                var layers = group.LayersList;
-                bool stagedGroupOutput =
-                    group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape &&
-                    group.BlendShapeComposition != BlendShapeCompositionMode.Single;
-                var stageCandidates = stagedGroupOutput ? new List<Vector3[]>() : null;
-                var stageCandidateWeights = stagedGroupOutput ? new List<float>() : null;
-                bool preserveCandidateWeights = stagedGroupOutput;
-
-                for (int i = 0; i < layers.Count; i++)
-                {
-                    var layer = layers[i];
-                    if (layer == null || !layer.Enabled || layer.Weight <= 0f) continue;
-
-                    if (!_legacyPublishedBlendShapeSemantics &&
-                        layer.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
-                    {
-                        var layerVertices = _layerVerticesBuffer;
-                        Array.Copy(sourceVertices, layerVertices, vertexCount);
-                        TryApplyLayerContribution(layer, sourceVertices, layerVertices);
-                        if (TryBuildDeltas(sourceVertices, layerVertices, out var layerDeltas))
-                        {
-                            generatedBlendShapes.Add(new GeneratedBlendShape(
-                                layer.EffectiveBlendShapeName,
-                                layer.BlendShapeCurve,
-                                layerDeltas));
-                        }
-
-                        continue;
-                    }
-
-                    if (stagedGroupOutput)
-                    {
-                        var layerVertices = _layerVerticesBuffer;
-                        Array.Copy(sourceVertices, layerVertices, vertexCount);
-                        TryApplyLayerContribution(layer, sourceVertices, layerVertices);
-                        if (TryBuildDeltas(
-                                sourceVertices,
-                                layerVertices,
-                                out var stageDeltas,
-                                !layer.HasImportedBlendShapeFrameWeight))
-                        {
-                            stageCandidates.Add(stageDeltas);
-                            if (layer.HasImportedBlendShapeFrameWeight)
-                                stageCandidateWeights.Add(layer.ImportedBlendShapeFrameWeight);
-                            else
-                                preserveCandidateWeights = false;
-                        }
-                    }
-                    else
-                    {
-                        TryApplyLayerContribution(layer, sourceVertices, groupVertices);
-                    }
-                }
-
-                if (group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
-                {
-                    if (stagedGroupOutput && stageCandidates.Count > 0)
-                    {
-                        float[] candidateWeights =
-                            group.BlendShapeComposition == BlendShapeCompositionMode.Crossfade &&
-                            preserveCandidateWeights &&
-                                                   HaveStrictlyIncreasingWeights(stageCandidateWeights)
-                            ? stageCandidateWeights.ToArray()
-                            : null;
-                        generatedBlendShapes.Add(new GeneratedBlendShape(
-                            group.EffectiveBlendShapeName(gameObject.name),
-                            group.BlendShapeCurve,
-                            group.BlendShapeComposition,
-                            stageCandidates.ToArray(),
-                            candidateWeights));
-                    }
-                    else if (!stagedGroupOutput &&
-                             TryBuildDeltas(sourceVertices, groupVertices, out var groupDeltas))
-                    {
-                        generatedBlendShapes.Add(new GeneratedBlendShape(
-                            group.EffectiveBlendShapeName(gameObject.name),
-                            group.BlendShapeCurve,
-                            groupDeltas));
-                    }
-                }
-                else
-                {
-                    for (int v = 0; v < vertexCount; v++)
-                        directDeltas[v] += groupVertices[v] - sourceVertices[v];
-                }
-            }
-
-            // Apply direct deltas
-            var finalVertices = _finalVerticesBuffer;
-            for (int v = 0; v < vertexCount; v++)
-                finalVertices[v] = sourceVertices[v] + directDeltas[v];
+            var finalVertices = _evaluationWorkspace.FinalVertices;
+            var generatedBlendShapes = _evaluationWorkspace.GeneratedShapes;
+            EvaluateLayerStack(sourceVertices, finalVertices, generatedBlendShapes);
 
             // Handle BlendShape output
             if (generatedBlendShapes.Count > 0)
             {
                 int blendShapeHash = HashCode.Combine(
-                    ComputeBlendShapeOutputHash(generatedBlendShapes),
+                    DeformationEvaluationMath.ComputeBlendShapeOutputHash(generatedBlendShapes),
                     HashVertices(finalVertices),
                     bakedBlendShapeHash,
                     _recalculateNormals,
@@ -2826,8 +2701,8 @@ namespace Net._32Ba.LatticeDeformationTool
             EnsureManagedDeformationBuffers(vertexCount);
             var inputVertices = inputMesh.vertices;
             var outputVertices = new Vector3[vertexCount];
-            var generated = new List<GeneratedBlendShape>();
-            EvaluatePreviewLayerStack(inputVertices, outputVertices, generated);
+            var generated = new List<GeneratedBlendShapeOutput>();
+            EvaluateLayerStack(inputVertices, outputVertices, generated);
 
             var output = Instantiate(inputMesh);
             output.name = inputMesh.name + " (Lattice Preview)";
@@ -2851,8 +2726,7 @@ namespace Net._32Ba.LatticeDeformationTool
                     for (int vertex = 0; vertex < vertexCount; vertex++)
                         combined[vertex] = inputVertices[vertex] + deltaVertices[vertex];
 
-                    generated.Clear();
-                    EvaluatePreviewLayerStack(combined, deformedCombined, generated);
+                    EvaluateLayerStack(combined, deformedCombined, null);
                     for (int vertex = 0; vertex < vertexCount; vertex++)
                         outputDelta[vertex] = deformedCombined[vertex] - outputVertices[vertex];
 
@@ -2865,8 +2739,6 @@ namespace Net._32Ba.LatticeDeformationTool
                 }
             }
 
-            generated.Clear();
-            EvaluatePreviewLayerStack(inputVertices, outputVertices, generated);
             var usedNames = CollectBlendShapeNames(output);
             foreach (var generatedShape in generated)
             {
@@ -2903,99 +2775,17 @@ namespace Net._32Ba.LatticeDeformationTool
             return true;
         }
 
-        private void EvaluatePreviewLayerStack(
-            Vector3[] sourceVertices,
-            Vector3[] finalVertices,
-            List<GeneratedBlendShape> generatedBlendShapes)
-        {
-            int vertexCount = sourceVertices.Length;
-            var directDeltas = new Vector3[vertexCount];
-            var groups = GetGroupStorage();
-
-            for (int groupIndex = 0; groupIndex < groups.Count; groupIndex++)
-            {
-                var group = groups[groupIndex];
-                if (group == null || !group.Enabled) continue;
-                var groupVertices = (Vector3[])sourceVertices.Clone();
-                var layers = group.LayersList;
-                bool staged = group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape &&
-                              group.BlendShapeComposition != BlendShapeCompositionMode.Single;
-                var candidates = staged ? new List<Vector3[]>() : null;
-                var candidateWeights = staged ? new List<float>() : null;
-                bool preserveWeights = staged;
-
-                for (int layerIndex = 0; layerIndex < layers.Count; layerIndex++)
-                {
-                    var layer = layers[layerIndex];
-                    if (layer == null || !layer.Enabled || layer.Weight <= 0f) continue;
-
-                    if (!_legacyPublishedBlendShapeSemantics &&
-                        layer.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
-                    {
-                        var layerVertices = (Vector3[])sourceVertices.Clone();
-                        TryApplyLayerContribution(layer, sourceVertices, layerVertices);
-                        if (TryBuildDeltas(sourceVertices, layerVertices, out var layerDeltas))
-                            generatedBlendShapes.Add(new GeneratedBlendShape(
-                                layer.EffectiveBlendShapeName, layer.BlendShapeCurve, layerDeltas));
-                        continue;
-                    }
-
-                    if (staged)
-                    {
-                        var layerVertices = (Vector3[])sourceVertices.Clone();
-                        TryApplyLayerContribution(layer, sourceVertices, layerVertices);
-                        if (TryBuildDeltas(
-                                sourceVertices, layerVertices, out var stageDeltas,
-                                !layer.HasImportedBlendShapeFrameWeight))
-                        {
-                            candidates.Add(stageDeltas);
-                            if (layer.HasImportedBlendShapeFrameWeight)
-                                candidateWeights.Add(layer.ImportedBlendShapeFrameWeight);
-                            else
-                                preserveWeights = false;
-                        }
-                    }
-                    else
-                    {
-                        TryApplyLayerContribution(layer, sourceVertices, groupVertices);
-                    }
-                }
-
-                if (group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
-                {
-                    if (staged && candidates.Count > 0)
-                    {
-                        float[] weights = group.BlendShapeComposition == BlendShapeCompositionMode.Crossfade &&
-                                          preserveWeights && HaveStrictlyIncreasingWeights(candidateWeights)
-                            ? candidateWeights.ToArray()
-                            : null;
-                        generatedBlendShapes.Add(new GeneratedBlendShape(
-                            group.EffectiveBlendShapeName(gameObject.name),
-                            group.BlendShapeCurve,
-                            group.BlendShapeComposition,
-                            candidates.ToArray(),
-                            weights));
-                    }
-                    else if (!staged && TryBuildDeltas(
-                                 sourceVertices, groupVertices, out var groupDeltas))
-                    {
-                        generatedBlendShapes.Add(new GeneratedBlendShape(
-                            group.EffectiveBlendShapeName(gameObject.name),
-                            group.BlendShapeCurve,
-                            groupDeltas));
-                    }
-                }
-                else
-                {
-                    for (int vertex = 0; vertex < vertexCount; vertex++)
-                        directDeltas[vertex] += groupVertices[vertex] - sourceVertices[vertex];
-                }
-            }
-
-            for (int vertex = 0; vertex < vertexCount; vertex++)
-                finalVertices[vertex] = sourceVertices[vertex] + directDeltas[vertex];
-        }
 #endif
+
+        private void EvaluateLayerStack(Vector3[] sourceVertices, Vector3[] finalVertices,
+            List<GeneratedBlendShapeOutput> generatedBlendShapes)
+        {
+            var input = new DeformationEvaluationInput(GetGroupStorage(), gameObject.name,
+                new EvaluationSemantics(_legacyPublishedBlendShapeSemantics));
+            _applyLayerContribution ??= TryApplyLayerContribution;
+            DeformationEvaluator.Evaluate(input, sourceVertices, finalVertices,
+                _evaluationWorkspace, generatedBlendShapes, _applyLayerContribution);
+        }
 
         private void RestoreSourceNormals(Mesh mesh)
         {
@@ -4244,97 +4034,16 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        private static bool TryBuildDeltas(
-            Vector3[] sourceVertices,
-            Vector3[] deformedVertices,
-            out Vector3[] deltas)
-        {
-            return TryBuildDeltas(sourceVertices, deformedVertices, out deltas, true);
-        }
-
-        private static bool TryBuildDeltas(
-            Vector3[] sourceVertices,
-            Vector3[] deformedVertices,
-            out Vector3[] deltas,
-            bool requireNonZero)
-        {
-            deltas = null;
-            if (sourceVertices == null || deformedVertices == null || sourceVertices.Length != deformedVertices.Length)
-            {
-                return false;
-            }
-
-            var result = new Vector3[sourceVertices.Length];
-            bool hasDelta = false;
-            for (int v = 0; v < sourceVertices.Length; v++)
-            {
-                result[v] = deformedVertices[v] - sourceVertices[v];
-                if (!hasDelta && result[v].sqrMagnitude > 1e-10f)
-                {
-                    hasDelta = true;
-                }
-            }
-
-            if (requireNonZero && !hasDelta)
-            {
-                return false;
-            }
-
-            deltas = result;
-            return true;
-        }
-
-        private static bool HaveStrictlyIncreasingWeights(List<float> weights)
-        {
-            if (weights == null || weights.Count == 0) return false;
-            float previous = float.NegativeInfinity;
-            for (int i = 0; i < weights.Count; i++)
-            {
-                float value = weights[i];
-                if (float.IsNaN(value) || float.IsInfinity(value) || value <= previous)
-                    return false;
-                previous = value;
-            }
-            return true;
-        }
+        // Preserves the private compatibility test seams without duplicate evaluation logic.
+        private static bool TryBuildDeltas(Vector3[] sourceVertices, Vector3[] deformedVertices,
+            out Vector3[] deltas) =>
+            DeformationEvaluationMath.TryBuildDeltas(sourceVertices, deformedVertices, out deltas);
 
         private int ComputeBlendShapeOutputHash(List<GeneratedBlendShape> blendShapes)
         {
-            int hash = 17;
-            foreach (var generated in blendShapes)
-            {
-                hash = hash * 31 + (generated.Name ?? "").GetHashCode();
-                hash = hash * 31 + HashCurveState(generated.Curve);
-                hash = hash * 31 + (int)generated.Composition;
-
-                var candidateWeights = generated.CandidateWeights;
-                hash = hash * 31 + (candidateWeights?.Length ?? 0);
-                if (candidateWeights != null)
-                {
-                    for (int weight = 0; weight < candidateWeights.Length; weight++)
-                        hash = hash * 31 + candidateWeights[weight].GetHashCode();
-                }
-
-                var candidates = generated.Candidates;
-                if (candidates == null)
-                {
-                    hash = hash * 31;
-                    continue;
-                }
-
-                hash = hash * 31 + candidates.Length;
-                foreach (var deltas in candidates)
-                {
-                    if (deltas == null)
-                    {
-                        hash = hash * 31;
-                        continue;
-                    }
-                    for (int v = 0; v < deltas.Length; v++)
-                        hash = hash * 31 + deltas[v].GetHashCode();
-                }
-            }
-            return hash;
+            var values = new GeneratedBlendShapeOutput[blendShapes.Count];
+            for (int i = 0; i < values.Length; i++) values[i] = blendShapes[i].Value;
+            return DeformationEvaluationMath.ComputeBlendShapeOutputHash(values);
         }
 
         // Retained for existing internal callers and compatibility regression coverage.
@@ -4349,14 +4058,14 @@ namespace Net._32Ba.LatticeDeformationTool
                 mesh,
                 shapeName,
                 baseVertices,
-                new GeneratedBlendShape(shapeName, curve, deltas));
+                new GeneratedBlendShapeOutput(shapeName, curve, deltas));
         }
 
         private void AddGeneratedBlendShapeFrames(
             Mesh mesh,
             string shapeName,
             Vector3[] baseVertices,
-            GeneratedBlendShape generated)
+            GeneratedBlendShapeOutput generated)
         {
             var candidates = generated.Candidates;
             if (mesh == null || string.IsNullOrEmpty(shapeName) || baseVertices == null ||
@@ -4862,12 +4571,9 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 
             EnsureVectorBuffer(ref _sourceVerticesBuffer, vertexCount);
-            EnsureVectorBuffer(ref _directDeltasBuffer, vertexCount);
-            EnsureVectorBuffer(ref _groupVerticesBuffer, vertexCount);
-            EnsureVectorBuffer(ref _layerVerticesBuffer, vertexCount);
-            EnsureVectorBuffer(ref _finalVerticesBuffer, vertexCount);
+            _evaluationWorkspace ??= new EvaluationWorkspace();
+            _evaluationWorkspace.EnsureCapacity(vertexCount);
             EnsureVectorBuffer(ref _latticeOutputBuffer, vertexCount);
-            _generatedBlendShapeBuffer ??= new List<GeneratedBlendShape>();
         }
 
         private static void EnsureVectorBuffer(ref Vector3[] buffer, int length)
@@ -5732,31 +5438,8 @@ namespace Net._32Ba.LatticeDeformationTool
             return hash;
         }
 
-        private static int HashCurveState(AnimationCurve curve)
-        {
-            if (curve == null)
-            {
-                return 0;
-            }
-
-            int hash = HashCode.Combine(curve.preWrapMode, curve.postWrapMode, curve.length);
-            var keys = curve.keys;
-            for (int i = 0; i < keys.Length; i++)
-            {
-                var key = keys[i];
-                hash = HashCode.Combine(
-                    hash,
-                    key.time,
-                    key.value,
-                    key.inTangent,
-                    key.outTangent,
-                    key.inWeight,
-                    key.outWeight,
-                    key.weightedMode);
-            }
-
-            return hash;
-        }
+        private static int HashCurveState(AnimationCurve curve) =>
+            DeformationEvaluationMath.HashCurveState(curve);
 
         private bool EnsureAllBrushLayerDisplacementCapacity(int vertexCount)
         {

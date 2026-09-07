@@ -33,7 +33,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(actual.rendererWeights, Is.EqualTo(expected.rendererWeights));
         }
 
-        private static void CompareMesh(MeshSnapshot expected, MeshSnapshot actual, string context)
+        internal static void CompareMesh(MeshSnapshot expected, MeshSnapshot actual, string context)
         {
             Assert.That(actual.indexFormat, Is.EqualTo(expected.indexFormat), context + " index format");
             Assert.That(actual.attributes, Is.EqualTo(expected.attributes), context + " vertex layout");

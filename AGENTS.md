@@ -346,13 +346,15 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - generator/runnerまたはfixture schemaを変更した場合、代表tagを同じ入力で独立に2回生成して全ファイルのbyte-identicalを確認してから全14タグを正式再生成する。manifestに記録した決定的GUID/fileID schemeとgenerator/runner SHAがrepo実体に一致することも検証する
 - generatorまたは期待schemaを変更した場合は14タグすべてを再生成し、`HistoricalReleaseFixtureTests.cs` と全EditModeテストを通す。fixture、`.meta`、manifestの一部だけを手編集・再生成してはならない
 
-## 依存関係
-
-### 2.0評価の比較基準
+## 2.0評価の比較基準と境界
 
 - `DeformationOutputBaselineFixture.cs` は固定commitの隔離Unityでのみ期待出力を生成する。候補実装でfixtureを更新して差を吸収しない
 - `DeformationOutputCompatibilityTests.cs` は13条件について全Mesh channel、BlendShape全frame、source/upstream不変を比較する。基準と検証hashは `Docs~/Architecture/2026-09-07-output-contracts.md` を参照する
 - 既存14タグcorpusを維持したまま、後続公開28件の対応を `2026-09-07-published-releases.json` に基づいて追加する。棚卸しと実保存fixtureの完成を区別する
+- `Runtime/Evaluation/` の `DeformationEvaluator` が通常Deformと上流PreviewのGroup/Layer合成を共有する。入力は検証済みの同期借用view、managed workspaceはコンポーネント所有とし、非同期処理へ渡さない
+- `GeneratedBlendShapeOutput` の候補は中間頂点bufferから独立させ、上流frameを評価しても保持済み候補を書き換えない。private互換wrapperは既存テスト用に残し、通常の内部利用を追加しない
+
+## 依存関係
 
 - `nadena.dev.ndmf` >= 1.9.0 (VPM)
 - `com.unity.mathematics` 1.2.6
