@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using Unity.Collections;
 using UnityEditor;
 using UnityEngine;
@@ -71,18 +70,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static readonly ProfilerMarker s_validateMarker =
             new ProfilerMarker("Validator.Validate");
         internal static int ValidateCount { get; set; }
-        private static readonly FieldInfo s_groupsField = typeof(LatticeDeformer)
-            .GetField("_groups", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly FieldInfo s_layersField = typeof(DeformerGroup)
-            .GetField("_layers", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly FieldInfo s_settingsField = typeof(LatticeLayer)
-            .GetField("_settings", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly FieldInfo s_activeGroupIndexField = typeof(LatticeDeformer)
-            .GetField("_activeGroupIndex", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly FieldInfo s_profileGroupsField = typeof(MeshDeformerProfile)
-            .GetField("_groups", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly FieldInfo s_profileActiveGroupIndexField = typeof(MeshDeformerProfile)
-            .GetField("_activeGroupIndex", BindingFlags.Instance | BindingFlags.NonPublic);
         internal const string MissingRenderer = "MDV001";
         internal const string MissingSourceMesh = "MDV002";
         internal const string SourceMeshChanged = "MDV003";
@@ -118,9 +105,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var results = new List<MeshDeformerDiagnostic>();
             if (deformer == null || !deformer.enabled) return results;
 
-            var serialized = new SerializedObject(deformer);
-            serialized.UpdateIfRequiredOrScript();
-            var renderer = ResolveRenderer(serialized);
+            var data = SerializedDeformerReader.Read(deformer);
+            var renderer = ResolveRenderer(data);
             if (renderer == null)
             {
                 Add(results, MissingRenderer, MeshDeformerDiagnosticSeverity.Error, deformer,
@@ -136,9 +122,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return results;
             }
 
-            var serializedSource = serialized.FindProperty("_serializedSourceMesh")?.objectReferenceValue as Mesh;
-            int serializedVertexCount = serialized.FindProperty("_serializedSourceVertexCount")?.intValue ?? 0;
-            int serializedTopologyHash = serialized.FindProperty("_serializedSourceTopologyHash")?.intValue ?? 0;
+            var serializedSource = data.SourceMesh;
+            int serializedVertexCount = data.SourceVertexCount;
+            int serializedTopologyHash = data.SourceTopologyHash;
             if (serializedSource != null && !ReferenceEquals(serializedSource, currentMesh))
             {
                 Add(results, SourceMeshChanged, MeshDeformerDiagnosticSeverity.Error, deformer,
@@ -163,7 +149,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     property: "sharedMesh");
             }
 
-            ValidateRawStructure(serialized, deformer, results);
+            ValidateRawStructure(data, deformer, results);
             ValidateGroups(deformer, currentMesh, results);
             ValidateProfile(deformer, results);
             ValidateClearance(deformer, renderer, results);
@@ -181,14 +167,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (deformer == null) return 0;
             unchecked
             {
-                bool useProfile = deformer.DataSource == DeformerDataSource.Profile &&
-                                  deformer.Profile != null;
-                List<DeformerGroup> groups = useProfile
-                    ? s_profileGroupsField?.GetValue(deformer.Profile) as List<DeformerGroup>
-                    : s_groupsField?.GetValue(deformer) as List<DeformerGroup>;
-                int activeGroupIndex = useProfile
-                    ? (int)(s_profileActiveGroupIndexField?.GetValue(deformer.Profile) ?? 0)
-                    : (int)(s_activeGroupIndexField?.GetValue(deformer) ?? 0);
+                var data = SerializedDeformerReader.Read(deformer);
+                var groups = data.Groups;
+                int activeGroupIndex = data.ActiveGroupIndex;
                 int hash = 17;
                 hash = hash * 31 + (int)deformer.DataSource;
                 hash = hash * 31 + activeGroupIndex;
@@ -258,52 +239,38 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
 
         private static void ValidateRawStructure(
-            SerializedObject serialized,
+            SerializedDeformerData data,
             LatticeDeformer deformer,
             List<MeshDeformerDiagnostic> results)
         {
-            if (deformer.DataSource == DeformerDataSource.Profile && deformer.Profile != null)
-            {
-                serialized = new SerializedObject(deformer.Profile);
-                serialized.UpdateIfRequiredOrScript();
-            }
-            var groups = serialized.FindProperty("_groups");
-            var activeGroup = serialized.FindProperty("_activeGroupIndex");
-            if (groups == null || !groups.isArray || groups.arraySize == 0)
+            var groups = data.Groups;
+            if (groups == null || groups.Count == 0)
             {
                 Add(results, InvalidGroupStructure, MeshDeformerDiagnosticSeverity.Error, deformer,
                     "The deformer has no groups.", property: "_groups");
                 return;
             }
 
-            if (activeGroup == null || activeGroup.intValue < 0 || activeGroup.intValue >= groups.arraySize)
+            if (data.ActiveGroupIndex < 0 || data.ActiveGroupIndex >= groups.Count)
             {
                 Add(results, InvalidGroupStructure, MeshDeformerDiagnosticSeverity.Error, deformer,
                     "The active group index is outside the group list.", property: "_activeGroupIndex");
             }
 
-            for (int groupIndex = 0; groupIndex < groups.arraySize; groupIndex++)
+            for (int groupIndex = 0; groupIndex < groups.Count; groupIndex++)
             {
-                var group = groups.GetArrayElementAtIndex(groupIndex);
-                if (group == null)
-                {
-                    Add(results, NullGroupOrLayer, MeshDeformerDiagnosticSeverity.Error, deformer,
-                        "The group reference is null.", groupIndex, property: "_groups");
-                    continue;
-                }
-
-                var enabled = group.FindPropertyRelative("_enabled");
-                if (enabled != null && !enabled.boolValue) continue;
-                var layers = group.FindPropertyRelative("_layers");
-                var activeLayer = group.FindPropertyRelative("_activeLayerIndex");
-                if (layers == null || !layers.isArray || layers.arraySize == 0)
+                var group = groups[groupIndex];
+                // ValidateGroups reports null entries, without manufacturing defaults.
+                if (group == null || !group.Enabled) continue;
+                var layers = group.SerializedLayers;
+                if (layers == null || layers.Count == 0)
                 {
                     Add(results, InvalidLayerStructure, MeshDeformerDiagnosticSeverity.Error, deformer,
                         "An enabled group has no layers.", groupIndex, property: "_layers");
                     continue;
                 }
 
-                if (activeLayer == null || activeLayer.intValue < 0 || activeLayer.intValue >= layers.arraySize)
+                if (group.SerializedActiveLayerIndex < 0 || group.SerializedActiveLayerIndex >= layers.Count)
                 {
                     Add(results, InvalidLayerStructure, MeshDeformerDiagnosticSeverity.Error, deformer,
                         "The active layer index is outside the layer list.", groupIndex, property: "_activeLayerIndex");
@@ -340,7 +307,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         groupIndex, -1, "_blendShapeName");
                 }
 
-                var layers = s_layersField?.GetValue(group) as List<LatticeLayer>;
+                var layers = group.SerializedLayers;
                 if (layers == null) continue;
                 for (int layerIndex = 0; layerIndex < layers.Count; layerIndex++)
                 {
@@ -396,7 +363,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     else
                     {
                         ValidateLattice(deformer, results,
-                            s_settingsField?.GetValue(layer) as LatticeAsset, groupIndex, layerIndex);
+                            layer.SerializedSettings, groupIndex, layerIndex);
                     }
 
                     if (layer.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
@@ -536,21 +503,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private static Renderer ResolveRenderer(SerializedObject serialized)
+        private static Renderer ResolveRenderer(SerializedDeformerData data)
         {
-            var skinned = serialized.FindProperty("_skinnedMeshRenderer")?.objectReferenceValue as SkinnedMeshRenderer;
+            var skinned = data.SkinnedRenderer;
             if (skinned != null) return skinned;
-            var filter = serialized.FindProperty("_meshFilter")?.objectReferenceValue as MeshFilter;
+            var filter = data.MeshFilter;
             return filter != null ? filter.GetComponent<MeshRenderer>() : null;
         }
 
-        private static List<DeformerGroup> GetValidationGroups(LatticeDeformer deformer)
+        private static IReadOnlyList<DeformerGroup> GetValidationGroups(LatticeDeformer deformer)
         {
-            if (deformer.DataSource == DeformerDataSource.Profile && deformer.Profile != null)
-            {
-                return deformer.Groups as List<DeformerGroup> ?? deformer.Groups.ToList();
-            }
-            return s_groupsField?.GetValue(deformer) as List<DeformerGroup>;
+            return SerializedDeformerReader.Read(deformer).Groups;
         }
 
         private static Mesh GetRendererMesh(Renderer renderer)

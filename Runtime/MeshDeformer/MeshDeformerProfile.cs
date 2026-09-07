@@ -188,6 +188,9 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private List<DeformerGroup> _readOnlyGroupSource;
         [NonSerialized] private ReadOnlyCollection<DeformerGroup> _readOnlyGroups;
 
+        internal IReadOnlyList<DeformerGroup> SerializedGroups => _groups;
+        internal int SerializedActiveGroupIndex => _activeGroupIndex;
+
         public IReadOnlyList<DeformerGroup> Groups
         {
             get

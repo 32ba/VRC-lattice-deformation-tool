@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using System.Reflection;
 using nadena.dev.ndmf.preview;
 using UnityEditor;
 using UnityEditor.EditorTools;
@@ -586,13 +585,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (target is LatticeDeformer d)
                 {
-                    Undo.RecordObject(d, "Add Group");
-                    d.AddGroup();
-                    EditorUtility.SetDirty(d);
-                    serializedObject.Update();
-                    ResolveActiveGroupProperties();
-                    RebuildGroupList();
-                    NotifyPropertyChanges();
+                    PerformGroupOperation(() => DeformerEditService.AddGroup(d, "Add Group"));
                 }
             }) { text = "+" };
             addGroupBtn.style.width = 25;
@@ -607,13 +600,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (target is LatticeDeformer d && d.GroupCount > 1)
                 {
-                    Undo.RecordObject(d, "Remove Group");
-                    d.RemoveGroup(d.ActiveGroupIndex);
-                    EditorUtility.SetDirty(d);
-                    serializedObject.Update();
-                    ResolveActiveGroupProperties();
-                    RebuildGroupList();
-                    NotifyPropertyChanges();
+                    PerformGroupOperation(() => DeformerEditService.RemoveGroup(d, d.ActiveGroupIndex, "Remove Group"));
                 }
             }) { text = "\u2212" };
             removeGroupBtn.style.width = 25;
@@ -644,13 +631,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.DuplicateGroup), _ =>
                 {
-                    Undo.RecordObject(d, LatticeLocalization.Tr(LocKey.DuplicateGroup));
                     DuplicateGroup(d, groupIndex);
-                    EditorUtility.SetDirty(d);
-                    serializedObject.Update();
-                    ResolveActiveGroupProperties();
-                    RebuildGroupList();
-                    NotifyPropertyChanges();
                 });
                 evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.CopyGroup), _ =>
                 {
@@ -658,25 +639,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 });
                 evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.PasteGroup), _ =>
                 {
-                    Undo.RecordObject(d, LatticeLocalization.Tr(LocKey.PasteGroup));
                     PasteGroup(d);
-                    EditorUtility.SetDirty(d);
-                    serializedObject.Update();
-                    ResolveActiveGroupProperties();
-                    RebuildGroupList();
-                    NotifyPropertyChanges();
                 }, string.IsNullOrEmpty(s_copiedGroupJson) ? DropdownMenuAction.Status.Disabled : DropdownMenuAction.Status.Normal);
                 evt.menu.AppendSeparator();
                 evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.DeleteGroup), _ =>
                 {
                     if (d.GroupCount <= 1) return;
-                    Undo.RecordObject(d, LatticeLocalization.Tr(LocKey.DeleteGroup));
-                    d.RemoveGroup(groupIndex);
-                    EditorUtility.SetDirty(d);
-                    serializedObject.Update();
-                    ResolveActiveGroupProperties();
-                    RebuildGroupList();
-                    NotifyPropertyChanges();
+                    PerformGroupOperation(() => DeformerEditService.RemoveGroup(
+                        d, groupIndex, LatticeLocalization.Tr(LocKey.DeleteGroup)));
                 }, d.GroupCount <= 1 ? DropdownMenuAction.Status.Disabled : DropdownMenuAction.Status.Normal);
             }));
 
@@ -853,21 +823,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void OnGroupReordered(int oldIndex, int newIndex)
         {
             if (target is not LatticeDeformer d) return;
-            Undo.RecordObject(d, "Reorder Group");
-
-            serializedObject.Update();
-            _groupsProp.MoveArrayElement(oldIndex, newIndex);
-            // Adjust active group index
-            int active = _activeGroupIndexProp.intValue;
-            if (active == oldIndex)
-                _activeGroupIndexProp.intValue = newIndex;
-            else if (oldIndex < active && newIndex >= active)
-                _activeGroupIndexProp.intValue = active - 1;
-            else if (oldIndex > active && newIndex <= active)
-                _activeGroupIndexProp.intValue = active + 1;
-            serializedObject.ApplyModifiedProperties();
-            ResolveActiveGroupProperties();
-            NotifyPropertyChanges();
+            PerformGroupOperation(() => DeformerEditService.MoveGroup(d, oldIndex, newIndex, "Reorder Group"));
         }
 
         private void OnGroupSelectionChanged()
@@ -1310,13 +1266,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void NotifyPropertyChanges()
         {
+            NotifyPropertyChanges(false);
+        }
+
+        private void NotifyPropertyChanges(bool dataAlreadyInvalidated)
+        {
             InvalidateClearanceEvaluation();
             bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
             foreach (var instance in EnumerateTargets())
             {
-                instance.InvalidateCache();
+                if (!dataAlreadyInvalidated) instance.InvalidateCache();
                 instance.Deform(assignRuntimeMesh);
-                LatticePrefabUtility.MarkModified(instance);
+                if (!dataAlreadyInvalidated) LatticePrefabUtility.MarkModified(instance);
             }
 
             if (targets.Length == 1 && target is LatticeDeformer activeDeformer)
@@ -3159,43 +3120,32 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void DuplicateGroup(LatticeDeformer deformer, int groupIndex)
         {
-            var groups = deformer.Groups;
-            if (groupIndex < 0 || groupIndex >= groups.Count) return;
-            var srcGroup = groups[groupIndex];
-            string json = JsonUtility.ToJson(srcGroup);
-            var newGroup = new DeformerGroup();
-            JsonUtility.FromJsonOverwrite(json, newGroup);
-            newGroup.Name = srcGroup.Name + " Copy";
-
-            // Use reflection to access _groups list directly for insert
-            var groupsField = typeof(LatticeDeformer).GetField("_groups", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (groupsField?.GetValue(deformer) is List<DeformerGroup> groupsList)
-            {
-                int insertAt = Mathf.Clamp(groupIndex + 1, 0, groupsList.Count);
-                groupsList.Insert(insertAt, newGroup);
-                deformer.ActiveGroupIndex = insertAt;
-            }
+            PerformGroupOperation(() => DeformerEditService.DuplicateGroup(
+                deformer, groupIndex, LatticeLocalization.Tr(LocKey.DuplicateGroup)));
         }
 
         private void CopyGroup(LatticeDeformer deformer, int groupIndex)
         {
-            var groups = deformer.Groups;
-            if (groupIndex < 0 || groupIndex >= groups.Count) return;
+            var groups = SerializedDeformerReader.Read(deformer).Groups;
+            if (groups == null || groupIndex < 0 || groupIndex >= groups.Count) return;
             s_copiedGroupJson = JsonUtility.ToJson(groups[groupIndex]);
         }
 
         private void PasteGroup(LatticeDeformer deformer)
         {
-            if (string.IsNullOrEmpty(s_copiedGroupJson)) return;
-            var newGroup = new DeformerGroup();
-            JsonUtility.FromJsonOverwrite(s_copiedGroupJson, newGroup);
+            PerformGroupOperation(() => DeformerEditService.PasteGroup(
+                deformer, s_copiedGroupJson, LatticeLocalization.Tr(LocKey.PasteGroup)));
+        }
 
-            var groupsField = typeof(LatticeDeformer).GetField("_groups", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (groupsField?.GetValue(deformer) is List<DeformerGroup> groupsList)
-            {
-                groupsList.Add(newGroup);
-                deformer.ActiveGroupIndex = groupsList.Count - 1;
-            }
+        private void PerformGroupOperation(Func<bool> operation)
+        {
+            serializedObject.ApplyModifiedProperties();
+            bool changed = operation();
+            serializedObject.Update();
+            if (!changed) return;
+            ResolveActiveGroupProperties();
+            RebuildGroupList();
+            NotifyPropertyChanges(true);
         }
 
         private static void SyncActiveToolToLayer(LatticeDeformer deformer)

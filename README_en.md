@@ -13,6 +13,10 @@ Use it for fitting clothing, hair, and accessories, manually correcting intersec
 
 日本語ドキュメント: [README.md](README.md)
 
+This branch develops `2.0.0-beta.1`, an internal refactoring that preserves existing data and functionality.
+The first stage separates validation reads and group editing operations while retaining the existing serialized format.
+See the [development status](Docs~/Architecture/2.0.0-beta.1-progress.md) for the implemented scope, test results, and remaining stages.
+
 ## Main features
 
 - **Lattice**: Move control points to deform broad areas smoothly

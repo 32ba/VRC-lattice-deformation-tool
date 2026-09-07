@@ -884,6 +884,11 @@ namespace Net._32Ba.LatticeDeformationTool
 
         internal bool UsesLegacyAbsoluteLatticeEvaluation => _legacyAbsoluteLatticeEvaluation;
 
+        internal SerializedDeformerData ReadSerializedData() => new SerializedDeformerData(
+            _groups, _activeGroupIndex, _dataSource, _profile,
+            _skinnedMeshRenderer, _meshFilter, _serializedSourceMesh,
+            _serializedSourceVertexCount, _serializedSourceTopologyHash);
+
         private readonly struct GeneratedBlendShape
         {
             public readonly string Name;
@@ -1149,6 +1154,39 @@ namespace Net._32Ba.LatticeDeformationTool
             groups.Add(group);
             _activeGroupIndex = groups.Count - 1;
             return _activeGroupIndex;
+        }
+
+        /// <summary>
+        /// Inserts an authored group and selects it. Like InsertLayer, the caller
+        /// owns the inserted payload and requests evaluation after editing.
+        /// An index of -1 appends the group.
+        /// </summary>
+        public int InsertGroup(DeformerGroup group, int index = -1)
+        {
+            if (group == null || index < -1) return -1;
+            if (!EnsureGroups()) return -1;
+            var groups = GetGroupStorage();
+            int insertAt = index < 0 ? groups.Count : index;
+            if (insertAt > groups.Count) return -1;
+            groups.Insert(insertAt, group);
+            _activeGroupIndex = insertAt;
+            return insertAt;
+        }
+
+        /// <summary>Moves a group while retaining the selected group's identity.</summary>
+        public bool MoveGroup(int oldIndex, int newIndex)
+        {
+            if (oldIndex < 0 || newIndex < 0 || oldIndex == newIndex) return false;
+            if (!EnsureGroups()) return false;
+            var groups = GetGroupStorage();
+            if (oldIndex >= groups.Count || newIndex >= groups.Count) return false;
+            var group = groups[oldIndex];
+            groups.RemoveAt(oldIndex);
+            groups.Insert(newIndex, group);
+            if (_activeGroupIndex == oldIndex) _activeGroupIndex = newIndex;
+            else if (oldIndex < _activeGroupIndex && newIndex >= _activeGroupIndex) _activeGroupIndex--;
+            else if (oldIndex > _activeGroupIndex && newIndex <= _activeGroupIndex) _activeGroupIndex++;
+            return true;
         }
 
         public bool RemoveGroup(int index)
