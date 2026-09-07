@@ -372,6 +372,10 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - 進捗番号はschema識別そのものではない。Prefab Variantが更新済みの親から進捗を継承し、自身のoverrideに古いschemaを残す場合は、純粋なpreflightを通ったraw markerから進捗を再開する。既知のstale-current構造の復旧もraw fieldとPrefab overrideを含む同じ原子的commitに入れる。未知の破損や範囲外の選択をこの処理で補正しない
 - `PublishedDeformationMigrationTests` は全42境界の失敗・再試行、途中保存、Prefab Variantの継承/Apply/Revert、Undo、拒否時の不変を確認する。`ReleaseJournalFixtureTests` は旧/後続corpusのLatticeDeformer 102ケースで新しい全release入口のdirect/stepwise/save-reloadを照合する。既存の旧enum段階テストとfixture期待値は変更しない
 - `Tools~/ArchitectureBaseline/` は隔離Unityでの同期評価Profiler、プロセス上限監視、比較とソース照合を提供する。較正に成功した `GC.Alloc` のsize metadataだけを割当量として扱い、frame読取りにsample名の大量文字列化を使わない。基準は `Docs~/Architecture/2026-09-07-evaluation-performance.md` を参照する
+- `Editor/Preview/DeformerPreviewSession` はNDMF nodeごとの変更revision、同一Meshへの更新、Interactive通知とUndo購読を所有する。`MeshDeformerPreviewFilter` はplacement・入力検証とNDMF callbackの接続を維持し、既存のprivate node入口は互換テストから利用できる
+- `PreviewMeshLease` は生成Meshだけを所有し、各proxyで置き換えた上流Meshを借用する。終了時はproxyが自身の一意な出力Meshをまだ参照している場合だけ復元し、別世代・後段の割当てを上書きしない。元Renderer、上流Mesh、既存のproxy generation/token登録を変更・破棄しない。遅れて届いたproxyにも独立した復元先を保持し、終了・二重終了・破棄済みproxyを同じ処理で扱う
+- NDMF Bakeは対象componentの破棄中だけ `SuppressMeshRestoration()` のscopeを使用する。scopeはownerごとに入れ子と二重Disposeを処理し、例外・native component破棄後にも閉じられる。既存public `SuppressRestoreOnDisable` の意味とAPIは互換用に維持するが、通常のBuildはglobal値を書き換えない
+- `PreviewOwnershipTests` と `MeshRestorationScopeTests` は終了時復元、世代交代、外部割当て、遅延proxy、破棄順、評価拒否と再試行、二重終了後のUndo、owner限定の復元抑止を確認する。実Scene View/NDMFの検証には起動済みの正常な `Plugin-dev-playground` を使用し、元のシーン・package参照を保全して一時Sceneで比較する。`Mayo` など別projectを代用しない
 
 ## 依存関係
 

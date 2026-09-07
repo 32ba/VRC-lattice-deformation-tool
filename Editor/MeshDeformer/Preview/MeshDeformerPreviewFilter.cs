@@ -22,12 +22,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             AfterTopologyChanges,
         }
 
-        private static readonly ProfilerMarker s_updateMeshMarker =
-            new ProfilerMarker("Preview.UpdateMesh");
         private static readonly ProfilerMarker s_copyBlendShapesMarker =
             new ProfilerMarker("Preview.CopyBlendShapes");
-        private static readonly ProfilerMarker s_deformMarker =
-            new ProfilerMarker("Preview.Deform");
         private static readonly ProfilerMarker s_bakeBlendShapeSurfaceMarker =
             new ProfilerMarker("Preview.BakeBlendShapeSurfaceDeltas");
         internal static int BlendShapeCopyCount { get; set; }
@@ -79,38 +75,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        internal static Mesh GetRendererMesh(Renderer renderer)
-        {
-            switch (renderer)
-            {
-                case SkinnedMeshRenderer skinned:
-                    return skinned.sharedMesh;
-                case MeshRenderer meshRenderer:
-                    return meshRenderer.GetComponent<MeshFilter>()?.sharedMesh;
-                default:
-                    return null;
-            }
-        }
+        internal static Mesh GetRendererMesh(Renderer renderer) => PreviewRendererMesh.Get(renderer);
 
-        internal static void AssignRendererMesh(Renderer renderer, Mesh mesh)
-        {
-            switch (renderer)
-            {
-                case SkinnedMeshRenderer skinned:
-                    skinned.sharedMesh = mesh;
-                    break;
-                case MeshRenderer meshRenderer:
-                {
-                    var meshFilter = meshRenderer.GetComponent<MeshFilter>();
-                    if (meshFilter != null)
-                    {
-                        meshFilter.sharedMesh = mesh;
-                    }
-
-                    break;
-                }
-            }
-        }
+        internal static void AssignRendererMesh(Renderer renderer, Mesh mesh) => PreviewRendererMesh.Assign(renderer, mesh);
 
         internal static void RestoreProxyMesh(
             Renderer original,
@@ -306,8 +273,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return Task.FromResult<IRenderFilterNode>(new NoOpNode());
             }
 
-            var node = new PreviewNode(deformer, pairList, previewMesh, evaluationTarget);
-            return Task.FromResult<IRenderFilterNode>(node);
+            try
+            {
+                return Task.FromResult<IRenderFilterNode>(
+                    new PreviewNode(deformer, pairList, previewMesh, evaluationTarget));
+            }
+            catch
+            {
+                if (previewMesh != null) UnityEngine.Object.DestroyImmediate(previewMesh);
+                throw;
+            }
         }
 
         private bool MatchesPlacement(LatticeDeformer deformer)
@@ -382,12 +357,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private sealed class PreviewNode : IRenderFilterNode
         {
-            private readonly LatticeDeformer _deformer;
-            private readonly List<Target> _targets = new List<Target>();
-            private readonly Mesh _previewMesh;
-            private readonly Mesh _upstreamMesh;
-            private int _lastDeformationDataRevision;
-            private int _lastRuntimeMeshRevision;
+            private readonly DeformerPreviewSession _session;
 
             public PreviewNode(
                 LatticeDeformer deformer,
@@ -395,178 +365,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Mesh previewMesh,
                 Mesh upstreamMesh = null)
             {
-                _deformer = deformer;
-                _previewMesh = previewMesh;
-                _upstreamMesh = upstreamMesh ?? proxyPairs
-                    .Select(pair => GetRendererMesh(pair.proxy))
-                    .FirstOrDefault(mesh => mesh != null);
-                _previewMesh.MarkDynamic();
-                _lastDeformationDataRevision = _deformer != null
-                    ? _deformer.DeformationDataRevision
-                    : 0;
-                _lastRuntimeMeshRevision = _deformer != null
-                    ? _deformer.RuntimeMeshRevision
-                    : 0;
-
-                foreach (var (original, proxy) in proxyPairs)
-                {
-                    if (original == null || proxy == null)
-                    {
-                        continue;
-                    }
-
-                    var target = new Target
-                    {
-                        ProxyRenderer = proxy,
-                    };
-
-                    ApplyPreviewMesh(target);
-                    _targets.Add(target);
-                }
-
-                LatticePreviewUtility.RegisterPreviewUndoTarget(_deformer);
-                LatticePreviewUtility.InteractiveDeformationPublished +=
-                    OnInteractiveDeformationPublished;
+                _session = new DeformerPreviewSession(deformer, proxyPairs, previewMesh, upstreamMesh);
             }
 
             public RenderAspects WhatChanged => RenderAspects.Mesh;
-
-            public void OnFrame(Renderer original, Renderer proxy)
-            {
-                var target = EnsureTarget(original, proxy);
-                ApplyPreviewMesh(target);
-            }
-
-            public void OnFrameGroup()
-            {
-                int currentDeformationDataRevision = _deformer != null
-                    ? _deformer.DeformationDataRevision
-                    : 0;
-                int currentRuntimeMeshRevision = _deformer != null
-                    ? _deformer.RuntimeMeshRevision
-                    : 0;
-                bool deformationChanged =
-                    currentDeformationDataRevision != _lastDeformationDataRevision ||
-                    currentRuntimeMeshRevision != _lastRuntimeMeshRevision;
-                if (!deformationChanged) return;
-
-                // Keep the same Mesh instance assigned to every proxy. Replacing the
-                // node here would briefly restore the upstream mesh and visibly drop
-                // active source BlendShapes for one rendered frame.
-                //
-                UpdateAndPublishPreviewMesh();
-            }
-
-            public void Dispose()
-            {
-                LatticePreviewUtility.InteractiveDeformationPublished -=
-                    OnInteractiveDeformationPublished;
-                LatticePreviewUtility.UnregisterPreviewUndoTarget(_deformer);
-
-                if (_previewMesh != null)
-                {
-                    UnityEngine.Object.DestroyImmediate(_previewMesh);
-                }
-            }
-
-            private void OnInteractiveDeformationPublished(LatticeDeformer deformer)
-            {
-                if (!ReferenceEquals(deformer, _deformer))
-                {
-                    return;
-                }
-
-                UpdateAndPublishPreviewMesh();
-            }
-
-            private bool UpdateAndPublishPreviewMesh()
-            {
-                if (!UpdatePreviewMesh())
-                {
-                    return false;
-                }
-
-                _lastDeformationDataRevision = _deformer != null
-                    ? _deformer.DeformationDataRevision
-                    : 0;
-                _lastRuntimeMeshRevision = _deformer != null
-                    ? _deformer.RuntimeMeshRevision
-                    : 0;
-                return true;
-            }
-
-            private void ApplyPreviewMesh(Target target)
-            {
-                if (target == null || target.ProxyRenderer == null)
-                {
-                    return;
-                }
-
-                AssignRendererMesh(target.ProxyRenderer, _previewMesh);
-            }
-
-            private bool UpdatePreviewMesh()
-            {
-                if (_deformer == null || _previewMesh == null)
-                {
-                    return false;
-                }
-
-                Mesh runtimeMesh;
-                using (s_deformMarker.Auto())
-                    runtimeMesh = _deformer.CreatePreviewMeshFromInput(_upstreamMesh);
-                if (runtimeMesh == null)
-                {
-                    return false;
-                }
-
-                try
-                {
-                    using (s_updateMeshMarker.Auto())
-                    {
-                        EditorUtility.CopySerialized(runtimeMesh, _previewMesh);
-                        _previewMesh.hideFlags = HideFlags.HideAndDontSave;
-                    }
-                }
-                finally
-                {
-                    UnityEngine.Object.DestroyImmediate(runtimeMesh);
-                }
-
-                foreach (var target in _targets)
-                {
-                    ApplyPreviewMesh(target);
-                }
-                return true;
-            }
-
-            private Target EnsureTarget(Renderer original, Renderer proxy)
-            {
-                var existing = _targets.FirstOrDefault(t => t.ProxyRenderer == proxy);
-                if (existing != null)
-                {
-                    return existing;
-                }
-
-                if (original == null || proxy == null)
-                {
-                    return null;
-                }
-
-                var target = new Target
-                {
-                    ProxyRenderer = proxy,
-                };
-
-                ApplyPreviewMesh(target);
-                _targets.Add(target);
-                return target;
-            }
-        }
-
-        private sealed class Target
-        {
-            public Renderer ProxyRenderer;
+            public void OnFrame(Renderer original, Renderer proxy) => _session.OnFrame(original, proxy);
+            public void OnFrameGroup() => _session.UpdateIfChanged();
+            public void Dispose() => _session.Dispose();
         }
 
         private static Mesh GeneratePreviewMesh(LatticeDeformer deformer)

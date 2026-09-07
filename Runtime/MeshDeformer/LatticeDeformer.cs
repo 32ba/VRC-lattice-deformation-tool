@@ -15,6 +15,30 @@ namespace Net._32Ba.LatticeDeformationTool
     {
         public static bool SuppressRestoreOnDisable { get; set; } = false;
 
+        [NonSerialized] private int _meshRestorationSuppressionDepth;
+
+        internal IDisposable SuppressMeshRestoration() => new MeshRestorationScope(this);
+
+        private sealed class MeshRestorationScope : IDisposable
+        {
+            private LatticeDeformer _owner;
+
+            internal MeshRestorationScope(LatticeDeformer owner)
+            {
+                _owner = owner;
+                owner._meshRestorationSuppressionDepth++;
+            }
+
+            public void Dispose()
+            {
+                var owner = _owner;
+                _owner = null;
+                // The build destroys the native component before this scope closes.
+                // Its managed lifetime still owns the suppression counter.
+                if (!ReferenceEquals(owner, null)) owner._meshRestorationSuppressionDepth--;
+            }
+        }
+
         public enum LatticeAlignMode
         {
             Mode1_TransformOnly = 0,
@@ -1621,7 +1645,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            if (SuppressRestoreOnDisable)
+            if (SuppressRestoreOnDisable || _meshRestorationSuppressionDepth > 0)
             {
                 ReleaseRuntimeMesh();
                 return;
@@ -1633,7 +1657,7 @@ namespace Net._32Ba.LatticeDeformationTool
         private void OnDestroy()
         {
             ReleaseDeformationNativeBuffers();
-            if (SuppressRestoreOnDisable)
+            if (SuppressRestoreOnDisable || _meshRestorationSuppressionDepth > 0)
             {
                 ReleaseRuntimeMesh();
                 return;

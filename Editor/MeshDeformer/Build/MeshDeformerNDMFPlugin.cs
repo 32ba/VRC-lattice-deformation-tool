@@ -59,19 +59,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     $"Mesh Deformer validation failed for '{invalidName}'. See MDV diagnostic codes in the Editor log.");
             }
 
-            bool previousSuppressRestore = LatticeDeformer.SuppressRestoreOnDisable;
-            try
+            foreach (var deformer in deformers)
             {
-                LatticeDeformer.SuppressRestoreOnDisable = true;
-
-                foreach (var deformer in deformers)
-                {
-                    ProcessValidatedDeformer(context, deformer);
-                }
-            }
-            finally
-            {
-                LatticeDeformer.SuppressRestoreOnDisable = previousSuppressRestore;
+                ProcessValidatedDeformer(context, deformer);
             }
         }
 
@@ -159,7 +149,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 meshFilter.sharedMesh = exportMesh;
             }
 
-            Object.DestroyImmediate(deformer, true);
+            using (deformer.SuppressMeshRestoration())
+                Object.DestroyImmediate(deformer, true);
         }
 
         internal static bool ShouldProcessDeformer(LatticeDeformer deformer)
