@@ -82,7 +82,7 @@ try {
         assemblySha256 = (Get-FileHash -LiteralPath $AssemblyPath -Algorithm SHA256).Hash.ToLowerInvariant()
         allowUnityJobInitialization = [bool]$AllowUnityJobInitialization
         assemblyReferences = @($module.AssemblyReferences.Name)
-        externalTypes = @($externalTypes.FullName)
+        externalTypes = @($externalTypes | ForEach-Object { $_.FullName })
         allowedInitializers = @($allowedInitializers)
         violationCount = $violations.Count
         violations = @($violations)

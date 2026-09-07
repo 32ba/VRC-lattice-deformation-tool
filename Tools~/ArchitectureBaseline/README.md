@@ -55,3 +55,12 @@ p95が10%を超えて増加した条件、最大GC割当の増加、破棄後の
 ソース照合は改行とUnityが空のimporter値へ追加する空白だけを明示的に正規化し、GUIDやC#本文の違いを許容しない。
 
 このharnessはScene Viewの描画、drag入力、上流Preview、Clearance、Weight Transferの測定を代替しない。
+
+## Runtimeのassembly依存
+
+`Verify-RuntimeDependencies.ps1` はUnityのコンパイルDLLをMono.Cecilで読み、Editor/NDMFのassembly・型・member参照とIL呼出しを検査する。
+`-AssemblyPath`、検証projectに導入済みの `Mono.Cecil.dll` を示す `-CecilPath`、結果の `-OutputPath` を指定する。
+コンパイル直後のDLLは例外なしで検査する。
+UnityのJobs処理後のDLLに限り `-AllowUnityJobInitialization` を付けると、生成型 `__JobReflectionRegistrationOutput__<number>` の静的 `EarlyInit` に付いた `InitializeOnLoadMethodAttribute` だけを許可する。
+Editor APIの呼出し、他のEditor型、製品型への属性付与は引き続き拒否し、違反時は終了code 1を返す。
+Unityの自動生成方式が変わって検査に失敗した場合は、実際のILを確認してから許可条件を更新する。
