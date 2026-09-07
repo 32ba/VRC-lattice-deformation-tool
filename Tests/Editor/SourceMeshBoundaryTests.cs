@@ -10,11 +10,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     public sealed class SourceMeshBoundaryTests
     {
         [Test]
-        public void RuntimeAssembly_DoesNotReferenceEditorOrNdmfAssemblies()
+        public void PlatformAdapter_IsRegisteredAndRuntimeDoesNotReferenceNdmf()
         {
             var references = typeof(LatticeDeformer).Assembly.GetReferencedAssemblies().Select(a => a.Name).ToArray();
-            Assert.That(references.Where(name => name.StartsWith("UnityEditor", StringComparison.Ordinal) ||
-                name.StartsWith("nadena.dev.ndmf", StringComparison.Ordinal)), Is.Empty);
+            Assert.That(references.Where(name => name.StartsWith("nadena.dev.ndmf", StringComparison.Ordinal)), Is.Empty);
+            // Unity adds an Editor initialization attribute to generated Jobs IL.
+            // Verify-RuntimeDependencies.ps1 inspects the pre/post-processed DLLs
+            // and permits only that generated attribute, never Editor API calls.
             Assert.That(DeformerPlatformServices.EditorMeshDataReader, Is.Not.Null);
             Assert.That(DeformerPlatformServices.RecordLegacyMigration, Is.Not.Null);
         }
