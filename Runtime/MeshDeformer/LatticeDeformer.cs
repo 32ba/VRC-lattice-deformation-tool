@@ -1903,7 +1903,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 ResolveEvaluationSemantics());
         }
 
-        private MeshOutputOptions GetMeshOutputOptions() => new MeshOutputOptions(
+        internal MeshOutputOptions GetMeshOutputOptions() => new MeshOutputOptions(
             _recalculateNormals, _recalculateTangents, _recalculateBounds, _normalsRecalculationMode,
             _legacyPublishedBlendShapeSemantics);
 

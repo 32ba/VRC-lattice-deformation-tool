@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using nadena.dev.ndmf.preview;
 using UnityEditor;
 using UnityEditor.EditorTools;
@@ -21,6 +20,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SerializedProperty _groupsProp;
         private SerializedProperty _activeGroupIndexProp;
         private ProfileInspectorSection _profileInspector;
+        private ValidationInspectorSection _validationInspector;
+        private SupportInspectorSection _supportInspector;
+        private MeshRebuildInspectorSection _rebuildInspector;
         // These are resolved per-frame from the active group
         private SerializedProperty _layersProp;
         private SerializedProperty _activeLayerIndexProp;
@@ -29,14 +31,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SerializedProperty _blendShapeCurveProp;
         private SerializedProperty _skinnedRendererProp;
         private SerializedProperty _meshFilterProp;
-        private SerializedProperty _recalcNormalsProp;
-        private SerializedProperty _normalsModeProp;
-        private SerializedProperty _recalcTangentsProp;
-        private SerializedProperty _recalcBoundsProp;
-        private SerializedProperty _recalcBoneWeightsProp;
         private ClearanceInspectorSection _clearanceInspector;
         private BlendShapeTestSession _blendShapeTestSession;
-        private SerializedProperty _weightTransferSettingsProp;
         private SerializedProperty _alignModeProp;
         private SerializedProperty _clampMulXYProp;
         private SerializedProperty _clampMinXYProp;
@@ -52,13 +48,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static GUIContent s_linkOff;
         private static readonly GUIContent[] s_xyzLabels = { new GUIContent("X"), new GUIContent("Y"), new GUIContent("Z") };
 
-        private static bool s_showOptions = false;
         private static bool s_showLayerStack = true;
         private static bool s_showAlignSettings = false;
-        private static bool s_showWeightTransferSettings = false;
         private static bool s_showBlendShapeOutput = false;
         private static bool s_showLayerSettings = false;
-        private static bool s_showSupportInformation = false;
         private static readonly Dictionary<long, Vector3Int> s_pendingGridSizes = new();
         private static string s_copiedLayerJson = null;
         private static MeshDeformerLayerType s_copiedLayerType;
@@ -75,10 +68,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly List<int> _layerIndices = new();
         private int _cachedLayerCount = -1;
         private int _cachedActiveIndex = -1;
-        private IReadOnlyList<MeshDeformerDiagnostic> _cachedValidationDiagnostics;
-        private int _cachedValidationStateHash;
-        private bool _hasCachedValidationState;
-        private double _supportReportSavedUntil;
 
         private void OnEnable()
         {
@@ -87,16 +76,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _groupsProp = serializedObject.FindProperty("_groups");
             _activeGroupIndexProp = serializedObject.FindProperty("_activeGroupIndex");
             _profileInspector = new ProfileInspectorSection(this, RebuildGroupList);
+            _rebuildInspector = new MeshRebuildInspectorSection(serializedObject);
+            _supportInspector = new SupportInspectorSection(this);
+            _validationInspector = new ValidationInspectorSection(this, NotifyPropertyChanges);
             _skinnedRendererProp = serializedObject.FindProperty("_skinnedMeshRenderer");
             _meshFilterProp = serializedObject.FindProperty("_meshFilter");
-            _recalcNormalsProp = serializedObject.FindProperty("_recalculateNormals");
-            _normalsModeProp = serializedObject.FindProperty("_normalsRecalculationMode");
-            _recalcTangentsProp = serializedObject.FindProperty("_recalculateTangents");
-            _recalcBoundsProp = serializedObject.FindProperty("_recalculateBounds");
-            _recalcBoneWeightsProp = serializedObject.FindProperty("_recalculateBoneWeights");
             _clearanceInspector = new ClearanceInspectorSection(this, OnClearanceLayersChanged);
             _clearanceInspector.Session.Changed += OnClearanceStateChanged;
-            _weightTransferSettingsProp = serializedObject.FindProperty("_weightTransferSettings");
             ResolveActiveGroupProperties();
             _alignModeProp = serializedObject.FindProperty("_alignMode");
             _clampMulXYProp = serializedObject.FindProperty("_centerClampMulXY");
@@ -144,6 +130,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _clearanceInspector = null;
             ExitBlendShapeTestMode();
             _profileInspector = null;
+            _rebuildInspector = null;
+            _supportInspector = null;
+            _validationInspector = null;
 
             foreach (var deformer in EnumerateTargets())
             {
@@ -812,7 +801,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             serializedObject.Update();
             ResolveActiveGroupProperties();
 
-            DrawBuildOptions();
+            _rebuildInspector.Draw();
             if (LatticeDeformationFeatureFlags.ClearanceTools)
             {
                 DrawClearanceHeatmapSettings();
@@ -826,7 +815,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (LatticeDeformationFeatureFlags.ValidationDiagnostics)
             {
-                DrawValidationDiagnostics();
+                _validationInspector.Draw();
             }
 
             EditorGUILayout.Space();
@@ -845,141 +834,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
-            DrawSupportReport();
+            _supportInspector.Draw();
         }
 
-        private void DrawSupportReport()
-        {
-            EditorGUILayout.Space();
-            s_showSupportInformation = EditorGUILayout.BeginFoldoutHeaderGroup(
-                s_showSupportInformation,
-                LatticeLocalization.Tr(LocKey.SupportInformation));
-            if (s_showSupportInformation)
-            {
-                EditorGUILayout.HelpBox(
-                    LatticeLocalization.Tr(LocKey.SupportInformationDescription),
-                    MessageType.Info);
-                using (new EditorGUI.DisabledScope(
-                           targets.Length != 1 || target is not LatticeDeformer))
-                {
-                    if (GUILayout.Button(LatticeLocalization.Tr(LocKey.CopySupportInformation)) &&
-                        target is LatticeDeformer deformer)
-                    {
-                        string path = EditorUtility.SaveFilePanel(
-                            LatticeLocalization.Tr(LocKey.CopySupportInformation),
-                            "",
-                            $"MeshDeformer-Support-{DateTime.UtcNow:yyyyMMdd-HHmmss}.png",
-                            "png");
-                        if (!string.IsNullOrEmpty(path))
-                        {
-                            try
-                            {
-                                File.WriteAllBytes(path, MeshDeformerSupportReport.GeneratePng(deformer));
-                                _supportReportSavedUntil = EditorApplication.timeSinceStartup + 3d;
-                            }
-                            catch (Exception exception)
-                            {
-                                EditorUtility.DisplayDialog("Mesh Deformer", exception.Message, "OK");
-                            }
-                        }
-                    }
-                }
-                if (EditorApplication.timeSinceStartup < _supportReportSavedUntil)
-                {
-                    EditorGUILayout.HelpBox(
-                        LatticeLocalization.Tr(LocKey.SupportInformationCopied),
-                        MessageType.Info);
-                    Repaint();
-                }
-            }
-            EditorGUILayout.EndFoldoutHeaderGroup();
-        }
-
-        private void DrawValidationDiagnostics()
-        {
-            if (targets.Length != 1 || target is not LatticeDeformer deformer) return;
-            var diagnostics = GetCachedValidationDiagnostics(deformer);
-            if (diagnostics.Count == 0) return;
-
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.Validation), EditorStyles.boldLabel);
-            foreach (var diagnostic in diagnostics)
-            {
-                var messageType = diagnostic.Severity switch
-                {
-                    MeshDeformerDiagnosticSeverity.Error => MessageType.Error,
-                    MeshDeformerDiagnosticSeverity.Warning => MessageType.Warning,
-                    _ => MessageType.Info
-                };
-                EditorGUILayout.HelpBox(diagnostic.FormatForLog(), messageType);
-                if (diagnostic.Fix != null &&
-                    GUILayout.Button($"{LatticeLocalization.Tr(LocKey.ValidationFix)}: {diagnostic.FixLabel}"))
-                {
-                    diagnostic.Fix();
-                    serializedObject.Update();
-                    NotifyPropertyChanges();
-                    GUIUtility.ExitGUI();
-                }
-            }
-        }
-
-        internal IReadOnlyList<MeshDeformerDiagnostic> GetCachedValidationDiagnostics(
-            LatticeDeformer deformer)
-        {
-            int validationStateHash = ComputeValidationStateHash(deformer);
-            if (!_hasCachedValidationState ||
-                validationStateHash != _cachedValidationStateHash ||
-                _cachedValidationDiagnostics == null)
-            {
-                _cachedValidationDiagnostics = MeshDeformerValidator.Validate(deformer);
-                _cachedValidationStateHash = validationStateHash;
-                _hasCachedValidationState = true;
-            }
-            return _cachedValidationDiagnostics;
-        }
-
+        internal IReadOnlyList<MeshDeformerDiagnostic> GetCachedValidationDiagnostics(LatticeDeformer deformer)
+            => _validationInspector.State.Read(deformer);
         internal static int ComputeValidationStateHash(LatticeDeformer deformer)
-        {
-            if (deformer == null) return 0;
-            unchecked
-            {
-                int hash = 17;
-                hash = hash * 31 + deformer.GetInstanceID();
-                hash = hash * 31 + EditorUtility.GetDirtyCount(deformer);
-                hash = hash * 31 + MeshDeformerValidator.ComputeInspectorStructureHash(deformer);
-                hash = hash * 31 + deformer.enabled.GetHashCode();
-                Mesh source = deformer.SourceMesh;
-                hash = hash * 31 + (source != null ? source.GetInstanceID() : 0);
-                hash = hash * 31 + (source != null ? EditorUtility.GetDirtyCount(source) : 0);
-                MeshDeformerProfile profile = deformer.Profile;
-                hash = hash * 31 + (profile != null ? profile.GetInstanceID() : 0);
-                hash = hash * 31 + (profile != null ? EditorUtility.GetDirtyCount(profile) : 0);
-                MeshCompatibilityMetadata compatibility = profile?.Compatibility;
-                if (compatibility != null)
-                {
-                    hash = hash * 31 + compatibility.VertexCount;
-                    hash = hash * 31 + compatibility.IndexCount.GetHashCode();
-                    hash = hash * 31 + compatibility.TriangleCount.GetHashCode();
-                    hash = hash * 31 + compatibility.SubMeshCount;
-                    hash = hash * 31 + compatibility.BindPoseCount;
-                    hash = hash * 31 + StringComparer.Ordinal.GetHashCode(
-                        compatibility.BlendShapeSignature);
-                    hash = hash * 31 + StringComparer.Ordinal.GetHashCode(
-                        compatibility.TopologyHash);
-                    hash = hash * 31 + StringComparer.Ordinal.GetHashCode(
-                        compatibility.SourceAssetGuid);
-                    hash = hash * 31 + compatibility.SourceAssetLocalId.GetHashCode();
-                }
-                hash = hash * 31 + SkinnedVertexHelper.StoreMovesInRestSpace.GetHashCode();
-                Renderer targetRenderer = deformer.TargetRenderer;
-                if (ClearanceQueryCache.TryGetRendererLightweightStateHash(targetRenderer, out int targetHash))
-                    hash = hash * 31 + targetHash;
-                Renderer reference = deformer.ClearanceReferenceRenderer;
-                if (ClearanceQueryCache.TryGetRendererLightweightStateHash(reference, out int referenceHash))
-                    hash = hash * 31 + referenceHash;
-                return hash;
-            }
-        }
+            => InspectorValidationState.ComputeValidationStateHash(deformer);
 
         private void NotifyPropertyChanges()
         {
@@ -1020,8 +881,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void OnClearanceStateChanged()
         {
-            _cachedValidationDiagnostics = null;
-            _hasCachedValidationState = false;
+            _validationInspector?.State.Invalidate();
             Repaint();
             SceneView.RepaintAll();
         }
@@ -1029,8 +889,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void InvalidateClearanceEvaluation()
         {
             _clearanceInspector?.Session.Invalidate();
-            _cachedValidationDiagnostics = null;
-            _hasCachedValidationState = false;
+            _validationInspector?.State.Invalidate();
         }
 
         internal ClearanceHeatmapEvaluation GetClearanceEvaluation(
@@ -1676,80 +1535,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private void DrawBuildOptions()
-        {
-            s_showOptions = EditorGUILayout.BeginFoldoutHeaderGroup(s_showOptions, LatticeLocalization.Tr(LocKey.MeshRebuildOptions));
-            if (s_showOptions)
-            {
-                EditorGUI.indentLevel++;
-
-                // Compact horizontal toggles
-                using (new EditorGUILayout.HorizontalScope())
-                {
-                    if (_recalcNormalsProp != null)
-                        _recalcNormalsProp.boolValue = GUILayout.Toggle(_recalcNormalsProp.boolValue, LatticeLocalization.Tr(LocKey.Normals));
-                    if (_recalcTangentsProp != null)
-                        _recalcTangentsProp.boolValue = GUILayout.Toggle(_recalcTangentsProp.boolValue, LatticeLocalization.Tr(LocKey.Tangents));
-                    if (_recalcBoundsProp != null)
-                        _recalcBoundsProp.boolValue = GUILayout.Toggle(_recalcBoundsProp.boolValue, LatticeLocalization.Tr(LocKey.Bounds));
-                }
-
-                if (_recalcNormalsProp != null && _recalcNormalsProp.boolValue && _normalsModeProp != null)
-                {
-                    // Unknown serialized enum values must retain the legacy behavior.
-                    int normalsMode = Mathf.Clamp(_normalsModeProp.enumValueIndex, 0, 1);
-                    _normalsModeProp.enumValueIndex = EditorGUILayout.Popup(
-                        LatticeLocalization.Content(LocKey.NormalsMode),
-                        normalsMode,
-                        new[]
-                        {
-                            LatticeLocalization.Content(LocKey.NormalsLegacyUnityRecalculate),
-                            LatticeLocalization.Content(LocKey.NormalsPreserveSourceSmoothing)
-                        });
-                }
-
-                // Bone weight recalculation (only for SkinnedMeshRenderer)
-                bool hasSkinnedRenderer = _skinnedRendererProp != null &&
-                    !_skinnedRendererProp.hasMultipleDifferentValues &&
-                    _skinnedRendererProp.objectReferenceValue != null;
-
-                using (new EditorGUI.DisabledScope(!hasSkinnedRenderer))
-                {
-                    EditorGUILayout.PropertyField(_recalcBoneWeightsProp, LatticeLocalization.Content(LocKey.RecalculateBoneWeights));
-                }
-
-                if (!hasSkinnedRenderer && _recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue)
-                {
-                    EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.BoneWeightRequiresSMR), MessageType.Info);
-                }
-
-                // Weight transfer settings (shown only when bone weight recalculation is enabled)
-                if (_recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue && hasSkinnedRenderer)
-                {
-                    s_showWeightTransferSettings = EditorGUILayout.Foldout(s_showWeightTransferSettings, LatticeLocalization.Tr(LocKey.WeightTransferSettings), true);
-                    if (s_showWeightTransferSettings && _weightTransferSettingsProp != null)
-                    {
-                        EditorGUI.indentLevel++;
-                        DrawWeightTransferSettings();
-                        EditorGUI.indentLevel--;
-                    }
-                }
-
-                EditorGUILayout.Space();
-                bool previewEnabled = LatticeDeformerPreviewFilter.PreviewToggleEnabled;
-                string previewLabel = previewEnabled
-                    ? LatticeLocalization.Tr(LocKey.NDMFDisableMeshPreview)
-                    : LatticeLocalization.Tr(LocKey.NDMFEnableMeshPreview);
-                if (GUILayout.Button(previewLabel))
-                {
-                    TogglePreviewForTargets(!previewEnabled);
-                }
-
-                EditorGUI.indentLevel--;
-            }
-            EditorGUILayout.EndFoldoutHeaderGroup();
-        }
-
         private void MoveLayer(LatticeDeformer deformer, int fromIndex, int toIndex)
         {
             PerformEditOperation(() => DeformerEditService.MoveLayer(deformer, fromIndex, toIndex, "Reorder Layer"));
@@ -2026,67 +1811,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             for (int i = 0; i < toRemove.Count; i++)
             {
                 s_pendingGridSizes.Remove(toRemove[i]);
-            }
-        }
-
-        private void DrawWeightTransferSettings()
-        {
-            if (_weightTransferSettingsProp == null)
-            {
-                return;
-            }
-
-            // Stage 1 settings
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.Stage1InitialTransfer), EditorStyles.boldLabel);
-
-            var maxDistProp = _weightTransferSettingsProp.FindPropertyRelative("maxTransferDistance");
-            if (maxDistProp != null)
-            {
-                EditorGUILayout.PropertyField(
-                    maxDistProp,
-                    LatticeLocalization.Content(
-                        LocKey.MaxTransferDistance,
-                        "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."));
-            }
-
-            var normalThresholdProp = _weightTransferSettingsProp.FindPropertyRelative("normalAngleThreshold");
-            if (normalThresholdProp != null)
-            {
-                EditorGUILayout.PropertyField(
-                    normalThresholdProp,
-                    LatticeLocalization.Content(
-                        LocKey.NormalAngleThreshold,
-                        "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."));
-            }
-
-            EditorGUILayout.Space(4);
-
-            // Stage 2 settings
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.Stage2WeightInpainting), EditorStyles.boldLabel);
-
-            var enableInpaintingProp = _weightTransferSettingsProp.FindPropertyRelative("enableInpainting");
-            if (enableInpaintingProp != null)
-            {
-                EditorGUILayout.PropertyField(enableInpaintingProp, LatticeLocalization.Content(LocKey.EnableInpainting));
-
-                if (enableInpaintingProp.boolValue)
-                {
-                    EditorGUI.indentLevel++;
-
-                    var maxIterProp = _weightTransferSettingsProp.FindPropertyRelative("maxIterations");
-                    if (maxIterProp != null)
-                    {
-                        EditorGUILayout.PropertyField(maxIterProp, LatticeLocalization.Content(LocKey.MaxIterations));
-                    }
-
-                    var toleranceProp = _weightTransferSettingsProp.FindPropertyRelative("tolerance");
-                    if (toleranceProp != null)
-                    {
-                        EditorGUILayout.PropertyField(toleranceProp, LatticeLocalization.Content(LocKey.Tolerance));
-                    }
-
-                    EditorGUI.indentLevel--;
-                }
             }
         }
 
@@ -2401,7 +2125,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     }
 }
 #endif
-
 
 
 

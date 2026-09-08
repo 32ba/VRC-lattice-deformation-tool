@@ -389,6 +389,9 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - ProfileのInspectorは `UI/ProfileInspectorSection`、互換性query・保存準備・明示操作は `Authoring/ProfileAuthoringService` が担当する。sourceの現在の参照と保存済みtopologyを検査し、保存用copyを準備してから対象ProfileだけをUndo可能に更新・保存する。`SaveAssets`で無関係なdirty assetを一括保存しない。新規作成は未使用の`Assets/`内pathだけへ行い、失敗時は自身が作成したassetだけを解放する。source切替と内蔵への複製は `DeformerEditService` の共通commitへ接続し、通常のLayer操作がProfileを編集しない制約は維持する。null inline Groupを持つ破損テストでは、UnityのJSON化がnullを実体化し得るため、検査自体で修復しないraw readerによる比較を使う
 
+- Inspector の再計算設定は `UI/MeshRebuildInspectorSection`、診断表示は `UI/ValidationInspectorSection` と `Validation/InspectorValidationState` が担当する。表示だけで mixed selection や未知の enum 値を書き戻さず、明示入力時だけ SerializedProperty を変更する。Weight Transfer の計算と設定の保存 path は維持する。
+- サポート情報は `Editor/Support/` の収集・形式 codec・NDMF 調査 adapter・ファイル出力・menu に分離する。既存 `MeshDeformerSupportReport` は形式 v1 の互換 facade として残す。収集は component の保存データを初期化せず、codec は component/Editor/NDMF を参照しない。PNG と decode JSON は同じ原子的ファイル置換を使い、途中失敗で既存ファイルを壊さない。`SupportCodecV1` fixture は変更前の実装 blob `4fcb1f3962534ceb208e68af92fe8a3814861cfa` から取得したもので、候補 codec の出力で期待値を作り直さない。
+
 ## 依存関係
 
 - `nadena.dev.ndmf` >= 1.9.0 (VPM)

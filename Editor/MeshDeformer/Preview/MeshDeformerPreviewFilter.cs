@@ -29,6 +29,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal static int BlendShapeCopyCount { get; set; }
         private readonly Dictionary<Renderer, LatticeDeformer> _rendererToDeformer = new Dictionary<Renderer, LatticeDeformer>();
         private readonly Placement _placement;
+        internal Placement FilterPlacement => _placement;
 
         internal LatticeDeformerPreviewFilter(Placement placement = Placement.Any)
         {
