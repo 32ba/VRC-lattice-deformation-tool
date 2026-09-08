@@ -50,6 +50,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         public void RebuildAndRefresh_KeepSelectionPayloadAndUndo()
         {
             using var f = new Fixture();
+            f.Attach(new VisualElement()); // Window creation itself can advance Unity's Undo group.
             f.Target.ActiveGroupIndex = 1; f.Target.ActiveLayerIndex = 1;
             string before = EditorJsonUtility.ToJson(f.Target);
             int undo = Undo.GetCurrentGroup(), dirty = EditorUtility.GetDirtyCount(f.Target);
@@ -126,8 +127,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             using var f = new Fixture();
             f.Attach(f.Section.Root);
             f.ResizeWindowForInput();
-            yield return null;
-            yield return null;
+            yield return f.WaitForPanelUpdate();
             var list = f.Section.LayerList;
             var row = list.Query<VisualElement>("deformer-layer-row").ToList().Find(r => (int)r.userData == 1);
             var label = row.Q<Label>("layer-type");
@@ -142,8 +142,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 up.target = list; list.SendEvent(up);
             }
-            yield return null;
-            yield return null;
+            yield return f.WaitForPanelUpdate();
             Assert.That(f.Target.ActiveLayerIndex, Is.EqualTo(1));
             Undo.PerformUndo();
             Assert.That(f.Target.ActiveLayerIndex, Is.Zero);
@@ -153,7 +152,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         {
             using var f = new Fixture();
             f.Attach(f.Section.Root);
-            yield return null;
+            f.ResizeWindowForInput();
+            yield return f.WaitForPanelUpdate();
             var groupList = f.Section.GroupList;
             var list = layer ? f.Section.LayerList : groupList;
             Assert.That(list.panel, Is.Not.Null);
@@ -192,8 +192,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 up.target = list; list.SendEvent(up);
             }
             Assert.That(list.panel, Is.Not.Null, "The event dispatcher still uses this panel.");
-            yield return null;
-            yield return null;
+            yield return f.WaitForPanelUpdate();
             if (replaceStorage || cancel)
             {
                 Assert.That(f.Target.ActiveGroupIndex, Is.EqualTo(replaceStorage ? 1 : 0));
@@ -454,7 +453,26 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 }
                 _window.rootVisualElement.Add(row);
             }
-            internal void ResizeWindowForInput() => _window.position = new Rect(100, 100, 800, 900);
+            internal void ResizeWindowForInput()
+            {
+                _window.minSize = new Vector2(800, 900);
+                _window.position = new Rect(100, 100, 800, 900);
+                _window.rootVisualElement.style.width = 800;
+                _window.rootVisualElement.style.height = 900;
+            }
+            internal IEnumerator WaitForPanelUpdate()
+            {
+                bool updated = false;
+                _window.rootVisualElement.schedule.Execute(() => updated = true);
+                double deadline = EditorApplication.timeSinceStartup + 5;
+                while (!updated && EditorApplication.timeSinceStartup < deadline)
+                {
+                    _window.Repaint();
+                    yield return null;
+                }
+                Assert.That(updated, Is.True, "The attached UI Toolkit panel must execute its scheduled update.");
+                yield return null;
+            }
             public void Dispose()
             {
                 if (Editor != null) Object.DestroyImmediate(Editor);
