@@ -30,6 +30,16 @@ concurrency:
 
 jobs:
 
+  package-archives:
+    name: Package archives
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: python3 -m unittest discover -s Tools~/Release -p 'test_*.py'
+      - run: python3 Tools~/Release/package_release.py --commit HEAD --output release-artifacts
+
   # Run the package EditMode tests inside a scaffolded Unity project
   editmode:
     name: EditMode Tests

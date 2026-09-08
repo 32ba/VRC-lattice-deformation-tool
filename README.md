@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="Blobs~/logo-white.png">
-    <img src="Blobs~/logo.png" alt="Lattice Deformation Tool" width="500">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/32ba/VRC-lattice-deformation-tool/2.0.0-beta.1/Blobs~/logo-white.png">
+    <img src="https://raw.githubusercontent.com/32ba/VRC-lattice-deformation-tool/2.0.0-beta.1/Blobs~/logo.png" alt="Lattice Deformation Tool" width="500">
   </picture>
 </p>
 
@@ -15,7 +15,7 @@ English documentation: [README_en.md](README_en.md)
 
 このブランチでは、既存データと機能を維持する内部リファクタリングを `2.0.0-beta.1` として開発しています。
 最初の段階として、保存形式を維持したまま、検証用のデータ読み取りとGroup編集操作を分離しました。
-実装済みの範囲、テスト結果、残る工程は[開発状況](Docs~/Architecture/2.0.0-beta.1-progress.md)を参照してください。
+実装済みの範囲、テスト結果、残る工程は[開発状況](https://github.com/32ba/VRC-lattice-deformation-tool/blob/2.0.0-beta.1/Docs~/Architecture/2.0.0-beta.1-progress.md)を参照してください。
 
 ## 主な機能
 

@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="Blobs~/logo-white.png">
-    <img src="Blobs~/logo.png" alt="Lattice Deformation Tool" width="500">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/32ba/VRC-lattice-deformation-tool/2.0.0-beta.1/Blobs~/logo-white.png">
+    <img src="https://raw.githubusercontent.com/32ba/VRC-lattice-deformation-tool/2.0.0-beta.1/Blobs~/logo.png" alt="Lattice Deformation Tool" width="500">
   </picture>
 </p>
 
@@ -15,7 +15,7 @@ Use it for fitting clothing, hair, and accessories, manually correcting intersec
 
 This branch develops `2.0.0-beta.1`, an internal refactoring that preserves existing data and functionality.
 The first stage separates validation reads and group editing operations while retaining the existing serialized format.
-See the [development status](Docs~/Architecture/2.0.0-beta.1-progress.md) for the implemented scope, test results, and remaining stages.
+See the [development status](https://github.com/32ba/VRC-lattice-deformation-tool/blob/2.0.0-beta.1/Docs~/Architecture/2.0.0-beta.1-progress.md) for the implemented scope, test results, and remaining stages.
 
 ## Main features
 

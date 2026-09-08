@@ -434,3 +434,5 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - その他、今後の開発で知っておくべき情報
 
 更新時は既存のフォーマットに従い、簡潔かつ正確に記述してください。
+
+- 配布物は Tools~/Release/package_release.py で固定commitから作成し、ZIP/UnityPackageの共通対象・GUID・内容を再読込みして照合する。Tests/Tools~/Docs~/Architectureは配布しない。~ directory内の非import対象はZIPだけに含む従来契約をreportへ明示する。内容検査の成功をUnity importや通常更新の合格とは扱わない。release workflowのpublishは既定falseで、公開は最終確認と明示承認後にだけ実行する。
