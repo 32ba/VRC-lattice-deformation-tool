@@ -197,7 +197,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 go.AddComponent<MeshFilter>().sharedMesh = Mesh; go.AddComponent<MeshRenderer>();
                 Target = go.AddComponent<LatticeDeformer>(); Target.Reset(); Target.AddLayer("Brush", MeshDeformerLayerType.Brush); Target.Deform(false);
             }
-            public void Dispose() { Undo.ClearUndo(Target); Object.DestroyImmediate(Target.gameObject); Object.DestroyImmediate(Mesh); }
+            public void Dispose()
+            {
+                // Never-active objects do not receive Unity's OnDestroy callback.
+                Undo.ClearUndo(Target);
+                Target.InvalidateCache();
+                Target.RestoreOriginalMesh();
+                Object.DestroyImmediate(Target.gameObject);
+                Object.DestroyImmediate(Mesh);
+            }
         }
     }
 }
