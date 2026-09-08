@@ -412,6 +412,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - source不一致で評価を拒否しても、構造が有効なEmbedded Groupの既存読取りviewは調査用に保持する。明示Resetだけがcurrentのbindingと変形を再設定する。Disable/Destroyは自分のRuntime Meshがまだ割り当てられている場合だけsourceへ戻し、外部割当てを上書きしない。`SourceBindingPreservationTests` は欠落・修復・移行進捗・Reset/Undo・Prefab Variant・同assetの再import後の変位保持を検証する。
 - `RuntimeMeshAssignment` はRuntime出力を割り当てた実際のMeshFilter/SkinnedMeshRendererと、その時点の借用Meshを保持する。serialized target参照の切替・消失後も元の割当先を復元し、再割当時は以前の対象を先に解放する。source cache更新後の復元に新sourceを使わない。外部割当ては保持し、明示的な復元抑止scopeでは借用参照だけを解放する。`RuntimeMeshAssignmentTests` が両Renderer種別の切替・参照消失・Reset・終了を確認する。
 - `VertexTransformOperation` は頂点のMove/Rotate/Scaleと比例補間の計算、`VertexTransformGeometry` は同期操作中だけの借用pose/行列、`VertexTransformApplication` は既存displacement APIへの適用を担当する。handlerは入力・session・cache準備・Undo記録とpreview更新を保持する。Moveはrest-space逆変換後のdeltaへ影響率を掛け、Rotate/Scaleは操作を補間してから逆変換する。snapshotを新しくBakeせず、world poseがある場合はlocal頂点より優先する。
+- `BrushInfluenceQuery` は通常・mirrorの候補列挙、接続面、裏面、world距離/表面距離、falloffだけを評価し、変位・Mask・cacheを変更しない。各modeは既存の書込みとSmooth snapshotを保持する。通常側のgeodesic sparse traversalを維持し、mirror側へsurface/backface設定を新たに適用しない。`BrushInfluenceContractTests` は固定した分離前48ケースと独立した数値境界を照合する。
 
 ## 依存関係
 

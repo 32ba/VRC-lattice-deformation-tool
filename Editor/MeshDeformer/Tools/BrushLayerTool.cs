@@ -785,8 +785,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     deformer, out _, out var displacements, out var vertexMask)) return false;
             Transform meshTransform = deformer.MeshTransform;
             Matrix4x4 localToWorld = meshTransform.localToWorldMatrix;
-            Vector3 worldCenter = worldHitPoint;
-            float radiusSq = worldRadius * worldRadius;
             bool modified = false;
             int vertexCount = _meshVertices.Length;
 
@@ -805,44 +803,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
-            bool useGeodesicCandidates = s_useSurfaceDistance && _hasGeodesicDistanceCache;
-            int iterationCount = useGeodesicCandidates ? _geodesicWorkspace.VisitedCount : vertexCount;
+            var query = CreateBrushInfluenceQuery(worldHitPoint, worldRadius, localToWorld, localCameraForward);
+            int iterationCount = query.CandidateCount(vertexCount);
             for (int iteration = 0; iteration < iterationCount; iteration++)
             {
-                int i = useGeodesicCandidates ? _geodesicWorkspace.GetVisitedVertex(iteration) : iteration;
-                if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
-                {
-                    continue;
-                }
-
-                if (s_backfaceCulling && _meshNormals != null && i < _meshNormals.Length)
-                {
-                    if (Vector3.Dot(_meshNormals[i], localCameraForward) > 0f)
-                    {
-                        continue;
-                    }
-                }
-
-                float falloff;
-                if (useGeodesicCandidates)
-                {
-                    if (!_geodesicWorkspace.TryGetDistance(i, out float geodesicDist))
-                    {
-                        continue; // Not reachable via surface
-                    }
-                    float t = geodesicDist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
-                else
-                {
-                    var vertex = _meshVertices[i] + displacements[i];
-                    float distSq = WorldDistanceSquared(i, vertex, worldCenter, localToWorld);
-                    if (distSq > radiusSq) continue;
-
-                    float dist = Mathf.Sqrt(distSq);
-                    float t = dist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
+                int i = query.CandidateAt(iteration);
+                var vertex = _meshVertices[i] + displacements[i];
+                if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
 
                 var normal = _meshNormals[i].normalized;
                 if (normal.sqrMagnitude < 0.001f) normal = Vector3.up;
@@ -901,8 +868,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (!TryGetBrushBuffers(
                     deformer, out _, out var displacements, out var vertexMask)) return false;
             Matrix4x4 localToWorld = deformer.MeshTransform.localToWorldMatrix;
-            Vector3 worldCenter = worldHitPoint;
-            float radiusSq = worldRadius * worldRadius;
 
             bool modified = false;
             int vertexCount = _meshVertices.Length;
@@ -913,44 +878,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     restSpaceConverter = _restSpaceConverterCache.Get(deformer);
             }
 
-            bool useGeodesicCandidates = s_useSurfaceDistance && _hasGeodesicDistanceCache;
-            int iterationCount = useGeodesicCandidates ? _geodesicWorkspace.VisitedCount : vertexCount;
+            var query = CreateBrushInfluenceQuery(worldHitPoint, worldRadius, localToWorld, localCameraForward);
+            int iterationCount = query.CandidateCount(vertexCount);
             for (int iteration = 0; iteration < iterationCount; iteration++)
             {
-                int i = useGeodesicCandidates ? _geodesicWorkspace.GetVisitedVertex(iteration) : iteration;
-                if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
-                {
-                    continue;
-                }
-
-                if (s_backfaceCulling && _meshNormals != null && i < _meshNormals.Length)
-                {
-                    if (Vector3.Dot(_meshNormals[i], localCameraForward) > 0f)
-                    {
-                        continue;
-                    }
-                }
-
-                float falloff;
-                if (useGeodesicCandidates)
-                {
-                    if (!_geodesicWorkspace.TryGetDistance(i, out float geodesicDist))
-                    {
-                        continue; // Not reachable via surface
-                    }
-                    float t = geodesicDist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
-                else
-                {
-                    var vertex = _meshVertices[i] + displacements[i];
-                    float distSq = WorldDistanceSquared(i, vertex, worldCenter, localToWorld);
-                    if (distSq > radiusSq) continue;
-
-                    float dist = Mathf.Sqrt(distSq);
-                    float t = dist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
+                int i = query.CandidateAt(iteration);
+                var vertex = _meshVertices[i] + displacements[i];
+                if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
 
                 var storedDelta = restSpaceConverter != null
                     ? restSpaceConverter.ConvertOrFallback(i, localDelta)
@@ -971,8 +905,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (!TryGetBrushBuffers(
                     deformer, out _, out var displacements, out var vertexMask)) return false;
             Matrix4x4 localToWorld = deformer.MeshTransform.localToWorldMatrix;
-            Vector3 worldCenter = worldHitPoint;
-            float radiusSq = worldRadius * worldRadius;
             EnsureAdjacencyBuilt();
 
             bool modified = false;
@@ -999,44 +931,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             float smoothFactor = Mathf.Clamp01(strength * 10f);
 
-            bool useGeodesicCandidates = s_useSurfaceDistance && _hasGeodesicDistanceCache;
-            int iterationCount = useGeodesicCandidates ? _geodesicWorkspace.VisitedCount : vertexCount;
+            var query = CreateBrushInfluenceQuery(worldHitPoint, worldRadius, localToWorld, localCameraForward);
+            int iterationCount = query.CandidateCount(vertexCount);
             for (int iteration = 0; iteration < iterationCount; iteration++)
             {
-                int i = useGeodesicCandidates ? _geodesicWorkspace.GetVisitedVertex(iteration) : iteration;
-                if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
-                {
-                    continue;
-                }
-
-                if (s_backfaceCulling && _meshNormals != null && i < _meshNormals.Length)
-                {
-                    if (Vector3.Dot(_meshNormals[i], localCameraForward) > 0f)
-                    {
-                        continue;
-                    }
-                }
-
-                float falloff;
-                if (useGeodesicCandidates)
-                {
-                    if (!_geodesicWorkspace.TryGetDistance(i, out float geodesicDist))
-                    {
-                        continue; // Not reachable via surface
-                    }
-                    float t = geodesicDist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
-                else
-                {
-                    var vertex = _meshVertices[i] + currentDisplacements[i];
-                    float distSq = WorldDistanceSquared(i, vertex, worldCenter, localToWorld);
-                    if (distSq > radiusSq) continue;
-
-                    float dist = Mathf.Sqrt(distSq);
-                    float t = dist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
+                int i = query.CandidateAt(iteration);
+                var vertex = _meshVertices[i] + currentDisplacements[i];
+                if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
 
                 // Compute average displacement of neighbors
                 int neighborStart = _adjacency.GetNeighborStart(i);
@@ -1065,8 +966,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private bool ApplyMaskBrush(LatticeDeformer deformer, Vector3 worldHitPoint, float worldRadius)
         {
             Matrix4x4 localToWorld = deformer.MeshTransform.localToWorldMatrix;
-            Vector3 worldCenter = worldHitPoint;
-            float radiusSq = worldRadius * worldRadius;
             if (_meshVertices == null || _meshVertices.Length == 0)
             {
                 return false;
@@ -1098,46 +997,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
-            bool useGeodesicCandidates = s_useSurfaceDistance && _hasGeodesicDistanceCache;
-            int iterationCount = useGeodesicCandidates
-                ? _geodesicWorkspace.VisitedCount
-                : _meshVertices.Length;
+            var query = CreateBrushInfluenceQuery(worldHitPoint, worldRadius, localToWorld, localCameraForward);
+            int iterationCount = query.CandidateCount(_meshVertices.Length);
             for (int iteration = 0; iteration < iterationCount; iteration++)
             {
-                int i = useGeodesicCandidates ? _geodesicWorkspace.GetVisitedVertex(iteration) : iteration;
-                if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
-                {
-                    continue;
-                }
-
-                if (s_backfaceCulling && _meshNormals != null && i < _meshNormals.Length)
-                {
-                    if (Vector3.Dot(_meshNormals[i], localCameraForward) > 0f)
-                    {
-                        continue;
-                    }
-                }
-
-                float falloff;
-                if (useGeodesicCandidates)
-                {
-                    if (!_geodesicWorkspace.TryGetDistance(i, out float geodesicDist))
-                    {
-                        continue;
-                    }
-                    float t = geodesicDist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
-                else
-                {
-                    var vertex = _meshVertices[i] + displacements[i];
-                    float distSq = WorldDistanceSquared(i, vertex, worldCenter, localToWorld);
-                    if (distSq > radiusSq) continue;
-
-                    float dist = Mathf.Sqrt(distSq);
-                    float t = dist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
+                int i = query.CandidateAt(iteration);
+                var vertex = _meshVertices[i] + displacements[i];
+                if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
 
                 float current = layer.GetVertexMask(i);
                 float blend = Mathf.Lerp(current, targetValue, falloff * s_brushStrength);
@@ -1147,6 +1013,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             return modified;
         }
+
+        private BrushInfluenceQuery CreateBrushInfluenceQuery(Vector3 center, float radius,
+            Matrix4x4 localToWorld, Vector3 localCameraForward) =>
+            new BrushInfluenceQuery(_worldPositions, localToWorld, center, radius, s_brushFalloff,
+                s_connectedOnly ? _connectedVerticesCache : null,
+                s_backfaceCulling ? _meshNormals : null, localCameraForward,
+                s_useSurfaceDistance && _hasGeodesicDistanceCache ? _geodesicWorkspace : null);
 
         private static bool TryGetActiveLayer(LatticeDeformer deformer, out LatticeLayer layer)
         {
@@ -1205,7 +1078,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             float direction)
         {
             Matrix4x4 localToWorld = deformer.MeshTransform.localToWorldMatrix;
-            float radiusSq = worldRadius * worldRadius;
             if (_cachedMesh == null || _meshVertices == null || _meshVertices.Length == 0) return;
             if (!TryGetBrushBuffers(
                     deformer, out _, out var displacements, out var vertexMask)) return;
@@ -1232,6 +1104,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
+            // Preserve the existing mirror policy: Euclidean distance, no backface filter.
+            var query = new BrushInfluenceQuery(_worldPositions, localToWorld, mirroredWorldCenter, worldRadius,
+                s_brushFalloff, mirrorConnected, null, Vector3.forward, null);
+
             switch (s_brushMode)
             {
                 case BrushMode.Normal:
@@ -1239,18 +1115,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     for (int i = 0; i < vertexCount; i++)
                     {
                         if (!mirrorMap.TryGetPartner(i, out _)) continue;
-                        if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
-                        {
-                            continue;
-                        }
-
                         var vertex = _meshVertices[i] + displacements[i];
-                        float distSq = WorldDistanceSquared(i, vertex, mirroredWorldCenter, localToWorld);
-                        if (distSq > radiusSq) continue;
-
-                        float dist = Mathf.Sqrt(distSq);
-                        float t = dist / worldRadius;
-                        float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                        if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
 
                         var normal = _meshNormals[i].normalized;
                         if (normal.sqrMagnitude < 0.001f) normal = Vector3.up;
@@ -1276,18 +1142,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     for (int i = 0; i < vertexCount; i++)
                     {
                         if (!mirrorMap.TryGetPartner(i, out _)) continue;
-                        if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
-                        {
-                            continue;
-                        }
-
                         var vertex = _meshVertices[i] + currentDisplacements[i];
-                        float distSq = WorldDistanceSquared(i, vertex, mirroredWorldCenter, localToWorld);
-                        if (distSq > radiusSq) continue;
-
-                        float dist = Mathf.Sqrt(distSq);
-                        float t = dist / worldRadius;
-                        float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                        if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
 
                         int neighborStart = _adjacency.GetNeighborStart(i);
                         int neighborEnd = _adjacency.GetNeighborEnd(i);
@@ -1325,18 +1181,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
                     for (int i = 0; i < vertexCount; i++)
                     {
-                        if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
-                        {
-                            continue;
-                        }
-
                         var vertex = _meshVertices[i] + displacements[i];
-                        float distSq = WorldDistanceSquared(i, vertex, mirroredWorldCenter, localToWorld);
-                        if (distSq > radiusSq) continue;
-
-                        float dist = Mathf.Sqrt(distSq);
-                        float t = dist / worldRadius;
-                        float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                        if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
 
                         var storedDelta = restSpaceConverter != null
                             ? restSpaceConverter.ConvertOrFallback(i, mirroredDelta)
@@ -1359,18 +1205,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     for (int i = 0; i < vertexCount; i++)
                     {
                         if (!mirrorMap.TryGetPartner(i, out _)) continue;
-                        if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
-                        {
-                            continue;
-                        }
-
                         var vertex = _meshVertices[i] + displacements[i];
-                        float distSq = WorldDistanceSquared(i, vertex, mirroredWorldCenter, localToWorld);
-                        if (distSq > radiusSq) continue;
-
-                        float dist = Mathf.Sqrt(distSq);
-                        float t = dist / worldRadius;
-                        float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
+                        if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
 
                         float current = layer.GetVertexMask(i);
                         float blend = Mathf.Lerp(current, targetValue, falloff * s_brushStrength);
@@ -1604,19 +1440,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Vector3 VertexToWorld(int index, Vector3 localVertex, Matrix4x4 localToWorld)
         {
             return SkinnedVertexHelper.LocalToWorld(index, _worldPositions, null, localToWorld);
-        }
-
-        private float WorldDistanceSquared(
-            int vertexIndex,
-            Vector3 localVertex,
-            Vector3 worldCenter,
-            Matrix4x4 localToWorld)
-        {
-            Vector3 worldVertex = _worldPositions != null &&
-                                  vertexIndex >= 0 && vertexIndex < _worldPositions.Length
-                ? _worldPositions[vertexIndex]
-                : localToWorld.MultiplyPoint3x4(localVertex);
-            return (worldVertex - worldCenter).sqrMagnitude;
         }
 
         private void InvalidateCache()
