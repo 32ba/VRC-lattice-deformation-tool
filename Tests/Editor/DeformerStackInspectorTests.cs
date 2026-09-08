@@ -103,6 +103,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var groupList = f.Section.GroupList;
             var list = layer ? f.Section.LayerList : groupList;
             Assert.That(list.panel, Is.Not.Null);
+            int parentPointerDown = 0;
+            groupList.RegisterCallback<PointerDownEvent>(_ => parentPointerDown++);
             var originalGroup = f.Target.Groups[0];
             var originalLayer = originalGroup.Layers[1];
             string originalLayerJson = JsonUtility.ToJson(originalLayer);
@@ -110,6 +112,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 down.target = list; list.SendEvent(down);
             }
+            if (layer) Assert.That(parentPointerDown, Is.Zero, "A layer drag must not arm its parent group dragger.");
             // The animated dragger clears selection, reselects the dragged row,
             // and asks its controller to move that row before pointer-up returns.
             list.ClearSelection();

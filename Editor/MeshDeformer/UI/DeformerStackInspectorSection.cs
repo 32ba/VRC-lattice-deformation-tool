@@ -47,11 +47,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _groupsContainer.style.marginTop = 4;
         }
 
-        private void ConfigureListInput(ListView list)
+        private void ConfigureListInput(ListView list, bool nested = false)
         {
             list.RegisterCallback<PointerDownEvent>(evt =>
             {
                 if (evt.button == 0) _pointerDown = true;
+                if (nested) evt.StopPropagation();
             });
             list.RegisterCallback<PointerUpEvent>(evt =>
             {
@@ -367,7 +368,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     virtualizationMethod = CollectionVirtualizationMethod.DynamicHeight,
                     selectionType = SelectionType.Single,
                 };
-                ConfigureListInput(_layerListView);
+                ConfigureListInput(_layerListView, nested: true);
                 _layerListView.makeItem = MakeLayerItem;
                 _layerListView.bindItem = BindLayerItem;
                 _layerListView.unbindItem = ReleaseRow;
