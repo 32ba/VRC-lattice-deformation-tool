@@ -136,16 +136,18 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private static string ComputeTopologyHash(Mesh mesh)
         {
-            using var stream = new MemoryStream();
+            using var stream = new CompatibilityHashStream();
             using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
             {
                 var vertices = mesh.vertices;
                 writer.Write(vertices.Length);
                 for (int i = 0; i < vertices.Length; i++)
                 {
-                    writer.Write(vertices[i].x);
-                    writer.Write(vertices[i].y);
-                    writer.Write(vertices[i].z);
+                    // BinaryWriter.Write(float) allocates a temporary byte[] on
+                    // Unity's Mono runtime. Write the identical IEEE-754 bits.
+                    writer.Write(BitConverter.SingleToInt32Bits(vertices[i].x));
+                    writer.Write(BitConverter.SingleToInt32Bits(vertices[i].y));
+                    writer.Write(BitConverter.SingleToInt32Bits(vertices[i].z));
                 }
 
                 writer.Write(mesh.subMeshCount);
@@ -157,13 +159,18 @@ namespace Net._32Ba.LatticeDeformationTool
                     for (int i = 0; i < indices.Length; i++) writer.Write(indices[i]);
                 }
             }
-            return ComputeSha256(stream.ToArray());
+            return FormatSha256(stream.Finish());
         }
 
         private static string ComputeSha256(byte[] bytes)
         {
             using var sha256 = SHA256.Create();
             var hash = sha256.ComputeHash(bytes);
+            return FormatSha256(hash);
+        }
+
+        private static string FormatSha256(byte[] hash)
+        {
             var builder = new StringBuilder(hash.Length * 2);
             for (int i = 0; i < hash.Length; i++) builder.Append(hash[i].ToString("x2"));
             return builder.ToString();
