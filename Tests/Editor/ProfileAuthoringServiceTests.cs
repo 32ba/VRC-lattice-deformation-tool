@@ -7,6 +7,7 @@ using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UIElements;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using Object = UnityEngine.Object;
 
@@ -14,6 +15,40 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class ProfileAuthoringServiceTests
     {
+        [Test]
+        public void InspectorGroupList_FollowsProfileUndoRedoWithoutReselecting()
+        {
+            using var f = new Fixture();
+            var inspector = UnityEditor.Editor.CreateEditor(f.Target, typeof(LatticeDeformerEditor));
+            try
+            {
+                inspector.CreateInspectorGUI();
+                var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+                var check = typeof(LatticeDeformerEditor).GetMethod("CheckAndRebuildLayers", flags);
+                var container = (VisualElement)typeof(LatticeDeformerEditor).GetField("_groupsContainer", flags).GetValue(inspector);
+                Assert.That(container.Q<ListView>(), Is.Not.Null);
+                Assert.That(ProfileAuthoringService.ChangeSource(f.Target, DeformerDataSource.Profile, f.Profile, "Use profile"), Is.True);
+                check.Invoke(inspector, null);
+                Assert.That(container.Q<ListView>(), Is.Null);
+                Undo.PerformUndo();
+                check.Invoke(inspector, null);
+                Assert.That(container.Q<ListView>(), Is.Not.Null, "Undo must restore the editable group tree in the existing Inspector.");
+                Undo.PerformRedo();
+                check.Invoke(inspector, null);
+                Assert.That(container.Q<ListView>(), Is.Null);
+                Assert.That(ProfileAuthoringService.CopyToEmbedded(f.Target, "Copy profile"), Is.True);
+                check.Invoke(inspector, null);
+                Assert.That(container.Q<ListView>(), Is.Not.Null);
+                Undo.PerformUndo();
+                check.Invoke(inspector, null);
+                Assert.That(container.Q<ListView>(), Is.Null);
+                Undo.PerformRedo();
+                check.Invoke(inspector, null);
+                Assert.That(container.Q<ListView>(), Is.Not.Null);
+            }
+            finally { Object.DestroyImmediate(inspector); }
+        }
+
         [Test]
         public void CompatibilityQuery_UsesCurrentRendererWithoutChangingOwnerOrDirtyState()
         {

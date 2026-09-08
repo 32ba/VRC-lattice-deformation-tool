@@ -420,6 +420,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private ListView _groupListView;
         private readonly List<int> _groupIndices = new();
         private int _cachedGroupCount = -1;
+        private bool _cachedProfileReadOnly;
+        private bool ProfileReadOnly => targets.Length == 1 && target is LatticeDeformer deformer &&
+            deformer.DataSource == DeformerDataSource.Profile && deformer.Profile != null;
 
         private void RebuildGroupList()
         {
@@ -427,9 +430,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             serializedObject.Update();
             _groupsContainer.Clear();
 
-            if (targets.Length == 1 && target is LatticeDeformer deformer &&
-                deformer.DataSource == DeformerDataSource.Profile && deformer.Profile != null)
+            _cachedProfileReadOnly = ProfileReadOnly;
+            _cachedGroupCount = _groupsProp != null ? _groupsProp.arraySize : 0;
+            if (_cachedProfileReadOnly)
             {
+                _groupListView = null;
+                _layerListView = null;
                 var profileLabel = new Label(LatticeLocalization.Tr(LocKey.ProfileReadOnlyInfo));
                 profileLabel.style.whiteSpace = WhiteSpace.Normal;
                 profileLabel.style.marginLeft = 3;
@@ -1090,11 +1096,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             // Check if group count changed
             int groupCount = _groupsProp != null ? _groupsProp.arraySize : 0;
-            if (groupCount != _cachedGroupCount)
+            if (groupCount != _cachedGroupCount || ProfileReadOnly != _cachedProfileReadOnly)
             {
                 RebuildGroupList();
                 return;
             }
+
+            if (_cachedProfileReadOnly) return;
 
             // Check if active group's layer count/index changed
             if (_layersProp == null || _activeLayerIndexProp == null || _layerListView == null) return;
