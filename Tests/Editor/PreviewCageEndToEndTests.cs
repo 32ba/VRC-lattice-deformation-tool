@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+﻿#if UNITY_EDITOR
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -236,15 +236,18 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
 
             var root = new GameObject("blend-shape-cage-e2e-root");
-            var proxy = new GameObject("blend-shape-cage-e2e-preview-proxy");
-            proxy.transform.SetParent(root.transform, false);
+            root.SetActive(false);
             var bone0 = new GameObject("blend-shape-cage-e2e-bone-0");
             var bone1 = new GameObject("blend-shape-cage-e2e-bone-1");
             bone0.transform.SetParent(root.transform, false);
             bone1.transform.SetParent(root.transform, false);
             bone1.transform.localPosition = new Vector3(2f, 0f, 0f);
             Mesh source = CreateBlendShapeBindingRegressionMesh();
-            IRenderFilterNode previewNode = null;
+            bool previousPreviewEnabled = PreviewEnabled();
+            int previousDisableDepth = NDMFPreview.DisablePreviewDepth;
+            bool previousFilter = LatticeDeformerPreviewFilter.PreviewToggleEnabled;
+            var previousSelection = Selection.objects;
+            Material material = null;
             LatticeToolHandler handler = null;
             SceneView sceneView = null;
             bool previousPreviewAlignedCage = LatticePreviewUtility.UsePreviewAlignedCage;
@@ -260,17 +263,22 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var deformer = root.AddComponent<LatticeDeformer>();
                 deformer.Reset();
 
-                var proxyRenderer = proxy.AddComponent<SkinnedMeshRenderer>();
-                proxyRenderer.sharedMesh = source;
-                proxyRenderer.bones = new[] { bone0.transform, bone1.transform };
-                proxyRenderer.rootBone = bone0.transform;
-                Mesh previewMesh = GeneratePreviewMesh(deformer);
-                Assert.That(previewMesh, Is.Not.Null);
-                previewNode = CreateLatticePreviewNode(
-                    deformer,
-                    renderer,
-                    proxyRenderer,
-                    previewMesh);
+                var shader = Shader.Find("Standard");
+                Assert.That(shader != null && shader.isSupported, Is.True);
+                material = new Material(shader);
+                renderer.sharedMaterial = material;
+                NDMFPreview.DisablePreviewDepth = 0;
+                if (!previousPreviewEnabled)
+                    Assert.That(EditorApplication.ExecuteMenuItem("Tools/NDM Framework/Enable Previews"), Is.True);
+                LatticeDeformerPreviewFilter.ForcePreviewState(true);
+                root.SetActive(true);
+                sceneView = EditorWindow.GetWindow<SceneView>();
+                sceneView.Show();
+                Selection.activeGameObject = root;
+                yield return WaitForFinalPreview(() => PreviewSession.Current != null, "NDMF session was not created.");
+                PreviewSession.Current.ForceRebuild();
+                yield return WaitForFinalPreview(() => FinalProxy() != null, "NDMF final proxy was not published.");
+                var proxyRenderer = FinalProxy();
                 LatticePreviewUtility.UsePreviewAlignedCage = true;
 
                 handler = new LatticeToolHandler
@@ -287,12 +295,19 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 AssertCageFrame(handler);
                 Vector3[] weightZero = handler.GetLastCageHandlePositionsForTests();
                 int initialBindingRefreshes = handler.ControlPointBindingRefreshCountForTests;
+                Assert.That(handler.ResolveProxyRenderer(renderer), Is.SameAs(proxyRenderer));
                 int initialPreviewMeshId = proxyRenderer.sharedMesh.GetInstanceID();
+                Vector3[] initialVertices = proxyRenderer.sharedMesh.vertices;
 
                 renderer.SetBlendShapeWeight(0, 100f);
                 EditorUtility.SetDirty(renderer);
-                previewNode.OnFrameGroup();
-                Assert.That(proxyRenderer.GetBlendShapeWeight(0), Is.Zero);
+                yield return WaitForFinalPreview(
+                    () => proxyRenderer.GetBlendShapeWeight(0) == 100f,
+                    "The final preview renderer did not consume the changed Shape weight.");
+                Assert.That(FinalProxy(), Is.SameAs(proxyRenderer));
+                Assert.That(proxyRenderer.GetBlendShapeWeight(0), Is.EqualTo(100f));
+                Assert.That(proxyRenderer.sharedMesh.vertices, Is.EqualTo(initialVertices),
+                    "Source shapes remain in the mesh and are evaluated using renderer weights.");
                 yield return WaitForNextCageRepaint(handler, sceneView);
                 Assert.That(proxyRenderer.sharedMesh.GetInstanceID(), Is.EqualTo(initialPreviewMeshId));
                 Assert.That(
@@ -312,7 +327,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 renderer.SetBlendShapeWeight(0, 0f);
                 EditorUtility.SetDirty(renderer);
-                previewNode.OnFrameGroup();
+                yield return WaitForFinalPreview(
+                    () => proxyRenderer.GetBlendShapeWeight(0) == 0f,
+                    "The final preview renderer did not restore its initial Shape weight.");
+                Assert.That(FinalProxy(), Is.SameAs(proxyRenderer));
+                Assert.That(proxyRenderer.sharedMesh.GetInstanceID(), Is.EqualTo(initialPreviewMeshId));
                 yield return WaitForNextCageRepaint(handler, sceneView);
                 AssertCageFrameEquals(
                     handler,
@@ -324,10 +343,44 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 SceneView.duringSceneGui -= DrawCage;
                 LatticePreviewUtility.UsePreviewAlignedCage = previousPreviewAlignedCage;
                 handler?.Deactivate();
-                previewNode?.Dispose();
+                root.SetActive(false);
+                PreviewSession.Current?.ForceRebuild();
+                LatticeDeformerPreviewFilter.ForcePreviewState(previousFilter);
+                NDMFPreview.DisablePreviewDepth = previousDisableDepth;
+                if (PreviewEnabled() != previousPreviewEnabled)
+                    EditorApplication.ExecuteMenuItem("Tools/NDM Framework/Enable Previews");
+                Selection.objects = previousSelection;
+                Object.DestroyImmediate(material);
                 LatticePreviewUtility.ClearProxy(root.GetComponent<Renderer>());
                 Object.DestroyImmediate(root);
                 Object.DestroyImmediate(source);
+            }
+
+            SkinnedMeshRenderer FinalProxy()
+            {
+                var original = root.GetComponent<SkinnedMeshRenderer>();
+                if (!NDMFPreviewProxyUtility.TryGetProxyRenderer(original, out var proxy) ||
+                    proxy == null || proxy == original ||
+                    NDMFPreview.GetOriginalObjectForProxy(proxy.gameObject) != root)
+                    return null;
+                var skinned = proxy as SkinnedMeshRenderer;
+                return skinned != null && skinned.sharedMesh != null &&
+                       skinned.sharedMesh != source && skinned.sharedMesh.vertexCount == source.vertexCount
+                    ? skinned : null;
+            }
+
+            bool PreviewEnabled() => typeof(NDMFPreview).GetProperty("EnablePreviewsUI",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(null) is bool enabled && enabled;
+
+            IEnumerator WaitForFinalPreview(System.Func<bool> condition, string message)
+            {
+                double started = EditorApplication.timeSinceStartup;
+                while (!condition())
+                {
+                    Assert.That(EditorApplication.timeSinceStartup - started, Is.LessThan(8d), message);
+                    SceneView.RepaintAll();
+                    yield return null;
+                }
             }
 
             void DrawCage(SceneView view)
