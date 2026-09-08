@@ -2,10 +2,15 @@
 import argparse
 import hashlib
 import json
+import zipfile
 from pathlib import Path
 
 
 def verify(root):
+    with zipfile.ZipFile(next((root / 'old-archives').glob('*.zip'))) as archive:
+        for name in archive.namelist():
+            assert (root / 'OldProject/Packages/net.32ba.lattice-deformation-tool' / name).read_bytes() == archive.read(name)
+        baseline_entries = len(archive.namelist())
     before = json.loads((root / 'before.json').read_text())
     after = json.loads((root / 'reloaded.json').read_text())
     assert json.loads(before['package'])['version'] == '1.4.6-beta.1'
@@ -29,7 +34,8 @@ def verify(root):
     assert set(changed) <= {'Assets/NormalUpgrade/Base.prefab', 'Assets/NormalUpgrade/Profile.prefab'}
     return dict(schemaVersion=1, roundTrips=4, oldFilesPreserved=len(files),
                 sourceAndMetadataPreserved=True, outputsAndOverridesEqual=True,
-                changedSavedFiles=changed, restartAfterDependencyReplacementRequired=True)
+                changedSavedFiles=changed, verifiedAfterDependencyRestart=True,
+                baselinePackageEntriesMatched=baseline_entries)
 
 
 if __name__ == '__main__':
