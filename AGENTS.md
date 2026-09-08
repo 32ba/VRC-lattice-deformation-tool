@@ -416,6 +416,8 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 ## 依存関係
 
+- 頂点選択矩形は `SelectedVertexVisualization.DrawSelectionRectangle` が描画し、handlerは `VertexPickingQuery.Rectangle` で作ったRectを渡す。描画側はHandles.BeginGUI/EndGUIのscopeを所有し、入力や選択状態を読み書きしない。
+
 - `VertexPickingQuery` は借用したlocal/world頂点・法線・行列・camera位置とprojection関数から最近傍/矩形内のindexを返す。world pose優先、距離のstrict境界、同距離の先頭優先、camera/normal欠落時の裏面判定fallbackを維持する。handlerは入力、選択変更、再描画を保持する。
 
 - `LatticeDragGeometry` は1同期drag更新で借用したpose・行列・boundsから保存pointとmirror deltaへ変換する。manual scale除算、center offset、bounds対応、root offset、skinning逆変換の順序を維持する。旧mirror delta経路はmanual scaleで割らない。session/Undo・設定書込み・対称mode適用・内部制御点relax・preview更新はhandlerが担当する。
