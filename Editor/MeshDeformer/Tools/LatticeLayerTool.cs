@@ -765,7 +765,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                 LatticeLocalization.Tr(LocKey.MoveLatticeControls));
                             if (_editSession == null || !_editSession.TryPrepareWrite(deformer)) return;
 
-                            var deltaProxy = worldToProxy.MultiplyVector(delta);
+                            var dragGeometry = new LatticeDragGeometry(worldToProxy, proxyToSource,
+                                sourceBounds, proxyBoundsLocal, LatticePreviewUtility.GetManualScaleProxy(deformer),
+                                centerOffsetProxyLocal, rootOffsetProxyLocal, useProxy, needBoundsMap,
+                                useSkinningFallback, hasControlPointSkinning ? _controlPointSkinning : null,
+                                normalizeSkinnedBounds, _skinningDisplayBounds);
                             _processedIndices.Clear();
 
                             foreach (var selectedIndex in s_selectedControls)
@@ -776,71 +780,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                 }
 
                                 var newWorldPosition = worldPositions[selectedIndex] + delta;
-                                var proxyLocal = worldToProxy.MultiplyPoint3x4(newWorldPosition);
-                                // remove manual scale before mapping back
-                                var scaleProxy = LatticePreviewUtility.GetManualScaleProxy(deformer);
-                                proxyLocal = new Vector3(
-                                    scaleProxy.x != 0f ? proxyLocal.x / scaleProxy.x : proxyLocal.x,
-                                    scaleProxy.y != 0f ? proxyLocal.y / scaleProxy.y : proxyLocal.y,
-                                    scaleProxy.z != 0f ? proxyLocal.z / scaleProxy.z : proxyLocal.z);
-
-                                Vector3 storedLocal;
-                                if (useProxy)
-                                {
-                                    var proxyLocalAdjusted = proxyLocal - centerOffsetProxyLocal;
-                                    var mappedSource = proxyLocalAdjusted;
-                                    if (needBoundsMap)
-                                    {
-                                        if (useSkinningFallback)
-                                        {
-                                            mappedSource = proxyToSource.MultiplyPoint3x4(mappedSource);
-                                        }
-                                        mappedSource = LatticeCageGeometry.MapPointBetweenBounds(
-                                            mappedSource,
-                                            proxyBoundsLocal,
-                                            sourceBounds);
-                                    }
-                                    mappedSource -= rootOffsetProxyLocal;
-                                    storedLocal = needBoundsMap
-                                        ? mappedSource
-                                        : proxyToSource.MultiplyPoint3x4(mappedSource);
-                                    if (hasControlPointSkinning)
-                                    {
-                                        if (normalizeSkinnedBounds)
-                                        {
-                                            storedLocal = LatticeCageGeometry.MapPointBetweenBounds(
-                                                storedLocal,
-                                                _skinningDisplayBounds,
-                                                _controlPointSkinning.PosedControlBounds);
-                                        }
-                                        _controlPointSkinning.TryInverseTransformPoint(
-                                            selectedIndex,
-                                            storedLocal,
-                                            out storedLocal);
-                                    }
-                                    settings.SetControlPointLocal(selectedIndex, storedLocal);
-                                }
-                                else
-                                {
-                                    storedLocal = needBoundsMap
-                                        ? LatticeCageGeometry.MapPointBetweenBounds(proxyLocal, proxyBoundsLocal, sourceBounds)
-                                        : proxyToSource.MultiplyPoint3x4(proxyLocal);
-                                    if (hasControlPointSkinning)
-                                    {
-                                        if (normalizeSkinnedBounds)
-                                        {
-                                            storedLocal = LatticeCageGeometry.MapPointBetweenBounds(
-                                                storedLocal,
-                                                _skinningDisplayBounds,
-                                                _controlPointSkinning.PosedControlBounds);
-                                        }
-                                        _controlPointSkinning.TryInverseTransformPoint(
-                                            selectedIndex,
-                                            storedLocal,
-                                            out storedLocal);
-                                    }
-                                    settings.SetControlPointLocal(selectedIndex, storedLocal);
-                                }
+                                Vector3 storedLocal = dragGeometry.StorePoint(selectedIndex, newWorldPosition);
+                                settings.SetControlPointLocal(selectedIndex, storedLocal);
 
                                 if (MirrorEditing && TryGetSymmetryIndex(selectedIndex, gridSize, CurrentMirrorBehavior, CurrentMirrorAxis, out var mirrorIndex))
                                 {
@@ -851,51 +792,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                                     Vector3 mirrorLocal;
 
-                                    Vector3 deltaSource;
-                                    if (useProxy)
-                                    {
-                                        deltaSource = deltaProxy;
-                                        if (needBoundsMap)
-                                        {
-                                            if (useSkinningFallback)
-                                            {
-                                                deltaSource = proxyToSource.MultiplyVector(deltaSource);
-                                            }
-                                            deltaSource = LatticeCageGeometry.MapDeltaBetweenBounds(
-                                                deltaSource,
-                                                proxyBoundsLocal,
-                                                sourceBounds);
-                                        }
-                                        // Remove root offset contribution before mapping back
-                                        if (!needBoundsMap)
-                                        {
-                                            deltaSource = proxyToSource.MultiplyVector(deltaSource);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        deltaSource = needBoundsMap
-                                            ? LatticeCageGeometry.MapDeltaBetweenBounds(deltaProxy, proxyBoundsLocal, sourceBounds)
-                                            : proxyToSource.MultiplyVector(deltaProxy);
-                                    }
                                     switch (CurrentMirrorBehavior)
                                     {
                                         case MirrorBehavior.Identical:
                                         {
-                                            if (hasControlPointSkinning)
-                                            {
-                                                if (normalizeSkinnedBounds)
-                                                {
-                                                    deltaSource = LatticeCageGeometry.MapDeltaBetweenBounds(
-                                                        deltaSource,
-                                                        _skinningDisplayBounds,
-                                                        _controlPointSkinning.PosedControlBounds);
-                                                }
-                                                _controlPointSkinning.TryInverseTransformVector(
-                                                    mirrorIndex,
-                                                    deltaSource,
-                                                    out deltaSource);
-                                            }
+                                            Vector3 deltaSource = dragGeometry.StoreMirrorDelta(mirrorIndex, delta);
                                             var original = settings.GetControlPointLocal(mirrorIndex);
                                             mirrorLocal = original + deltaSource;
                                             break;
@@ -905,20 +806,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                             break;
                                         case MirrorBehavior.Antisymmetric:
                                         {
-                                            if (hasControlPointSkinning)
-                                            {
-                                                if (normalizeSkinnedBounds)
-                                                {
-                                                    deltaSource = LatticeCageGeometry.MapDeltaBetweenBounds(
-                                                        deltaSource,
-                                                        _skinningDisplayBounds,
-                                                        _controlPointSkinning.PosedControlBounds);
-                                                }
-                                                _controlPointSkinning.TryInverseTransformVector(
-                                                    mirrorIndex,
-                                                    deltaSource,
-                                                    out deltaSource);
-                                            }
+                                            Vector3 deltaSource = dragGeometry.StoreMirrorDelta(mirrorIndex, delta);
                                             var original = settings.GetControlPointLocal(mirrorIndex);
                                             mirrorLocal = original - deltaSource;
                                             break;
