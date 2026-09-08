@@ -96,6 +96,7 @@ public static class EvaluationBenchmark
         ProfilerDriver.SetAreaEnabled(ProfilerArea.Memory, false);
         ProfilerDriver.enabled = true;
         s_work = WorkItems(samples, Argument("-latticeBenchmarkCalibrationOnly", "false") == "true").GetEnumerator();
+        AssemblyReloadEvents.beforeAssemblyReload += AbortForAssemblyReload;
         EditorApplication.update += Tick;
         EditorApplication.QueuePlayerLoopUpdate();
     }
@@ -312,8 +313,12 @@ public static class EvaluationBenchmark
 
     private static void SaveDocument() => File.WriteAllText(s_output, JsonUtility.ToJson(s_document, true) + "\n");
 
+    private static void AbortForAssemblyReload() =>
+        Finish(new InvalidOperationException("Assembly reload interrupted measurement; settle project initialization before retrying."));
+
     private static void Finish(Exception error)
     {
+        AssemblyReloadEvents.beforeAssemblyReload -= AbortForAssemblyReload;
         EditorApplication.update -= Tick;
         s_work?.Dispose();
         s_pending = null;

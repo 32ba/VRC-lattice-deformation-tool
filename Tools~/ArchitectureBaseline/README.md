@@ -3,6 +3,8 @@
 `EvaluationBenchmark.cs` を検証専用Unityプロジェクトの `Assets/Editor/` にコピーする。
 比較対象packageは明示的なcommitから配置し、Runtime/Editorを記録する。
 基準版と候補版は同じUnity、package依存、hardwareとharnessを使用する。
+新規projectではSDKによるdefine追加と再compileまで初期化を終え、別Editorセッションから計測する。
+計測途中のassembly reloadはharnessが失敗として記録する。初期化中の部分記録を比較へ混ぜない。
 利用中のEditorやpackage junctionを書き換えない。
 
 ```powershell
