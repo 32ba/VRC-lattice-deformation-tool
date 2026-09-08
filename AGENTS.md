@@ -410,6 +410,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - マウス不要の作業を先に進める明示指示がある場合、cleanな検証Sceneとコンパイル完了を条件として、入力・前面描画に依存しない試験を同じEditorで実行できる。`RetrieveTestList` のleaf名から対象一覧を固定し、`Filter.testNames` へ渡す。広いnamespaceやassemblyに一致するfilterが子の除外を保証すると仮定しない。結果XMLのleaf名が対象一覧と完全一致することを確認し、見送ったnative入力・実NDMF描画・Cage repaintの試験を合格数へ含めない。
 - `DeformationSourceBinding` は保存sourceのUnity identityとcountを検査し、実行用cacheと保存の正本を区別する。参照欠落・別Meshへの差替え時は、OnEnable・getter・単一release移行から保存情報やBrushを初期化しない。既存single-settings由来の未完了移行は旧分類契約を維持し、current/groupの参照消失と混同しない。Unityのnull placeholderはmanaged nullと異なり、同じassetの再importはmanaged wrapperだけが変わるため、保存bindingの比較に`ReferenceEquals`を使わない。
 - source不一致で評価を拒否しても、構造が有効なEmbedded Groupの既存読取りviewは調査用に保持する。明示Resetだけがcurrentのbindingと変形を再設定する。Disable/Destroyは自分のRuntime Meshがまだ割り当てられている場合だけsourceへ戻し、外部割当てを上書きしない。`SourceBindingPreservationTests` は欠落・修復・移行進捗・Reset/Undo・Prefab Variant・同assetの再import後の変位保持を検証する。
+- `RuntimeMeshAssignment` はRuntime出力を割り当てた実際のMeshFilter/SkinnedMeshRendererと、その時点の借用Meshを保持する。serialized target参照の切替・消失後も元の割当先を復元し、再割当時は以前の対象を先に解放する。source cache更新後の復元に新sourceを使わない。外部割当ては保持し、明示的な復元抑止scopeでは借用参照だけを解放する。`RuntimeMeshAssignmentTests` が両Renderer種別の切替・参照消失・Reset・終了を確認する。
 
 ## 依存関係
 

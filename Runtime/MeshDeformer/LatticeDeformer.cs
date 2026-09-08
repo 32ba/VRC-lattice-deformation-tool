@@ -133,6 +133,7 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, HideInInspector] private Vector3 _manualScaleProxy = Vector3.one;
         [NonSerialized] private LatticeDeformerCache _cache = new LatticeDeformerCache();
         [NonSerialized] private Mesh _runtimeMesh;
+        [NonSerialized] private RuntimeMeshAssignment _runtimeMeshAssignment;
         [NonSerialized] private Mesh _sourceMesh;
         [NonSerialized] private Mesh _readableSourceMeshOverride;
         [NonSerialized] private int _lastBlendShapeHash;
@@ -1566,7 +1567,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
             if (SuppressRestoreOnDisable || _meshRestorationSuppressionDepth > 0)
             {
-                ReleaseRuntimeMesh();
+                ReleaseRuntimeMeshWithoutRestoration();
                 return;
             }
 
@@ -1578,7 +1579,7 @@ namespace Net._32Ba.LatticeDeformationTool
             ReleaseDeformationNativeBuffers();
             if (SuppressRestoreOnDisable || _meshRestorationSuppressionDepth > 0)
             {
-                ReleaseRuntimeMesh();
+                ReleaseRuntimeMeshWithoutRestoration();
                 return;
             }
 
@@ -2298,19 +2299,7 @@ namespace Net._32Ba.LatticeDeformationTool
             ReleaseRuntimeMesh();
         }
 
-        private void RestoreOwnedRuntimeMesh()
-        {
-            // A user or another processor may replace the renderer mesh while this
-            // component is active. Lifecycle cleanup only restores our own output.
-            if (_runtimeMesh != null && _sourceMesh != null)
-            {
-                if (_skinnedMeshRenderer != null && ReferenceEquals(_skinnedMeshRenderer.sharedMesh, _runtimeMesh))
-                    _skinnedMeshRenderer.sharedMesh = _sourceMesh;
-                if (_meshFilter != null && ReferenceEquals(_meshFilter.sharedMesh, _runtimeMesh))
-                    _meshFilter.sharedMesh = _sourceMesh;
-            }
-            ReleaseRuntimeMesh();
-        }
+        private void RestoreOwnedRuntimeMesh() => ReleaseRuntimeMesh();
 
         public void InvalidateCache()
         {
@@ -2894,20 +2883,20 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private void AssignRuntimeMesh(Mesh mesh)
         {
-            if (_skinnedMeshRenderer != null)
-            {
-                _skinnedMeshRenderer.sharedMesh = mesh;
-            }
+            _runtimeMeshAssignment ??= new RuntimeMeshAssignment();
+            _runtimeMeshAssignment.Assign(mesh, _meshFilter, _skinnedMeshRenderer);
+        }
 
-            if (_meshFilter != null)
-            {
-                _meshFilter.sharedMesh = mesh;
-            }
+        private void ReleaseRuntimeMeshWithoutRestoration()
+        {
+            _runtimeMeshAssignment?.Clear(restore: false);
+            ReleaseRuntimeMesh();
         }
 
         [ExcludeFromCodeCoverage]
         private void ReleaseRuntimeMesh()
         {
+            _runtimeMeshAssignment?.Clear(restore: true);
             if (_runtimeMesh == null)
             {
                 return;
