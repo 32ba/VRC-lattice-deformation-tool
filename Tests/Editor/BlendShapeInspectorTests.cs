@@ -253,6 +253,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             public void Dispose()
             {
                 Undo.ClearAll();
+                // Never-active fixtures do not receive Unity's OnDestroy callback.
+                if(Owner!=null){Owner.InvalidateCache();Owner.RestoreOriginalMesh();}
                 if(Root!=null)Object.DestroyImmediate(Root);
                 if(Source!=null&&!EditorUtility.IsPersistent(Source))Object.DestroyImmediate(Source);
             }
