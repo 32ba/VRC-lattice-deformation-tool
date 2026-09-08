@@ -416,6 +416,8 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 ## 依存関係
 
+- `BrushDisplacementApplication` のMaskも準備済みLayer/queryへ適用する。mirror側Normal/Smooth/Maskは対応mapがある頂点だけを処理し、Moveは従来どおりmap制限しない。mirror queryはEuclidean・裏面filterなしを維持する。Smooth snapshotは通常適用後、mirror適用前にhandlerが取り直す。
+
 - `BrushDisplacementApplication` はNormal/Move/Smoothの準備済みqueryと借用配列へ適用する。handlerはtarget検証、Undo、rest-space converter取得、Smooth snapshot、preview更新を所有する。maskの既定1、1e-6境界、Moveの10倍係数、Smoothのsnapshot読取りを維持する。通常modeから分離し、mirror固有の経路は別に残る。
 
 - 頂点選択矩形は `SelectedVertexVisualization.DrawSelectionRectangle` が描画し、handlerは `VertexPickingQuery.Rectangle` で作ったRectを渡す。描画側はHandles.BeginGUI/EndGUIのscopeを所有し、入力や選択状態を読み書きしない。
