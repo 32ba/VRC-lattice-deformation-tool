@@ -416,6 +416,8 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 ## 依存関係
 
+- Profileのtopology SHA-256は `CompatibilityHashStream` の4 KiB bufferで逐次生成する。既存BinaryWriterのlittle-endian順序とfloat bit列を保持し、保存hash契約を変更しない。Unity MonoのWrite(Single)が作る一時配列を避けるためSingleToInt32BitsをWrite(Int32)へ渡す。buffer境界・特殊float・複数submesh/baseVertexは独立した旧形式期待値と照合する。
+
 - `nadena.dev.ndmf` >= 1.14.8 (VPM)
 - `com.unity.mathematics` 1.3.3
 - `com.unity.burst` 1.8.29
