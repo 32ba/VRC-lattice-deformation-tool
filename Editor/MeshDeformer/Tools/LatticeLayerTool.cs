@@ -77,7 +77,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static MirrorBehavior s_mirrorBehavior = MirrorBehavior.Mirrored;
         private static bool s_occludeWithSceneGeometry = true;
         private static Vector3Int s_lastGridSize = Vector3Int.one;
-        private static readonly Vector3[] s_mirrorPlaneCorners = new Vector3[4];
 
         // Overlay foldout states
         private static bool s_showSymmetrySection = false;
@@ -621,7 +620,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var mirrorScale = LatticePreviewUtility.GetManualScaleProxy(deformer);
                 mirrorBounds.size = Vector3.Scale(mirrorBounds.size, mirrorScale);
                 mirrorBounds.center += centerOffsetProxyLocal;
-                DrawMirrorPlane(mirrorBounds, proxyToWorld);
+                LatticeMirrorPlaneVisualization.Draw(mirrorBounds, proxyToWorld, (int)CurrentMirrorAxis);
             }
 
             var cageColor = new Color(1f, 1f, 1f, 0.8f);
@@ -913,7 +912,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                             break;
                                         }
                                         case MirrorBehavior.Mirrored:
-                                            mirrorLocal = MirrorPointAxis(storedLocal, sourceBounds, CurrentMirrorAxis);
+                                            mirrorLocal = LatticeCageGeometry.MirrorPointAxis(storedLocal, sourceBounds, (int)CurrentMirrorAxis);
                                             break;
                                         case MirrorBehavior.Antisymmetric:
                                         {
@@ -1344,51 +1343,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             LatticePreviewUtility.RequestSceneRepaint();
         }
 
-        private static void DrawMirrorPlane(Bounds bounds, Matrix4x4 meshToWorld)
-        {
-            var size = bounds.size;
-            if (size == Vector3.zero)
-            {
-                return;
-            }
-
-            var centerLocal = bounds.center;
-            Vector3 axisA;
-            Vector3 axisB;
-
-            switch (CurrentMirrorAxis)
-            {
-                case MirrorAxis.X:
-                    axisA = Vector3.up * (size.y * 0.5f);
-                    axisB = Vector3.forward * (size.z * 0.5f);
-                    break;
-                case MirrorAxis.Y:
-                    axisA = Vector3.right * (size.x * 0.5f);
-                    axisB = Vector3.forward * (size.z * 0.5f);
-                    break;
-                case MirrorAxis.Z:
-                default:
-                    axisA = Vector3.right * (size.x * 0.5f);
-                    axisB = Vector3.up * (size.y * 0.5f);
-                    break;
-            }
-
-            var localCorners = s_mirrorPlaneCorners;
-            localCorners[0] = centerLocal + axisA + axisB;
-            localCorners[1] = centerLocal + axisA - axisB;
-            localCorners[2] = centerLocal - axisA - axisB;
-            localCorners[3] = centerLocal - axisA + axisB;
-
-            for (int i = 0; i < localCorners.Length; i++)
-            {
-                localCorners[i] = meshToWorld.MultiplyPoint3x4(localCorners[i]);
-            }
-
-            var fillColor = new Color(0.3f, 0.6f, 1f, 0.3f);
-            var outlineColor = new Color(0.3f, 0.6f, 1f, 0.6f);
-            Handles.DrawSolidRectangleWithOutline(localCorners, fillColor, outlineColor);
-        }
-
         private static bool TryGetSymmetryIndex(int index, Vector3Int gridSize, MirrorBehavior behavior, MirrorAxis axis, out int symmetryIndex)
         {
             int nx = Mathf.Max(1, gridSize.x);
@@ -1614,27 +1568,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             deformer.AlignAutoInitialized = true;
             EditorUtility.SetDirty(deformer);
-        }
-
-        private static Vector3 MirrorPointAxis(Vector3 localPoint, Bounds bounds, MirrorAxis axis)
-        {
-            var mirrored = localPoint;
-            var center = bounds.center;
-
-            switch (axis)
-            {
-                case MirrorAxis.X:
-                    mirrored.x = center.x - (localPoint.x - center.x);
-                    break;
-                case MirrorAxis.Y:
-                    mirrored.y = center.y - (localPoint.y - center.y);
-                    break;
-                case MirrorAxis.Z:
-                    mirrored.z = center.z - (localPoint.z - center.z);
-                    break;
-            }
-
-            return mirrored;
         }
 
         internal static void ClearSelection()

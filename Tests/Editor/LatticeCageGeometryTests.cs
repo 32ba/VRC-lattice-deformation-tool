@@ -9,6 +9,20 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class LatticeCageGeometryTests
     {
+        [TestCase(0, -1f, 6f, 9f)]
+        [TestCase(1, 3f, -2f, 9f)]
+        [TestCase(2, 3f, 6f, -3f)]
+        [TestCase(-1, 3f, 6f, 9f)]
+        [TestCase(3, 3f, 6f, 9f)]
+        public void MirrorPoint_UsesBoundsCenterAndRetainsUnknownAxis(int axis, float x, float y, float z)
+        {
+            var bounds = new Bounds(new Vector3(1, 2, 3), Vector3.one * 10);
+            var point = new Vector3(3, 6, 9);
+            var mirrored = LatticeCageGeometry.MirrorPointAxis(point, bounds, axis);
+            Assert.That(mirrored, Is.EqualTo(new Vector3(x, y, z)));
+            Assert.That(LatticeCageGeometry.MirrorPointAxis(mirrored, bounds, axis), Is.EqualTo(point));
+        }
+
         [Test]
         public void PointAndDeltaMapping_PreserveTranslationScalingAndCollapsedAxisRules()
         {

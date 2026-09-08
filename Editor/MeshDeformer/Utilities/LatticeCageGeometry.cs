@@ -124,6 +124,26 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Mathf.Abs(size.z));
             return new Bounds(center, size);
         }
+        internal static Vector3 MirrorPointAxis(Vector3 localPoint, Bounds bounds, int axis)
+        {
+            var mirrored = localPoint;
+            var center = bounds.center;
+
+            switch (axis)
+            {
+                case 0:
+                    mirrored.x = center.x - (localPoint.x - center.x);
+                    break;
+                case 1:
+                    mirrored.y = center.y - (localPoint.y - center.y);
+                    break;
+                case 2:
+                    mirrored.z = center.z - (localPoint.z - center.z);
+                    break;
+            }
+
+            return mirrored;
+        }
     }
 }
 #endif
