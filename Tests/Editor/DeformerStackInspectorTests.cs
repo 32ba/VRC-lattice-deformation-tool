@@ -83,6 +83,81 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(layer ? f.Section.LayerList.selectedIndex : f.Section.GroupList.selectedIndex, Is.EqualTo(1));
         }
 
+        [UnityTest]
+        public IEnumerator GroupDrag_KeepsPanelUntilPointerDispatchEnds() => DragDispatch(false, false);
+
+        [UnityTest]
+        public IEnumerator LayerDrag_KeepsPanelUntilPointerDispatchEnds() => DragDispatch(true, false);
+
+        [UnityTest]
+        public IEnumerator PendingDrag_DiscardsInputAfterExternalStorageChange() => DragDispatch(true, true);
+
+        [UnityTest]
+        public IEnumerator PointerCancel_DiscardsPendingSelectionAndReorder() => DragDispatch(true, false, true);
+
+        private static IEnumerator DragDispatch(bool layer, bool replaceStorage, bool cancel = false)
+        {
+            using var f = new Fixture();
+            f.Attach(f.Section.Root);
+            yield return null;
+            var groupList = f.Section.GroupList;
+            var list = layer ? f.Section.LayerList : groupList;
+            Assert.That(list.panel, Is.Not.Null);
+            var originalGroup = f.Target.Groups[0];
+            var originalLayer = originalGroup.Layers[1];
+            string originalLayerJson = JsonUtility.ToJson(originalLayer);
+            using (var down = PointerDownEvent.GetPooled(new Event { type = EventType.MouseDown, button = 0 }))
+            {
+                down.target = list; list.SendEvent(down);
+            }
+            // The animated dragger clears selection, reselects the dragged row,
+            // and asks its controller to move that row before pointer-up returns.
+            list.ClearSelection();
+            list.SetSelection(1);
+            list.viewController.Move(1, 0);
+            f.Section.RebuildGroupList();
+            Assert.That(f.Section.GroupList, Is.SameAs(groupList));
+            Assert.That(list.panel, Is.Not.Null);
+            Assert.That(f.Target.ActiveGroupIndex, Is.EqualTo(0));
+            Assert.That(f.Target.ActiveLayerIndex, Is.EqualTo(0));
+            Assert.That(f.Target.Groups[0], Is.SameAs(originalGroup));
+            Assert.That(f.Target.Groups[0].Layers[1], Is.SameAs(originalLayer));
+            yield return null; // A held pointer must survive another Editor update.
+            Assert.That(f.Section.GroupList, Is.SameAs(groupList));
+            if (replaceStorage) f.Target.ActiveGroupIndex = 1;
+            if (cancel)
+            {
+                using var cancelled = PointerCancelEvent.GetPooled();
+                cancelled.target = list; list.SendEvent(cancelled);
+            }
+            else using (var up = PointerUpEvent.GetPooled(new Event { type = EventType.MouseUp, button = 0 }))
+            {
+                up.target = list; list.SendEvent(up);
+            }
+            Assert.That(list.panel, Is.Not.Null, "The event dispatcher still uses this panel.");
+            yield return null;
+            yield return null;
+            if (replaceStorage || cancel)
+            {
+                Assert.That(f.Target.ActiveGroupIndex, Is.EqualTo(replaceStorage ? 1 : 0));
+                Assert.That(f.Target.Groups[0], Is.SameAs(originalGroup));
+                Assert.That(f.Target.Groups[0].Layers[1], Is.SameAs(originalLayer));
+            }
+            else if (layer)
+            {
+                Assert.That(f.Target.ActiveGroupIndex, Is.EqualTo(0));
+                Assert.That(f.Target.ActiveLayerIndex, Is.EqualTo(0));
+                Assert.That(JsonUtility.ToJson(f.Target.Layers[0]), Is.EqualTo(originalLayerJson));
+            }
+            else
+            {
+                Assert.That(f.Target.ActiveGroupIndex, Is.EqualTo(0));
+                Assert.That(f.Target.Groups[1], Is.SameAs(originalGroup));
+            }
+            Assert.That(f.Section.GroupList, Is.Not.SameAs(groupList));
+            CollectionAssert.AreEqual(f.Vertices, f.Mesh.vertices);
+        }
+
         [Test]
         public void ExternalSameCountGroupSelection_RebuildsNestedRows()
         {
@@ -312,7 +387,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 var row = Section.LayerList.makeItem(); Section.LayerList.bindItem(row, index); Attach(row); return row;
             }
-            private void Attach(VisualElement row)
+            internal void Attach(VisualElement row)
             {
                 if (_window == null)
                 {

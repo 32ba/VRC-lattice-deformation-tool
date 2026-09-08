@@ -397,6 +397,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `DeformerStackInspectorSection` が Group/Layer の入れ子一覧、行の binding、context menu と選択表示を所有する。詳細設定・BlendShape・import は Inspector の別の描画 callback として接続する。表示再構築は `SetSelectionWithoutNotify` を使用し、不正な保存選択を補正しない。Profile asset が欠落した Profile mode も編集禁止を維持する。
 - `DeformerStackStructure` は Group/Layer の identity・型・選択だけを独立配列へ保存し、同じ件数の切替・入替え・Undo/Redoも再検出する。保持した object は identity 比較だけに使い、過去の mutable payload を表示値として読まない。通常の照合は Brush/Mask 全頂点の検査を繰り返さず、構造再構築と変更時に検証する。
 - 行・メニュー・選択の callback は一覧の世代と storage identity を確認してから適用する。行の名前・enabled・weight は標準の SerializedProperty binding を保ち、その handler より先の TrickleDown で古い入力を拒否する。Unity のテキスト/slider Undo grouping、Prefab override 表示と property menu を独自実装で置換しない。選択は `DeformerStackSelection` から共通 `DeformerEditService` へ接続する。構造操作・行変更・内部 Clipboard copy は source/topology の純粋な検査を通し、拒否した選択表示は保存値へ戻す。破棄時は行の callback と binding を解除する。
+- Animated ListView は drag 開始時に一時的な空選択を通知する。その通知を保存へ書かず、選択・並べ替えの反映と一覧再構築は pointer-up の dispatch 後にまとめる。入力中の外部 storage 変更と PointerCancel は保留操作を破棄し、保存済みの表示へ戻す。入れ子 ListView の pointer capture 中の終了は、実際に capture した一覧で受け取る。
 - `DeformerStackInspectorTests` は read-only 再構築、同件数の切替、古い行入力、Editor panel 上の property event、Undo/Redo、Prefab Variant の Apply/save-reloadを検証する。property event の検証は panel への attach 後に Editor update を待ち、標準 binding の存在も確認する。未接続の field へ値を入れただけで拒否成功と判定しない。基準 Layer 操作の期待 snapshot は変更せず、fixture helper は旧 Inspector と新 section の Clipboard 保存場所を reflection で識別する。
 
 ## 依存関係

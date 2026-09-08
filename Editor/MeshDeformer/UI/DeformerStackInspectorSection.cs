@@ -24,6 +24,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private bool _cachedProfileReadOnly, _disposed;
         private int _generation;
         private DeformerStackStructure _structure;
+        private readonly List<Action> _pendingListChanges = new();
+        private bool _pointerDown, _listUpdateScheduled, _rebuildPending;
+        private int _pendingGeneration;
         private static bool s_showLayerSettings;
         private static string s_copiedLayerJson, s_copiedGroupJson;
         private UnityEngine.Object target => _owner != null ? _owner.target : null;
@@ -44,6 +47,65 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _groupsContainer.style.marginTop = 4;
         }
 
+        private void ConfigureListInput(ListView list)
+        {
+            list.RegisterCallback<PointerDownEvent>(evt =>
+            {
+                if (evt.button == 0) _pointerDown = true;
+            });
+            list.RegisterCallback<PointerUpEvent>(evt =>
+            {
+                if (evt.button == 0) FinishPointerInput();
+            }, TrickleDown.TrickleDown);
+            list.RegisterCallback<PointerCancelEvent>(_ =>
+            {
+                _pendingListChanges.Clear();
+                _rebuildPending = true;
+                FinishPointerInput();
+            }, TrickleDown.TrickleDown);
+        }
+
+        // Animated ListView clears and reselects during StartDrag, then continues
+        // using the same panel through OnDrop. Commit after pointer dispatch so
+        // neither selection nor reordering can detach its live drag controller.
+        private void QueueListChange(Action change)
+        {
+            if (_groupsContainer.panel == null) { change(); return; }
+            if (_pendingListChanges.Count == 0) _pendingGeneration = _generation;
+            _pendingListChanges.Add(change);
+            if (!_pointerDown) ScheduleListUpdate();
+        }
+
+        private void FinishPointerInput()
+        {
+            _pointerDown = false;
+            if (_pendingListChanges.Count > 0 || _rebuildPending) ScheduleListUpdate();
+        }
+
+        private void ScheduleListUpdate()
+        {
+            if (_listUpdateScheduled || _disposed) return;
+            _listUpdateScheduled = true;
+            _groupsContainer.schedule.Execute(() =>
+            {
+                if (_disposed || _pointerDown) { _listUpdateScheduled = false; return; }
+                var changes = _pendingListChanges.ToArray();
+                _pendingListChanges.Clear();
+                bool canApply = IsCurrent(_pendingGeneration);
+                try
+                {
+                    if (canApply) foreach (var change in changes) change();
+                }
+                finally
+                {
+                    _listUpdateScheduled = false;
+                    bool rebuild = _rebuildPending || changes.Length > 0;
+                    _rebuildPending = false;
+                    if (rebuild) RebuildGroupList();
+                }
+            });
+        }
+
         private bool IsCurrent(int generation = -1) => !_disposed && target != null &&
             (generation < 0 || generation == _generation) &&
             (_structure == null || _structure.Matches(target as LatticeDeformer));
@@ -61,6 +123,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         public void Dispose()
         {
             _disposed = true; _generation++; _structure = null;
+            _pendingListChanges.Clear();
             ReleaseFields();
             _groupsContainer.Unbind(); _groupsContainer.Clear();
             _groupListView = null; _layerListView = null;
@@ -69,6 +132,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal void RebuildGroupList()
         {
             if (target == null || _disposed) return;
+            if (_pointerDown || _listUpdateScheduled) { _rebuildPending = true; return; }
             _generation++;
             int generation = _generation;
             _structure = new DeformerStackStructure(target as LatticeDeformer);
@@ -115,10 +179,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 virtualizationMethod = CollectionVirtualizationMethod.DynamicHeight,
                 selectionType = SelectionType.Single,
             };
+            ConfigureListInput(_groupListView);
             _groupListView.makeItem = MakeGroupItem;
             _groupListView.bindItem = BindGroupItem;
             _groupListView.unbindItem = ReleaseRow;
-            _groupListView.itemIndexChanged += (from, to) => { if (IsCurrent(generation)) OnGroupReordered(from, to); };
+            _groupListView.itemIndexChanged += (from, to) => { if (IsCurrent(generation)) QueueListChange(() => OnGroupReordered(from, to)); };
             _groupListView.selectionChanged += _ => { if (IsCurrent(generation)) OnGroupSelectionChanged(); };
 
             _groupIndices.Clear();
@@ -302,10 +367,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     virtualizationMethod = CollectionVirtualizationMethod.DynamicHeight,
                     selectionType = SelectionType.Single,
                 };
+                ConfigureListInput(_layerListView);
                 _layerListView.makeItem = MakeLayerItem;
                 _layerListView.bindItem = BindLayerItem;
                 _layerListView.unbindItem = ReleaseRow;
-                _layerListView.itemIndexChanged += (from, to) => { if (IsCurrent(generation)) OnLayerReordered(from, to); };
+                _layerListView.itemIndexChanged += (from, to) => { if (IsCurrent(generation)) QueueListChange(() => OnLayerReordered(from, to)); };
                 _layerListView.selectionChanged += _ => { if (IsCurrent(generation)) OnLayerSelectionChanged(); };
 
                 ResolveActiveGroupProperties();
@@ -390,8 +456,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (!IsCurrent() || _groupListView == null || target is not LatticeDeformer d) return;
             int selected = _groupListView.selectedIndex;
-            if (selected == _activeGroupIndexProp.intValue) return;
-            PerformEditOperation(() => DeformerStackSelection.SelectGroup(d, selected, "Select Group"));
+            if (selected < 0 || selected == _activeGroupIndexProp.intValue) return;
+            QueueListChange(() => PerformEditOperation(() => DeformerStackSelection.SelectGroup(d, selected, "Select Group")));
         }
 
         private void RebuildLayerListInternal()
@@ -634,8 +700,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (!IsCurrent() || _layerListView == null || target is not LatticeDeformer d) return;
             int selected = _layerListView.selectedIndex;
-            if (selected == _activeLayerIndexProp.intValue) return;
-            PerformEditOperation(() => DeformerStackSelection.SelectLayer(d, selected, "Select Layer"));
+            if (selected < 0 || selected == _activeLayerIndexProp.intValue) return;
+            QueueListChange(() => PerformEditOperation(() => DeformerStackSelection.SelectLayer(d, selected, "Select Layer")));
         }
 
         private void OnLayerReordered(int oldIndex, int newIndex)
