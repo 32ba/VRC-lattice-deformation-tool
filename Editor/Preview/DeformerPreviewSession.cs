@@ -47,6 +47,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 LatticePreviewUtility.RegisterPreviewUndoTarget(_deformer);
                 _registered = true;
                 LatticePreviewUtility.InteractiveDeformationPublished += OnInteractiveDeformationPublished;
+                // NDMF node disposal can be deferred past the end of this domain.
+                AssemblyReloadEvents.beforeAssemblyReload += Dispose;
             }
             catch
             {
@@ -108,6 +110,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (_disposed) return;
             _disposed = true;
+            AssemblyReloadEvents.beforeAssemblyReload -= Dispose;
             LatticePreviewUtility.InteractiveDeformationPublished -= OnInteractiveDeformationPublished;
             if (_registered) LatticePreviewUtility.UnregisterPreviewUndoTarget(_deformer);
             _registered = false;
