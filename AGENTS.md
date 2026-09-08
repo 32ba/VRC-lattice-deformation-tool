@@ -416,6 +416,8 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 ## 依存関係
 
+- `BrushDisplacementApplication` はNormal/Move/Smoothの準備済みqueryと借用配列へ適用する。handlerはtarget検証、Undo、rest-space converter取得、Smooth snapshot、preview更新を所有する。maskの既定1、1e-6境界、Moveの10倍係数、Smoothのsnapshot読取りを維持する。通常modeから分離し、mirror固有の経路は別に残る。
+
 - 頂点選択矩形は `SelectedVertexVisualization.DrawSelectionRectangle` が描画し、handlerは `VertexPickingQuery.Rectangle` で作ったRectを渡す。描画側はHandles.BeginGUI/EndGUIのscopeを所有し、入力や選択状態を読み書きしない。
 
 - `VertexPickingQuery` は借用したlocal/world頂点・法線・行列・camera位置とprojection関数から最近傍/矩形内のindexを返す。world pose優先、距離のstrict境界、同距離の先頭優先、camera/normal欠落時の裏面判定fallbackを維持する。handlerは入力、選択変更、再描画を保持する。
