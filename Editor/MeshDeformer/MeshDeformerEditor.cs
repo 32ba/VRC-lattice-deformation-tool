@@ -61,7 +61,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private VisualElement _guidedInspectorContainer;
         private VisualElement _detailedInspectorContainer;
-        private bool _guidedStartFailed;
+        private GuidedInspectorSection _guidedInspector;
+        internal GuidedInspectorSection GuidedInspector => _guidedInspector;
 
         // UI Toolkit layer list
         private ListView _layerListView;
@@ -76,6 +77,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _groupsProp = serializedObject.FindProperty("_groups");
             _activeGroupIndexProp = serializedObject.FindProperty("_activeGroupIndex");
             _profileInspector = new ProfileInspectorSection(this, RebuildGroupList);
+            _guidedInspector = new GuidedInspectorSection(this, AutoAssignLocalRendererReferences,
+                OpenDetailedInspector, OnGuidedEditingStarted, NotifyPropertyChanges);
             _rebuildInspector = new MeshRebuildInspectorSection(serializedObject);
             _supportInspector = new SupportInspectorSection(this);
             _validationInspector = new ValidationInspectorSection(this, NotifyPropertyChanges);
@@ -130,6 +133,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _clearanceInspector = null;
             ExitBlendShapeTestMode();
             _profileInspector = null;
+            _guidedInspector = null;
             _rebuildInspector = null;
             _supportInspector = null;
             _validationInspector = null;
@@ -220,190 +224,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private void DrawGuidedInspector()
+        private void DrawGuidedInspector() => _guidedInspector?.Draw();
+
+        private void OpenDetailedInspector()
         {
-            if (target == null) return;
-
-            AutoAssignLocalRendererReferences();
-            serializedObject.Update();
-            ResolveActiveGroupProperties();
-
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.GuidedQuestion), EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.GuidedIntro), MessageType.Info);
-
-            if (targets.Length != 1 || target is not LatticeDeformer deformer)
-            {
-                EditorGUILayout.HelpBox(
-                    LatticeLocalization.Tr(LocKey.GuidedSingleSelectionRequired),
-                    MessageType.Warning);
-                DrawOpenDetailedInspectorButton();
-                return;
-            }
-
-            DrawGuidedTarget(deformer);
-
-            if (deformer.DataSource == DeformerDataSource.Profile)
-            {
-                EditorGUILayout.HelpBox(
-                    LatticeLocalization.Tr(LocKey.GuidedProfileReadOnly),
-                    MessageType.Warning);
-                DrawOpenDetailedInspectorButton();
-                return;
-            }
-
-            if (deformer.TryGetActiveLayerFast(out var activeLayer))
-            {
-                EditorGUILayout.LabelField(
-                    string.Format(LatticeLocalization.Tr(LocKey.GuidedCurrentEdit), activeLayer.Name),
-                    EditorStyles.miniLabel);
-            }
-
-            bool canStart = deformer.SourceMesh != null;
-            using (new EditorGUI.DisabledScope(!canStart))
-            {
-                DrawGuidedAction(
-                    LocKey.GuidedAdjustShape,
-                    LocKey.GuidedAdjustShapeDescription,
-                    GuidedEditingIntent.AdjustShape);
-                DrawGuidedAction(
-                    LocKey.GuidedSculptSurface,
-                    LocKey.GuidedSculptSurfaceDescription,
-                    GuidedEditingIntent.SculptSurface);
-                DrawGuidedAction(
-                    LocKey.GuidedMoveVertices,
-                    LocKey.GuidedMoveVerticesDescription,
-                    GuidedEditingIntent.MoveVertices);
-            }
-
-            EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.GuidedPreviewNote), MessageType.None);
-            if (_guidedStartFailed)
-            {
-                EditorGUILayout.HelpBox(
-                    LatticeLocalization.Tr(LocKey.GuidedUnableToStart),
-                    MessageType.Warning);
-            }
-
-            DrawOpenDetailedInspectorButton();
-
-            if (serializedObject.ApplyModifiedProperties())
-            {
-                NotifyPropertyChanges();
-            }
+            DetailedInspectorEnabled = true;
+            ApplyInspectorDepthVisibility();
         }
 
-        private void DrawGuidedTarget(LatticeDeformer deformer)
+        private void OnGuidedEditingStarted()
         {
-            if (deformer.SourceMesh != null)
-            {
-                EditorGUILayout.LabelField(
-                    LatticeLocalization.Tr(LocKey.GuidedTarget),
-                    deformer.SourceMesh.name);
-            }
-            else
-            {
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.GuidedNoTarget), MessageType.Warning);
-                EditorGUILayout.PropertyField(_skinnedRendererProp, LatticeLocalization.Content(LocKey.SkinnedMeshSource));
-                EditorGUILayout.PropertyField(_meshFilterProp, LatticeLocalization.Content(LocKey.StaticMeshSource));
-            }
-        }
-
-        private void DrawGuidedAction(string labelKey, string descriptionKey, GuidedEditingIntent intent)
-        {
-            string description = LatticeLocalization.Tr(descriptionKey);
-            if (GUILayout.Button(new GUIContent(LatticeLocalization.Tr(labelKey), description), GUILayout.Height(34f)))
-            {
-                StartGuidedEditing(intent);
-            }
-            GUILayout.Label(description, EditorStyles.wordWrappedMiniLabel);
-            EditorGUILayout.Space(4f);
-        }
-
-        private void DrawOpenDetailedInspectorButton()
-        {
-            EditorGUILayout.Space(4f);
-            if (GUILayout.Button(LatticeLocalization.Tr(LocKey.OpenDetailedInspector)))
-            {
-                DetailedInspectorEnabled = true;
-                ApplyInspectorDepthVisibility();
-            }
-        }
-
-        private enum GuidedEditingIntent
-        {
-            AdjustShape,
-            SculptSurface,
-            MoveVertices
-        }
-
-        private void StartGuidedEditing(GuidedEditingIntent intent)
-        {
-            if (target is not LatticeDeformer deformer || deformer.SourceMesh == null)
-            {
-                _guidedStartFailed = true;
-                return;
-            }
-
-            serializedObject.ApplyModifiedProperties();
-            Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.MeshDeformer));
-
-            MeshDeformerLayerType layerType = intent == GuidedEditingIntent.AdjustShape
-                ? MeshDeformerLayerType.Lattice
-                : MeshDeformerLayerType.Brush;
-            int layerIndex = EnsureGuidedLayer(deformer, layerType);
-            if (layerIndex < 0)
-            {
-                serializedObject.Update();
-                _guidedStartFailed = true;
-                return;
-            }
-
-            _guidedStartFailed = false;
-            MeshDeformerTool.CurrentBrushSubMode = intent == GuidedEditingIntent.MoveVertices
-                ? MeshDeformerTool.BrushSubMode.VertexSelection
-                : MeshDeformerTool.BrushSubMode.Brush;
-            MeshDeformerTool.UseSimpleOverlay(deformer);
-
-            EditorUtility.SetDirty(deformer);
-            LatticePrefabUtility.MarkModified(deformer);
-            deformer.InvalidateCache();
-            deformer.Deform(LatticePreviewUtility.ShouldAssignRuntimeMesh());
-            TogglePreviewForTargets(true);
-
-            serializedObject.Update();
             ResolveActiveGroupProperties();
             InitializePendingGridSizes();
             RebuildGroupList();
-            ToolManager.SetActiveTool<MeshDeformerTool>();
-            LatticePreviewUtility.RequestSceneRepaint();
-            SceneView.RepaintAll();
+            NotifyPropertyChanges(true);
         }
 
-        internal static int EnsureGuidedLayer(
-            LatticeDeformer deformer,
-            MeshDeformerLayerType requiredType)
-        {
-            if (deformer == null || deformer.DataSource == DeformerDataSource.Profile)
-            {
-                return -1;
-            }
-
-            var layers = deformer.Layers;
-            int activeIndex = deformer.ActiveLayerIndex;
-            if (activeIndex >= 0 && activeIndex < layers.Count &&
-                layers[activeIndex] != null && layers[activeIndex].Type == requiredType)
-            {
-                return activeIndex;
-            }
-
-            for (int i = 0; i < layers.Count; i++)
-            {
-                if (layers[i] == null || layers[i].Type != requiredType) continue;
-                deformer.ActiveLayerIndex = i;
-                return i;
-            }
-
-            return deformer.AddLayer(layerType: requiredType);
-        }
+        // Historical tests use this internal entry; normal UI calls the authoring service.
+        internal static int EnsureGuidedLayer(LatticeDeformer deformer, MeshDeformerLayerType requiredType)
+            => GuidedAuthoringService.EnsureLayer(deformer, requiredType, LatticeLocalization.Tr(LocKey.MeshDeformer));
 
         private VisualElement _groupsContainer;
         private ListView _groupListView;

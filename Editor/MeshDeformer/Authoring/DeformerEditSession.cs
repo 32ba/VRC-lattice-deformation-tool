@@ -48,17 +48,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static DeformerEditSession TryBegin(LatticeDeformer owner, MeshDeformerLayerType type, string label)
         {
-            if (owner == null || !owner.HasValidSerializedAuthoringData) return null;
-            var data = SerializedDeformerReader.Read(owner);
-            if (data.DataSource != DeformerDataSource.Embedded || data.ActiveLayers == null ||
+            if (!DeformerAuthoringSource.TryRead(owner, out var data, out var source, out int topologyHash)) return null;
+            if (data.ActiveLayers == null ||
                 data.ActiveLayerIndex < 0 || data.ActiveLayerIndex >= data.ActiveLayers.Count) return null;
             var layer = data.ActiveLayers[data.ActiveLayerIndex];
             if (layer == null || layer.Type != type) return null;
-            var source = data.SourceMesh;
-            if (source == null || source.vertexCount == 0 || !HasExpectedRendererMesh(owner, data, source) ||
-                (data.SourceVertexCount > 0 && data.SourceVertexCount != source.vertexCount)) return null;
-            int topologyHash = SourceMeshTopology.Calculate(source);
-            if (topologyHash == 0 || (data.SourceTopologyHash != 0 && data.SourceTopologyHash != topologyHash)) return null;
             return new DeformerEditSession(owner, data, layer, source, topologyHash, label);
         }
 
@@ -76,7 +70,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _layer.Type == _type && ReferenceEquals(_layer.SerializedSettings, _settings) &&
                 ReferenceEquals(data.SourceMesh, _source) &&
                 ReferenceEquals(data.SkinnedRenderer, _skinned) && ReferenceEquals(data.MeshFilter, _filter) &&
-                _source.vertexCount == _vertexCount && HasExpectedRendererMesh(owner, data, _source);
+                _source.vertexCount == _vertexCount && DeformerAuthoringSource.HasExpectedRendererMesh(owner, data, _source);
         }
 
         internal bool TryPrepareWrite(LatticeDeformer owner)
@@ -98,13 +92,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _changed = true;
             // Pair the frame's Undo record with its final Prefab override values.
             if (_owner != null) LatticePrefabUtility.MarkModified(_owner);
-        }
-
-        private static bool HasExpectedRendererMesh(LatticeDeformer owner, in SerializedDeformerData data, Mesh source)
-        {
-            Mesh displayed = data.SkinnedRenderer != null ? data.SkinnedRenderer.sharedMesh :
-                data.MeshFilter != null ? data.MeshFilter.sharedMesh : null;
-            return displayed != null && (ReferenceEquals(displayed, source) || ReferenceEquals(displayed, owner.RuntimeMesh));
         }
 
         internal bool TryCancel()
