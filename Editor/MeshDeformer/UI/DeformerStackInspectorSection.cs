@@ -13,7 +13,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         private readonly UnityEditor.Editor _owner;
         private readonly Action<int> _drawGroupSettings;
-        private readonly Action _drawLayerSettings, _drawOperations, _onStructureChanged, _onPropertyChanged;
+        private readonly Action _drawLayerSettings, _drawOperations, _onStructureChanged;
         private readonly Dictionary<VisualElement, Action> _refreshFields = new(), _unbindFields = new();
         private readonly SerializedProperty _groupsProp, _activeGroupIndexProp;
         private SerializedProperty _layersProp, _activeLayerIndexProp;
@@ -35,11 +35,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             SerializedDeformerReader.Read(d).DataSource == DeformerDataSource.Profile;
 
         internal DeformerStackInspectorSection(UnityEditor.Editor owner, Action<int> drawGroupSettings,
-            Action drawLayerSettings, Action drawOperations, Action onStructureChanged, Action onPropertyChanged)
+            Action drawLayerSettings, Action drawOperations, Action onStructureChanged)
         {
             _owner = owner; _drawGroupSettings = drawGroupSettings; _drawLayerSettings = drawLayerSettings;
             _drawOperations = drawOperations; _onStructureChanged = onStructureChanged;
-            _onPropertyChanged = onPropertyChanged;
             _groupsProp = serializedObject.FindProperty("_groups");
             _activeGroupIndexProp = serializedObject.FindProperty("_activeGroupIndex");
             _groupsContainer.style.marginTop = 4;
@@ -260,7 +259,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var nameField = element.Q<TextField>("group-name");
             if (nameField != null)
             {
-                BindField(nameField, groupNameProp, p => p.stringValue, (p, value) => p.stringValue = value);
+                BindField(nameField, groupNameProp, p => p.stringValue);
             }
 
             // Active group highlight
@@ -424,11 +423,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        // Resolve a property at the time of an input event, after verifying that
-        // the row still identifies the same objects. SerializedObject preserves
-        // Unity's text/slider Undo grouping; repaint never assigns stored values.
+        // Reject stale input before Unity's binding handler runs. Keep the native
+        // binding for Undo grouping, Prefab override styling and property menus.
+        // Refreshing presentation resolves a current property and never writes it.
         private void BindField<T>(BaseField<T> field, SerializedProperty property,
-            Func<SerializedProperty, T> read, Action<SerializedProperty, T> write)
+            Func<SerializedProperty, T> read)
         {
             if (property == null) return;
             if (_unbindFields.TryGetValue(field, out var previous)) previous();
@@ -441,13 +440,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EventCallback<ChangeEvent<T>> changed = evt =>
             {
                 if (!IsCurrent(generation) || target is not LatticeDeformer d ||
-                    !DeformerAuthoringSource.TryRead(d, out _, out _, out _)) return;
-                serializedObject.Update();
-                write(serializedObject.FindProperty(path), evt.newValue);
-                if (serializedObject.ApplyModifiedProperties()) _onPropertyChanged();
+                    !DeformerAuthoringSource.TryRead(d, out _, out _, out _) ||
+                    (evt.newValue is float number && (float.IsNaN(number) || float.IsInfinity(number))))
+                {
+                    field.SetValueWithoutNotify(evt.previousValue);
+                    evt.StopImmediatePropagation();
+                }
             };
-            field.RegisterValueChangedCallback(changed);
-            _unbindFields[field] = () => field.UnregisterValueChangedCallback(changed);
+            field.SetValueWithoutNotify(read(property));
+            field.BindProperty(property);
+            field.RegisterCallback(changed, TrickleDown.TrickleDown);
+            _unbindFields[field] = () =>
+            {
+                field.UnregisterCallback(changed, TrickleDown.TrickleDown);
+                field.Unbind();
+            };
             _refreshFields[field] = refresh;
             refresh();
         }
@@ -573,19 +580,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             // Row 1
             var enabledToggle = element.Q<Toggle>("layer-enabled");
-            BindField(enabledToggle, enabledProp, p => p.boolValue, (p, value) => p.boolValue = value);
+            BindField(enabledToggle, enabledProp, p => p.boolValue);
 
             var nameField = element.Q<TextField>("layer-name");
-            BindField(nameField, nameProp, p => p.stringValue, (p, value) => p.stringValue = value);
+            BindField(nameField, nameProp, p => p.stringValue);
 
             element.Q<Label>("layer-type").text = isBrush ? "B" : "L";
 
             // Row 2
             var weightSlider = element.Q<Slider>("layer-weight");
-            BindField(weightSlider, weightProp, p => p.floatValue, (p, value) =>
-            {
-                if (!float.IsNaN(value) && !float.IsInfinity(value)) p.floatValue = Mathf.Clamp01(value);
-            });
+            BindField(weightSlider, weightProp, p => p.floatValue);
 
             // Settings foldout
             var foldout = element.Q<Foldout>("layer-settings");
@@ -702,8 +706,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void PerformEditOperation(Func<bool> operation)
         {
-            if (_disposed || target is not LatticeDeformer d ||
-                !DeformerAuthoringSource.TryRead(d, out _, out _, out _)) return;
+            if (_disposed || target is not LatticeDeformer d) return;
+            if (!DeformerAuthoringSource.TryRead(d, out _, out _, out _))
+            {
+                RebuildGroupList();
+                return;
+            }
             serializedObject.ApplyModifiedProperties();
             bool changed = operation();
             serializedObject.Update();

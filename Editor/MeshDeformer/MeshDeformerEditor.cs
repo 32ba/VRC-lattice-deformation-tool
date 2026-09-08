@@ -67,7 +67,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _groupsProp = serializedObject.FindProperty("_groups");
             _activeGroupIndexProp = serializedObject.FindProperty("_activeGroupIndex");
             _stackInspector = new DeformerStackInspectorSection(this, DrawGroupBlendShapeSection,
-                DrawActiveLayerSettings, DrawLayerOperationsImgui, OnStackStructureChanged, NotifyPropertyChanges);
+                DrawActiveLayerSettings, DrawLayerOperationsImgui, OnStackStructureChanged);
             _profileInspector = new ProfileInspectorSection(this, RebuildGroupList);
             _guidedInspector = new GuidedInspectorSection(this, AutoAssignLocalRendererReferences,
                 OpenDetailedInspector, OnGuidedEditingStarted, NotifyPropertyChanges);
@@ -249,6 +249,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void RebuildGroupList() => _stackInspector?.RebuildGroupList();
         private void CheckAndRebuildLayers() => _stackInspector?.CheckAndRebuildLayers();
         private void OnGroupReordered(int from, int to) => _stackInspector?.OnGroupReordered(from, to);
+        private void OnLayerReordered(int from, int to)
+        {
+            if (target is LatticeDeformer d) _stackInspector?.MoveLayer(d, from, to);
+        }
         private void MoveLayer(LatticeDeformer d, int from, int to) => _stackInspector?.MoveLayer(d, from, to);
         private void DeleteLayer(LatticeDeformer d, int index) => _stackInspector?.DeleteLayer(d, index);
         private void CopyLayer(LatticeDeformer d, int index) => _stackInspector?.CopyLayer(d, index);

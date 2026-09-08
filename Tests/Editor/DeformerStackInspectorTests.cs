@@ -1,11 +1,13 @@
 #if UNITY_EDITOR
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
+using UnityEngine.TestTools;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using Object = UnityEngine.Object;
 
@@ -94,12 +96,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(f.BindLayer(1).Q<TextField>("layer-name").value, Is.EqualTo("Second brush"));
         }
 
-        [Test]
-        public void StaleRows_CannotRenameToggleOrWeightReorderedStorage()
+        [UnityTest]
+        public IEnumerator StaleRows_CannotRenameToggleOrWeightReorderedStorage()
         {
             using var f = new Fixture();
             var oldGroup = f.BindGroup(0);
             var oldLayer = f.BindLayer(1);
+            yield return null;
+            Assert.That(oldLayer.Q<Slider>("layer-weight").binding, Is.Not.Null);
             Assert.That(f.Target.MoveGroup(0, 1), Is.True);
             string before = EditorJsonUtility.ToJson(f.Target);
             int undo = Undo.GetCurrentGroup();
@@ -113,11 +117,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(Undo.GetCurrentGroup(), Is.EqualTo(undo));
         }
 
-        [Test]
-        public void SameCountObjectReplacement_InvalidatesOldRowIdentity()
+        [UnityTest]
+        public IEnumerator SameCountObjectReplacement_InvalidatesOldRowIdentity()
         {
             using var f = new Fixture();
             var oldGroup = f.BindGroup(0);
+            yield return null;
+            Assert.That(oldGroup.Q<TextField>("group-name").binding, Is.Not.Null);
             var raw = SerializedDeformerReader.Read(f.Target);
             var copy = JsonUtility.FromJson<DeformerGroup>(JsonUtility.ToJson(raw.EmbeddedGroups[0]));
             Set(f.Target, "_groups", new List<DeformerGroup> { copy, raw.EmbeddedGroups[1] });
@@ -128,11 +134,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(f.Section.GroupList, Is.Not.SameAs(oldList));
         }
 
-        [Test]
-        public void RowProperties_UseSerializedUndoAndRefreshWithoutRebuilding()
+        [UnityTest]
+        public IEnumerator RowProperties_UseSerializedUndoAndRefreshWithoutRebuilding()
         {
             using var f = new Fixture();
             f.BindGroup(0); var row = f.BindLayer(1);
+            yield return null;
+            Assert.That(row.Q<Slider>("layer-weight").binding, Is.Not.Null);
             var list = f.Section.GroupList;
             Undo.IncrementCurrentGroup();
             Change(row.Q<TextField>("layer-name"), "Edited brush");
@@ -152,11 +160,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(f.Mesh.vertices, Is.EqualTo(f.Vertices));
         }
 
-        [Test]
-        public void SourceDrift_RejectsRowsSelectionAndClipboardWithoutUndo()
+        [UnityTest]
+        public IEnumerator SourceDrift_RejectsRowsSelectionAndClipboardWithoutUndo()
         {
             using var f = new Fixture();
             f.BindGroup(0); var row = f.BindLayer(1);
+            yield return null;
+            Assert.That(row.Q<Slider>("layer-weight").binding, Is.Not.Null);
             var clipboard = typeof(DeformerStackInspectorSection).GetField("s_copiedLayerJson", BindingFlags.NonPublic | BindingFlags.Static);
             var previous = clipboard.GetValue(null);
             try
@@ -166,6 +176,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 string before = EditorJsonUtility.ToJson(f.Target); int undo = Undo.GetCurrentGroup();
                 Change(row.Q<Slider>("layer-weight"), 0.4f);
                 f.Section.GroupList.selectedIndex = 1;
+                Assert.That(f.Section.GroupList.selectedIndex, Is.Zero);
                 f.Section.CopyLayer(f.Target, 1);
                 Assert.That(clipboard.GetValue(null), Is.EqualTo("retained clipboard"));
                 Assert.That(EditorJsonUtility.ToJson(f.Target), Is.EqualTo(before));
@@ -174,11 +185,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally { clipboard.SetValue(null, previous); }
         }
 
-        [Test]
-        public void DisposedInspector_DetachesRowsAndIgnoresDelayedUpdates()
+        [UnityTest]
+        public IEnumerator DisposedInspector_DetachesRowsAndIgnoresDelayedUpdates()
         {
             using var f = new Fixture();
             f.BindGroup(0); var row = f.BindLayer(1); var section = f.Section;
+            yield return null;
+            Assert.That(row.Q<Slider>("layer-weight").binding, Is.Not.Null);
             string before = EditorJsonUtility.ToJson(f.Target);
             Object.DestroyImmediate(f.Editor); f.Editor = null;
             Change(row.Q<Slider>("layer-weight"), 0.2f);
@@ -189,8 +202,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         private static void Set(object target, string name, object value) =>
             target.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance).SetValue(target, value);
 
-        [Test]
-        public void PrefabVariant_SelectionAndWeightSurviveApplyReloadWithoutChangingBase()
+        [UnityTest]
+        public IEnumerator PrefabVariant_SelectionAndWeightSurviveApplyReloadWithoutChangingBase()
         {
             using var f = new Fixture();
             string folder = "Assets/__StackVariant_" + Guid.NewGuid().ToString("N");
@@ -215,6 +228,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var row = section.LayerList.makeItem(); section.LayerList.bindItem(row, 1);
                 window = ScriptableObject.CreateInstance<StackTestWindow>(); window.ShowUtility();
                 window.rootVisualElement.Add(row);
+                yield return null;
+                Assert.That(row.Q<Slider>("layer-weight").binding, Is.Not.Null);
                 Undo.IncrementCurrentGroup(); Change(row.Q<Slider>("layer-weight"), 0.37f);
                 Undo.FlushUndoRecordObjects(); Undo.IncrementCurrentGroup();
                 Assert.That(d.Groups[1].Layers[1].Weight, Is.EqualTo(0.37f));
