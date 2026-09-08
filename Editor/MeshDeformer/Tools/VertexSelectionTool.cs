@@ -765,181 +765,33 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private void ApplyMoveDelta(LatticeDeformer deformer, Vector3 localDelta)
-        {
-            var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
-                ? _restSpaceConverterCache.Get(deformer)
-                : null;
-            foreach (int i in s_selectedVertices)
-            {
-                deformer.AddDisplacement(i, restSpaceConverter != null
-                    ? restSpaceConverter.ConvertOrFallback(i, localDelta)
-                    : localDelta);
-            }
-
-            if (ProportionalEditing)
-            {
-                EnsureProportionalInfluences(deformer.MeshTransform);
-                ApplyProportionalMove(deformer, localDelta, restSpaceConverter);
-            }
-
-            _editSession?.RecordChange();
-            LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
-        }
+        private void ApplyMoveDelta(LatticeDeformer deformer, Vector3 localDelta) =>
+            ApplyVertexTransform(deformer, deformer.MeshTransform, VertexTransformOperation.Move(localDelta));
 
         private void ApplyRotationDelta(LatticeDeformer deformer, Transform meshTransform, Vector3 worldCentroid, Quaternion deltaRotation)
         {
-            var displacements = deformer.Displacements;
-            if (displacements == null) return;
-
-            var matrix = meshTransform.localToWorldMatrix;
-            var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
-                ? _restSpaceConverterCache.Get(deformer)
-                : null;
-
-            foreach (int i in s_selectedVertices)
-            {
-                if (_deformedVertices == null || i < 0 || i >= _meshVertices.Length) continue;
-
-                var worldPos = DeformedToWorld(i, matrix);
-                var rotated = deltaRotation * (worldPos - worldCentroid) + worldCentroid;
-                AddWorldDelta(deformer, meshTransform, restSpaceConverter, i, rotated - worldPos);
-            }
-
-            if (ProportionalEditing)
-            {
-                EnsureProportionalInfluences(meshTransform);
-                ApplyProportionalRotation(deformer, meshTransform, worldCentroid, deltaRotation);
-            }
-
-            _editSession?.RecordChange();
-            LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
+            if (deformer.Displacements == null) return;
+            ApplyVertexTransform(deformer, meshTransform, VertexTransformOperation.Rotate(worldCentroid, deltaRotation));
         }
 
         private void ApplyScaleDelta(LatticeDeformer deformer, Transform meshTransform, Vector3 worldCentroid, Vector3 relativeScale)
         {
-            var displacements = deformer.Displacements;
-            if (displacements == null) return;
+            if (deformer.Displacements == null) return;
+            ApplyVertexTransform(deformer, meshTransform,
+                VertexTransformOperation.Scale(worldCentroid, meshTransform.rotation, relativeScale));
+        }
 
-            var matrix = meshTransform.localToWorldMatrix;
-            var rotation = meshTransform.rotation;
-            var invRotation = Quaternion.Inverse(rotation);
-            var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
-                ? _restSpaceConverterCache.Get(deformer)
-                : null;
-
-            foreach (int i in s_selectedVertices)
-            {
-                if (_deformedVertices == null || i < 0 || i >= _meshVertices.Length) continue;
-
-                var worldPos = DeformedToWorld(i, matrix);
-                var localOffset = invRotation * (worldPos - worldCentroid);
-                localOffset = Vector3.Scale(localOffset, relativeScale);
-                var scaled = worldCentroid + rotation * localOffset;
-                AddWorldDelta(deformer, meshTransform, restSpaceConverter, i, scaled - worldPos);
-            }
-
-            if (ProportionalEditing)
-            {
-                EnsureProportionalInfluences(meshTransform);
-                ApplyProportionalScale(deformer, meshTransform, worldCentroid, relativeScale);
-            }
-
+        private void ApplyVertexTransform(LatticeDeformer deformer, Transform meshTransform, VertexTransformOperation operation)
+        {
+            var restSpace = SkinnedVertexHelper.StoreMovesInRestSpace
+                ? _restSpaceConverterCache.Get(deformer) : null;
+            if (ProportionalEditing) EnsureProportionalInfluences(meshTransform);
+            var geometry = new VertexTransformGeometry(_meshVertices?.Length ?? 0,
+                _deformedVertices, _worldPositions, meshTransform);
+            VertexTransformApplication.Apply(deformer, geometry, s_selectedVertices,
+                ProportionalEditing ? _proportionalInfluenceCache : null, restSpace, operation);
             _editSession?.RecordChange();
             LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
-        }
-
-        private void ApplyProportionalMove(
-            LatticeDeformer deformer,
-            Vector3 localDelta,
-            SkinnedVertexHelper.RestSpaceDeltaConverter restSpaceConverter)
-        {
-            if (_meshVertices == null) return;
-
-            int vertexCount = _meshVertices.Length;
-            for (int i = 0; i < vertexCount; i++)
-            {
-                if (s_selectedVertices.Contains(i)) continue;
-
-                float influence = ComputeProportionalInfluence(i);
-                if (influence <= 0f) continue;
-
-                var storedDelta = restSpaceConverter != null
-                    ? restSpaceConverter.ConvertOrFallback(i, localDelta)
-                    : localDelta;
-                deformer.AddDisplacement(i, storedDelta * influence);
-            }
-        }
-
-        private void ApplyProportionalRotation(LatticeDeformer deformer, Transform meshTransform, Vector3 worldCentroid, Quaternion deltaRotation)
-        {
-            if (_meshVertices == null || _deformedVertices == null) return;
-
-            var matrix = meshTransform.localToWorldMatrix;
-            var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
-                ? _restSpaceConverterCache.Get(deformer)
-                : null;
-            int vertexCount = _meshVertices.Length;
-
-            for (int i = 0; i < vertexCount; i++)
-            {
-                if (s_selectedVertices.Contains(i)) continue;
-
-                float influence = ComputeProportionalInfluence(i);
-                if (influence <= 0f) continue;
-
-                var worldPos = DeformedToWorld(i, matrix);
-                var rotated = Quaternion.Slerp(Quaternion.identity, deltaRotation, influence) * (worldPos - worldCentroid) + worldCentroid;
-                AddWorldDelta(deformer, meshTransform, restSpaceConverter, i, rotated - worldPos);
-            }
-        }
-
-        private void ApplyProportionalScale(LatticeDeformer deformer, Transform meshTransform, Vector3 worldCentroid, Vector3 relativeScale)
-        {
-            if (_meshVertices == null || _deformedVertices == null) return;
-
-            var matrix = meshTransform.localToWorldMatrix;
-            var rotation = meshTransform.rotation;
-            var invRotation = Quaternion.Inverse(rotation);
-            var restSpaceConverter = SkinnedVertexHelper.StoreMovesInRestSpace
-                ? _restSpaceConverterCache.Get(deformer)
-                : null;
-            int vertexCount = _meshVertices.Length;
-
-            for (int i = 0; i < vertexCount; i++)
-            {
-                if (s_selectedVertices.Contains(i)) continue;
-
-                float influence = ComputeProportionalInfluence(i);
-                if (influence <= 0f) continue;
-
-                var blendedScale = Vector3.Lerp(Vector3.one, relativeScale, influence);
-
-                var worldPos = DeformedToWorld(i, matrix);
-                var localOffset = invRotation * (worldPos - worldCentroid);
-                localOffset = Vector3.Scale(localOffset, blendedScale);
-                var scaled = worldCentroid + rotation * localOffset;
-                AddWorldDelta(deformer, meshTransform, restSpaceConverter, i, scaled - worldPos);
-            }
-        }
-
-        private static void AddWorldDelta(
-            LatticeDeformer deformer,
-            Transform meshTransform,
-            SkinnedVertexHelper.RestSpaceDeltaConverter restSpaceConverter,
-            int vertexIndex,
-            Vector3 worldDelta)
-        {
-            Vector3 posedLocalDelta = meshTransform.InverseTransformVector(worldDelta);
-            Vector3 storedDelta = restSpaceConverter != null
-                ? restSpaceConverter.ConvertOrFallback(vertexIndex, posedLocalDelta)
-                : posedLocalDelta;
-            deformer.AddDisplacement(vertexIndex, storedDelta);
-        }
-
-        private float ComputeProportionalInfluence(int vertexIndex)
-        {
-            return _proportionalInfluenceCache.GetInfluence(vertexIndex);
         }
 
         private void EnsureProportionalInfluences(Transform meshTransform)
