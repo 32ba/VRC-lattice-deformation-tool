@@ -36,7 +36,7 @@ See the [development status](https://github.com/32ba/VRC-lattice-deformation-too
 
 - Unity 2022.3 LTS or later
 - `MeshFilter` + `MeshRenderer`, or `SkinnedMeshRenderer`
-- NDMF (`nadena.dev.ndmf`) 1.9.0 or later
+- NDMF (`nadena.dev.ndmf`) 1.14.8 or later
 - VRChat Creator Companion (recommended when installing through VPM)
 
 ## Installation

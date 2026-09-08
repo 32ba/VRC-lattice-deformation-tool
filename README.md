@@ -36,7 +36,7 @@ English documentation: [README_en.md](README_en.md)
 
 - Unity 2022.3 LTS 以降
 - `MeshFilter` + `MeshRenderer`、または `SkinnedMeshRenderer`
-- NDMF (`nadena.dev.ndmf`) 1.9.0 以降
+- NDMF (`nadena.dev.ndmf`) 1.14.8 以降
 - VRChat Creator Companion（VPM から導入する場合に推奨）
 
 ## 導入

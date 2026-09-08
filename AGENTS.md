@@ -308,7 +308,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 1. Unity 2022.3 以降で VCC プロジェクトを開く
 2. パッケージを `Packages/` フォルダに配置または VPM 経由でインストール
-3. NDMF 1.9.0 以降が必要
+3. NDMF 1.14.8 以降が必要
 
 ### CI
 
@@ -416,10 +416,10 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 ## 依存関係
 
-- `nadena.dev.ndmf` >= 1.9.0 (VPM)
-- `com.unity.mathematics` 1.2.6
-- `com.unity.burst` 1.8.12
-- `com.unity.collections` 1.2.4
+- `nadena.dev.ndmf` >= 1.14.8 (VPM)
+- `com.unity.mathematics` 1.3.3
+- `com.unity.burst` 1.8.29
+- `com.unity.collections` 2.6.8
 
 ## Codex へのルール
 

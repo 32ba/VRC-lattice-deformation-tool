@@ -87,7 +87,7 @@ jobs:
           cat > ci-project/Packages/manifest.json <<'JSON'
           {
             "dependencies": {
-              "com.unity.test-framework": "1.4.5",
+              "com.unity.test-framework": "1.4.6",
               "com.unity.modules.ai": "1.0.0",
               "com.unity.modules.androidjni": "1.0.0",
               "com.unity.modules.animation": "1.0.0",
@@ -144,13 +144,11 @@ jobs:
           # Latest stable VRChat SDK. It declares "unity": "2022.3", matching the editor version
           # VRChat currently targets (https://creators.vrchat.com/sdk/upgrade/current-unity-version/).
           # com.vrchat.base is pulled in as a vpmDependency of com.vrchat.avatars.
-          VRCHAT_SDK_VERSION: 3.10.4
-          # NDMF 1.14.2 is the revision the suite is validated against. Note that com.vrchat.base
-          # already pulls com.unity.collections 2.1.4, so bumping to 1.14.3 or later no longer
-          # changes the resolved collections version.
-          NDMF_VERSION: 1.14.2
+          VRCHAT_SDK_VERSION: 3.10.5
+          # Stable dependency refresh for 2.0, checked against official feeds on 2026-09-08.
+          NDMF_VERSION: 1.14.8
           # Setup Outfit is part of the customer workflow covered by the hotfix regression test.
-          MODULAR_AVATAR_VERSION: 1.17.1
+          MODULAR_AVATAR_VERSION: 1.18.7
           # The real preview graph test uses Remove Mesh In Box as a topology-changing
           # downstream consumer, matching the package installed in Plugin-dev-playground.
           # Avatar Optimizer registers its own NDMF render filters and bake passes, so having it
@@ -158,7 +156,7 @@ jobs:
           # RealPreviewPipelineEndToEndTests also requires its RemoveMeshInBox component; that
           # E2E still skips under -nographics, but the surrounding suite must compile against a
           # real AAO layout instead of silently passing in an environment no user has.
-          AVATAR_OPTIMIZER_VERSION: 1.9.17
+          AVATAR_OPTIMIZER_VERSION: 1.9.18
         run: |
           set -euo pipefail
 
