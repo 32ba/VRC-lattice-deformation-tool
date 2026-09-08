@@ -405,6 +405,9 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `LayerSettingsInspectorSection` は選択LayerのGrid、reset、Brush clear、左右操作、alignmentを表示する。`PendingLatticeGrid` の未適用値はInspectorごとにowner/Group/Layerの参照で保持し、同じ番号の別Groupや置換後のLayerへ流用しない。保存Gridやsettings参照が変わった場合は破棄する。`LayerSettingsEdit` は保存source/topologyと対象参照を再検証し、複数対象を共通編集serviceで一括commitする。Profile・破損・古いメニュー対象・Grid count overflowはUndo開始前に拒否し、inactive Prefabも保存sourceから編集する。
 - Unity 2022.3のanimated ListViewがPointerDownのtargetを入れ子ListViewへ変えた場合、scroll contentにある標準選択callbackが呼ばれない。実際のpanel hitからLayer行だけを選択し、既存のpointer-up後のqueueで保存へ反映する。名前・enabled・weightとIMGUIの設定入力にはこの補完を適用しない。入力テストでは選択APIを直接呼ばず、表示された行へのretargeted PointerDown/Upも検証する。
 
+- `BrushVertexVisualization` / `SelectedVertexVisualization` はhandlerから受けた配列・座標・選択だけを描画し、Layerの選択変更、Mesh評価、proxy解決、保存を行わない。`SceneVertexDots` が共通material/textureとGL batchを所有し、各表示のdepth testを設定し直し、reload前に解放する。旧版から独立取得した色・texture・6枚のRenderTexture画像と、所有・例外回復・入力不変を `ToolVertexVisualizationTests` で照合する。GraphicsE2Eに属する画像試験とnative Scene View入力を区別する。
+- 起動中Editorの検証では、候補packageを読み込む前に元packageでcleanな検証Sceneへ切り替える。Scene切替や表示領域・前面状態の検査が失敗した場合は、後続のpackage変更やTest Runnerを実行しない。Unity Test Runnerがdirtyな利用者Sceneを自動保存する経路があるため、開始前にscene pathとdirty状態を再確認する。
+
 ## 依存関係
 
 - `nadena.dev.ndmf` >= 1.9.0 (VPM)
