@@ -1588,6 +1588,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public Mesh Deform(bool assignToRenderer = true)
         {
+            using var nativeScope = new InactiveEvaluationScope(this);
             if (DeformerPlatformServices.EditorMeshDataReader == null)
                 return DeformReadableSource(assignToRenderer);
             Mesh originalSourceMesh = _sourceMesh;
@@ -1744,6 +1745,7 @@ namespace Net._32Ba.LatticeDeformationTool
         /// </summary>
         public Mesh CreatePreviewMeshFromInput(Mesh inputMesh)
         {
+            using var nativeScope = new InactiveEvaluationScope(this);
             using var dataScope = BeginEvaluationDataRead();
             if (!EnsureLayerModelReady() || inputMesh == null || !inputMesh.isReadable ||
                 _sourceMesh == null)
@@ -2931,6 +2933,19 @@ namespace Net._32Ba.LatticeDeformationTool
             GetEvaluationWorkspace().Lattice.DeformWithJobs(entries, controlPoints);
 
         private void ReleaseDeformationNativeBuffers() => _evaluationWorkspace?.Lattice.Dispose();
+
+        // Never-active objects and loaded Prefab assets cannot rely on OnDestroy.
+        // Their synchronous evaluations borrow native scratch only for this call.
+        private readonly struct InactiveEvaluationScope : IDisposable
+        {
+            private readonly LatticeDeformer _owner;
+            internal InactiveEvaluationScope(LatticeDeformer owner) => _owner = owner;
+            public void Dispose()
+            {
+                if (_owner != null && !_owner.isActiveAndEnabled)
+                    _owner.ReleaseDeformationNativeBuffers();
+            }
+        }
 
         private LatticeCacheEntry[] BuildCacheWithJobs(Vector3Int gridSize, Bounds bounds, Vector3[] vertices) =>
             LatticeEvaluator.BuildCacheWithJobs(gridSize, bounds, vertices);
