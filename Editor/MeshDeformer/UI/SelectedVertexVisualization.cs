@@ -1,5 +1,6 @@
-#if UNITY_EDITOR
+﻿#if UNITY_EDITOR
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -7,6 +8,28 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 {
     internal static class SelectedVertexVisualization
     {
+        internal static void DrawSelectionRectangle(Rect rect)
+        {
+            Handles.BeginGUI();
+            try
+            {
+                var fillColor = new Color(0.3f, 0.6f, 1f, 0.15f);
+                var outlineColor = new Color(0.3f, 0.6f, 1f, 0.6f);
+
+                EditorGUI.DrawRect(rect, fillColor);
+
+                // Draw outline
+                EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, 1f), outlineColor);
+                EditorGUI.DrawRect(new Rect(rect.x, rect.yMax - 1f, rect.width, 1f), outlineColor);
+                EditorGUI.DrawRect(new Rect(rect.x, rect.y, 1f, rect.height), outlineColor);
+                EditorGUI.DrawRect(new Rect(rect.xMax - 1f, rect.y, 1f, rect.height), outlineColor);
+            }
+            finally
+            {
+                Handles.EndGUI();
+            }
+        }
+
         private static readonly Color k_UnselectedVertexColor = new Color(0.2f, 0.8f, 1f, 0.6f);
         private static readonly Color k_SelectedVertexColor = new Color(1f, 1f, 0f, 1f);
 

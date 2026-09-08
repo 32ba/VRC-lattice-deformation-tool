@@ -358,7 +358,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Draw rect selection
             if (_isDraggingSelection)
             {
-                DrawSelectionRect(evt.mousePosition);
+                SelectedVertexVisualization.DrawSelectionRectangle(
+                    VertexPickingQuery.Rectangle(_selectionStartPos, evt.mousePosition));
             }
 
             // Force repaint for interactive feedback
@@ -899,30 +900,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             finally
             {
                 Handles.matrix = prevMatrix;
-            }
-        }
-
-        private void DrawSelectionRect(Vector2 currentMousePos)
-        {
-            var rect = VertexPickingQuery.Rectangle(_selectionStartPos, currentMousePos);
-
-            Handles.BeginGUI();
-            try
-            {
-                var fillColor = new Color(0.3f, 0.6f, 1f, 0.15f);
-                var outlineColor = new Color(0.3f, 0.6f, 1f, 0.6f);
-
-                EditorGUI.DrawRect(rect, fillColor);
-
-                // Draw outline
-                EditorGUI.DrawRect(new Rect(rect.x, rect.y, rect.width, 1f), outlineColor);
-                EditorGUI.DrawRect(new Rect(rect.x, rect.yMax - 1f, rect.width, 1f), outlineColor);
-                EditorGUI.DrawRect(new Rect(rect.x, rect.y, 1f, rect.height), outlineColor);
-                EditorGUI.DrawRect(new Rect(rect.xMax - 1f, rect.y, 1f, rect.height), outlineColor);
-            }
-            finally
-            {
-                Handles.EndGUI();
             }
         }
 
