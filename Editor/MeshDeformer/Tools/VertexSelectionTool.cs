@@ -107,31 +107,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int _transformInfluenceRevision;
         private Matrix4x4 _cachedInfluenceMatrix;
 
-        private static readonly Color k_UnselectedVertexColor = new Color(0.2f, 0.8f, 1f, 0.6f);
-        private static readonly Color k_SelectedVertexColor = new Color(1f, 1f, 0f, 1f);
         private static readonly Color k_ProportionalRadiusColor = new Color(0.5f, 1f, 0.5f, 0.4f);
-
-        private static Material s_vertexDotMaterial;
-        private static Texture2D s_circleTex;
 
         static VertexSelectionHandler()
         {
             LatticeLocalization.LanguageChanged += OnLanguageChanged;
-            AssemblyReloadEvents.beforeAssemblyReload += ReleaseStaticResources;
-        }
-
-        internal static void ReleaseStaticResources()
-        {
-            if (s_vertexDotMaterial != null)
-            {
-                UnityEngine.Object.DestroyImmediate(s_vertexDotMaterial);
-                s_vertexDotMaterial = null;
-            }
-            if (s_circleTex != null)
-            {
-                UnityEngine.Object.DestroyImmediate(s_circleTex);
-                s_circleTex = null;
-            }
         }
 
         private static void OnLanguageChanged()
@@ -518,46 +498,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return SkinnedVertexHelper.LocalToWorld(index, _worldPositions, _deformedVertices, localToWorld);
         }
 
-        private static Texture2D EnsureCircleTexture()
-        {
-            if (s_circleTex == null)
-            {
-                const int size = 32;
-                s_circleTex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-                s_circleTex.hideFlags = HideFlags.HideAndDontSave;
-                s_circleTex.filterMode = FilterMode.Bilinear;
-                float center = (size - 1) * 0.5f;
-                for (int y = 0; y < size; y++)
-                {
-                    for (int x = 0; x < size; x++)
-                    {
-                        float dx = x - center, dy = y - center;
-                        float dist = Mathf.Sqrt(dx * dx + dy * dy) / center;
-                        // Smooth edge with anti-aliasing
-                        float alpha = Mathf.Clamp01(1f - Mathf.Clamp01((dist - 0.7f) / 0.3f));
-                        s_circleTex.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
-                    }
-                }
-                s_circleTex.Apply();
-            }
-            return s_circleTex;
-        }
-
-        private static Material EnsureVertexDotMaterial()
-        {
-            if (s_vertexDotMaterial == null)
-            {
-                s_vertexDotMaterial = new Material(Shader.Find("Hidden/Internal-Colored"));
-                s_vertexDotMaterial.hideFlags = HideFlags.HideAndDontSave;
-                s_vertexDotMaterial.SetInt("_ZWrite", 0);
-                s_vertexDotMaterial.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
-                s_vertexDotMaterial.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
-                s_vertexDotMaterial.SetInt("_Cull", (int)CullMode.Off);
-                s_vertexDotMaterial.mainTexture = EnsureCircleTexture();
-            }
-            return s_vertexDotMaterial;
-        }
-
         private void DrawVertices(Transform meshTransform)
         {
             Profiler.BeginSample("VertexSelection.DrawVertices");
@@ -587,19 +527,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var matrix = meshTransform.localToWorldMatrix;
                 var camRight = cam.transform.right;
                 var camUp = cam.transform.up;
-                int vertexCount = _deformedVertices.Length;
                 bool showInfluence = ProportionalEditing && s_selectedVertices.Count > 0;
                 if (showInfluence)
                 {
                     EnsureProportionalInfluences(meshTransform);
                 }
-
-                // Set up batched GL drawing with depth test.
-                var material = EnsureVertexDotMaterial();
-                material.SetInt("_ZTest", BackfaceCulling
-                    ? (int)CompareFunction.LessEqual
-                    : (int)CompareFunction.Always);
-                material.SetPass(0);
 
                 // Precompute a uniform dot scale from camera distance to mesh center
                 // instead of calling HandleUtility.GetHandleSize per vertex.
@@ -608,13 +540,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Profiler.BeginSample("VertexSelection.DrawVertices.Loop");
                 try
                 {
-                    DrawVertexDots(
-                        vertexCount,
-                        matrix,
-                        camRight,
-                        camUp,
-                        baseRadius,
-                        showInfluence);
+                    SelectedVertexVisualization.Draw(
+                        new VertexDisplayGeometry(_deformedVertices, _worldPositions, null, matrix),
+                        s_selectedVertices, _proportionalInfluenceCache, showInfluence, VertexDotSize,
+                        baseRadius, camRight, camUp,
+                        BackfaceCulling ? CompareFunction.LessEqual : CompareFunction.Always);
                 }
                 finally
                 {
@@ -630,108 +560,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal static bool ShouldDrawVertices(EventType eventType)
         {
             return eventType == EventType.Repaint;
-        }
-
-        private void DrawVertexDots(
-            int vertexCount,
-            Matrix4x4 matrix,
-            Vector3 camRight,
-            Vector3 camUp,
-            float baseRadius,
-            bool showInfluence)
-        {
-            bool matrixPushed = false;
-            bool drawingQuads = false;
-            try
-            {
-                GL.PushMatrix();
-                matrixPushed = true;
-                GL.MultMatrix(Matrix4x4.identity);
-                GL.Begin(GL.QUADS);
-                drawingQuads = true;
-
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    var worldPos = DeformedToWorld(i, matrix);
-                    bool isSelected = s_selectedVertices.Contains(i);
-
-                    Color color;
-                    float dotSize;
-                    if (isSelected)
-                    {
-                        color = k_SelectedVertexColor;
-                        dotSize = VertexDotSize * 1.5f;
-                    }
-                    else if (showInfluence)
-                    {
-                        float influence = ComputeProportionalInfluence(i);
-                        if (influence > 0f)
-                        {
-                            color = InfluenceToColor(influence);
-                            dotSize = Mathf.Lerp(
-                                VertexDotSize * 0.6f,
-                                VertexDotSize * 1.4f,
-                                influence);
-                        }
-                        else
-                        {
-                            color = k_UnselectedVertexColor;
-                            dotSize = VertexDotSize;
-                        }
-                    }
-                    else
-                    {
-                        color = k_UnselectedVertexColor;
-                        dotSize = VertexDotSize;
-                    }
-
-                    float radius = baseRadius * dotSize;
-                    var right = camRight * radius;
-                    var up = camUp * radius;
-
-                    GL.Color(color);
-                    GL.TexCoord2(0f, 0f); GL.Vertex(worldPos - right - up);
-                    GL.TexCoord2(1f, 0f); GL.Vertex(worldPos + right - up);
-                    GL.TexCoord2(1f, 1f); GL.Vertex(worldPos + right + up);
-                    GL.TexCoord2(0f, 1f); GL.Vertex(worldPos - right + up);
-                }
-            }
-            finally
-            {
-                try
-                {
-                    if (drawingQuads) GL.End();
-                }
-                finally
-                {
-                    if (matrixPushed) GL.PopMatrix();
-                }
-            }
-        }
-
-        private static Color InfluenceToColor(float t)
-        {
-            // 0.0 = blue, 0.25 = cyan, 0.5 = green, 0.75 = yellow, 1.0 = red
-            t = Mathf.Clamp01(t);
-            if (t < 0.25f)
-            {
-                float s = t / 0.25f;
-                return new Color(0f, s, 1f, 0.9f);
-            }
-            if (t < 0.5f)
-            {
-                float s = (t - 0.25f) / 0.25f;
-                return new Color(0f, 1f, 1f - s, 0.9f);
-            }
-            if (t < 0.75f)
-            {
-                float s = (t - 0.5f) / 0.25f;
-                return new Color(s, 1f, 0f, 0.9f);
-            }
-            {
-                float s = (t - 0.75f) / 0.25f;
-                return new Color(1f, 1f - s, 0f, 0.9f);
-            }
         }
 
         private void DrawTransformHandle(LatticeDeformer deformer, Transform meshTransform)

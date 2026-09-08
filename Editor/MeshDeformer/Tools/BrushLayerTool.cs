@@ -6,7 +6,6 @@ using System.Reflection;
 using UnityEditor;
 using Unity.Profiling;
 using UnityEngine;
-using UnityEngine.Rendering;
 using Net._32Ba.LatticeDeformationTool;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
@@ -181,7 +180,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static readonly ProfilerMarker s_restSpaceMarker = new ProfilerMarker("Brush.RestSpaceConverter");
         private static readonly ProfilerMarker s_visualizationMarker = new ProfilerMarker("Brush.Visualization");
         private static readonly ProfilerMarker s_deformMarker = new ProfilerMarker("Brush.Deform");
-        internal const int MaxAffectedVertexDots = 4096;
+        internal const int MaxAffectedVertexDots = BrushVertexVisualization.MaxAffectedVertexDots;
         private HashSet<int> _penetratingVertices;
         private Vector3[] _penetrationDeformedVertices;
         private Vector3[] _smoothDisplacements;
@@ -211,21 +210,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         static BrushToolHandler()
         {
             LatticeLocalization.LanguageChanged += OnLanguageChanged;
-            AssemblyReloadEvents.beforeAssemblyReload += ReleaseStaticResources;
-        }
-
-        internal static void ReleaseStaticResources()
-        {
-            if (s_brushDotMaterial != null)
-            {
-                UnityEngine.Object.DestroyImmediate(s_brushDotMaterial);
-                s_brushDotMaterial = null;
-            }
-            if (s_brushCircleTex != null)
-            {
-                UnityEngine.Object.DestroyImmediate(s_brushCircleTex);
-                s_brushCircleTex = null;
-            }
         }
 
         private static void OnLanguageChanged()
@@ -1712,151 +1696,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return _mirrorMap;
         }
 
-        private static Material s_brushDotMaterial;
-        private static Texture2D s_brushCircleTex;
-
-        private static void BeginBatchedDotDraw(
-            out bool matrixPushed,
-            out bool drawingQuads)
-        {
-            matrixPushed = false;
-            drawingQuads = false;
-            if (s_brushCircleTex == null)
-            {
-                const int size = 32;
-                s_brushCircleTex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-                s_brushCircleTex.hideFlags = HideFlags.HideAndDontSave;
-                s_brushCircleTex.filterMode = FilterMode.Bilinear;
-                float center = (size - 1) * 0.5f;
-                for (int y = 0; y < size; y++)
-                    for (int x = 0; x < size; x++)
-                    {
-                        float dx = x - center, dy = y - center;
-                        float dist = Mathf.Sqrt(dx * dx + dy * dy) / center;
-                        float alpha = Mathf.Clamp01(1f - Mathf.Clamp01((dist - 0.7f) / 0.3f));
-                        s_brushCircleTex.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
-                    }
-                s_brushCircleTex.Apply();
-            }
-
-            if (s_brushDotMaterial == null)
-            {
-                s_brushDotMaterial = new Material(Shader.Find("Hidden/Internal-Colored"));
-                s_brushDotMaterial.hideFlags = HideFlags.HideAndDontSave;
-                s_brushDotMaterial.SetInt("_ZWrite", 0);
-                s_brushDotMaterial.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
-                s_brushDotMaterial.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
-                s_brushDotMaterial.SetInt("_Cull", (int)CullMode.Off);
-                s_brushDotMaterial.SetInt("_ZTest", (int)CompareFunction.Always);
-                s_brushDotMaterial.mainTexture = s_brushCircleTex;
-            }
-
-            s_brushDotMaterial.SetPass(0);
-            GL.PushMatrix();
-            matrixPushed = true;
-            GL.MultMatrix(Matrix4x4.identity);
-            GL.Begin(GL.QUADS);
-            drawingQuads = true;
-        }
-
-        private static void EndBatchedDotDraw(bool matrixPushed, bool drawingQuads)
-        {
-            try
-            {
-                if (drawingQuads) GL.End();
-            }
-            finally
-            {
-                if (matrixPushed) GL.PopMatrix();
-            }
-        }
-
-        private static void DrawBatchedDot(Vector3 worldPos, Color col, float radius, Vector3 camRight, Vector3 camUp)
-        {
-            var right = camRight * radius;
-            var up = camUp * radius;
-            GL.Color(col);
-            GL.TexCoord2(0f, 0f); GL.Vertex(worldPos - right - up);
-            GL.TexCoord2(1f, 0f); GL.Vertex(worldPos + right - up);
-            GL.TexCoord2(1f, 1f); GL.Vertex(worldPos + right + up);
-            GL.TexCoord2(0f, 1f); GL.Vertex(worldPos - right + up);
-        }
-
         private void DrawAffectedVertices(LatticeDeformer deformer, Vector3 worldHitPoint, Transform meshTransform)
         {
-            if (!TryGetBrushBuffers(
-                    deformer, out _, out var displacements, out _)) return;
-            float worldRadius = s_brushRadius;
-            float radiusSq = worldRadius * worldRadius;
-            int vertexCount = _meshVertices.Length;
-            Color brushColor = GetBrushColor();
-            var matrix = meshTransform.localToWorldMatrix;
-            var worldCenter = worldHitPoint;
-            var cam = Camera.current;
-            if (cam == null) return;
-            var camRight = cam.transform.right;
-            var camUp = cam.transform.up;
-            float baseSize = HandleUtility.GetHandleSize(meshTransform.position) * 0.004f;
-
-            bool matrixPushed = false;
-            bool drawingQuads = false;
-            try
-            {
-                BeginBatchedDotDraw(out matrixPushed, out drawingQuads);
-                bool useGeodesicCandidates = s_useSurfaceDistance && _hasGeodesicDistanceCache;
-                int candidateCount = useGeodesicCandidates
-                    ? _geodesicWorkspace.VisitedCount
-                    : vertexCount;
-                int sampleStride = GetVisualizationSampleStride(candidateCount);
-                int iterationCount = (candidateCount + sampleStride - 1) / sampleStride;
-                for (int iteration = 0; iteration < iterationCount; iteration++)
-                {
-                    int candidateIndex = iteration * sampleStride;
-                    int i = useGeodesicCandidates
-                        ? _geodesicWorkspace.GetVisitedVertex(candidateIndex)
-                        : candidateIndex;
-                    if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
-                        continue;
-
-                    var vertex = _meshVertices[i] + displacements[i];
-
-                    float falloff;
-                    if (useGeodesicCandidates)
-                    {
-                        if (!_geodesicWorkspace.TryGetDistance(i, out float geodesicDist))
-                            continue;
-                        float t = geodesicDist / worldRadius;
-                        falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                    }
-                    else
-                    {
-                        float distSq = WorldDistanceSquared(i, vertex, worldCenter, matrix);
-                        if (distSq > radiusSq) continue;
-                        float dist = Mathf.Sqrt(distSq);
-                        float t = dist / worldRadius;
-                        falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                    }
-
-                    if (falloff < 0.01f) continue;
-
-                    var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
-                    Color dotColor = HeatmapColor(falloff);
-                    dotColor.a = 0.4f + 0.5f * falloff;
-                    float dotSize = Mathf.Lerp(s_vertexDotSize * 0.6f, s_vertexDotSize * 1.4f, falloff);
-                    DrawBatchedDot(worldPos, dotColor, baseSize * dotSize, camRight, camUp);
-                }
-            }
-            finally
-            {
-                EndBatchedDotDraw(matrixPushed, drawingQuads);
-            }
+            if (!TryGetBrushBuffers(deformer, out _, out var displacements, out _)) return;
+            var geometry = new VertexDisplayGeometry(_meshVertices, _worldPositions, displacements,
+                meshTransform.localToWorldMatrix);
+            BrushVertexVisualization.DrawAffected(geometry, worldHitPoint, s_brushRadius, s_brushFalloff,
+                s_vertexDotSize, HandleUtility.GetHandleSize(meshTransform.position) * 0.004f,
+                s_connectedOnly ? _connectedVerticesCache : null,
+                s_useSurfaceDistance && _hasGeodesicDistanceCache ? _geodesicWorkspace : null);
         }
 
         internal static int GetVisualizationSampleStride(int candidateCount)
         {
-            return candidateCount <= MaxAffectedVertexDots
-                ? 1
-                : (candidateCount + MaxAffectedVertexDots - 1) / MaxAffectedVertexDots;
+            return BrushVertexVisualization.GetVisualizationSampleStride(candidateCount);
         }
 
         internal static bool RequiresSurfaceQuery(EventType eventType)
@@ -1870,111 +1723,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void DrawDisplacementHeatmap(LatticeDeformer deformer, Transform meshTransform)
         {
             if (_meshVertices == null) return;
-
-            var displacements = deformer.Displacements;
-            if (displacements == null || displacements.Length == 0) return;
-
-            int vertexCount = Mathf.Min(_meshVertices.Length, displacements.Length);
-            var matrix = meshTransform.localToWorldMatrix;
-
-            // Find max displacement for normalization
-            float maxMag = 0f;
-            for (int i = 0; i < vertexCount; i++)
-            {
-                float mag = displacements[i].sqrMagnitude;
-                if (mag > maxMag) maxMag = mag;
-            }
-
-            if (maxMag < 1e-12f) return;
-            maxMag = Mathf.Sqrt(maxMag);
-
-            var cam = Camera.current;
-            if (cam == null) return;
-            var camRight = cam.transform.right;
-            var camUp = cam.transform.up;
-            float baseSize = HandleUtility.GetHandleSize(meshTransform.position) * 0.003f;
-
-            bool matrixPushed = false;
-            bool drawingQuads = false;
-            try
-            {
-                BeginBatchedDotDraw(out matrixPushed, out drawingQuads);
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    float mag = displacements[i].magnitude;
-                    if (mag < 1e-6f) continue;
-
-                    float normalized = Mathf.Clamp01(mag / maxMag);
-                    var vertex = _meshVertices[i] + displacements[i];
-                    var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
-
-                    Color heatColor = HeatmapColor(normalized);
-                    heatColor.a = 0.3f + 0.6f * normalized;
-
-                    float dotRadius = baseSize * (1f + normalized * 2f);
-                    DrawBatchedDot(worldPos, heatColor, dotRadius, camRight, camUp);
-                }
-            }
-            finally
-            {
-                EndBatchedDotDraw(matrixPushed, drawingQuads);
-            }
-        }
-
-        private static Color HeatmapColor(float t)
-        {
-            // 0.0=blue -> 0.25=cyan -> 0.5=green -> 0.75=yellow -> 1.0=red
-            if (t < 0.25f)
-                return Color.Lerp(new Color(0f, 0.2f, 1f), new Color(0f, 0.8f, 1f), t * 4f);
-            if (t < 0.5f)
-                return Color.Lerp(new Color(0f, 0.8f, 1f), new Color(0.2f, 1f, 0.2f), (t - 0.25f) * 4f);
-            if (t < 0.75f)
-                return Color.Lerp(new Color(0.2f, 1f, 0.2f), new Color(1f, 1f, 0f), (t - 0.5f) * 4f);
-            return Color.Lerp(new Color(1f, 1f, 0f), new Color(1f, 0.1f, 0f), (t - 0.75f) * 4f);
+            var geometry = new VertexDisplayGeometry(_meshVertices, _worldPositions, deformer.Displacements,
+                meshTransform.localToWorldMatrix);
+            BrushVertexVisualization.DrawDisplacements(geometry,
+                HandleUtility.GetHandleSize(meshTransform.position) * 0.003f);
         }
 
         private void DrawVertexMaskVisualization(LatticeDeformer deformer, Transform meshTransform)
         {
-            if (_meshVertices == null) return;
-            if (!TryGetBrushBuffers(
-                    deformer, out var layer, out var displacements, out _)) return;
-            if (!layer.HasVertexMask()) return;
-
-            var mask = layer.VertexMask;
-            if (mask == null || mask.Length == 0) return;
-
-            int vertexCount = Mathf.Min(_meshVertices.Length, mask.Length);
-            var matrix = meshTransform.localToWorldMatrix;
-            var cam = Camera.current;
-            if (cam == null) return;
-            var camRight = cam.transform.right;
-            var camUp = cam.transform.up;
-            float baseSize = HandleUtility.GetHandleSize(meshTransform.position) * 0.004f;
-
-            bool matrixPushed = false;
-            bool drawingQuads = false;
-            try
-            {
-                BeginBatchedDotDraw(out matrixPushed, out drawingQuads);
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    float maskValue = mask[i];
-                    if (maskValue > 1f - 1e-6f) continue; // Fully editable, skip
-
-                    var vertex = _meshVertices[i] + displacements[i];
-                    var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
-
-                    // Red = protected (mask=0), Green = editable (mask=1)
-                    float protection = 1f - maskValue;
-                    Color dotColor = Color.Lerp(new Color(0.2f, 1f, 0.2f, 0.4f), new Color(1f, 0.2f, 0.2f, 0.8f), protection);
-                    float dotRadius = baseSize * (1f + protection * 2f);
-                    DrawBatchedDot(worldPos, dotColor, dotRadius, camRight, camUp);
-                }
-            }
-            finally
-            {
-                EndBatchedDotDraw(matrixPushed, drawingQuads);
-            }
+            if (_meshVertices == null ||
+                !TryGetBrushBuffers(deformer, out var layer, out var displacements, out _) ||
+                !layer.HasVertexMask()) return;
+            var geometry = new VertexDisplayGeometry(_meshVertices, _worldPositions, displacements,
+                meshTransform.localToWorldMatrix);
+            BrushVertexVisualization.DrawMask(geometry, layer.VertexMask,
+                HandleUtility.GetHandleSize(meshTransform.position) * 0.004f);
         }
 
         private void UpdatePenetrationDetection(LatticeDeformer deformer)
