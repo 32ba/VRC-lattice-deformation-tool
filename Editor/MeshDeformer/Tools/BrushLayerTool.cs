@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+﻿#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -785,8 +785,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     deformer, out _, out var displacements, out var vertexMask)) return false;
             Transform meshTransform = deformer.MeshTransform;
             Matrix4x4 localToWorld = meshTransform.localToWorldMatrix;
-            bool modified = false;
-            int vertexCount = _meshVertices.Length;
 
             // Pre-compute camera forward in local space for backface culling
             Vector3 localCameraForward = Vector3.forward;
@@ -804,25 +802,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             var query = CreateBrushInfluenceQuery(worldHitPoint, worldRadius, localToWorld, localCameraForward);
-            int iterationCount = query.CandidateCount(vertexCount);
-            for (int iteration = 0; iteration < iterationCount; iteration++)
-            {
-                int i = query.CandidateAt(iteration);
-                var vertex = _meshVertices[i] + displacements[i];
-                if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
-
-                var normal = _meshNormals[i].normalized;
-                if (normal.sqrMagnitude < 0.001f) normal = Vector3.up;
-
-                var delta = normal * (strength * falloff * direction);
-                float maskValue = GetMaskValue(vertexMask, i);
-                if (maskValue < 1e-6f) continue;
-                delta *= maskValue;
-                displacements[i] += delta;
-                modified = true;
-            }
-
-            return modified;
+            return BrushDisplacementApplication.Normal(_meshVertices, _meshNormals, displacements, vertexMask, query, strength, direction);
         }
 
         private bool ApplyMoveBrush(LatticeDeformer deformer, Transform meshTransform, Vector3 worldHitPoint, float worldRadius, float strength, Event evt)
@@ -869,8 +849,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     deformer, out _, out var displacements, out var vertexMask)) return false;
             Matrix4x4 localToWorld = deformer.MeshTransform.localToWorldMatrix;
 
-            bool modified = false;
-            int vertexCount = _meshVertices.Length;
             SkinnedVertexHelper.RestSpaceDeltaConverter restSpaceConverter = null;
             if (SkinnedVertexHelper.StoreMovesInRestSpace)
             {
@@ -879,25 +857,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             var query = CreateBrushInfluenceQuery(worldHitPoint, worldRadius, localToWorld, localCameraForward);
-            int iterationCount = query.CandidateCount(vertexCount);
-            for (int iteration = 0; iteration < iterationCount; iteration++)
-            {
-                int i = query.CandidateAt(iteration);
-                var vertex = _meshVertices[i] + displacements[i];
-                if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
-
-                var storedDelta = restSpaceConverter != null
-                    ? restSpaceConverter.ConvertOrFallback(i, localDelta)
-                    : localDelta;
-                var delta = storedDelta * (strength * falloff * 10f);
-                float maskValue = GetMaskValue(vertexMask, i);
-                if (maskValue < 1e-6f) continue;
-                delta *= maskValue;
-                displacements[i] += delta;
-                modified = true;
-            }
-
-            return modified;
+            return BrushDisplacementApplication.Move(_meshVertices, displacements, vertexMask, query, strength, localDelta, restSpaceConverter);
         }
 
         private bool ApplySmoothBrush(LatticeDeformer deformer, Vector3 worldHitPoint, float worldRadius, float strength)
@@ -907,7 +867,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Matrix4x4 localToWorld = deformer.MeshTransform.localToWorldMatrix;
             EnsureAdjacencyBuilt();
 
-            bool modified = false;
             int vertexCount = _meshVertices.Length;
 
             // Pre-compute camera forward in local space for backface culling
@@ -932,35 +891,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             float smoothFactor = Mathf.Clamp01(strength * 10f);
 
             var query = CreateBrushInfluenceQuery(worldHitPoint, worldRadius, localToWorld, localCameraForward);
-            int iterationCount = query.CandidateCount(vertexCount);
-            for (int iteration = 0; iteration < iterationCount; iteration++)
-            {
-                int i = query.CandidateAt(iteration);
-                var vertex = _meshVertices[i] + currentDisplacements[i];
-                if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
-
-                // Compute average displacement of neighbors
-                int neighborStart = _adjacency.GetNeighborStart(i);
-                int neighborEnd = _adjacency.GetNeighborEnd(i);
-                if (neighborStart == neighborEnd) continue;
-                var averageDisp = Vector3.zero;
-                for (int edge = neighborStart; edge < neighborEnd; edge++)
-                {
-                    int neighbor = _adjacency.GetNeighbor(edge);
-                    averageDisp += currentDisplacements[neighbor];
-                }
-                averageDisp /= neighborEnd - neighborStart;
-
-                // Blend toward neighbor average
-                var currentDisp = currentDisplacements[i];
-                float maskValue = GetMaskValue(vertexMask, i);
-                if (maskValue < 1e-6f) continue;
-                var targetDisp = Vector3.Lerp(currentDisp, averageDisp, smoothFactor * falloff * maskValue);
-                displacements[i] = targetDisp;
-                modified = true;
-            }
-
-            return modified;
+            return BrushDisplacementApplication.Smooth(_meshVertices, displacements, currentDisplacements, vertexMask, _adjacency, query, smoothFactor);
         }
 
         private bool ApplyMaskBrush(LatticeDeformer deformer, Vector3 worldHitPoint, float worldRadius)
@@ -1033,12 +964,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return layer != null && layer.Type == MeshDeformerLayerType.Brush;
         }
 
-        private static float GetMaskValue(float[] mask, int vertexIndex)
-        {
-            return mask != null && vertexIndex >= 0 && vertexIndex < mask.Length
-                ? mask[vertexIndex]
-                : 1f;
-        }
 
         internal bool TryGetBrushLayerFast(LatticeDeformer deformer, out LatticeLayer layer)
         {
@@ -1124,7 +1049,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         // Mirror the normal direction for the mirrored side
                         var mirroredNormal = MirrorDirection(normal);
                         var delta = mirroredNormal * (strength * falloff * direction);
-                        float maskValue = GetMaskValue(vertexMask, i);
+                        float maskValue = BrushDisplacementApplication.MaskValue(vertexMask, i);
                         if (maskValue < 1e-6f) continue;
                         delta *= maskValue;
                         displacements[i] += delta;
@@ -1157,7 +1082,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         averageDisp /= neighborEnd - neighborStart;
 
                         var currentDisp = currentDisplacements[i];
-                        float maskValue = GetMaskValue(vertexMask, i);
+                        float maskValue = BrushDisplacementApplication.MaskValue(vertexMask, i);
                         if (maskValue < 1e-6f) continue;
                         var targetDisp = Vector3.Lerp(currentDisp, averageDisp, smoothFactor * falloff * maskValue);
                         displacements[i] = targetDisp;
@@ -1188,7 +1113,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                             ? restSpaceConverter.ConvertOrFallback(i, mirroredDelta)
                             : mirroredDelta;
                         var delta = storedDelta * (strength * falloff * 10f);
-                        float maskValue = GetMaskValue(vertexMask, i);
+                        float maskValue = BrushDisplacementApplication.MaskValue(vertexMask, i);
                         if (maskValue < 1e-6f) continue;
                         delta *= maskValue;
                         displacements[i] += delta;
