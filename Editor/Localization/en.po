@@ -1453,3 +1453,6 @@ msgstr "The support information image was saved. Attach it to your support messa
 
 msgid "net.32ba.lattice-deformation-tool.localization.invalid-migration-journal"
 msgstr "The saved migration information is unsupported or invalid. Processing was stopped without changing the saved data."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-operation-failed"
+msgstr "The Profile could not be changed. Check the saved data and destination. Choose a new filename when creating a Profile."

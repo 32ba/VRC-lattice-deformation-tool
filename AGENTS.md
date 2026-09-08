@@ -387,6 +387,8 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - クリアランスの編集状態は `Authoring/ClearanceAuthoringSession` が所有する。Heatmap/Fitの別対象cache、Scan update購読、Condition再適用のScene snapshot、Undoでの無効化とassembly reload時の復元を同じownerで閉じる。`UI/ClearanceInspectorSection` は設定欄と明示操作、`UI/ClearanceSceneDrawer` は借用結果の描画だけを担当する。補正Layer生成はfresh評価後に `DeformerEditService` へ渡し、Profile・破損payloadは書込み前に拒否する。既存Editorのinternal評価入口は互換テスト用の委譲に限定し、通常のClearance処理から呼び戻さない
 
+- ProfileのInspectorは `UI/ProfileInspectorSection`、互換性query・保存準備・明示操作は `Authoring/ProfileAuthoringService` が担当する。sourceの現在の参照と保存済みtopologyを検査し、保存用copyを準備してから対象ProfileだけをUndo可能に更新・保存する。`SaveAssets`で無関係なdirty assetを一括保存しない。新規作成は未使用の`Assets/`内pathだけへ行い、失敗時は自身が作成したassetだけを解放する。source切替と内蔵への複製は `DeformerEditService` の共通commitへ接続し、通常のLayer操作がProfileを編集しない制約は維持する。null inline Groupを持つ破損テストでは、UnityのJSON化がnullを実体化し得るため、検査自体で修復しないraw readerによる比較を使う
+
 ## 依存関係
 
 - `nadena.dev.ndmf` >= 1.9.0 (VPM)

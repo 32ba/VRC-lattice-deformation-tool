@@ -1453,3 +1453,6 @@ msgstr "支援資訊圖片已儲存。請將其附加到支援訊息中。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.invalid-migration-journal"
 msgstr "儲存資料的移轉資訊不受支援或無效，已停止處理，未變更儲存資料。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-operation-failed"
+msgstr "無法修改 Profile。請檢查儲存的資料和儲存位置。新增時請使用尚未使用的檔案名稱。"

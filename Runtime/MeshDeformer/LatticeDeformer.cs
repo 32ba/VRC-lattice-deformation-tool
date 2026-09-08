@@ -623,6 +623,8 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public Mesh SourceMesh => _sourceMesh;
 
+        internal Mesh CompatibilitySourceMesh => GetCompatibilitySourceMesh();
+
         public Renderer TargetRenderer
         {
             get

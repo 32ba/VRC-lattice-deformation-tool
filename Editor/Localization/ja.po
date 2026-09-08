@@ -1453,3 +1453,6 @@ msgstr "サポート情報画像を保存しました。お問い合わせメッ
 
 msgid "net.32ba.lattice-deformation-tool.localization.invalid-migration-journal"
 msgstr "保存データの移行情報が未対応または不正なため、データを変更せずに処理を停止しました。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-operation-failed"
+msgstr "Profile を変更できませんでした。保存データと保存先を確認してください。新規作成時は未使用のファイル名を指定してください。"

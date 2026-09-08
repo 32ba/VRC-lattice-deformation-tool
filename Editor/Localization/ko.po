@@ -1453,3 +1453,6 @@ msgstr "지원 정보 이미지를 저장했습니다. 지원 메시지에 첨�
 
 msgid "net.32ba.lattice-deformation-tool.localization.invalid-migration-journal"
 msgstr "저장된 데이터의 마이그레이션 정보가 지원되지 않거나 올바르지 않아 데이터를 변경하지 않고 처리를 중단했습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-operation-failed"
+msgstr "Profile을 변경할 수 없습니다. 저장 데이터와 저장 위치를 확인하세요. 새로 만들 때는 사용하지 않은 파일 이름을 지정하세요."

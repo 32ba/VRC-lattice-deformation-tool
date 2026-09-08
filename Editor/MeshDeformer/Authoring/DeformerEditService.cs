@@ -78,6 +78,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 targets[i] = deformer;
             }
 
+            return Commit(targets, undoLabel, edit);
+        }
+
+        // Profile assignment/copy changes the data source itself. Layer commands
+        // continue to reject Profile mode; these commands validate the raw owner.
+        internal static bool ExecuteDataSourceChange(LatticeDeformer deformer, string undoLabel,
+            Func<LatticeDeformer, bool> edit)
+        {
+            if (deformer == null || edit == null || !deformer.HasValidSerializedAuthoringData) return false;
+            return Commit(new[] { deformer }, undoLabel, edit);
+        }
+
+        private static bool Commit(LatticeDeformer[] targets, string undoLabel,
+            Func<LatticeDeformer, bool> edit)
+        {
+
             Undo.IncrementCurrentGroup();
             int undoGroup = Undo.GetCurrentGroup();
             Undo.SetCurrentGroupName(undoLabel);
