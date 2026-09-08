@@ -59,7 +59,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var root = new GameObject("Layer operation baseline");
             var mesh = new Mesh { name = "Layer operation source" };
             UnityEditor.Editor editor = null;
-            var clipboard = typeof(LatticeDeformerEditor).GetField("s_copiedLayerJson", BindingFlags.NonPublic | BindingFlags.Static);
+            var clipboard = (typeof(LatticeDeformerEditor).Assembly.GetType("Net._32Ba.LatticeDeformationTool.Editor.DeformerStackInspectorSection") ?? typeof(LatticeDeformerEditor)).GetField("s_copiedLayerJson", BindingFlags.NonPublic | BindingFlags.Static);
             var previousClipboard = clipboard.GetValue(null);
             try
             {

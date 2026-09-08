@@ -311,7 +311,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally
             {
                 Object.DestroyImmediate(editor);
-                typeof(LatticeDeformerEditor).GetField("s_copiedGroupJson",
+                (typeof(LatticeDeformerEditor).Assembly.GetType("Net._32Ba.LatticeDeformationTool.Editor.DeformerStackInspectorSection") ?? typeof(LatticeDeformerEditor)).GetField("s_copiedGroupJson",
                     BindingFlags.Static | BindingFlags.NonPublic).SetValue(null, null);
             }
         }
