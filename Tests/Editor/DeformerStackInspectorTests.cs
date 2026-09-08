@@ -120,6 +120,35 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(f.Section.LayerList.itemsSource.Count, Is.EqualTo(3));
         }
 
+        [UnityTest]
+        public IEnumerator RetargetedLayerClick_SelectsHitRowAfterPointerUp()
+        {
+            using var f = new Fixture();
+            f.Attach(f.Section.Root);
+            f.ResizeWindowForInput();
+            yield return null;
+            yield return null;
+            var list = f.Section.LayerList;
+            var row = list.Query<VisualElement>("deformer-layer-row").ToList().Find(r => (int)r.userData == 1);
+            var label = row.Q<Label>("layer-type");
+            Assert.That(label.worldBound.height, Is.GreaterThan(0));
+            var position = label.worldBound.center;
+            using (var down = PointerDownEvent.GetPooled(new Event {type = EventType.MouseDown, button = 0, mousePosition = position}))
+            {
+                down.target = list; list.SendEvent(down);
+            }
+            Assert.That(f.Target.ActiveLayerIndex, Is.Zero, "Keep the live panel through pointer dispatch.");
+            using (var up = PointerUpEvent.GetPooled(new Event {type = EventType.MouseUp, button = 0, mousePosition = position}))
+            {
+                up.target = list; list.SendEvent(up);
+            }
+            yield return null;
+            yield return null;
+            Assert.That(f.Target.ActiveLayerIndex, Is.EqualTo(1));
+            Undo.PerformUndo();
+            Assert.That(f.Target.ActiveLayerIndex, Is.Zero);
+        }
+
         private static IEnumerator DragDispatch(bool layer, bool replaceStorage, bool cancel = false)
         {
             using var f = new Fixture();
@@ -425,6 +454,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 }
                 _window.rootVisualElement.Add(row);
             }
+            internal void ResizeWindowForInput() => _window.position = new Rect(100, 100, 800, 900);
             public void Dispose()
             {
                 if (Editor != null) Object.DestroyImmediate(Editor);

@@ -53,7 +53,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 // IMGUI popups consume mouse-up in a separate native window.
                 // Their controls do not start an animated list drag.
-                if (evt.button == 0 && !IsDetailInput(list, evt)) _pointerDown = true;
+                if (evt.button == 0 && !IsDetailInput(list, evt))
+                {
+                    _pointerDown = true;
+                    if (nested && ReferenceEquals(evt.target, list) && IsCurrent())
+                        SelectRetargetedLayerRow(list, evt.position);
+                }
                 if (nested) evt.StopPropagation();
             });
             list.RegisterCallback<PointerUpEvent>(evt =>
@@ -76,6 +81,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             foreach (var detail in list.Query<IMGUIContainer>().ToList())
                 if (detail.visible && detail.worldBound.Contains(evt.position)) return true;
             return false;
+        }
+
+        private static void SelectRetargetedLayerRow(ListView list, Vector2 position)
+        {
+            // Unity 2022's animated dragger can target the ListView itself. Its
+            // normal selection callback lives on the scroll content and is then
+            // absent from the event route. Preserve field input and select only
+            // the actual row hit; the existing pointer-up queue commits the edit.
+            for (var hit = list.panel?.Pick(position); hit != null && hit != list; hit = hit.parent)
+            {
+                if (hit.name == "layer-name" || hit.name == "layer-weight" || hit.name == "layer-enabled") return;
+                if (hit.name != "deformer-layer-row" || hit.userData is not int index) continue;
+                list.SetSelection(index);
+                return;
+            }
         }
 
         // Animated ListView clears and reselects during StartDrag, then continues
@@ -554,7 +574,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private VisualElement MakeLayerItem()
         {
-            var root = new VisualElement();
+            var root = new VisualElement { name = "deformer-layer-row" };
             root.style.paddingTop = 3;
             root.style.paddingBottom = 3;
             root.style.paddingLeft = 4;
