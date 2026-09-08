@@ -402,6 +402,9 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - Animated ListView は drag 開始時に一時的な空選択を通知する。その通知を保存へ書かず、選択・並べ替えの反映と一覧再構築は pointer-up の dispatch 後にまとめる。入力中の外部 storage 変更と PointerCancel は保留操作を破棄し、保存済みの表示へ戻す。入れ子 ListView の pointer capture 中の終了は、実際に capture した一覧で受け取る。
 - `DeformerStackInspectorTests` は read-only 再構築、同件数の切替、古い行入力、Editor panel 上の property event、Undo/Redo、Prefab Variant の Apply/save-reloadを検証する。property event の検証は panel への attach 後に Editor update を待ち、標準 binding の存在も確認する。未接続の field へ値を入れただけで拒否成功と判定しない。基準 Layer 操作の期待 snapshot は変更せず、fixture helper は旧 Inspector と新 section の Clipboard 保存場所を reflection で識別する。
 
+- `LayerSettingsInspectorSection` は選択LayerのGrid、reset、Brush clear、左右操作、alignmentを表示する。`PendingLatticeGrid` の未適用値はInspectorごとにowner/Group/Layerの参照で保持し、同じ番号の別Groupや置換後のLayerへ流用しない。保存Gridやsettings参照が変わった場合は破棄する。`LayerSettingsEdit` は保存source/topologyと対象参照を再検証し、複数対象を共通編集serviceで一括commitする。Profile・破損・古いメニュー対象・Grid count overflowはUndo開始前に拒否し、inactive Prefabも保存sourceから編集する。
+- Unity 2022.3のanimated ListViewがPointerDownのtargetを入れ子ListViewへ変えた場合、scroll contentにある標準選択callbackが呼ばれない。実際のpanel hitからLayer行だけを選択し、既存のpointer-up後のqueueで保存へ反映する。名前・enabled・weightとIMGUIの設定入力にはこの補完を適用しない。入力テストでは選択APIを直接呼ばず、表示された行へのretargeted PointerDown/Upも検証する。
+
 ## 依存関係
 
 - `nadena.dev.ndmf` >= 1.9.0 (VPM)
