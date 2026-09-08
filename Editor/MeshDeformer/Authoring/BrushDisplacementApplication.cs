@@ -8,7 +8,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     internal static class BrushDisplacementApplication
     {
         internal static bool Normal(Vector3[] vertices, Vector3[] normals, Vector3[] displacements, float[] vertexMask,
-            BrushInfluenceQuery query, float strength, float direction)
+            BrushInfluenceQuery query, float strength, float direction, SymmetryVertexMap mirrorMap = null, int mirrorAxis = 0)
         {
             bool modified = false;
             int vertexCount = vertices.Length;
@@ -16,12 +16,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             for (int iteration = 0; iteration < iterationCount; iteration++)
             {
                 int i = query.CandidateAt(iteration);
+                if (mirrorMap != null && !mirrorMap.TryGetPartner(i, out _)) continue;
                 var vertex = vertices[i] + displacements[i];
                 if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
 
                 var normal = normals[i].normalized;
                 if (normal.sqrMagnitude < 0.001f) normal = Vector3.up;
 
+                if (mirrorMap != null) normal = SymmetryVertexMapCache.MirrorDirection(normal, mirrorAxis);
                 var delta = normal * (strength * falloff * direction);
                 float maskValue = MaskValue(vertexMask, i);
                 if (maskValue < 1e-6f) continue;
@@ -61,7 +63,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
 
         internal static bool Smooth(Vector3[] vertices, Vector3[] displacements, Vector3[] currentDisplacements, float[] vertexMask,
-            MeshAdjacency adjacency, BrushInfluenceQuery query, float smoothFactor)
+            MeshAdjacency adjacency, BrushInfluenceQuery query, float smoothFactor, SymmetryVertexMap mirrorMap = null)
         {
             bool modified = false;
             int vertexCount = vertices.Length;
@@ -69,6 +71,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             for (int iteration = 0; iteration < iterationCount; iteration++)
             {
                 int i = query.CandidateAt(iteration);
+                if (mirrorMap != null && !mirrorMap.TryGetPartner(i, out _)) continue;
                 var vertex = vertices[i] + currentDisplacements[i];
                 if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
 
@@ -93,6 +96,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 modified = true;
             }
 
+            return modified;
+        }
+
+        internal static bool Mask(Vector3[] vertices, Vector3[] displacements, LatticeLayer layer,
+            BrushInfluenceQuery query, float targetValue, float strength, SymmetryVertexMap mirrorMap = null)
+        {
+            bool modified = false;
+            int iterationCount = query.CandidateCount(vertices.Length);
+            for (int iteration = 0; iteration < iterationCount; iteration++)
+            {
+                int i = query.CandidateAt(iteration);
+                if (mirrorMap != null && !mirrorMap.TryGetPartner(i, out _)) continue;
+                var vertex = vertices[i] + displacements[i];
+                if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
+                float current = layer.GetVertexMask(i);
+                float blend = Mathf.Lerp(current, targetValue, falloff * strength);
+                layer.SetVertexMask(i, blend);
+                modified = true;
+            }
             return modified;
         }
 

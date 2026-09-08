@@ -911,7 +911,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             layer.EnsureVertexMaskCapacity(_meshVertices.Length);
             // When inverted: erase mask (unprotect), otherwise: paint mask (protect)
             float targetValue = s_invertBrush ? 1f : 0f;
-            bool modified = false;
 
             // Pre-compute camera forward in local space for backface culling
             Vector3 localCameraForward = Vector3.forward;
@@ -929,20 +928,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             var query = CreateBrushInfluenceQuery(worldHitPoint, worldRadius, localToWorld, localCameraForward);
-            int iterationCount = query.CandidateCount(_meshVertices.Length);
-            for (int iteration = 0; iteration < iterationCount; iteration++)
-            {
-                int i = query.CandidateAt(iteration);
-                var vertex = _meshVertices[i] + displacements[i];
-                if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
-
-                float current = layer.GetVertexMask(i);
-                float blend = Mathf.Lerp(current, targetValue, falloff * s_brushStrength);
-                layer.SetVertexMask(i, blend);
-                modified = true;
-            }
-
-            return modified;
+            return BrushDisplacementApplication.Mask(_meshVertices, displacements, layer, query, targetValue, s_brushStrength);
         }
 
         private BrushInfluenceQuery CreateBrushInfluenceQuery(Vector3 center, float radius,
@@ -1037,23 +1023,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 case BrushMode.Normal:
                 {
-                    for (int i = 0; i < vertexCount; i++)
-                    {
-                        if (!mirrorMap.TryGetPartner(i, out _)) continue;
-                        var vertex = _meshVertices[i] + displacements[i];
-                        if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
-
-                        var normal = _meshNormals[i].normalized;
-                        if (normal.sqrMagnitude < 0.001f) normal = Vector3.up;
-
-                        // Mirror the normal direction for the mirrored side
-                        var mirroredNormal = MirrorDirection(normal);
-                        var delta = mirroredNormal * (strength * falloff * direction);
-                        float maskValue = BrushDisplacementApplication.MaskValue(vertexMask, i);
-                        if (maskValue < 1e-6f) continue;
-                        delta *= maskValue;
-                        displacements[i] += delta;
-                    }
+                    BrushDisplacementApplication.Normal(_meshVertices, _meshNormals, displacements, vertexMask,
+                        query, strength, direction, mirrorMap, (int)s_mirrorAxis);
                     break;
                 }
 
@@ -1064,29 +1035,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     Array.Copy(displacements, currentDisplacements, vertexCount);
                     float smoothFactor = Mathf.Clamp01(strength * 10f);
 
-                    for (int i = 0; i < vertexCount; i++)
-                    {
-                        if (!mirrorMap.TryGetPartner(i, out _)) continue;
-                        var vertex = _meshVertices[i] + currentDisplacements[i];
-                        if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
-
-                        int neighborStart = _adjacency.GetNeighborStart(i);
-                        int neighborEnd = _adjacency.GetNeighborEnd(i);
-                        if (neighborStart == neighborEnd) continue;
-                        var averageDisp = Vector3.zero;
-                        for (int edge = neighborStart; edge < neighborEnd; edge++)
-                        {
-                            int neighbor = _adjacency.GetNeighbor(edge);
-                            averageDisp += currentDisplacements[neighbor];
-                        }
-                        averageDisp /= neighborEnd - neighborStart;
-
-                        var currentDisp = currentDisplacements[i];
-                        float maskValue = BrushDisplacementApplication.MaskValue(vertexMask, i);
-                        if (maskValue < 1e-6f) continue;
-                        var targetDisp = Vector3.Lerp(currentDisp, averageDisp, smoothFactor * falloff * maskValue);
-                        displacements[i] = targetDisp;
-                    }
+                    BrushDisplacementApplication.Smooth(_meshVertices, displacements, currentDisplacements, vertexMask,
+                        _adjacency, query, smoothFactor, mirrorMap);
                     break;
                 }
 
@@ -1104,20 +1054,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         using (s_restSpaceMarker.Auto())
                             restSpaceConverter = _restSpaceConverterCache.Get(deformer);
                     }
-                    for (int i = 0; i < vertexCount; i++)
-                    {
-                        var vertex = _meshVertices[i] + displacements[i];
-                        if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
-
-                        var storedDelta = restSpaceConverter != null
-                            ? restSpaceConverter.ConvertOrFallback(i, mirroredDelta)
-                            : mirroredDelta;
-                        var delta = storedDelta * (strength * falloff * 10f);
-                        float maskValue = BrushDisplacementApplication.MaskValue(vertexMask, i);
-                        if (maskValue < 1e-6f) continue;
-                        delta *= maskValue;
-                        displacements[i] += delta;
-                    }
+                    BrushDisplacementApplication.Move(_meshVertices, displacements, vertexMask,
+                        query, strength, mirroredDelta, restSpaceConverter);
                     break;
                 }
 
@@ -1127,16 +1065,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     layer.EnsureVertexMaskCapacity(vertexCount);
                     float targetValue = s_invertBrush ? 1f : 0f;
 
-                    for (int i = 0; i < vertexCount; i++)
-                    {
-                        if (!mirrorMap.TryGetPartner(i, out _)) continue;
-                        var vertex = _meshVertices[i] + displacements[i];
-                        if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
-
-                        float current = layer.GetVertexMask(i);
-                        float blend = Mathf.Lerp(current, targetValue, falloff * s_brushStrength);
-                        layer.SetVertexMask(i, blend);
-                    }
+                    BrushDisplacementApplication.Mask(_meshVertices, displacements, layer,
+                        query, targetValue, s_brushStrength, mirrorMap);
                     break;
                 }
             }
