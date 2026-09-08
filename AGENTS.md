@@ -416,6 +416,8 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 ## 依存関係
 
+- `LatticeMirrorPlaneVisualization` は明示的なbounds/行列/軸からミラー面を描き、4頂点のscratchだけを所有する。軸はUnityの成分順X=0/Y=1/Z=2。`LatticeCageGeometry.MirrorPointAxis` はbounds中心で点を反転する。handlerの選択・設定・Undoへ描画側からアクセスしない。
+
 - `LatticeCageGeometry` はラティス表示/編集のbounds間point・delta変換、bounds再写像、参照頂点boundsを担当する。ハンドラは入力とpose取得を保持する。Geometryはindex scratchだけを所有し、Mesh/Layer/Transform/selectionを変更しない。ゼロ幅軸の旧挙動と参照頂点がない場合の全頂点fallbackを維持する。
 
 - 非アクティブ/無効な `LatticeDeformer` の `Deform` / `CreatePreviewMeshFromInput` は同期評価の終了時にnative scratchを解放する。never-active Objectやinactive PrefabはOnDestroyだけを解放根拠にしない。アクティブcomponentはcacheを再利用し、OnDisableで解放する。`InactiveEvaluationLifetimeTests` が反復評価とactive/disabled切替を検証する。
