@@ -416,6 +416,8 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 ## 依存関係
 
+- `LatticeCageGeometry` はラティス表示/編集のbounds間point・delta変換、bounds再写像、参照頂点boundsを担当する。ハンドラは入力とpose取得を保持する。Geometryはindex scratchだけを所有し、Mesh/Layer/Transform/selectionを変更しない。ゼロ幅軸の旧挙動と参照頂点がない場合の全頂点fallbackを維持する。
+
 - 非アクティブ/無効な `LatticeDeformer` の `Deform` / `CreatePreviewMeshFromInput` は同期評価の終了時にnative scratchを解放する。never-active Objectやinactive PrefabはOnDestroyだけを解放根拠にしない。アクティブcomponentはcacheを再利用し、OnDisableで解放する。`InactiveEvaluationLifetimeTests` が反復評価とactive/disabled切替を検証する。
 
 - Profileのtopology SHA-256は `CompatibilityHashStream` の4 KiB bufferで逐次生成する。既存BinaryWriterのlittle-endian順序とfloat bit列を保持し、保存hash契約を変更しない。Unity MonoのWrite(Single)が作る一時配列を避けるためSingleToInt32BitsをWrite(Int32)へ渡す。buffer境界・特殊float・複数submesh/baseVertexは独立した旧形式期待値と照合する。
