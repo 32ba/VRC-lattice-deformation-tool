@@ -71,7 +71,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static GUIContent s_icon;
         private static bool s_showIndices = false;
         private static bool s_includeInteriorControls = false;
-        private static readonly HashSet<int> s_selectedControls = new HashSet<int>();
+        private static readonly LatticeControlSelection s_selectedControls = new LatticeControlSelection();
         private static bool s_mirrorEditing = false;
         private static MirrorAxis s_mirrorAxis = MirrorAxis.X;
         private static MirrorBehavior s_mirrorBehavior = MirrorBehavior.Mirrored;
@@ -221,7 +221,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 s_includeInteriorControls = value;
                 if (!s_includeInteriorControls)
                 {
-                    FilterSelectionToBoundary(s_lastGridSize);
+                    s_selectedControls.KeepBoundary(s_lastGridSize);
                 }
 
                 SceneView.RepaintAll();
@@ -664,7 +664,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _lastCageHandlePositionsForTests = new Vector3[controlCount];
             }
 
-            s_selectedControls.RemoveWhere(idx => idx < 0 || idx >= controlCount);
+            s_selectedControls.TrimToCount(controlCount);
 
             for (int index = 0; index < controlCount; index++)
             {
@@ -672,7 +672,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 int iy = (index / nx) % ny;
                 int iz = index / (nx * ny);
 
-                bool onBoundary = IsBoundaryIndex(ix, iy, iz, nx, ny, nz);
+                bool onBoundary = LatticeControlSelection.IsBoundaryIndex(ix, iy, iz, nx, ny, nz);
                 if (!onBoundary && !IncludeInteriorControls)
                 {
                     continue;
@@ -704,18 +704,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 if (Handles.Button(worldPosition, Quaternion.identity, handleSize, handleSize, Handles.CubeHandleCap))
                 {
-                    if (additive)
-                    {
-                        if (!s_selectedControls.Add(index))
-                        {
-                            s_selectedControls.Remove(index);
-                        }
-                    }
-                    else
-                    {
-                        s_selectedControls.Clear();
-                        s_selectedControls.Add(index);
-                    }
+                    s_selectedControls.Select(index, additive);
 
                     SceneView.RepaintAll();
                 }
@@ -1579,31 +1568,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             s_selectedControls.Clear();
             SceneView.RepaintAll();
-        }
-
-        private static bool IsBoundaryIndex(int ix, int iy, int iz, int nx, int ny, int nz)
-        {
-            return ix == 0 || ix == nx - 1 || iy == 0 || iy == ny - 1 || iz == 0 || iz == nz - 1;
-        }
-
-        private static void FilterSelectionToBoundary(Vector3Int gridSize)
-        {
-            if (s_selectedControls.Count == 0)
-            {
-                return;
-            }
-
-            int nx = Mathf.Max(1, gridSize.x);
-            int ny = Mathf.Max(1, gridSize.y);
-            int nz = Mathf.Max(1, gridSize.z);
-
-            s_selectedControls.RemoveWhere(index =>
-            {
-                int ix = index % nx;
-                int iy = (index / nx) % ny;
-                int iz = index / (nx * ny);
-                return !IsBoundaryIndex(ix, iy, iz, nx, ny, nz);
-            });
         }
 
         internal static string GetSelectionLabel()
