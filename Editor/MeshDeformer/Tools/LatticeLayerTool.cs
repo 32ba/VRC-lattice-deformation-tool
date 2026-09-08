@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+﻿#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -108,7 +108,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly LatticeControlPointSkinning _controlPointSkinning =
             new LatticeControlPointSkinning();
         private readonly SkinnedPoseSnapshot _poseSnapshot = new SkinnedPoseSnapshot("Lattice Cage Skinning Bounds");
-        private readonly List<int> _skinningTopologyIndices = new List<int>();
+        private readonly LatticeCageGeometry _cageGeometry = new LatticeCageGeometry();
         private Bounds _skinningFallbackBounds;
         private bool _hasSkinningFallbackBounds;
         private int _skinningReferenceGeometryHash;
@@ -585,14 +585,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                             _controlPointSkinning.TryTransformPoint(index, local, out correctedLocal);
                             if (normalizeSkinnedBounds)
                             {
-                                correctedLocal = MapPointBetweenBounds(
+                                correctedLocal = LatticeCageGeometry.MapPointBetweenBounds(
                                     correctedLocal,
                                     _controlPointSkinning.PosedControlBounds,
                                     _skinningDisplayBounds);
                             }
                         }
                         var mappedLocal = needBoundsMap
-                            ? MapPointBetweenBounds(correctedLocal, sourceBounds, proxyBoundsLocal)
+                            ? LatticeCageGeometry.MapPointBetweenBounds(correctedLocal, sourceBounds, proxyBoundsLocal)
                             : correctedLocal;
                         var proxyLocal = needBoundsMap
                             ? useSkinningFallback
@@ -807,7 +807,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                         {
                                             mappedSource = proxyToSource.MultiplyPoint3x4(mappedSource);
                                         }
-                                        mappedSource = MapPointBetweenBounds(
+                                        mappedSource = LatticeCageGeometry.MapPointBetweenBounds(
                                             mappedSource,
                                             proxyBoundsLocal,
                                             sourceBounds);
@@ -820,7 +820,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                     {
                                         if (normalizeSkinnedBounds)
                                         {
-                                            storedLocal = MapPointBetweenBounds(
+                                            storedLocal = LatticeCageGeometry.MapPointBetweenBounds(
                                                 storedLocal,
                                                 _skinningDisplayBounds,
                                                 _controlPointSkinning.PosedControlBounds);
@@ -835,13 +835,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                 else
                                 {
                                     storedLocal = needBoundsMap
-                                        ? MapPointBetweenBounds(proxyLocal, proxyBoundsLocal, sourceBounds)
+                                        ? LatticeCageGeometry.MapPointBetweenBounds(proxyLocal, proxyBoundsLocal, sourceBounds)
                                         : proxyToSource.MultiplyPoint3x4(proxyLocal);
                                     if (hasControlPointSkinning)
                                     {
                                         if (normalizeSkinnedBounds)
                                         {
-                                            storedLocal = MapPointBetweenBounds(
+                                            storedLocal = LatticeCageGeometry.MapPointBetweenBounds(
                                                 storedLocal,
                                                 _skinningDisplayBounds,
                                                 _controlPointSkinning.PosedControlBounds);
@@ -873,7 +873,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                             {
                                                 deltaSource = proxyToSource.MultiplyVector(deltaSource);
                                             }
-                                            deltaSource = MapDeltaBetweenBounds(
+                                            deltaSource = LatticeCageGeometry.MapDeltaBetweenBounds(
                                                 deltaSource,
                                                 proxyBoundsLocal,
                                                 sourceBounds);
@@ -887,7 +887,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                     else
                                     {
                                         deltaSource = needBoundsMap
-                                            ? MapDeltaBetweenBounds(deltaProxy, proxyBoundsLocal, sourceBounds)
+                                            ? LatticeCageGeometry.MapDeltaBetweenBounds(deltaProxy, proxyBoundsLocal, sourceBounds)
                                             : proxyToSource.MultiplyVector(deltaProxy);
                                     }
                                     switch (CurrentMirrorBehavior)
@@ -898,7 +898,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                             {
                                                 if (normalizeSkinnedBounds)
                                                 {
-                                                    deltaSource = MapDeltaBetweenBounds(
+                                                    deltaSource = LatticeCageGeometry.MapDeltaBetweenBounds(
                                                         deltaSource,
                                                         _skinningDisplayBounds,
                                                         _controlPointSkinning.PosedControlBounds);
@@ -921,7 +921,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                             {
                                                 if (normalizeSkinnedBounds)
                                                 {
-                                                    deltaSource = MapDeltaBetweenBounds(
+                                                    deltaSource = LatticeCageGeometry.MapDeltaBetweenBounds(
                                                         deltaSource,
                                                         _skinningDisplayBounds,
                                                         _controlPointSkinning.PosedControlBounds);
@@ -1199,7 +1199,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                     if (_hasSkinningReferenceBounds)
                     {
-                        _skinningDisplayBounds = RemapBounds(
+                        _skinningDisplayBounds = LatticeCageGeometry.RemapBounds(
                             _skinningReferenceBakedBounds,
                             _skinningReferenceSampleBounds,
                             _controlPointSkinning.PosedMeshBounds);
@@ -1436,51 +1436,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return symmetryIndex != index;
         }
 
-        private static Vector3 MapPointBetweenBounds(Vector3 point, Bounds from, Bounds to)
-        {
-            var fromSize = from.size;
-            var toSize = to.size;
-
-            float nx = fromSize.x != 0f ? (point.x - from.min.x) / fromSize.x : 0f;
-            float ny = fromSize.y != 0f ? (point.y - from.min.y) / fromSize.y : 0f;
-            float nz = fromSize.z != 0f ? (point.z - from.min.z) / fromSize.z : 0f;
-
-            return new Vector3(
-                to.min.x + nx * toSize.x,
-                to.min.y + ny * toSize.y,
-                to.min.z + nz * toSize.z);
-        }
-
-        private static Vector3 MapDeltaBetweenBounds(Vector3 delta, Bounds from, Bounds to)
-        {
-            var fromSize = from.size;
-            var toSize = to.size;
-
-            float sx = fromSize.x != 0f ? toSize.x / fromSize.x : 0f;
-            float sy = fromSize.y != 0f ? toSize.y / fromSize.y : 0f;
-            float sz = fromSize.z != 0f ? toSize.z / fromSize.z : 0f;
-
-            return new Vector3(delta.x * sx, delta.y * sy, delta.z * sz);
-        }
-
-        private static bool AreBoundsApproximatelyEqual(Bounds a, Bounds b, float relativeTolerance)
-        {
-            float tolX = Mathf.Abs(a.size.x) * relativeTolerance + 1e-5f;
-            float tolY = Mathf.Abs(a.size.y) * relativeTolerance + 1e-5f;
-            float tolZ = Mathf.Abs(a.size.z) * relativeTolerance + 1e-5f;
-
-            return Mathf.Abs(a.size.x - b.size.x) <= tolX &&
-                   Mathf.Abs(a.size.y - b.size.y) <= tolY &&
-                   Mathf.Abs(a.size.z - b.size.z) <= tolZ;
-        }
-
-        private static Bounds ChooseLargerBounds(Bounds a, Bounds b)
-        {
-            var min = Vector3.Min(a.min, b.min);
-            var max = Vector3.Max(a.max, b.max);
-            return new Bounds((min + max) * 0.5f, max - min);
-        }
-
         private static string FormatBounds(Bounds b)
         {
             return $"center=({b.center.x:F3},{b.center.y:F3},{b.center.z:F3}), size=({b.size.x:F3},{b.size.y:F3},{b.size.z:F3})";
@@ -1553,7 +1508,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 Matrix4x4 rendererToSource =
                     worldToSource * _poseSnapshot.LocalToWorld;
-                bounds = CalculateTransformedReferencedBounds(
+                bounds = _cageGeometry.CalculateTransformedReferencedBounds(
                     topologyMesh,
                     _poseSnapshot.LocalVertices,
                     rendererToSource);
@@ -1565,76 +1520,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 return false;
             }
-        }
-
-        private Bounds CalculateTransformedReferencedBounds(
-            Mesh topologyMesh,
-            IReadOnlyList<Vector3> vertices,
-            Matrix4x4 matrix)
-        {
-            Bounds bounds = default;
-            bool hasPoint = false;
-
-            if (topologyMesh != null && topologyMesh.vertexCount == vertices.Count)
-            {
-                int subMeshCount = Mathf.Max(1, topologyMesh.subMeshCount);
-                for (int subMesh = 0; subMesh < subMeshCount; subMesh++)
-                {
-                    _skinningTopologyIndices.Clear();
-                    topologyMesh.GetIndices(_skinningTopologyIndices, subMesh);
-                    for (int i = 0; i < _skinningTopologyIndices.Count; i++)
-                    {
-                        int vertexIndex = _skinningTopologyIndices[i];
-                        if (vertexIndex < 0 || vertexIndex >= vertices.Count)
-                        {
-                            continue;
-                        }
-
-                        Vector3 point = matrix.MultiplyPoint3x4(vertices[vertexIndex]);
-                        if (!hasPoint)
-                        {
-                            bounds = new Bounds(point, Vector3.zero);
-                            hasPoint = true;
-                        }
-                        else
-                        {
-                            bounds.Encapsulate(point);
-                        }
-                    }
-                }
-            }
-
-            if (hasPoint)
-            {
-                return bounds;
-            }
-
-            bounds = new Bounds(matrix.MultiplyPoint3x4(vertices[0]), Vector3.zero);
-            for (int i = 1; i < vertices.Count; i++)
-            {
-                bounds.Encapsulate(matrix.MultiplyPoint3x4(vertices[i]));
-            }
-            return bounds;
-        }
-
-        private static Bounds RemapBounds(
-            Bounds referenceBounds,
-            Bounds referenceSampleBounds,
-            Bounds currentSampleBounds)
-        {
-            Vector3 center = MapPointBetweenBounds(
-                referenceBounds.center,
-                referenceSampleBounds,
-                currentSampleBounds);
-            Vector3 size = MapDeltaBetweenBounds(
-                referenceBounds.size,
-                referenceSampleBounds,
-                currentSampleBounds);
-            size = new Vector3(
-                Mathf.Abs(size.x),
-                Mathf.Abs(size.y),
-                Mathf.Abs(size.z));
-            return new Bounds(center, size);
         }
 
         private static bool IsFinite(Vector3 value)
