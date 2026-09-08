@@ -416,6 +416,8 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 ## 依存関係
 
+- 非アクティブ/無効な `LatticeDeformer` の `Deform` / `CreatePreviewMeshFromInput` は同期評価の終了時にnative scratchを解放する。never-active Objectやinactive PrefabはOnDestroyだけを解放根拠にしない。アクティブcomponentはcacheを再利用し、OnDisableで解放する。`InactiveEvaluationLifetimeTests` が反復評価とactive/disabled切替を検証する。
+
 - Profileのtopology SHA-256は `CompatibilityHashStream` の4 KiB bufferで逐次生成する。既存BinaryWriterのlittle-endian順序とfloat bit列を保持し、保存hash契約を変更しない。Unity MonoのWrite(Single)が作る一時配列を避けるためSingleToInt32BitsをWrite(Int32)へ渡す。buffer境界・特殊float・複数submesh/baseVertexは独立した旧形式期待値と照合する。
 
 - `nadena.dev.ndmf` >= 1.14.8 (VPM)
