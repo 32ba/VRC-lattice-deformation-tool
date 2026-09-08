@@ -1011,104 +1011,14 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public int ImportBlendShapeAsLayer(int blendShapeIndex, int frameIndex = 0)
         {
-            if (_sourceMesh == null) return -1;
-            int shapeCount = _sourceMesh.blendShapeCount;
-            if (blendShapeIndex < 0 || blendShapeIndex >= shapeCount) return -1;
-            int frameCount = _sourceMesh.GetBlendShapeFrameCount(blendShapeIndex);
-            if (frameIndex < 0 || frameIndex >= frameCount) return -1;
-            int vertexCount = _sourceMesh.vertexCount;
-            if (vertexCount == 0) return -1;
-
-            var deltaVertices = new Vector3[vertexCount];
-            var deltaNormals = new Vector3[vertexCount];
-            var deltaTangents = new Vector3[vertexCount];
-            _sourceMesh.GetBlendShapeFrameVertices(blendShapeIndex, frameIndex, deltaVertices, deltaNormals, deltaTangents);
-
-            string shapeName = _sourceMesh.GetBlendShapeName(blendShapeIndex);
-            var layer = new LatticeLayer();
-            layer.Name = shapeName;
-            layer.SetType(MeshDeformerLayerType.Brush);
-            layer.Weight = 1f;
-            layer.EnsureBrushDisplacementCapacity(vertexCount);
-            for (int i = 0; i < vertexCount; i++)
-                layer.SetBrushDisplacement(i, deltaVertices[i]);
-
-            if (!EnsureGroups()) return -1;
-            var group = ActiveGroup;
-            if (group == null) return -1;
-            group.LayersList.Add(layer);
-            int addedIndex = group.LayersList.Count - 1;
-            group.ActiveLayerIndex = addedIndex;
-            return addedIndex;
+            var layer = BlendShapeLayerImport.CreateLayer(_sourceMesh, blendShapeIndex, frameIndex);
+            return layer != null ? InsertLayer(layer) : -1;
         }
 
         public int ImportBlendShapeAllFramesAsGroup(int blendShapeIndex)
         {
-            if (_sourceMesh == null) return -1;
-            if (blendShapeIndex < 0 || blendShapeIndex >= _sourceMesh.blendShapeCount) return -1;
-
-            int frameCount = _sourceMesh.GetBlendShapeFrameCount(blendShapeIndex);
-            int vertexCount = _sourceMesh.vertexCount;
-            if (frameCount <= 0 || vertexCount <= 0) return -1;
-
-            string shapeName = _sourceMesh.GetBlendShapeName(blendShapeIndex);
-            var importedLayers = new List<LatticeLayer>(frameCount);
-            float previousWeight = float.NegativeInfinity;
-
-            for (int frameIndex = 0; frameIndex < frameCount; frameIndex++)
-            {
-                float frameWeight = _sourceMesh.GetBlendShapeFrameWeight(blendShapeIndex, frameIndex);
-                if (float.IsNaN(frameWeight) || float.IsInfinity(frameWeight) || frameWeight <= previousWeight)
-                    return -1;
-
-                var deltaVertices = new Vector3[vertexCount];
-                _sourceMesh.GetBlendShapeFrameVertices(
-                    blendShapeIndex,
-                    frameIndex,
-                    deltaVertices,
-                    new Vector3[vertexCount],
-                    new Vector3[vertexCount]);
-
-                for (int vertex = 0; vertex < vertexCount; vertex++)
-                {
-                    Vector3 delta = deltaVertices[vertex];
-                    if (float.IsNaN(delta.x) || float.IsInfinity(delta.x) ||
-                        float.IsNaN(delta.y) || float.IsInfinity(delta.y) ||
-                        float.IsNaN(delta.z) || float.IsInfinity(delta.z))
-                    {
-                        return -1;
-                    }
-                }
-
-                var layer = new LatticeLayer
-                {
-                    Name = string.Format(
-                        CultureInfo.InvariantCulture,
-                        "{0} [{1:0.###}]",
-                        shapeName,
-                        frameWeight),
-                    Weight = 1f
-                };
-                layer.SetType(MeshDeformerLayerType.Brush);
-                layer.BrushDisplacements = deltaVertices;
-                layer.SetImportedBlendShapeFrameWeight(frameWeight);
-                importedLayers.Add(layer);
-                previousWeight = frameWeight;
-            }
-
-            if (!EnsureGroups()) return -1;
-
-            var group = new DeformerGroup
-            {
-                Name = shapeName + " Imported",
-                BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape,
-                BlendShapeName = shapeName + " Imported",
-                BlendShapeComposition = BlendShapeCompositionMode.Crossfade,
-                BlendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f)
-            };
-            group.LayersList.AddRange(importedLayers);
-            group.ActiveLayerIndex = 0;
-
+            var group = BlendShapeLayerImport.CreateGroup(_sourceMesh, blendShapeIndex);
+            if (group == null || !EnsureGroups()) return -1;
             _groups.Add(group);
             _activeGroupIndex = _groups.Count - 1;
             return _activeGroupIndex;

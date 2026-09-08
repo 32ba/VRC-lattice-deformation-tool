@@ -51,7 +51,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             list.RegisterCallback<PointerDownEvent>(evt =>
             {
-                if (evt.button == 0) _pointerDown = true;
+                // IMGUI popups consume mouse-up in a separate native window.
+                // Their controls do not start an animated list drag.
+                if (evt.button == 0 && !IsDetailInput(list, evt)) _pointerDown = true;
                 if (nested) evt.StopPropagation();
             });
             list.RegisterCallback<PointerUpEvent>(evt =>
@@ -64,6 +66,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _rebuildPending = true;
                 FinishPointerInput();
             }, TrickleDown.TrickleDown);
+        }
+
+        private static bool IsDetailInput(ListView list, PointerDownEvent evt)
+        {
+            if (evt.target is IMGUIContainer) return true;
+            // The animated dragger may already have retargeted this event to the
+            // ListView. Use panel coordinates to identify the original detail hit.
+            foreach (var detail in list.Query<IMGUIContainer>().ToList())
+                if (detail.visible && detail.worldBound.Contains(evt.position)) return true;
+            return false;
         }
 
         // Animated ListView clears and reselects during StartDrag, then continues

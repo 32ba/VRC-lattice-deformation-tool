@@ -95,6 +95,31 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [UnityTest]
         public IEnumerator PointerCancel_DiscardsPendingSelectionAndReorder() => DragDispatch(true, false, true);
 
+        [UnityTest]
+        public IEnumerator ImguiPopup_WithoutPointerUp_DoesNotBlockImportedRowRefresh()
+        {
+            using var f = new Fixture();
+            f.Attach(f.Section.Root);
+            yield return null;
+            var list = f.Section.GroupList;
+            var control = list.Q<IMGUIContainer>();
+            Assert.That(control, Is.Not.Null);
+            using (var down = PointerDownEvent.GetPooled(new Event
+                { type = EventType.MouseDown, button = 0, mousePosition = control.worldBound.center }))
+            {
+                // Native input is retargeted to the ListView by its dragger.
+                down.target = list; list.SendEvent(down);
+            }
+            // A native menu consumes mouse-up outside this panel. Its accepted
+            // action adds data, and the Inspector must refresh without another click.
+            f.Target.AddLayer("Imported", MeshDeformerLayerType.Brush);
+            f.Editor.serializedObject.Update();
+            f.Section.RebuildGroupList();
+            yield return null;
+            Assert.That(f.Section.GroupList, Is.Not.SameAs(list));
+            Assert.That(f.Section.LayerList.itemsSource.Count, Is.EqualTo(3));
+        }
+
         private static IEnumerator DragDispatch(bool layer, bool replaceStorage, bool cancel = false)
         {
             using var f = new Fixture();

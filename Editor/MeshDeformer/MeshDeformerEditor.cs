@@ -26,13 +26,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         // These are resolved per-frame from the active group
         private SerializedProperty _layersProp;
         private SerializedProperty _activeLayerIndexProp;
-        private SerializedProperty _blendShapeOutputProp;
-        private SerializedProperty _blendShapeNameProp;
-        private SerializedProperty _blendShapeCurveProp;
         private SerializedProperty _skinnedRendererProp;
         private SerializedProperty _meshFilterProp;
         private ClearanceInspectorSection _clearanceInspector;
-        private BlendShapeTestSession _blendShapeTestSession;
+        private BlendShapeInspectorSection _blendShapeInspector;
         private SerializedProperty _alignModeProp;
         private SerializedProperty _clampMulXYProp;
         private SerializedProperty _clampMinXYProp;
@@ -49,7 +46,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static readonly GUIContent[] s_xyzLabels = { new GUIContent("X"), new GUIContent("Y"), new GUIContent("Z") };
 
         private static bool s_showAlignSettings = false;
-        private static bool s_showBlendShapeOutput = false;
         private static readonly Dictionary<long, Vector3Int> s_pendingGridSizes = new();
         private const string DetailedInspectorSessionKeyPrefix =
             "Net32Ba.LatticeDeformationTool.DetailedInspector.";
@@ -59,15 +55,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private GuidedInspectorSection _guidedInspector;
         internal GuidedInspectorSection GuidedInspector => _guidedInspector;
 
-
         private void OnEnable()
         {
             EnsureLinkIcons();
             _settingsProp = serializedObject.FindProperty("_settings");
             _groupsProp = serializedObject.FindProperty("_groups");
             _activeGroupIndexProp = serializedObject.FindProperty("_activeGroupIndex");
-            _stackInspector = new DeformerStackInspectorSection(this, DrawGroupBlendShapeSection,
-                DrawActiveLayerSettings, DrawLayerOperationsImgui, OnStackStructureChanged);
+            _blendShapeInspector = new BlendShapeInspectorSection(this, NotifyPropertyChanges, OnBlendShapeImported);
+            _stackInspector = new DeformerStackInspectorSection(this, _blendShapeInspector.DrawGroup,
+                DrawActiveLayerSettings, _blendShapeInspector.DrawImport, OnStackStructureChanged);
             _profileInspector = new ProfileInspectorSection(this, RebuildGroupList);
             _guidedInspector = new GuidedInspectorSection(this, AutoAssignLocalRendererReferences,
                 OpenDetailedInspector, OnGuidedEditingStarted, NotifyPropertyChanges);
@@ -99,9 +95,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             _layersProp = null;
             _activeLayerIndexProp = null;
-            _blendShapeOutputProp = null;
-            _blendShapeNameProp = null;
-            _blendShapeCurveProp = null;
 
             if (_groupsProp == null || _activeGroupIndexProp == null) return;
             int groupIndex = _activeGroupIndexProp.intValue;
@@ -112,9 +105,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             _layersProp = groupProp.FindPropertyRelative("_layers");
             _activeLayerIndexProp = groupProp.FindPropertyRelative("_activeLayerIndex");
-            _blendShapeOutputProp = groupProp.FindPropertyRelative("_blendShapeOutput");
-            _blendShapeNameProp = groupProp.FindPropertyRelative("_blendShapeName");
-            _blendShapeCurveProp = groupProp.FindPropertyRelative("_blendShapeCurve");
         }
 
         private void OnDisable()
@@ -123,7 +113,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ReleaseChecker.OnUpdateCheckCompleted -= Repaint;
             _clearanceInspector?.Dispose();
             _clearanceInspector = null;
-            ExitBlendShapeTestMode();
+            _blendShapeInspector?.Dispose();
+            _blendShapeInspector = null;
             _stackInspector?.Dispose();
             _stackInspector = null;
             _profileInspector = null;
@@ -244,6 +235,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             InitializePendingGridSizes();
             NotifyPropertyChanges(true);
         }
+        private void OnBlendShapeImported()
+        {
+            OnStackStructureChanged();
+            RebuildGroupList();
+        }
         private DeformerStackInspectorSection _stackInspector;
         internal DeformerStackInspectorSection StackInspector => _stackInspector;
         private void RebuildGroupList() => _stackInspector?.RebuildGroupList();
@@ -261,6 +257,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void CopyGroup(LatticeDeformer d, int index) => _stackInspector?.CopyGroup(d, index);
         private void PasteGroup(LatticeDeformer d) => _stackInspector?.PasteGroup(d);
 
+        // Historical Inspector tests use these private entry points.
+        private void EnterBlendShapeTestMode(LatticeDeformer deformer, SkinnedMeshRenderer renderer)
+            => _blendShapeInspector?.EnterTestMode(deformer, renderer);
+        private void ExitBlendShapeTestMode() => _blendShapeInspector?.ExitTestMode();
+        internal BlendShapeInspectorSection BlendShapeInspector => _blendShapeInspector;
+
         private void DrawActiveLayerSettings()
         {
             if (target is not LatticeDeformer d || d == null) return;
@@ -273,7 +275,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 DrawSettingsExcludingGrid(GetActiveSettingsProperty(d), allowStructureEdits: true);
                 DrawAlignmentSettings();
             }
-            if (LatticeDeformationFeatureFlags.AdvancedBlendShapes) DrawActiveLayerBlendShapeSection();
+            if (LatticeDeformationFeatureFlags.AdvancedBlendShapes) _blendShapeInspector.DrawLayer();
             if (serializedObject.ApplyModifiedProperties()) NotifyPropertyChanges();
         }
 
@@ -387,7 +389,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (targets.Length == 1 && target is LatticeDeformer activeDeformer)
             {
                 SyncActiveToolToLayer(activeDeformer);
-                ReapplyBlendShapeTestWeight(activeDeformer);
+                _blendShapeInspector?.Refresh(activeDeformer);
             }
 
             LatticePreviewUtility.RequestSceneRepaint();
@@ -468,29 +470,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Renderer previewProxy, out bool usedPreviewProxy) =>
             ClearanceAuthoringSession.ResolveClearanceTargetRenderer(deformer, previewProxy, out usedPreviewProxy);
 
-        private void ReapplyBlendShapeTestWeight(LatticeDeformer deformer)
-        {
-            if (_blendShapeTestSession != null && _blendShapeTestSession.Owns(deformer))
-                _blendShapeTestSession.Refresh();
-        }
-
         private void RebuildLayerList()
         {
             RebuildGroupList();
-        }
-
-        private void DrawLayerOperationsImgui()
-        {
-            if (targets.Length != 1) return;
-            var deformer = target as LatticeDeformer;
-            if (deformer == null) return;
-
-            serializedObject.Update();
-            ResolveActiveGroupProperties();
-
-            DrawImportBlendShapeUI(deformer);
-
-            serializedObject.ApplyModifiedProperties();
         }
 
         private void AutoAssignLocalRendererReferences()
@@ -798,46 +780,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 SceneView.RepaintAll();
             }
             EditorGUI.EndDisabledGroup();
-        }
-
-        private void DrawActiveLayerBlendShapeSection()
-        {
-            if (_layersProp == null || _activeLayerIndexProp == null || _layersProp.arraySize == 0)
-            {
-                return;
-            }
-
-            int activeLayerIndex = Mathf.Clamp(_activeLayerIndexProp.intValue, 0, _layersProp.arraySize - 1);
-            var layerProp = _layersProp.GetArrayElementAtIndex(activeLayerIndex);
-            if (layerProp == null)
-            {
-                return;
-            }
-
-            var outputProp = layerProp.FindPropertyRelative("_blendShapeOutput");
-            var nameProp = layerProp.FindPropertyRelative("_blendShapeName");
-            var curveProp = layerProp.FindPropertyRelative("_blendShapeCurve");
-            if (outputProp == null)
-            {
-                return;
-            }
-
-            EditorGUILayout.Space(4f);
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.BlendShapeOutput), EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(outputProp, LatticeLocalization.Content(LocKey.BlendShapeOutput));
-
-            if (outputProp.intValue == (int)BlendShapeOutputMode.OutputAsBlendShape)
-            {
-                if (nameProp != null)
-                {
-                    EditorGUILayout.PropertyField(nameProp, LatticeLocalization.Content(LocKey.BlendShapeName));
-                }
-
-                if (curveProp != null)
-                {
-                    EditorGUILayout.PropertyField(curveProp, LatticeLocalization.Content(LocKey.Curve));
-                }
-            }
         }
 
         private void ShowLROperationsMenu(LatticeDeformer deformer)
@@ -1159,196 +1101,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return new Bounds(center, size);
         }
 
-        private void DrawGroupBlendShapeSection(int groupIndex)
-        {
-            // This runs from an IMGUIContainer inside a list item, which can repaint
-            // once more after the inspected object was destroyed.
-            if (target == null) return;
 
-            serializedObject.Update();
-            if (_groupsProp == null || groupIndex < 0 || groupIndex >= _groupsProp.arraySize) return;
-
-            var groupProp = _groupsProp.GetArrayElementAtIndex(groupIndex);
-            var outputProp = groupProp.FindPropertyRelative("_blendShapeOutput");
-            var nameProp = groupProp.FindPropertyRelative("_blendShapeName");
-            var curveProp = groupProp.FindPropertyRelative("_blendShapeCurve");
-            var compositionProp = groupProp.FindPropertyRelative("_blendShapeComposition");
-            if (outputProp == null) return;
-
-            EditorGUI.BeginChangeCheck();
-            EditorGUILayout.PropertyField(outputProp, new GUIContent(LatticeLocalization.Tr(LocKey.BlendShapeOutput)));
-            bool modeJustChanged = EditorGUI.EndChangeCheck();
-
-            if (outputProp.intValue == (int)BlendShapeOutputMode.OutputAsBlendShape)
-            {
-                if (modeJustChanged && nameProp != null && string.IsNullOrWhiteSpace(nameProp.stringValue))
-                {
-                    var deformer = target as LatticeDeformer;
-                    if (deformer != null)
-                        nameProp.stringValue = deformer.gameObject.name;
-                }
-
-                if (nameProp != null)
-                    EditorGUILayout.PropertyField(nameProp, new GUIContent(LatticeLocalization.Tr(LocKey.BlendShapeName)));
-
-                if (curveProp != null)
-                    EditorGUILayout.PropertyField(curveProp, new GUIContent(LatticeLocalization.Tr(LocKey.Curve)));
-
-                if (LatticeDeformationFeatureFlags.AdvancedBlendShapes && compositionProp != null)
-                {
-                    var compositionOptions = new[]
-                    {
-                        LatticeLocalization.Content(LocKey.BlendShapeCompositionSingle),
-                        LatticeLocalization.Content(LocKey.BlendShapeCompositionProgressive),
-                        LatticeLocalization.Content(LocKey.BlendShapeCompositionCrossfade)
-                    };
-                    EditorGUI.BeginChangeCheck();
-                    int composition = EditorGUILayout.Popup(
-                        LatticeLocalization.Content(LocKey.BlendShapeComposition),
-                        compositionProp.enumValueIndex,
-                        compositionOptions);
-                    if (EditorGUI.EndChangeCheck()) compositionProp.enumValueIndex = composition;
-                }
-
-                // Test mode only for active group
-                int activeGroupIdx = _activeGroupIndexProp != null ? _activeGroupIndexProp.intValue : 0;
-                if (groupIndex == activeGroupIdx)
-                    DrawBlendShapeTestMode();
-            }
-
-            if (serializedObject.ApplyModifiedProperties())
-                NotifyPropertyChanges();
-        }
-
-        // Keep for backward compat — no longer called from DrawBottomSection
-        private void DrawBlendShapeOutputSection()
-        {
-        }
-
-        private void DrawBlendShapeTestMode()
-        {
-            var deformer = target as LatticeDeformer;
-            if (deformer == null) return;
-
-            var smr = deformer.GetComponent<SkinnedMeshRenderer>();
-            if (smr == null) return;
-
-            EditorGUILayout.Space(2);
-
-            if (_blendShapeTestSession == null || !_blendShapeTestSession.IsActive)
-            {
-                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.EnterTestMode)))
-                {
-                    EnterBlendShapeTestMode(deformer, smr);
-                }
-            }
-            else
-            {
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.BlendShapeTestMode), MessageType.Info);
-
-                EditorGUI.BeginChangeCheck();
-                float weight = EditorGUILayout.Slider(
-                    new GUIContent(LatticeLocalization.Tr(LocKey.TestWeight)),
-                    _blendShapeTestSession.Weight, 0f, 100f);
-                if (EditorGUI.EndChangeCheck())
-                {
-                    _blendShapeTestSession.SetWeight(weight);
-                    SceneView.RepaintAll();
-                }
-
-                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ExitTestMode)))
-                {
-                    ExitBlendShapeTestMode();
-                }
-            }
-        }
-
-        // Historical Inspector entry points also keep the existing private-call regression test.
-        private void EnterBlendShapeTestMode(LatticeDeformer deformer, SkinnedMeshRenderer smr)
-        {
-            _blendShapeTestSession?.Dispose();
-            _blendShapeTestSession = BlendShapeTestSession.TryBegin(deformer, smr);
-            SceneView.RepaintAll();
-        }
-
-        private void ExitBlendShapeTestMode()
-        {
-            _blendShapeTestSession?.Dispose();
-            _blendShapeTestSession = null;
-            SceneView.RepaintAll();
-        }
-
-        private void DrawImportBlendShapeUI(LatticeDeformer deformer)
-        {
-            if (deformer == null)
-            {
-                return;
-            }
-
-            var blendShapeNames = deformer.GetSourceBlendShapeNames();
-            if (blendShapeNames == null || blendShapeNames.Length == 0)
-            {
-                return;
-            }
-
-            EditorGUILayout.Space(4);
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.PrefixLabel(LatticeLocalization.Tr(LocKey.ImportBlendShape));
-
-            if (EditorGUILayout.DropdownButton(new GUIContent(LatticeLocalization.Tr(LocKey.Select)), FocusType.Keyboard))
-            {
-                var menu = new GenericMenu();
-                for (int i = 0; i < blendShapeNames.Length; i++)
-                {
-                    int index = i;
-                    string shapeName = blendShapeNames[i];
-                    if (LatticeDeformationFeatureFlags.AdvancedBlendShapes)
-                    {
-                        menu.AddItem(
-                            new GUIContent(
-                                LatticeLocalization.Tr(LocKey.ImportBlendShapeSingleFrame) + "/" + shapeName),
-                            false,
-                            () => ImportBlendShape(deformer, index, false));
-                        menu.AddItem(
-                            new GUIContent(
-                                LatticeLocalization.Tr(LocKey.ImportBlendShapeAllFrames) + "/" + shapeName),
-                            false,
-                            () => ImportBlendShape(deformer, index, true));
-                    }
-                    else
-                    {
-                        menu.AddItem(
-                            new GUIContent(shapeName),
-                            false,
-                            () => ImportBlendShape(deformer, index, false));
-                    }
-                }
-                menu.ShowAsContext();
-            }
-
-            EditorGUILayout.EndHorizontal();
-        }
-
-        private void ImportBlendShape(LatticeDeformer deformer, int blendShapeIndex, bool allFrames)
-        {
-            Undo.RecordObject(deformer, "Import BlendShape");
-            int importedIndex = allFrames
-                ? deformer.ImportBlendShapeAllFramesAsGroup(blendShapeIndex)
-                : deformer.ImportBlendShapeAsLayer(blendShapeIndex);
-            if (importedIndex < 0) return;
-
-            EditorUtility.SetDirty(deformer);
-            LatticePrefabUtility.MarkModified(deformer);
-
-            serializedObject.Update();
-            InitializePendingGridSizes();
-
-            bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-            deformer.InvalidateCache();
-            deformer.Deform(assignRuntimeMesh);
-            LatticePreviewUtility.RequestSceneRepaint();
-            SceneView.RepaintAll();
-        }
 
         private static void EnsureLinkIcons()
         {
@@ -1373,6 +1126,4 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     }
 }
 #endif
-
-
 
