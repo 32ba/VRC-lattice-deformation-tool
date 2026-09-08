@@ -416,6 +416,8 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 ## 依存関係
 
+- `LatticeDragGeometry` は1同期drag更新で借用したpose・行列・boundsから保存pointとmirror deltaへ変換する。manual scale除算、center offset、bounds対応、root offset、skinning逆変換の順序を維持する。旧mirror delta経路はmanual scaleで割らない。session/Undo・設定書込み・対称mode適用・内部制御点relax・preview更新はhandlerが担当する。
+
 - `LatticeControlSelection` は制御点indexの選択集合を所有し、置換/toggle、countによる範囲除去、外周への絞り込みを行う。handlerが従来どおりstatic instanceを保持し、描画・入力・再描画・Undoは所有しない。列挙はHashSetのstruct enumeratorを返し、選択順や共有範囲を変更しない。
 
 - `LatticeMirrorPlaneVisualization` は明示的なbounds/行列/軸からミラー面を描き、4頂点のscratchだけを所有する。軸はUnityの成分順X=0/Y=1/Z=2。`LatticeCageGeometry.MirrorPointAxis` はbounds中心で点を反転する。handlerの選択・設定・Undoへ描画側からアクセスしない。
