@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+﻿#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -414,7 +414,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (dragDist < 5f)
                 {
                     // Click selection
-                    int nearest = FindVertexAtScreenPos(_selectionStartPos, meshTransform, deformer, 20f);
+                    int nearest = CreatePickingQuery(meshTransform).Nearest((_deformedVertices ?? _meshVertices)?.Length ?? 0, _selectionStartPos, 20f);
 
                     if (evt.shift)
                     {
@@ -454,8 +454,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 else
                 {
                     // Rect selection
-                    var rect = MakeRect(_selectionStartPos, endPos);
-                    var selectedInRect = FindVerticesInScreenRect(rect, meshTransform, deformer);
+                    var rect = VertexPickingQuery.Rectangle(_selectionStartPos, endPos);
+                    var selectedInRect = CreatePickingQuery(meshTransform).Inside(_deformedVertices?.Length ?? 0, rect);
 
                     if (evt.shift)
                     {
@@ -904,7 +904,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void DrawSelectionRect(Vector2 currentMousePos)
         {
-            var rect = MakeRect(_selectionStartPos, currentMousePos);
+            var rect = VertexPickingQuery.Rectangle(_selectionStartPos, currentMousePos);
 
             Handles.BeginGUI();
             try
@@ -926,70 +926,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private bool IsVertexFrontFacing(int index, Matrix4x4 matrix)
+        private static readonly Func<Vector3, Vector2> s_projectVertex = HandleUtility.WorldToGUIPoint;
+
+        private VertexPickingQuery CreatePickingQuery(Transform meshTransform)
         {
-            if (!BackfaceCulling || _meshNormals == null || index < 0 || index >= _meshNormals.Length)
-                return true;
-            var cam = Camera.current;
-            if (cam == null) return true;
-            Vector3 worldPos = DeformedToWorld(index, matrix);
-            Vector3 worldNormal = matrix.MultiplyVector(_meshNormals[index]).normalized;
-            Vector3 viewDir = (cam.transform.position - worldPos).normalized;
-            return Vector3.Dot(worldNormal, viewDir) > 0f;
-        }
-
-        private int FindVertexAtScreenPos(Vector2 screenPos, Transform meshTransform, LatticeDeformer deformer, float maxScreenDist)
-        {
-            var displayVerts = _deformedVertices ?? _meshVertices;
-            if (displayVerts == null) return -1;
-
-            int nearest = -1;
-            float nearestDist = maxScreenDist;
-
-            var matrix = meshTransform.localToWorldMatrix;
-            for (int i = 0; i < displayVerts.Length; i++)
-            {
-                if (!IsVertexFrontFacing(i, matrix)) continue;
-                Vector3 worldPos = DeformedToWorld(i, matrix);
-                Vector2 guiPos = HandleUtility.WorldToGUIPoint(worldPos);
-                float dist = Vector2.Distance(guiPos, screenPos);
-                if (dist < nearestDist)
-                {
-                    nearestDist = dist;
-                    nearest = i;
-                }
-            }
-
-            return nearest;
-        }
-
-        private List<int> FindVerticesInScreenRect(Rect screenRect, Transform meshTransform, LatticeDeformer deformer)
-        {
-            var result = new List<int>();
-            if (_deformedVertices == null) return result;
-
-            var matrix = meshTransform.localToWorldMatrix;
-            for (int i = 0; i < _deformedVertices.Length; i++)
-            {
-                if (!IsVertexFrontFacing(i, matrix)) continue;
-                Vector3 worldPos = DeformedToWorld(i, matrix);
-                Vector2 guiPos = HandleUtility.WorldToGUIPoint(worldPos);
-                if (screenRect.Contains(guiPos))
-                {
-                    result.Add(i);
-                }
-            }
-
-            return result;
-        }
-
-        private static Rect MakeRect(Vector2 a, Vector2 b)
-        {
-            float x = Mathf.Min(a.x, b.x);
-            float y = Mathf.Min(a.y, b.y);
-            float w = Mathf.Abs(a.x - b.x);
-            float h = Mathf.Abs(a.y - b.y);
-            return new Rect(x, y, w, h);
+            var camera = Camera.current;
+            return new VertexPickingQuery(_deformedVertices, _worldPositions, _meshNormals,
+                meshTransform.localToWorldMatrix, camera != null ? camera.transform.position : (Vector3?)null,
+                BackfaceCulling, s_projectVertex);
         }
 
         private string GetUndoLabel()

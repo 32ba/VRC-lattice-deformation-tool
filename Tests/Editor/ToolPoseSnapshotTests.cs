@@ -47,6 +47,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 if (!enabled) Assert.That(EditorApplication.ExecuteMenuItem("Tools/NDM Framework/Enable Previews"), Is.True);
                 LatticeDeformerPreviewFilter.ForcePreviewState(true);
                 Selection.activeGameObject = fixture.Owner;
+                var sceneView = EditorWindow.GetWindow<SceneView>();
+                sceneView.Show();
                 yield return WaitFor(() => PreviewSession.Current != null, "NDMF session was not created.");
                 PreviewSession.Current.ForceRebuild();
                 yield return WaitFor(() => FinalProxy(fixture) != null, "A genuine final skinned proxy was not published.");
