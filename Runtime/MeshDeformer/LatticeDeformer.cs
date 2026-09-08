@@ -372,8 +372,9 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             get
             {
-                if (!EnsureGroups()) return Array.Empty<DeformerGroup>();
-                var groups = GetGroupStorage();
+                bool ready = EnsureGroups();
+                if (!ready && !CanInspectStoredSourceMismatch()) return Array.Empty<DeformerGroup>();
+                var groups = ready ? GetGroupStorage() : _groups;
                 if (_readOnlyGroups == null || !ReferenceEquals(_readOnlyGroupSource, groups))
                 {
                     _readOnlyGroupSource = groups;
@@ -387,7 +388,7 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             get
             {
-                return EnsureGroups() ? GetGroupStorage().Count : 0;
+                return EnsureGroups() ? GetGroupStorage().Count : CanInspectStoredSourceMismatch() ? _groups.Count : 0;
             }
         }
 
@@ -1520,7 +1521,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 _meshFilter = GetComponent<MeshFilter>();
             }
 
-            if (!EnsureLayerModelReady())
+            if (!EnsureLayerModelReadyCore(allowSourceRebind: true))
             {
                 return;
             }
@@ -1569,7 +1570,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            RestoreOriginalMesh();
+            RestoreOwnedRuntimeMesh();
         }
 
         private void OnDestroy()
@@ -1581,7 +1582,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            RestoreOriginalMesh();
+            RestoreOwnedRuntimeMesh();
         }
 
         public Mesh Deform(bool assignToRenderer = true)
@@ -1836,7 +1837,7 @@ namespace Net._32Ba.LatticeDeformationTool
             _deformationDataVersion, _layerModelVersion, _blendShapeOutput,
             _dataSource == DeformerDataSource.Profile && _profile != null ? _profile.SerializedGroups?.Count ?? 0 : 0);
 
-        private bool ValidateMigrationInput()
+        private bool ValidateMigrationInput(bool allowSourceRebind = false)
         {
             var input = ReadMigrationInput();
             var status = DeformationMigrationPreflight.ValidateSchema(input);
@@ -1853,10 +1854,17 @@ namespace Net._32Ba.LatticeDeformationTool
                 _migrationStatus = DeformationDataMigrationStatus.InvalidData;
                 return false;
             }
+            if (!allowSourceRebind && !ReadSourceBinding().CanUse(GetCurrentAuthoringSource()))
+            {
+                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
+                return false;
+            }
             return true;
         }
 
-        private bool EnsureLayerModelReady()
+        private bool EnsureLayerModelReady() => EnsureLayerModelReadyCore(allowSourceRebind: false);
+
+        private bool EnsureLayerModelReadyCore(bool allowSourceRebind)
         {
             if (_isEnsuringLayerModelReady)
             {
@@ -1872,7 +1880,12 @@ namespace Net._32Ba.LatticeDeformationTool
                 return false;
             }
 
-            if (!ValidateMigrationInput()) return false;
+            // Reset is an explicit reinitialization of already-current data. It must
+            // not retarget a historical payload while its migration is still pending.
+            allowSourceRebind &= _migrationReleaseIndex == DeformationReleaseManifest.Current &&
+                                 _deformationDataVersion == DeformationDataVersion.CurrentDevelopment &&
+                                 GetCurrentAuthoringSource() != null;
+            if (!ValidateMigrationInput(allowSourceRebind)) return false;
 
             _isEnsuringLayerModelReady = true;
             try
@@ -1892,7 +1905,11 @@ namespace Net._32Ba.LatticeDeformationTool
                 if (_groups == null) _groups = new List<DeformerGroup>();
 
                 EnsureGroupsCore();
-                CacheSourceMesh();
+                if (!TryCacheSourceMesh(allowSourceRebind))
+                {
+                    _migrationStatus = DeformationDataMigrationStatus.InvalidData;
+                    return false;
+                }
                 TryAutoConfigureSettings();
 
                 _migrationStatus = _hasIncompatibleBrushData
@@ -1974,11 +1991,11 @@ namespace Net._32Ba.LatticeDeformationTool
 
         internal bool TryUpgradePublishedDeformationDataOneRelease()
         {
+            if (!ValidateMigrationInput()) return false;
             if (_migrationReleaseIndex == DeformationReleaseManifest.Current &&
                 _deformationDataVersion == DeformationDataVersion.CurrentDevelopment &&
                 _layerModelVersion >= k_CurrentLayerModelVersion)
             {
-                if (!ValidateMigrationInput()) return false;
                 _migrationStatus = _hasIncompatibleBrushData ? DeformationDataMigrationStatus.InvalidData
                     : DeformationDataMigrationStatus.Ready;
                 return false;
@@ -2281,6 +2298,20 @@ namespace Net._32Ba.LatticeDeformationTool
             ReleaseRuntimeMesh();
         }
 
+        private void RestoreOwnedRuntimeMesh()
+        {
+            // A user or another processor may replace the renderer mesh while this
+            // component is active. Lifecycle cleanup only restores our own output.
+            if (_runtimeMesh != null && _sourceMesh != null)
+            {
+                if (_skinnedMeshRenderer != null && ReferenceEquals(_skinnedMeshRenderer.sharedMesh, _runtimeMesh))
+                    _skinnedMeshRenderer.sharedMesh = _sourceMesh;
+                if (_meshFilter != null && ReferenceEquals(_meshFilter.sharedMesh, _runtimeMesh))
+                    _meshFilter.sharedMesh = _sourceMesh;
+            }
+            ReleaseRuntimeMesh();
+        }
+
         public void InvalidateCache()
         {
             NotifyDeformationDataChanged();
@@ -2492,25 +2523,62 @@ namespace Net._32Ba.LatticeDeformationTool
             EnsureGroups();
         }
 
-        private void CacheSourceMesh()
+        private bool CanInspectStoredSourceMismatch() =>
+            _dataSource == DeformerDataSource.Embedded && _groups != null &&
+            _deformationDataVersion == DeformationDataVersion.CurrentDevelopment &&
+            _migrationReleaseIndex == DeformationReleaseManifest.Current &&
+            DeformationMigrationPreflight.ValidateSchema(ReadMigrationInput()) == DeformationDataMigrationStatus.Ready &&
+            !ReadSourceBinding().CanUse(GetCurrentAuthoringSource());
+
+        private DeformationSourceBinding ReadSourceBinding()
+        {
+            // Single-settings releases did not carry the current source metadata.
+            // Keep their frozen classification contract; current/group payloads with
+            // a lost source reference must still retain and validate count/hash.
+            bool legacyUnbound = _serializedSourceMesh == null &&
+                                 _deformationDataVersion != DeformationDataVersion.CurrentDevelopment &&
+                                 ((_layerModelVersion < 3 && (_groups == null || _groups.Count == 0) &&
+                                   _deformationDataVersion <= DeformationDataVersion.V1_2_0) ||
+                                  (_deformationDataSourceVersion >= DeformationDataVersion.V0_0_1 &&
+                                   _deformationDataSourceVersion <= DeformationDataVersion.V1_2_0));
+            return new DeformationSourceBinding(_serializedSourceMesh,
+                legacyUnbound ? 0 : _serializedSourceVertexCount,
+                legacyUnbound ? 0 : _serializedSourceTopologyHash);
+        }
+
+        private Mesh GetCurrentAuthoringSource()
+        {
+            var displayed = GetSharedSourceMesh();
+            return _runtimeMesh != null && ReferenceEquals(displayed, _runtimeMesh)
+                ? (_serializedSourceMesh != null ? _serializedSourceMesh : _sourceMesh)
+                : displayed;
+        }
+
+        private void CacheSourceMesh() => TryCacheSourceMesh(allowSourceRebind: false);
+
+        private bool TryCacheSourceMesh(bool allowSourceRebind)
         {
             if (_readableSourceMeshOverride != null)
             {
                 _sourceMesh = _readableSourceMeshOverride;
-                return;
+                return true;
             }
             Mesh nextSource = GetSharedSourceMesh();
 
             if (_runtimeMesh != null && ReferenceEquals(_runtimeMesh, nextSource))
             {
-                return;
+                return true;
             }
+
+            if (!allowSourceRebind && !ReadSourceBinding().CanUse(nextSource)) return false;
 
             bool meshChanged = !ReferenceEquals(_sourceMesh, nextSource);
 
             _sourceMesh = nextSource;
 
-            if (!ReferenceEquals(_serializedSourceMesh, nextSource))
+            // Reimport can replace a managed Mesh wrapper without changing the
+            // Unity asset identity. Refresh caches without reinitializing authoring.
+            if (allowSourceRebind || _serializedSourceMesh != nextSource)
             {
                 _serializedSourceMesh = nextSource;
                 _serializedSourceVertexCount = nextSource != null ? nextSource.vertexCount : 0;
@@ -2526,12 +2594,13 @@ namespace Net._32Ba.LatticeDeformationTool
 
             if (!meshChanged)
             {
-                return;
+                return true;
             }
 
             InvalidateCache();
             ReleaseRuntimeMesh();
             EnsureAllBrushLayerDisplacementCapacity(_sourceMesh != null ? _sourceMesh.vertexCount : 0);
+            return true;
         }
 
         private static int CalculateSourceTopologyHash(Mesh mesh) => SourceMeshTopology.Calculate(mesh);

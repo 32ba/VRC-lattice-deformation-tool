@@ -134,7 +134,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var serializedSource = data.SourceMesh;
             int serializedVertexCount = data.SourceVertexCount;
             int serializedTopologyHash = data.SourceTopologyHash;
-            if (serializedSource != null && !ReferenceEquals(serializedSource, currentMesh))
+            if ((serializedSource != null && serializedSource != currentMesh) ||
+                (serializedSource == null && new DeformationSourceBinding(serializedSource,
+                    serializedVertexCount, serializedTopologyHash).HasBaseline))
             {
                 Add(results, SourceMeshChanged, MeshDeformerDiagnosticSeverity.Error, deformer,
                     "The renderer mesh differs from the mesh used to serialize the deformation data. Retargeting is not automatic.",

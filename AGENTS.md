@@ -407,6 +407,9 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - `BrushVertexVisualization` / `SelectedVertexVisualization` はhandlerから受けた配列・座標・選択だけを描画し、Layerの選択変更、Mesh評価、proxy解決、保存を行わない。`SceneVertexDots` が共通material/textureとGL batchを所有し、各表示のdepth testを設定し直し、reload前に解放する。旧版から独立取得した色・texture・6枚のRenderTexture画像と、所有・例外回復・入力不変を `ToolVertexVisualizationTests` で照合する。GraphicsE2Eに属する画像試験とnative Scene View入力を区別する。
 - 起動中Editorの検証では、候補packageを読み込む前に元packageでcleanな検証Sceneへ切り替える。Scene切替や表示領域・前面状態の検査が失敗した場合は、後続のpackage変更やTest Runnerを実行しない。Unity Test Runnerがdirtyな利用者Sceneを自動保存する経路があるため、開始前にscene pathとdirty状態を再確認する。
+- マウス不要の作業を先に進める明示指示がある場合、cleanな検証Sceneとコンパイル完了を条件として、入力・前面描画に依存しない試験を同じEditorで実行できる。`RetrieveTestList` のleaf名から対象一覧を固定し、`Filter.testNames` へ渡す。広いnamespaceやassemblyに一致するfilterが子の除外を保証すると仮定しない。結果XMLのleaf名が対象一覧と完全一致することを確認し、見送ったnative入力・実NDMF描画・Cage repaintの試験を合格数へ含めない。
+- `DeformationSourceBinding` は保存sourceのUnity identityとcountを検査し、実行用cacheと保存の正本を区別する。参照欠落・別Meshへの差替え時は、OnEnable・getter・単一release移行から保存情報やBrushを初期化しない。既存single-settings由来の未完了移行は旧分類契約を維持し、current/groupの参照消失と混同しない。Unityのnull placeholderはmanaged nullと異なり、同じassetの再importはmanaged wrapperだけが変わるため、保存bindingの比較に`ReferenceEquals`を使わない。
+- source不一致で評価を拒否しても、構造が有効なEmbedded Groupの既存読取りviewは調査用に保持する。明示Resetだけがcurrentのbindingと変形を再設定する。Disable/Destroyは自分のRuntime Meshがまだ割り当てられている場合だけsourceへ戻し、外部割当てを上書きしない。`SourceBindingPreservationTests` は欠落・修復・移行進捗・Reset/Undo・Prefab Variant・同assetの再import後の変位保持を検証する。
 
 ## 依存関係
 

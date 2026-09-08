@@ -40,13 +40,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 fixture.Filter.sharedMesh = fixture.Export;
                 fixture.Deformer.enabled = false;
                 Assert.That(fixture.Filter.sharedMesh, Is.SameAs(fixture.Export));
-                // OnEnable intentionally captures the currently assigned source.
-                // Keep that separate contract unchanged while testing scope nesting.
+                // Re-enable against the original binding before checking that
+                // normal cleanup of an owned output resumes after both scopes end.
                 fixture.Filter.sharedMesh = fixture.Source;
                 fixture.Deformer.enabled = true;
                 inner.Dispose();
                 inner.Dispose();
-                fixture.Filter.sharedMesh = fixture.Export;
+                fixture.Deformer.Deform(true);
                 fixture.Deformer.enabled = false;
                 Assert.That(fixture.Filter.sharedMesh, Is.SameAs(fixture.Source));
             }
@@ -66,7 +66,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 using (fixture.Deformer.SuppressMeshRestoration())
                     throw new InvalidOperationException("simulated build failure");
             });
-            fixture.Filter.sharedMesh = fixture.Export;
+            fixture.Deformer.Deform(true);
             fixture.Deformer.enabled = false;
             Assert.That(fixture.Filter.sharedMesh, Is.SameAs(fixture.Source));
         }
