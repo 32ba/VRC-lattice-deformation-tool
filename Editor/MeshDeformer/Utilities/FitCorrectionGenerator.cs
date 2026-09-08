@@ -416,9 +416,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             for (int vertex = 0; vertex < vertexCount; vertex++) result[vertex] = 1f;
             if (!useVertexMask) return result;
 
-            IReadOnlyList<LatticeLayer> layers = deformer.Layers;
-            int activeLayerIndex = deformer.ActiveLayerIndex;
-            float[] sourceMask = activeLayerIndex >= 0 && activeLayerIndex < layers.Count
+            var data = deformer.ReadResolvedData();
+            var group = data.Groups != null && data.ActiveGroupIndex >= 0 && data.ActiveGroupIndex < data.Groups.Count
+                ? data.Groups[data.ActiveGroupIndex] : null;
+            IReadOnlyList<LatticeLayer> layers = group?.SerializedLayers;
+            int activeLayerIndex = group?.SerializedActiveLayerIndex ?? -1;
+            float[] sourceMask = layers != null && activeLayerIndex >= 0 && activeLayerIndex < layers.Count
                 ? layers[activeLayerIndex]?.VertexMask
                 : null;
             if (sourceMask == null || sourceMask.Length == 0) return result;
