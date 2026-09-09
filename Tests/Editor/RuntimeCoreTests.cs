@@ -1426,18 +1426,18 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [Test]
         public void LatticeDeformer_PrivateMathHelpers_ReturnExpectedValues()
         {
-            var normalized = InvokeStaticPrivate<Vector3>(
-                "CalculateNormalizedCoordinate",
+            var normalized = LatticeEvaluator.BuildCacheWithJobs(
+                new Vector3Int(2, 2, 2),
                 new Bounds(Vector3.zero, new Vector3(2f, 0f, 4f)),
-                new Vector3(1f, 5f, -2f));
+                new[] { new Vector3(1f, 5f, -2f) })[0].NormalizedCoordinate;
             Assert.That(normalized.x, Is.EqualTo(1f).Within(1e-6f));
             Assert.That(normalized.y, Is.EqualTo(0f).Within(1e-6f));
             Assert.That(normalized.z, Is.EqualTo(0f).Within(1e-6f));
 
-            var trilinear = InvokeStaticPrivate<LatticeCacheEntry>(
-                "BuildTrilinearEntry",
+            var trilinear = LatticeEvaluator.BuildCacheWithJobs(
                 new Vector3Int(2, 2, 2),
-                new Vector3(1f, 1f, 1f));
+                new Bounds(Vector3.one * 0.5f, Vector3.one),
+                new[] { Vector3.one })[0];
             Assert.That(trilinear.Corner7, Is.EqualTo(7));
             Assert.That(trilinear.Weights1.w, Is.EqualTo(1f).Within(1e-6f));
 
