@@ -1134,6 +1134,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [Test]
         public void LatticeDeformer_PrivateContributionGuards_ReturnWithoutMutating()
         {
+            using var evaluator = new LatticeEvaluator();
+            var semantics = new EvaluationSemantics(false);
             var go = new GameObject("runtime-core-private-guards");
             try
             {
@@ -1149,32 +1151,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 BrushEvaluator.Apply(brushLayer, source, deformed);
                 Assert.That(deformed[0], Is.EqualTo(Vector3.one));
 
-                InvokePrivate(
-                    deformer,
-                    "TryApplyLatticeLayerContribution",
-                    null,
-                    source,
-                    deformed);
+                evaluator.Apply(null, 1f, semantics, source, deformed);
                 Assert.That(deformed[0], Is.EqualTo(Vector3.one));
 
                 var latticeLayer = new LatticeLayer();
-                InvokePrivate(
-                    deformer,
-                    "TryApplyLatticeLayerContribution",
-                    latticeLayer,
-                    source,
-                    deformed);
+                evaluator.Apply(latticeLayer.Settings, latticeLayer.Weight, semantics, source, deformed);
                 Assert.That(deformed[0], Is.EqualTo(Vector3.one));
 
-                typeof(LatticeDeformer)
-                    .GetField("_cache", BindingFlags.Instance | BindingFlags.NonPublic)
-                    .SetValue(deformer, new LatticeDeformerCache());
-                InvokePrivate(
-                    deformer,
-                    "TryApplyLatticeLayerContribution",
-                    latticeLayer,
-                    source,
-                    deformed);
+                evaluator.BindCache(new LatticeDeformerCache());
+                evaluator.Apply(latticeLayer.Settings, latticeLayer.Weight, semantics, source, deformed);
                 Assert.That(deformed[0], Is.EqualTo(Vector3.one));
 
                 var sourceMesh = new Mesh { name = "RuntimeCoreCacheMismatch" };
@@ -1197,15 +1182,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     typeof(LatticeDeformer)
                         .GetField("_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic)
                         .SetValue(deformer, sourceMesh);
-                    typeof(LatticeDeformer)
-                        .GetField("_cache", BindingFlags.Instance | BindingFlags.NonPublic)
-                        .SetValue(deformer, cache);
-                    InvokePrivate(
-                        deformer,
-                        "TryApplyLatticeLayerContribution",
-                        latticeLayer,
-                        source,
-                        deformed);
+                    evaluator.BindCache(cache);
+                    evaluator.Apply(latticeLayer.Settings, latticeLayer.Weight, semantics, source, deformed);
                     Assert.That(deformed[0], Is.EqualTo(Vector3.one));
                 }
                 finally
@@ -1854,12 +1832,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     .SetValue(deformer, true);
                 go.transform.localScale = new Vector3(0f, 1f, 1f);
                 var source = mesh.vertices;
-                InvokePrivate(
-                    deformer,
-                    "TryApplyLatticeLayerContribution",
-                    worldLayer,
-                    source,
-                    (Vector3[])source.Clone());
+                using (var evaluator = new LatticeEvaluator())
+                    evaluator.Apply(worldLayer.Settings, worldLayer.Weight,
+                        new EvaluationSemantics(false, true, go.transform.worldToLocalMatrix),
+                        source, (Vector3[])source.Clone());
                 go.transform.localScale = Vector3.one;
             }
             finally

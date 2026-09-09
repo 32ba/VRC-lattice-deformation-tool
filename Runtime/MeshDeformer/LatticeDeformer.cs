@@ -2158,14 +2158,6 @@ namespace Net._32Ba.LatticeDeformationTool
             return validationMesh != null ? validationMesh.vertexCount : -1;
         }
 
-        private void TryApplyLatticeLayerContribution(LatticeLayer layer, Vector3[] sourceVertices,
-            Vector3[] deformedVertices)
-        {
-            if (layer == null || sourceVertices == null || deformedVertices == null || _sourceMesh == null) return;
-            GetEvaluationWorkspace().Lattice.Apply(layer.Settings, layer.Weight, ResolveEvaluationSemantics(),
-                sourceVertices, deformedVertices);
-        }
-
         private static void DestroyTemporaryMesh(Mesh mesh) => DeformedMeshWriter.DestroyTemporaryMesh(mesh);
 
         private Vector3[] BuildCurrentSourceVertices(
