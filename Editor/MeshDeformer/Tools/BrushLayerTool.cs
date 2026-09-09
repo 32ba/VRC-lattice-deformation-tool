@@ -118,8 +118,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static Renderer s_penetrationReference = null;
         private static int s_penetrationSettingsRevision;
 
-        // Overlay foldout states
-
         private LatticeDeformer _activeDeformer;
         private LatticeLayer _cachedActiveBrushLayer;
 

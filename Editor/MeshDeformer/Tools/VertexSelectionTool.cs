@@ -55,8 +55,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static int s_selectionRevision;
         private static int s_proportionalSettingsRevision;
 
-        // Overlay foldout states
-
         private static readonly HashSet<int> s_selectedVertices = new HashSet<int>();
 
         private LatticeDeformer _activeDeformer;
