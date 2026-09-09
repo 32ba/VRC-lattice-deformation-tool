@@ -2824,11 +2824,6 @@ namespace Net._32Ba.LatticeDeformationTool
         internal static void CollectControlPointOffsetsLocal(LatticeAsset settings, Span<Vector3> buffer) =>
             LatticeEvaluator.CollectControlPointOffsetsLocal(settings, buffer);
 
-        // Private compatibility entry point. Production geometry uses LatticeEvaluator
-        // and its reusable result buffer directly.
-        private Vector3[] DeformWithJobs(LatticeCacheEntry[] entries, Vector3[] controlPoints) =>
-            GetEvaluationWorkspace().Lattice.DeformWithJobs(entries, controlPoints);
-
         private void ReleaseDeformationNativeBuffers() => _evaluationWorkspace?.Lattice.Dispose();
 
         // Never-active objects and loaded Prefab assets cannot rely on OnDestroy.
@@ -2894,22 +2889,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private static int HashVertices(Vector3[] vertices) => DeformationEvaluationMath.HashVertices(vertices);
 
-        private static Bounds TransformBounds(Matrix4x4 matrix, Bounds bounds)
-        {
-            var center = matrix.MultiplyPoint3x4(bounds.center);
-            var extents = bounds.extents;
 
-            var axisX = matrix.MultiplyVector(new Vector3(extents.x, 0f, 0f));
-            var axisY = matrix.MultiplyVector(new Vector3(0f, extents.y, 0f));
-            var axisZ = matrix.MultiplyVector(new Vector3(0f, 0f, extents.z));
-
-            var halfSize = new Vector3(
-                Mathf.Abs(axisX.x) + Mathf.Abs(axisY.x) + Mathf.Abs(axisZ.x),
-                Mathf.Abs(axisX.y) + Mathf.Abs(axisY.y) + Mathf.Abs(axisZ.y),
-                Mathf.Abs(axisX.z) + Mathf.Abs(axisY.z) + Mathf.Abs(axisZ.z));
-
-            return new Bounds(center, halfSize * 2f);
-        }
 
     }
 

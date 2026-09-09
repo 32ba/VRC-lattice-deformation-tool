@@ -1297,17 +1297,17 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var go = new GameObject("runtime-core-cache-helpers");
             try
             {
-                var deformer = go.AddComponent<LatticeDeformer>();
+                using var evaluator = new LatticeEvaluator();
 
                 Assert.That(
-                    () => InvokePrivate(deformer, "DeformWithJobs", null, new[] { Vector3.zero }),
-                    Throws.TargetInvocationException.With.InnerException.TypeOf<ArgumentException>());
+                    () => evaluator.DeformWithJobs( null, new[] { Vector3.zero }),
+                    Throws.TypeOf<ArgumentException>());
                 Assert.That(
-                    () => InvokePrivate(deformer, "DeformWithJobs", Array.Empty<LatticeCacheEntry>(), new[] { Vector3.zero }),
-                    Throws.TargetInvocationException.With.InnerException.TypeOf<ArgumentException>());
+                    () => evaluator.DeformWithJobs( Array.Empty<LatticeCacheEntry>(), new[] { Vector3.zero }),
+                    Throws.TypeOf<ArgumentException>());
                 Assert.That(
-                    () => InvokePrivate(deformer, "DeformWithJobs", new[] { new LatticeCacheEntry() }, null),
-                    Throws.TargetInvocationException.With.InnerException.TypeOf<ArgumentException>());
+                    () => evaluator.DeformWithJobs( new[] { new LatticeCacheEntry() }, null),
+                    Throws.TypeOf<ArgumentException>());
 
                 var entry = new LatticeCacheEntry
                 {
@@ -1334,7 +1334,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     Vector3.one + Vector3.forward
                 };
 
-                var deformed = (Vector3[])InvokePrivate(deformer, "DeformWithJobs", new[] { entry }, controlPoints);
+                var deformed = evaluator.DeformWithJobs( new[] { entry }, controlPoints);
                 Assert.That(deformed[0], Is.EqualTo(Vector3.one + Vector3.forward));
 
                 Assert.That(
@@ -1433,14 +1433,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(trilinear.Corner7, Is.EqualTo(7));
             Assert.That(trilinear.Weights1.w, Is.EqualTo(1f).Within(1e-6f));
 
-            var bounds = InvokeStaticPrivate<Bounds>(
-                "TransformBounds",
-                Matrix4x4.TRS(new Vector3(1f, 2f, 3f), Quaternion.Euler(0f, 0f, 90f), new Vector3(2f, 3f, 4f)),
-                new Bounds(Vector3.zero, new Vector3(2f, 4f, 6f)));
-            Assert.That(bounds.center, Is.EqualTo(new Vector3(1f, 2f, 3f)));
-            Assert.That(bounds.size.x, Is.EqualTo(12f).Within(1e-5f));
-            Assert.That(bounds.size.y, Is.EqualTo(4f).Within(1e-5f));
-            Assert.That(bounds.size.z, Is.EqualTo(24f).Within(1e-5f));
+
         }
 
         [Test]
