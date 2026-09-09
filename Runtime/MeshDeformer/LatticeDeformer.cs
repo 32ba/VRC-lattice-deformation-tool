@@ -1661,7 +1661,7 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 int blendShapeHash = HashCode.Combine(
                     DeformationEvaluationMath.ComputeBlendShapeOutputHash(generatedBlendShapes),
-                    HashVertices(finalVertices),
+                    DeformationEvaluationMath.HashVertices(finalVertices),
                     bakedBlendShapeHash,
                     _recalculateNormals,
                     _normalsRecalculationMode,
@@ -2181,12 +2181,6 @@ namespace Net._32Ba.LatticeDeformationTool
             _evaluationWorkspace ??= new EvaluationWorkspace();
             _evaluationWorkspace.EnsureCapacity(vertexCount);
         }
-
-        private static Vector3[] EvaluateBlendShapeVertexDelta(Mesh mesh, int shapeIndex, float weight) =>
-            SourceBlendShapeEvaluator.EvaluateDelta(mesh, shapeIndex, weight);
-
-        private static void ScaleDeltas(Vector3[] deltas, float scale) =>
-            SourceBlendShapeEvaluator.ScaleDeltas(deltas, scale);
 
         public void RestoreOriginalMesh()
         {
@@ -2816,7 +2810,6 @@ namespace Net._32Ba.LatticeDeformationTool
             _blendShapeOutputDirty = true;
         }
 
-        private void EnsureControlBuffer(int count) => GetEvaluationWorkspace().Lattice.EnsureControlBuffer(count);
 
         internal static void CollectControlPointsLocal(LatticeAsset settings, Span<Vector3> buffer) =>
             LatticeEvaluator.CollectControlPointsLocal(settings, buffer);
@@ -2887,7 +2880,6 @@ namespace Net._32Ba.LatticeDeformationTool
             return bounds;
         }
 
-        private static int HashVertices(Vector3[] vertices) => DeformationEvaluationMath.HashVertices(vertices);
 
 
 

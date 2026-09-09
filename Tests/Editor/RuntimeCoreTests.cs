@@ -1167,7 +1167,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 {
                     var cache = new LatticeDeformerCache();
                     var settings = latticeLayer.Settings;
-                    int sourceHash = InvokeStaticPrivate<int>("HashVertices", source);
+                    int sourceHash = DeformationEvaluationMath.HashVertices( source);
                     cache.Populate(
                         settings.GridSize,
                         settings.LocalBounds,
@@ -1227,8 +1227,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(InvokeStaticPrivate<int>("HashDisplacementState", new[] { Vector3.one }), Is.Not.EqualTo(0));
                 Assert.That(InvokeStaticPrivate<int>("HashMaskState", new[] { 0.25f, 1f }), Is.Not.EqualTo(0));
 
-                InvokePrivate(deformer, "EnsureControlBuffer", 0);
-                InvokePrivate(deformer, "EnsureControlBuffer", 3);
+                using (var evaluator = new LatticeEvaluator())
+                {
+                    evaluator.EnsureControlBuffer(0);
+                    evaluator.EnsureControlBuffer(3);
+                }
 
                 LatticeDeformer.CollectControlPointsLocal(null, Span<Vector3>.Empty);
                 LatticeDeformer.CollectControlPointsLocal(clone, Span<Vector3>.Empty);
@@ -2138,15 +2141,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(bakedArgs[1], Is.TypeOf<float[]>());
                 Assert.That((int)bakedArgs[2], Is.Not.EqualTo(0));
 
-                var interpolated = InvokeStaticPrivate<Vector3[]>("EvaluateBlendShapeVertexDelta", mesh, 0, 75f);
+                var interpolated = SourceBlendShapeEvaluator.EvaluateDelta(mesh, 0, 75f);
                 Assert.That(interpolated[0].x, Is.EqualTo(0.75f).Within(1e-6f));
-                var extrapolated = InvokeStaticPrivate<Vector3[]>("EvaluateBlendShapeVertexDelta", mesh, 0, 150f);
+                var extrapolated = SourceBlendShapeEvaluator.EvaluateDelta(mesh, 0, 150f);
                 Assert.That(extrapolated[0].x, Is.EqualTo(2f).Within(1e-6f));
 
-                Assert.That(InvokeStaticPrivate<int>("HashVertices", new object[] { null }), Is.EqualTo(0));
-                Assert.That(InvokeStaticPrivate<int>("HashVertices", Array.Empty<Vector3>()), Is.EqualTo(0));
-                Assert.That(InvokeStaticPrivate<int>("HashVertices", new[] { Vector3.one }), Is.Not.EqualTo(0));
-                InvokeStaticPrivate<object>("ScaleDeltas", null, 1f);
+                Assert.That(DeformationEvaluationMath.HashVertices(null), Is.EqualTo(0));
+                Assert.That(DeformationEvaluationMath.HashVertices( Array.Empty<Vector3>()), Is.EqualTo(0));
+                Assert.That(DeformationEvaluationMath.HashVertices( new[] { Vector3.one }), Is.Not.EqualTo(0));
+                SourceBlendShapeEvaluator.ScaleDeltas(null, 1f);
             }
             finally
             {
@@ -2169,8 +2172,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 renderer.SetBlendShapeWeight(0, 150f);
                 renderer.BakeMesh(baked);
 
-                var evaluated = InvokeStaticPrivate<Vector3[]>(
-                    "EvaluateBlendShapeVertexDelta", source, 0, 150f);
+                var evaluated = SourceBlendShapeEvaluator.EvaluateDelta(source, 0, 150f);
                 Vector3 unityDelta = baked.vertices[0] - source.vertices[0];
 
                 Assert.That(evaluated[0].x, Is.EqualTo(2f).Within(1e-5f));
