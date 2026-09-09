@@ -1143,14 +1143,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var brushLayer = new LatticeLayer();
                 brushLayer.SetType(MeshDeformerLayerType.Brush);
 
-                typeof(LatticeDeformer)
-                    .GetMethod("TryApplyBrushLayerContribution", BindingFlags.Static | BindingFlags.NonPublic)
-                    .Invoke(null, new object[] { null, source, deformed });
+                BrushEvaluator.Apply(null, source, deformed);
                 Assert.That(deformed[0], Is.EqualTo(Vector3.one));
 
-                typeof(LatticeDeformer)
-                    .GetMethod("TryApplyBrushLayerContribution", BindingFlags.Static | BindingFlags.NonPublic)
-                    .Invoke(null, new object[] { brushLayer, source, deformed });
+                BrushEvaluator.Apply(brushLayer, source, deformed);
                 Assert.That(deformed[0], Is.EqualTo(Vector3.one));
 
                 InvokePrivate(
@@ -1525,7 +1521,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 Assert.That(InvokePrivate(deformer, "RestoreSourceNormals", (object)null), Is.Null);
                 Assert.That(InvokePrivate(deformer, "RestoreSourceTangents", (object)null), Is.Null);
-                Assert.That(InvokePrivate(deformer, "TryApplyLayerContribution", null, null, null), Is.Null);
+                Assert.DoesNotThrow(() => BrushEvaluator.Apply(null, null, null));
                 Assert.That(InvokePrivate(deformer, "HasMeaningfulBaseSettings"), Is.TypeOf<bool>());
 
                 type.GetField("_settings", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(deformer, null);
@@ -1554,35 +1550,20 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     type.GetField("_hasIncompatibleBrushData", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(deformer),
                     Is.EqualTo(false));
 
-                var surfaceArgs = new object[]
-                {
-                    null,
-                    Array.Empty<Vector3>(),
-                    Array.Empty<Vector3>(),
-                    true,
-                    true,
-                    null,
-                    null
-                };
-                type.GetMethod("CalculateGeneratedSurfaceDeltas", BindingFlags.Static | BindingFlags.NonPublic)
-                    .Invoke(null, surfaceArgs);
-                Assert.That(surfaceArgs[5], Is.Null);
-                Assert.That(surfaceArgs[6], Is.Null);
+                DeformedMeshWriter.CalculateGeneratedSurfaceDeltasWithNormalsMode(
+                    null, Array.Empty<Vector3>(), Array.Empty<Vector3>(),
+                    NormalsRecalculationMode.LegacyUnityRecalculate, true, true,
+                    out var surfaceNormals, out var surfaceTangents);
+                Assert.That(surfaceNormals, Is.Null);
+                Assert.That(surfaceTangents, Is.Null);
 
                 mesh.uv = new[] { Vector2.zero, Vector2.right, Vector2.up, Vector2.one };
-                var tangentArgs = new object[]
-                {
-                    mesh,
-                    mesh.vertices,
+                DeformedMeshWriter.CalculateGeneratedSurfaceDeltasWithNormalsMode(
+                    mesh, mesh.vertices,
                     new[] { Vector3.forward, Vector3.zero, Vector3.zero, Vector3.zero },
-                    false,
-                    true,
-                    null,
-                    null
-                };
-                type.GetMethod("CalculateGeneratedSurfaceDeltas", BindingFlags.Static | BindingFlags.NonPublic)
-                    .Invoke(null, tangentArgs);
-                Assert.That(tangentArgs[6], Is.TypeOf<Vector3[]>());
+                    NormalsRecalculationMode.LegacyUnityRecalculate, false, true,
+                    out _, out var tangentDeltas);
+                Assert.That(tangentDeltas, Is.TypeOf<Vector3[]>());
 
                 migrationStatus.SetValue(deformer, DeformationDataMigrationStatus.Ready);
             }

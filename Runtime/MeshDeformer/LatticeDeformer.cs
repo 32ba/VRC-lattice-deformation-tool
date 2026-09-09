@@ -2158,56 +2158,12 @@ namespace Net._32Ba.LatticeDeformationTool
             return validationMesh != null ? validationMesh.vertexCount : -1;
         }
 
-        private void TryApplyLayerContribution(LatticeLayer layer, Vector3[] sourceVertices, Vector3[] deformedVertices)
-        {
-            if (layer == null)
-            {
-                return;
-            }
-
-            switch (layer.Type)
-            {
-                case MeshDeformerLayerType.Brush:
-                    TryApplyBrushLayerContribution(layer, sourceVertices, deformedVertices);
-                    break;
-                default:
-                    TryApplyLatticeLayerContribution(layer, sourceVertices, deformedVertices);
-                    break;
-            }
-        }
-
-        private static void TryApplyBrushLayerContribution(LatticeLayer layer, Vector3[] sourceVertices,
-            Vector3[] deformedVertices) => BrushEvaluator.Apply(layer, sourceVertices, deformedVertices);
-
         private void TryApplyLatticeLayerContribution(LatticeLayer layer, Vector3[] sourceVertices,
             Vector3[] deformedVertices)
         {
             if (layer == null || sourceVertices == null || deformedVertices == null || _sourceMesh == null) return;
             GetEvaluationWorkspace().Lattice.Apply(layer.Settings, layer.Weight, ResolveEvaluationSemantics(),
                 sourceVertices, deformedVertices);
-        }
-
-        // Kept with the original name and seven-argument signature for existing
-        // editor reflection callers and compatibility tests. The legacy mode is
-        // intentionally fixed here so old callers retain their exact behavior.
-        private static void CalculateGeneratedSurfaceDeltas(
-            Mesh template,
-            Vector3[] baseVertices,
-            Vector3[] deltas,
-            bool includeNormals,
-            bool includeTangents,
-            out Vector3[] deltaNormals,
-            out Vector3[] deltaTangents)
-        {
-            DeformedMeshWriter.CalculateGeneratedSurfaceDeltasWithNormalsMode(
-                template,
-                baseVertices,
-                deltas,
-                NormalsRecalculationMode.LegacyUnityRecalculate,
-                includeNormals,
-                includeTangents,
-                out deltaNormals,
-                out deltaTangents);
         }
 
         private static void DestroyTemporaryMesh(Mesh mesh) => DeformedMeshWriter.DestroyTemporaryMesh(mesh);
