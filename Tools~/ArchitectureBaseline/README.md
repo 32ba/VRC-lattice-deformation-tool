@@ -61,7 +61,9 @@ p95が10%を超えて増加した条件、最大GC割当の増加、破棄後の
 
 `preview-70000;preview-200000` は上流で位置を変更したmeshと1つのBlendShape frameを入力する同期Preview評価を測る。初回・変更なし・ラティス編集後を区別し、各操作にcaller-owned出力の破棄を含む。通常評価のcomponent-owned出力とは所有契約が異なるため、同じscenario同士だけで比較する。
 
-このharnessはScene Viewの描画、drag入力、NDMF全体の非同期Preview更新、Clearance、Weight Transferの測定を代替しない。
+`clearance-70000;clearance-200000` は4,096頂点の平面参照と7万/20万問い合わせ点を使用する。firstはBVH構築と初回Query、unchangedは既存BVHの反復Query、editedは対象のworld変換を変えたQuery。結果配列と内部APIの呼び出しdelegateは計測前に用意し、reflectionや結果のboxingを計測区間に含めない。各phase後に全点の既知距離を検証する。ReferenceNormalと開いた平面に限定し、ClosedMesh、SkinnedMeshRendererのBake、Scan/Fitや参照cache更新全体は含まない。
+
+このharnessはScene Viewの描画、drag入力、NDMF全体の非同期Preview更新、Clearance Scan/Fit全体、Weight Transferの測定を代替しない。
 
 `ProfileSelectionBaselineProbe.cs` は固定基準 `c7f499c` 専用の再現probe。
 隔離基準hostの `Assets/Editor/` へコピーして `-executeMethod ProfileSelectionBaselineProbe.Run -quit` で実行すると、2番目のGroupを選んだProfileの適用結果、raw/public選択、Group数、Mesh生成可否をJSONに記録する。

@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using Net._32Ba.LatticeDeformationTool;
 using UnityEditor;
@@ -32,6 +33,7 @@ public static class EvaluationBenchmark
         public bool generatedBlendShape;
         public bool profileSource;
         public bool upstreamPreview;
+        public int clearanceReferenceVertices;
         public bool recalculateNormals, recalculateTangents;
         public bool recalculateBounds = true;
         public Measurement firstEvaluation;
@@ -117,12 +119,12 @@ public static class EvaluationBenchmark
         };
         if (calibrationOnly) yield break;
         foreach (int vertices in new[] { 70000, 200000 })
-            foreach (string kind in new[] { "direct", "groups", "generated", "profile", "preview" })
+            foreach (string kind in new[] { "direct", "groups", "generated", "profile", "preview", "clearance" })
             {
                 string scenarioName = kind + "-" + vertices;
                 if (!string.IsNullOrEmpty(s_document.scenarioFilter) &&
                     !s_document.scenarioFilter.Split(';').Contains(scenarioName)) continue;
-                foreach (var work in Run(vertices, kind, samples)) yield return work;
+                foreach (var work in kind == "clearance" ? RunClearance(vertices, samples) : Run(vertices, kind, samples)) yield return work;
                 SaveDocument();
                 UnityEngine.Debug.Log("Completed evaluation benchmark: " + kind + " " + vertices);
             }
@@ -260,6 +262,87 @@ public static class EvaluationBenchmark
         }
         result.meshCountDeltaAfterDispose = Resources.FindObjectsOfTypeAll<Mesh>().Length - meshCountBefore;
         s_document.scenarios.Add(result);
+    }
+
+    private static IEnumerable<Work> RunClearance(int vertexCount, int samples)
+    {
+        int meshCountBefore = Resources.FindObjectsOfTypeAll<Mesh>().Length;
+        var reference = CreateMesh(4096);
+        var scenario = new Scenario
+        {
+            name = "clearance-" + vertexCount, vertices = vertexCount, clearanceReferenceVertices = 4096,
+            unchanged = new Measurement[samples], edited = new Measurement[samples]
+        };
+        try
+        {
+            // Resolve internal API once in this external diagnostic harness. Compiled
+            // delegates exclude reflection, boxing and invocation arrays from measurements.
+            var type = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType(
+                "Net._32Ba.LatticeDeformationTool.Editor.ClearanceQuery")).First(t => t != null);
+            var create = type.GetMethod("TryCreate", BindingFlags.Static | BindingFlags.NonPublic);
+            var local = Expression.Variable(type, "query");
+            var build = Expression.Lambda<Func<object>>(Expression.Block(new[] { local },
+                Expression.Call(create, Expression.Constant(reference), Expression.Constant(Matrix4x4.identity), local),
+                Expression.Convert(local, typeof(object)))).Compile();
+            var method = type.GetMethod("QueryPoints", BindingFlags.Instance | BindingFlags.NonPublic);
+            var parameters = method.GetParameters();
+            var points = new Vector3[vertexCount];
+            for (int i = 0; i < points.Length; i++)
+                points[i] = new Vector3((i % 250 + 0.25f) * 0.002f, ((i / 250) % 14 + 0.25f) * 0.002f, 0.01f);
+            var resultType = parameters[3].ParameterType.GetElementType();
+            var results = Array.CreateInstance(resultType, vertexCount);
+            var instance = Expression.Parameter(typeof(object), "instance");
+            var matrix = Expression.Parameter(typeof(Matrix4x4), "matrix");
+            var query = Expression.Lambda<Action<object, Matrix4x4>>(Expression.Call(
+                Expression.Convert(instance, type), method, Expression.Constant(points), matrix,
+                Expression.Constant(Enum.ToObject(parameters[2].ParameterType, 0)),
+                Expression.Constant(results, parameters[3].ParameterType)), instance, matrix).Compile();
+            object tree = null;
+            Action evaluate = () => query(tree, Matrix4x4.identity);
+            int edit = 0;
+            Action edited = () => query(tree, Matrix4x4.Translate(Vector3.forward * (++edit % 2 == 0 ? 0.02f : 0.03f)));
+            yield return new Work
+            {
+                action = () => { tree = build(); if (tree == null) throw new InvalidOperationException("BVH build failed."); evaluate(); },
+                accept = value => scenario.firstEvaluation = value, captureName = scenario.name + ".first"
+            };
+            // Validate known plane distances outside the timed operation.
+            var valid = resultType.GetField("IsValid", BindingFlags.Instance | BindingFlags.NonPublic);
+            var distance = resultType.GetField("Distance", BindingFlags.Instance | BindingFlags.NonPublic);
+            Action<float> validate = expected =>
+            {
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    var value = results.GetValue(i);
+                    if (!(bool)valid.GetValue(value) || Math.Abs((float)distance.GetValue(value) - expected) > 1e-5f)
+                        throw new InvalidOperationException("Clearance plane distance mismatch at " + i);
+                }
+            };
+            validate(0.01f);
+            for (int i = 0; i < 3; i++) yield return new Work { action = evaluate };
+            for (int i = 0; i < samples; i++)
+            {
+                int index = i;
+                yield return new Work { action = evaluate, accept = value => scenario.unchanged[index] = value,
+                    captureName = i == samples - 1 ? scenario.name + ".unchanged-last" : null };
+            }
+            validate(0.01f);
+            for (int i = 0; i < 3; i++) yield return new Work { action = edited };
+            for (int i = 0; i < samples; i++)
+            {
+                int index = i;
+                yield return new Work { action = edited, accept = value => scenario.edited[index] = value,
+                    captureName = i == samples - 1 ? scenario.name + ".edited-last" : null };
+            }
+            validate(edit % 2 == 0 ? 0.03f : 0.04f);
+            scenario.unchangedP50 = Percentile(scenario.unchanged, 0.5);
+            scenario.unchangedP95 = Percentile(scenario.unchanged, 0.95);
+            scenario.editedP50 = Percentile(scenario.edited, 0.5);
+            scenario.editedP95 = Percentile(scenario.edited, 0.95);
+        }
+        finally { Object.DestroyImmediate(reference); }
+        scenario.meshCountDeltaAfterDispose = Resources.FindObjectsOfTypeAll<Mesh>().Length - meshCountBefore;
+        s_document.scenarios.Add(scenario);
     }
 
     private static void Tick()
