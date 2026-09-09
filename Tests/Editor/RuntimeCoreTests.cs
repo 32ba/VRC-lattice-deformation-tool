@@ -1534,12 +1534,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(InvokeStaticPrivate<bool>("HasNonNullGroups", new List<DeformerGroup> { null }), Is.False);
                 Assert.That(InvokeStaticPrivate<bool>("HasNonNullLayers", new List<LatticeLayer> { null }), Is.False);
                 Assert.That(
-                    InvokeStaticPrivate<bool>("TryBuildDeltas", null, null, null),
+                    DeformationEvaluationMath.TryBuildDeltas(null, null, out _),
                     Is.False);
-                Assert.That(InvokeStaticPrivate<HashSet<string>>("CollectBlendShapeNames", (object)null), Is.Empty);
+                Assert.That(DeformedMeshWriter.CollectBlendShapeNames(null), Is.Empty);
                 Assert.That(
-                    InvokeStaticPrivate<string>(
-                        "MakeUniqueBlendShapeName",
+                    DeformedMeshWriter.MakeUniqueBlendShapeName(
                         "Shape",
                         new HashSet<string> { "Shape", "Shape 1" }),
                     Is.EqualTo("Shape 2"));
@@ -1809,39 +1808,32 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 version.SetValue(deformer, DeformationDataVersion.V1_2_0);
                 Assert.That(InvokePrivate(deformer, "TryUpgradeDeformationDataOneRelease"), Is.EqualTo(false));
 
-                Assert.That(InvokePrivate(deformer, "AddGeneratedBlendShapeFrames", null, "Shape", null, null, null), Is.Null);
+                var outputWorkspace = new MeshOutputWorkspace();
+                var outputOptions = new MeshOutputOptions(true, false, true,
+                    NormalsRecalculationMode.PreserveSourceSmoothing, false);
+                Assert.DoesNotThrow(() => DeformedMeshWriter.AddGeneratedBlendShapeFrames(
+                    null, "Shape", null, new GeneratedBlendShapeOutput("Shape", null, null),
+                    outputOptions, outputWorkspace));
                 var baseVertices = mesh.vertices;
                 var deltas = new[] { Vector3.forward, Vector3.zero, Vector3.zero, Vector3.zero };
-                Assert.That(
-                    InvokePrivate(deformer, "AddGeneratedBlendShapeFrames", mesh, "Shape", new Vector3[1], deltas, null),
-                    Is.Null);
+                Assert.DoesNotThrow(() => DeformedMeshWriter.AddGeneratedBlendShapeFrames(
+                    mesh, "Shape", new Vector3[1], new GeneratedBlendShapeOutput("Shape", null, deltas),
+                    outputOptions, outputWorkspace));
 
                 type.GetField("_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(deformer, mesh);
                 type.GetField("_recalculateTangents", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(deformer, true);
                 type.GetField("_recalculateNormals", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(deformer, false);
-                Assert.That(
-                    InvokePrivate(
-                        deformer,
-                        "AddGeneratedBlendShapeFrames",
-                        mesh,
-                        "Tangent Shape",
-                        baseVertices,
-                        deltas,
-                        AnimationCurve.Linear(0f, 0f, 1f, 1f)),
-                    Is.Null);
+                outputOptions = new MeshOutputOptions(false, true, true,
+                    NormalsRecalculationMode.PreserveSourceSmoothing, false);
+                Assert.DoesNotThrow(() => DeformedMeshWriter.AddGeneratedBlendShapeFrames(
+                    mesh, "Tangent Shape", baseVertices,
+                    new GeneratedBlendShapeOutput("Tangent Shape", AnimationCurve.Linear(0f, 0f, 1f, 1f), deltas),
+                    outputOptions, outputWorkspace));
                 Assert.That(mesh.GetBlendShapeIndex("Tangent Shape"), Is.GreaterThanOrEqualTo(0));
 
-                var generatedType = type.GetNestedType("GeneratedBlendShape", BindingFlags.NonPublic);
-                var generated = Activator.CreateInstance(
-                    generatedType,
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                    null,
-                    new object[] { "Null Deltas", null, null },
-                    null);
-                var listType = typeof(List<>).MakeGenericType(generatedType);
-                var list = (System.Collections.IList)Activator.CreateInstance(listType);
-                list.Add(generated);
-                Assert.That((int)InvokePrivate(deformer, "ComputeBlendShapeOutputHash", list), Is.Not.Zero);
+                var generated = new GeneratedBlendShapeOutput("Null Deltas", null, null);
+                Assert.That(DeformationEvaluationMath.ComputeBlendShapeOutputHash(
+                    new[] { generated }), Is.Not.Zero);
 
                 var emptyObject = new GameObject("runtime-core-empty-deform");
                 var emptyMesh = new Mesh();

@@ -189,20 +189,6 @@ namespace Net._32Ba.LatticeDeformationTool
             _skinnedMeshRenderer, _meshFilter, _serializedSourceMesh,
             _serializedSourceVertexCount, _serializedSourceTopologyHash);
 
-        // Historical private reflection seam. Production uses the evaluation result type.
-        private readonly struct GeneratedBlendShape
-        {
-            internal readonly GeneratedBlendShapeOutput Value;
-            public GeneratedBlendShape(string name, AnimationCurve curve, Vector3[] deltas)
-            {
-                Value = new GeneratedBlendShapeOutput(name, curve, deltas);
-            }
-        }
-
-
-
-
-
         /// <summary>
         /// Base layer settings (legacy). Delegates to the first layer of the active group.
         /// </summary>
@@ -2201,31 +2187,6 @@ namespace Net._32Ba.LatticeDeformationTool
                 sourceVertices, deformedVertices);
         }
 
-        // Preserves the private compatibility test seams without duplicate evaluation logic.
-        private static bool TryBuildDeltas(Vector3[] sourceVertices, Vector3[] deformedVertices,
-            out Vector3[] deltas) =>
-            DeformationEvaluationMath.TryBuildDeltas(sourceVertices, deformedVertices, out deltas);
-
-        private int ComputeBlendShapeOutputHash(List<GeneratedBlendShape> blendShapes)
-        {
-            var values = new GeneratedBlendShapeOutput[blendShapes.Count];
-            for (int i = 0; i < values.Length; i++) values[i] = blendShapes[i].Value;
-            return DeformationEvaluationMath.ComputeBlendShapeOutputHash(values);
-        }
-
-        // Retained for existing internal callers and compatibility regression coverage.
-        private void AddGeneratedBlendShapeFrames(
-            Mesh mesh,
-            string shapeName,
-            Vector3[] baseVertices,
-            Vector3[] deltas,
-            AnimationCurve curve)
-        {
-            DeformedMeshWriter.AddGeneratedBlendShapeFrames(mesh, shapeName, baseVertices,
-                new GeneratedBlendShapeOutput(shapeName, curve, deltas), GetMeshOutputOptions(),
-                GetEvaluationWorkspace().MeshOutput);
-        }
-
         // Kept with the original name and seven-argument signature for existing
         // editor reflection callers and compatibility tests. The legacy mode is
         // intentionally fixed here so old callers retain their exact behavior.
@@ -2248,10 +2209,6 @@ namespace Net._32Ba.LatticeDeformationTool
                 out deltaNormals,
                 out deltaTangents);
         }
-
-        private static HashSet<string> CollectBlendShapeNames(Mesh mesh) => DeformedMeshWriter.CollectBlendShapeNames(mesh);
-
-        private static string MakeUniqueBlendShapeName(string requestedName, HashSet<string> usedNames) => DeformedMeshWriter.MakeUniqueBlendShapeName(requestedName, usedNames);
 
         private static void DestroyTemporaryMesh(Mesh mesh) => DeformedMeshWriter.DestroyTemporaryMesh(mesh);
 
