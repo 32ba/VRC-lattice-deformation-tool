@@ -7,8 +7,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 {
     /// <summary>
     /// Computes exact world-space proportional-edit influence with a reusable
-    /// radius-sized spatial hash. The handler rebuilds it only when selection,
-    /// settings, or the source snapshot changes.
+    /// radius-sized spatial hash. Owns the revision key and transformed scratch
+    /// used to rebuild only when selection, settings, or source snapshot changes.
     /// </summary>
     internal sealed class VertexProportionalInfluenceCache
     {
@@ -32,6 +32,52 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int _denseSizeZ;
         private bool _useDenseGrid;
         private long _lastQueryNodeVisits;
+        private Vector3[] _worldScratch;
+        private bool _snapshotValid;
+        private int _selectionRevision, _settingsRevision, _sourceRevision;
+        private Matrix4x4 _localToWorld;
+
+        internal void Invalidate() => _snapshotValid = false;
+
+        // Position arrays are borrowed for this synchronous call. Frozen gesture
+        // positions take precedence over a live posed surface.
+        internal void Update(Matrix4x4 localToWorld, Vector3[] localPositions,
+            Vector3[] posedWorldPositions, Vector3[] frozenWorldPositions,
+            IReadOnlyCollection<int> selectedVertices, float radius,
+            VertexSelectionHandler.FalloffType falloff,
+            int selectionRevision, int settingsRevision, int sourceRevision)
+        {
+            if (localPositions == null)
+            {
+                Clear();
+                return;
+            }
+            if (_snapshotValid && _selectionRevision == selectionRevision &&
+                _settingsRevision == settingsRevision && _sourceRevision == sourceRevision &&
+                _localToWorld == localToWorld) return;
+
+            var worldPositions = frozenWorldPositions;
+            if (worldPositions == null)
+            {
+                int count = localPositions.Length;
+                if (posedWorldPositions != null && posedWorldPositions.Length == count)
+                    worldPositions = posedWorldPositions;
+                else
+                {
+                    if (_worldScratch == null || _worldScratch.Length != count)
+                        _worldScratch = new Vector3[count];
+                    for (int i = 0; i < count; i++)
+                        _worldScratch[i] = localToWorld.MultiplyPoint3x4(localPositions[i]);
+                    worldPositions = _worldScratch;
+                }
+            }
+            Rebuild(worldPositions, selectedVertices, radius, falloff);
+            _selectionRevision = selectionRevision;
+            _settingsRevision = settingsRevision;
+            _sourceRevision = sourceRevision;
+            _localToWorld = localToWorld;
+            _snapshotValid = true;
+        }
 
         internal int VertexCount => _influences.Length;
         // Retain the diagnostic name used by existing performance gates. With the
@@ -40,6 +86,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal void Clear()
         {
+            Invalidate();
             if (_influences.Length > 0)
             {
                 Array.Clear(_influences, 0, _influences.Length);
@@ -55,6 +102,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             float worldRadius,
             VertexSelectionHandler.FalloffType falloff)
         {
+            Invalidate();
             int vertexCount = worldPositions?.Length ?? 0;
             _lastQueryNodeVisits = 0;
             EnsureArray(ref _influences, vertexCount);

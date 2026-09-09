@@ -1,4 +1,4 @@
-﻿#if UNITY_EDITOR
+#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -96,16 +96,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private bool _isTransforming;
         private Vector3[] _preTransformWorldPositions;
         private bool _preTransformWorldPositionsValid;
-        private Vector3[] _proportionalWorldPositions;
         private readonly VertexProportionalInfluenceCache _proportionalInfluenceCache =
             new VertexProportionalInfluenceCache();
         private readonly SkinnedVertexHelper.RestSpaceDeltaConverterCache _restSpaceConverterCache =
             new SkinnedVertexHelper.RestSpaceDeltaConverterCache();
-        private int _cachedInfluenceSelectionRevision = -1;
-        private int _cachedInfluenceSettingsRevision = -1;
-        private int _cachedInfluenceSourceRevision = -1;
         private int _transformInfluenceRevision;
-        private Matrix4x4 _cachedInfluenceMatrix;
 
         private static readonly Color k_ProportionalRadiusColor = new Color(0.5f, 1f, 0.5f, 0.4f);
 
@@ -275,7 +270,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _editSession = null;
             _isTransforming = false;
             _preTransformWorldPositionsValid = false;
-            InvalidateProportionalInfluenceCache();
+            _proportionalInfluenceCache.Invalidate();
             _handleRotation = Quaternion.identity;
             _handleScale = Vector3.one;
         }
@@ -750,7 +745,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 _preTransformWorldPositionsValid = true;
                 _transformInfluenceRevision++;
-                InvalidateProportionalInfluenceCache();
+                _proportionalInfluenceCache.Invalidate();
             }
         }
 
@@ -803,61 +798,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            Matrix4x4 matrix = meshTransform.localToWorldMatrix;
-            int sourceRevision = _preTransformWorldPositionsValid
-                ? _transformInfluenceRevision
-                : RefreshCountForTests;
-            if (_cachedInfluenceSelectionRevision == s_selectionRevision &&
-                _cachedInfluenceSettingsRevision == s_proportionalSettingsRevision &&
-                _cachedInfluenceSourceRevision == sourceRevision &&
-                _cachedInfluenceMatrix == matrix)
-            {
-                return;
-            }
-
-            Vector3[] worldPositions = _preTransformWorldPositionsValid
-                ? _preTransformWorldPositions
-                : null;
-            if (worldPositions == null)
-            {
-                int count = _deformedVertices.Length;
-                if (_worldPositions != null && _worldPositions.Length == count)
-                {
-                    worldPositions = _worldPositions;
-                }
-                else
-                {
-                    if (_proportionalWorldPositions == null ||
-                        _proportionalWorldPositions.Length != count)
-                    {
-                        _proportionalWorldPositions = new Vector3[count];
-                    }
-
-                    for (int i = 0; i < count; i++)
-                    {
-                        _proportionalWorldPositions[i] = matrix.MultiplyPoint3x4(_deformedVertices[i]);
-                    }
-
-                    worldPositions = _proportionalWorldPositions;
-                }
-            }
-
-            _proportionalInfluenceCache.Rebuild(
-                worldPositions,
-                s_selectedVertices,
-                s_proportionalRadius,
-                s_proportionalFalloff);
-            _cachedInfluenceSelectionRevision = s_selectionRevision;
-            _cachedInfluenceSettingsRevision = s_proportionalSettingsRevision;
-            _cachedInfluenceSourceRevision = sourceRevision;
-            _cachedInfluenceMatrix = matrix;
-        }
-
-        private void InvalidateProportionalInfluenceCache()
-        {
-            _cachedInfluenceSelectionRevision = -1;
-            _cachedInfluenceSettingsRevision = -1;
-            _cachedInfluenceSourceRevision = -1;
+            _proportionalInfluenceCache.Update(meshTransform.localToWorldMatrix,
+                _deformedVertices, _worldPositions,
+                _preTransformWorldPositionsValid ? _preTransformWorldPositions : null,
+                s_selectedVertices, s_proportionalRadius, s_proportionalFalloff,
+                s_selectionRevision, s_proportionalSettingsRevision,
+                _preTransformWorldPositionsValid ? _transformInfluenceRevision : RefreshCountForTests);
         }
 
         private void DrawProportionalRadius(LatticeDeformer deformer, Transform meshTransform)
@@ -1154,7 +1100,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _restSpaceConverterCache.Clear();
             _preTransformWorldPositions = null;
             _preTransformWorldPositionsValid = false;
-            InvalidateProportionalInfluenceCache();
             _proportionalInfluenceCache.Clear();
             InvalidatePoseRendererCache();
             _snapshotValid = false;
