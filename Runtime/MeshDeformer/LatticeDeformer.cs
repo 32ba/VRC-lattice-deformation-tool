@@ -2844,19 +2844,6 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
-        private LatticeCacheEntry[] BuildCacheWithJobs(Vector3Int gridSize, Bounds bounds, Vector3[] vertices) =>
-            LatticeEvaluator.BuildCacheWithJobs(gridSize, bounds, vertices);
-
-        private static float[] BuildBernsteinWeightsWithJobs(Vector3Int gridSize, LatticeCacheEntry[] entries) =>
-            LatticeEvaluator.BuildBernsteinWeightsWithJobs(gridSize, entries);
-
-        private bool EnsureCache(LatticeAsset settings, Vector3[] restVertices) =>
-            settings != null && _sourceMesh != null && GetEvaluationWorkspace().Lattice.EnsureCache(settings, restVertices);
-
-        private bool RebuildCache(LatticeAsset settings, Mesh mesh, Vector3[] restVertices, int restVerticesHash) =>
-            mesh != null && GetEvaluationWorkspace().Lattice.RebuildCache(settings, restVertices, restVerticesHash,
-                LatticeEvaluator.GetEffectiveInterpolation(settings));
-
         private static Bounds CalculateReferencedBounds(Mesh mesh, Vector3[] vertices, Bounds fallback)
         {
             if (mesh == null || vertices == null || vertices.Length == 0)

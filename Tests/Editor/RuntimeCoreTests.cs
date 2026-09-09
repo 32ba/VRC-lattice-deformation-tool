@@ -1338,17 +1338,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(deformed[0], Is.EqualTo(Vector3.one + Vector3.forward));
 
                 Assert.That(
-                    () => InvokePrivate(
-                        deformer,
-                        "BuildCacheWithJobs",
+                    () => LatticeEvaluator.BuildCacheWithJobs(
                         new Vector3Int(2, 2, 2),
                         new Bounds(Vector3.zero, Vector3.one),
                         null),
-                    Throws.TargetInvocationException.With.InnerException.TypeOf<ArgumentException>());
+                    Throws.TypeOf<ArgumentException>());
 
-                var entries = (LatticeCacheEntry[])InvokePrivate(
-                    deformer,
-                    "BuildCacheWithJobs",
+                var entries = LatticeEvaluator.BuildCacheWithJobs(
                     new Vector3Int(2, 2, 2),
                     new Bounds(Vector3.zero, Vector3.one),
                     new[] { Vector3.zero, Vector3.one });
@@ -1356,8 +1352,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(entries[0].Corner0, Is.EqualTo(0));
                 Assert.That(entries[1].Corner7, Is.EqualTo(7));
 
-                var emptyBernsteinWeights = InvokeStaticPrivate<float[]>(
-                    "BuildBernsteinWeightsWithJobs",
+                var emptyBernsteinWeights = LatticeEvaluator.BuildBernsteinWeightsWithJobs(
                     new Vector3Int(2, 2, 2),
                     Array.Empty<LatticeCacheEntry>());
                 Assert.That(emptyBernsteinWeights, Is.Empty);
@@ -1939,26 +1934,24 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     .SetValue(deformer, null);
                 Assert.That(deformer.WeightTransferSettings, Is.Not.Null);
 
-                InvokePrivate(deformer, "EnsureCache", null, Array.Empty<Vector3>());
+                using var evaluator = new LatticeEvaluator();
+                Assert.That(evaluator.EnsureCache(null, Array.Empty<Vector3>()), Is.False);
                 Assert.That(
-                    InvokePrivate(deformer, "RebuildCache", null, mesh, Array.Empty<Vector3>(), 0),
+                    evaluator.RebuildCache(null, Array.Empty<Vector3>(), 0, LatticeEvaluator.GetEffectiveInterpolation(null)),
                     Is.EqualTo(false));
 
                 var invalidGrid = new LatticeAsset();
                 typeof(LatticeAsset)
                     .GetField("_gridSize", BindingFlags.Instance | BindingFlags.NonPublic)
                     .SetValue(invalidGrid, Vector3Int.one);
-                Assert.That(InvokePrivate(deformer, "RebuildCache", invalidGrid, mesh, Array.Empty<Vector3>(), 0), Is.EqualTo(false));
+                Assert.That(evaluator.RebuildCache(invalidGrid, Array.Empty<Vector3>(), 0, LatticeEvaluator.GetEffectiveInterpolation(invalidGrid)), Is.EqualTo(false));
 
                 var validSettings = new LatticeAsset();
                 validSettings.EnsureInitialized();
-                Assert.That(InvokePrivate(deformer, "RebuildCache", validSettings, mesh, Array.Empty<Vector3>(), 0), Is.EqualTo(false));
+                Assert.That(evaluator.RebuildCache(validSettings, Array.Empty<Vector3>(), 0, LatticeEvaluator.GetEffectiveInterpolation(validSettings)), Is.EqualTo(false));
 
-                ((EvaluationWorkspace)InvokePrivate(deformer, "GetEvaluationWorkspace")).Dispose();
-                typeof(LatticeDeformer)
-                    .GetField("_evaluationWorkspace", BindingFlags.Instance | BindingFlags.NonPublic)
-                    .SetValue(deformer, null);
-                Assert.That(InvokePrivate(deformer, "EnsureCache", validSettings, Array.Empty<Vector3>()), Is.EqualTo(false));
+                evaluator.Dispose();
+                Assert.That(evaluator.EnsureCache(validSettings, Array.Empty<Vector3>()), Is.False);
             }
             finally
             {
