@@ -35,7 +35,7 @@ namespace Net._32Ba.LatticeDeformationTool
         internal bool HasNativeResources => _deformControlNative.IsCreated || _deformEntriesNative.IsCreated ||
             _deformOutputNative.IsCreated || _deformBernsteinWeightsNative.IsCreated;
 
-        // The component keeps an alias solely for existing private compatibility seams.
+        // Allows an explicit cache fixture to exercise invalid or stale entries.
         internal void BindCache(LatticeDeformerCache cache) => _cache = cache ?? throw new ArgumentNullException(nameof(cache));
 
         internal void Apply(LatticeAsset layerSettings, float weight, in EvaluationSemantics semantics,

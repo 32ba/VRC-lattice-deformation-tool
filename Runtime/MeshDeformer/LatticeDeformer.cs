@@ -131,7 +131,6 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, HideInInspector] private bool _alignAutoInitialized = false;
         [SerializeField, HideInInspector] private Vector3 _manualOffsetProxy = Vector3.zero;
         [SerializeField, HideInInspector] private Vector3 _manualScaleProxy = Vector3.one;
-        [NonSerialized] private LatticeDeformerCache _cache = new LatticeDeformerCache();
         [NonSerialized] private Mesh _runtimeMesh;
         [NonSerialized] private RuntimeMeshAssignment _runtimeMeshAssignment;
         [NonSerialized] private Mesh _sourceMesh;
@@ -1772,8 +1771,6 @@ namespace Net._32Ba.LatticeDeformationTool
         private EvaluationWorkspace GetEvaluationWorkspace()
         {
             _evaluationWorkspace ??= new EvaluationWorkspace();
-            _cache ??= new LatticeDeformerCache();
-            _evaluationWorkspace.Lattice.BindCache(_cache);
             return _evaluationWorkspace;
         }
 
@@ -2212,12 +2209,7 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             NotifyDeformationDataChanged();
 
-            if (_cache == null)
-            {
-                _cache = new LatticeDeformerCache();
-            }
-
-            _cache.Clear();
+            _evaluationWorkspace?.Lattice.Cache.Clear();
             ReleaseDeformationNativeBuffers();
             _lastBlendShapeHash = 0;
             _blendShapeOutputDirty = true;

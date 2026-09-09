@@ -423,11 +423,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.Reset();
                 Assert.That(deformer.Deform(false), Is.Not.Null);
 
-                var cacheField = typeof(LatticeDeformer).GetField(
-                    "_cache",
-                    BindingFlags.Instance | BindingFlags.NonPublic);
-                Assert.That(cacheField, Is.Not.Null);
-                var cache = (LatticeDeformerCache)cacheField.GetValue(deformer);
+                var workspace = (EvaluationWorkspace)InvokePrivate(deformer, "GetEvaluationWorkspace");
+                var cache = workspace.Lattice.Cache;
                 var warmedEntries = cache.Entries;
                 Assert.That(warmedEntries, Is.Not.Empty);
 
@@ -1957,8 +1954,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 validSettings.EnsureInitialized();
                 Assert.That(InvokePrivate(deformer, "RebuildCache", validSettings, mesh, Array.Empty<Vector3>(), 0), Is.EqualTo(false));
 
+                ((EvaluationWorkspace)InvokePrivate(deformer, "GetEvaluationWorkspace")).Dispose();
                 typeof(LatticeDeformer)
-                    .GetField("_cache", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .GetField("_evaluationWorkspace", BindingFlags.Instance | BindingFlags.NonPublic)
                     .SetValue(deformer, null);
                 Assert.That(InvokePrivate(deformer, "EnsureCache", validSettings, Array.Empty<Vector3>()), Is.EqualTo(false));
             }
@@ -2016,8 +2014,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     .SetValue(deformer, 123);
                 Assert.That(deformer.Deform(assignToRenderer: false), Is.Not.Null);
 
+                ((EvaluationWorkspace)InvokePrivate(deformer, "GetEvaluationWorkspace")).Dispose();
                 typeof(LatticeDeformer)
-                    .GetField("_cache", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .GetField("_evaluationWorkspace", BindingFlags.Instance | BindingFlags.NonPublic)
                     .SetValue(deformer, null);
                 deformer.InvalidateCache();
 
