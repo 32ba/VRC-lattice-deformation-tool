@@ -469,3 +469,5 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - 配布物は Tools~/Release/package_release.py で固定commitから作成し、ZIP/UnityPackageの共通対象・GUID・内容を再読込みして照合する。Tests/Tools~/Docs~/Architectureは配布しない。~ directory内の非import対象はZIPだけに含む従来契約をreportへ明示する。内容検査の成功をUnity importや通常更新の合格とは扱わない。release workflowのpublishは既定falseで、公開は最終確認と明示承認後にだけ実行する。
 
 - CIの必須Category検証は `Tools~/Assert-TestResults.ps1` でNUnit suiteからの継承も含めてcase単位に数える。`Tools~/Test-AssertTestResults.ps1` は継承・重複・欠落・Skippedを検査する。Category付きテストを増減した際は `.github/workflows/test.yml` の期待件数を実XMLで照合する。
+
+- CIはdefault/next-releaseの2構成を別jobで実行する。warmup終了後に `Tools~/CI/feature_configuration.py` でStandaloneの機能defineだけを切り替え、結果XMLで指定構成のコンパイルを検証する。Library cacheとartifactは構成ごとに分ける。利用者の稼働中projectへこの設定ツールを使わない。

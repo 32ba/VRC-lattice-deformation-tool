@@ -8,9 +8,9 @@ name: Test
 # which reproduces the VCC project the package actually targets. The VRChat SDK is required:
 # NDMF treats plugins that declare no platform as VRChat-avatar-only, so the bake pass is
 # skipped as "Incompatible" without it and MeshDeformerValidatorTests fails.
-# No scripting defines are added on purpose - CI must reflect a clean end-user configuration
-# (for example LATTICE_DEFORMATION_TOOL_ENABLE_NEXT_RELEASE_FEATURES must NOT be defined).
-# LATTICE_VRCSDK3_AVATAR comes from the asmdef versionDefines and is part of that configuration.
+# The default matrix entry reflects a clean end-user configuration. A second entry
+# enables next-release features so hidden functionality retains compatibility coverage.
+# LATTICE_VRCSDK3_AVATAR comes from the asmdef versionDefines in both configurations.
 #
 # Required repository secrets (GameCI unity-test-runner v4):
 #   Unity Personal license  : UNITY_LICENSE (contents of the .ulf activation file), UNITY_EMAIL, UNITY_PASSWORD
@@ -38,6 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: python3 -m unittest discover -s Tools~/Release -p 'test_*.py'
+      - run: python3 -m unittest discover -s Tools~/CI -p 'test_*.py'
       - name: Test result verification
         shell: pwsh
         run: ./Tools~/Test-AssertTestResults.ps1
@@ -45,8 +46,12 @@ jobs:
 
   # Run the package EditMode tests inside a scaffolded Unity project
   editmode:
-    name: EditMode Tests
+    name: EditMode Tests (${{ matrix.configuration }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [default, next-release]
     permissions:
       contents: read
     steps:
@@ -183,9 +188,9 @@ jobs:
         with:
           path: ci-project/Library
           # The workflow file is part of the key because it pins the VPM package versions
-          key: Library-ci-project-${{ hashFiles('ci-project/Packages/vpm-manifest.json', 'ci-project/Packages/manifest.json', 'package.json', '.github/workflows/test.yml') }}
+          key: Library-ci-project-${{ matrix.configuration }}-${{ hashFiles('ci-project/Packages/vpm-manifest.json', 'ci-project/Packages/manifest.json', 'package.json', '.github/workflows/test.yml') }}
           restore-keys: |
-            Library-ci-project-
+            Library-ci-project-${{ matrix.configuration }}-
 
       # The first time the VRChat SDK loads it rewrites the API compatibility level and the
       # scripting define symbols, and each rewrite queues a script compilation. A test run keeps
@@ -208,6 +213,14 @@ jobs:
           artifactsPath: warmup-artifacts
           customParameters: '-assemblyNames net.32ba.lattice-deformation-tool.tests.editor -testFilter Net._32Ba.LatticeDeformationTool.Editor.Tests.LatticeDeformationFeatureFlagsTests'
 
+      # The warmup has exited and produced ProjectSettings.asset. Change only the
+      # Standalone feature flag before the next Editor launch.
+      - name: Configure feature coverage
+        run: >-
+          python3 Tools~/CI/feature_configuration.py
+          --mode ${{ matrix.configuration }}
+          --settings ci-project/ProjectSettings/ProjectSettings.asset
+
       - name: Run EditMode Tests
         id: tests
         uses: game-ci/unity-test-runner@0ff419b913a3630032cbe0de48a0099b5a9f0ed9 # v4.3.1
@@ -226,6 +239,13 @@ jobs:
           customParameters: '-assemblyNames net.32ba.lattice-deformation-tool.tests.editor;net.32ba.lattice-deformation-tool.tests.editor.vrchat'
           # githubToken is intentionally omitted: publishing a check run needs a writable
           # GITHUB_TOKEN, which pull requests from forks do not get.
+
+      - name: Verify compiled feature configuration
+        if: always()
+        run: >-
+          python3 Tools~/CI/feature_configuration.py
+          --mode ${{ matrix.configuration }}
+          --results test-artifacts/editmode-results.xml
 
       - name: Verify MA Setup Outfit Workflow Results
         if: always()
@@ -296,6 +316,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: editmode-test-results
+          name: editmode-test-results-${{ matrix.configuration }}
           path: ${{ steps.tests.outputs.artifactsPath }}
           if-no-files-found: warn
