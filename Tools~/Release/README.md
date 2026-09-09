@@ -16,3 +16,13 @@ UnityPackageは既存の固定exporterと同じGUID directory内のasset.meta・
 workflow_dispatchのpublishは既定false。falseでは生成・内容検査・Actions artifact保持だけを行い、tag/Release/VPMを書き換えない。trueは別の公開操作であり、最終の実機・通常更新・CI検証と利用者の公開承認後にのみ実行する。beta等のSemVer prerelease identifierがある場合はGitHub Releaseもprereleaseにする。build metadata中のhyphenはprereleaseと扱わない。
 
 この検査はUnity Import、旧project更新、依存下限、native操作の検証を代替しない。reportのunityImportVerifiedはfalseのままにし、実際のUnityによる結果を別途保持する。
+
+## VPM更新後の保存データ照合
+
+`verify_vpm_upgrade.py` は、旧版で保存した `NormalUpgradeProbe` の結果と、VPMクライアントで更新後に `SaveAndCapture`、別起動の `Capture` を実行した結果を照合する。
+
+```powershell
+python Tools~/Release/verify_vpm_upgrade.py --baseline C:/evidence/NormalUpgrade --evidence C:/evidence/VpmUpgrade --release C:/release/net.32ba.lattice-deformation-tool-2.0.0-beta.1.zip --output C:/evidence/VpmUpgrade/verification.json
+```
+
+baselineには `before.json`、`before-files.json`、`OldProject`、evidenceには `reloaded.json`、`old-vpm-manifest.json`、`new-vpm-manifest.json`、更新後の `Project` を置く。出力は新規ファイルだけを許容する。旧データと4対象の変形結果・参照・選択・override、新版ZIPとの全ファイル一致、旧C#ファイルの残存、他のVPM依存の維持を検査する。クライアント取得操作そのものは別の実行logと取得直後の照合記録で証明する。
