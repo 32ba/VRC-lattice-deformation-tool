@@ -63,6 +63,8 @@ p95が10%を超えて増加した条件、最大GC割当の増加、破棄後の
 
 `clearance-70000;clearance-200000` は4,096頂点の平面参照と7万/20万問い合わせ点を使用する。firstはBVH構築と初回Query、unchangedは既存BVHの反復Query、editedは対象のworld変換を変えたQuery。結果配列と内部APIの呼び出しdelegateは計測前に用意し、reflectionや結果のboxingを計測区間に含めない。各phase後に全点の既知距離を検証する。ReferenceNormalと開いた平面に限定し、ClosedMesh、SkinnedMeshRendererのBake、Scan/Fitや参照cache更新全体は含まない。
 
+`brush-normal-70000;brush-normal-200000` はhandlerのRebuildCacheIfNeeded、Normalブラシ適用、変更通知、Deform(false)を測る。Linear falloff、半径0.1、強度0.001、connected/backface/surface無効。unchangedは固定hitへの反復stroke、editedはhitを交互に変えるstrokeで、いずれも変位は累積する。設定は終了時に復元し、最後の変位全配列のSHA-256一致を比較条件とする。delegate作成と検証hashは計測区間外。Mouseイベント配送、raycast、Undo記録、描画更新全体は含まない。
+
 このharnessはScene Viewの描画、drag入力、NDMF全体の非同期Preview更新、Clearance Scan/Fit全体、Weight Transferの測定を代替しない。
 
 `ProfileSelectionBaselineProbe.cs` は固定基準 `c7f499c` 専用の再現probe。

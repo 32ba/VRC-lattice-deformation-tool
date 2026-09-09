@@ -44,6 +44,9 @@ $rows = foreach ($after in $candidate.scenarios) {
     if ([int]$before.clearanceReferenceVertices -ne [int]$after.clearanceReferenceVertices) {
         throw ('Scenario input differs: ' + $after.name + ' clearanceReferenceVertices')
     }
+    if ($before.brushDisplacementHash -ne $after.brushDisplacementHash) {
+        throw ('Brush output differs: ' + $after.name)
+    }
     # Older captures predate the Profile scenario and omit this false field.
     if ([bool]$before.upstreamPreview -ne [bool]$after.upstreamPreview) {
         throw ('Scenario input differs: ' + $after.name + ' upstreamPreview')

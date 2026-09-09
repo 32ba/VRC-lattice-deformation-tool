@@ -34,6 +34,7 @@ public static class EvaluationBenchmark
         public bool profileSource;
         public bool upstreamPreview;
         public int clearanceReferenceVertices;
+        public string brushDisplacementHash;
         public bool recalculateNormals, recalculateTangents;
         public bool recalculateBounds = true;
         public Measurement firstEvaluation;
@@ -119,7 +120,7 @@ public static class EvaluationBenchmark
         };
         if (calibrationOnly) yield break;
         foreach (int vertices in new[] { 70000, 200000 })
-            foreach (string kind in new[] { "direct", "groups", "generated", "profile", "preview", "clearance" })
+            foreach (string kind in new[] { "direct", "groups", "generated", "profile", "preview", "clearance", "brush-normal" })
             {
                 string scenarioName = kind + "-" + vertices;
                 if (!string.IsNullOrEmpty(s_document.scenarioFilter) &&
@@ -137,6 +138,7 @@ public static class EvaluationBenchmark
         var mesh = CreateMesh(vertexCount);
         MeshDeformerProfile profile = null;
         Mesh upstream = null;
+        Action releaseBrush = null;
         var result = new Scenario
         {
             name = kind + "-" + vertexCount, vertices = vertexCount, groups = kind == "groups" ? 4 : 1,
@@ -195,6 +197,42 @@ public static class EvaluationBenchmark
                 for (int i = 0; i < deltas.Length; i++) deltas[i] = Vector3.up * 0.01f;
                 upstream.AddBlendShapeFrame("Upstream", 100f, deltas, null, null);
             }
+            Action<bool> applyBrush = null;
+            if (kind == "brush-normal")
+            {
+                deformer.ActiveLayerIndex = deformer.AddLayer("Benchmark brush", MeshDeformerLayerType.Brush);
+                deformer.EnsureDisplacementCapacity();
+                var type = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType(
+                    "Net._32Ba.LatticeDeformationTool.Editor.BrushToolHandler")).First(t => t != null);
+                object handler = Activator.CreateInstance(type, true);
+                var instance = Expression.Constant(handler, type);
+                var fields = new Dictionary<FieldInfo, object>();
+                foreach (string name in new[] { "s_connectedOnly", "s_backfaceCulling", "s_useSurfaceDistance" })
+                {
+                    var field = type.GetField(name, BindingFlags.Static | BindingFlags.NonPublic);
+                    fields.Add(field, field.GetValue(null)); field.SetValue(null, false);
+                }
+                var falloff = type.GetField("s_brushFalloff", BindingFlags.Static | BindingFlags.NonPublic);
+                fields.Add(falloff, falloff.GetValue(null));
+                falloff.SetValue(null, Enum.Parse(falloff.FieldType, "Linear"));
+                releaseBrush = () =>
+                {
+                    type.GetMethod("Deactivate", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(handler, null);
+                    foreach (var field in fields) field.Key.SetValue(null, field.Value);
+                };
+                type.GetMethod("Activate", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(handler, new object[] { deformer });
+                var altered = Expression.Parameter(typeof(bool), "altered");
+                var hit = Expression.Condition(altered,
+                    Expression.Constant(new Vector3(0.25f, 0.25f, 0f)),
+                    Expression.Constant(new Vector3(0.2f, 0.2f, 0f)));
+                var rebuild = type.GetMethod("RebuildCacheIfNeeded", BindingFlags.Instance | BindingFlags.NonPublic);
+                var apply = type.GetMethod("ApplyNormalBrush", BindingFlags.Instance | BindingFlags.NonPublic);
+                applyBrush = Expression.Lambda<Action<bool>>(Expression.Block(
+                    Expression.Call(instance, rebuild, Expression.Constant(mesh), Expression.Constant(deformer)),
+                    Expression.Call(instance, apply, Expression.Constant(deformer), hit,
+                        Expression.Constant(0.1f), Expression.Constant(0.001f), Expression.Constant(1f)),
+                    Expression.Empty()), altered).Compile();
+            }
             // Profile edits change the shared asset, exercising external change
             // detection and replacement of the owner's independent evaluation copy.
             var lattice = result.profileSource ? profile.Groups[0].Layers[0].Settings : deformer.Layers[0].Settings;
@@ -202,8 +240,10 @@ public static class EvaluationBenchmark
             // Bind once outside measurement; avoid reflection allocation per sample.
             var notify = (Action)Delegate.CreateDelegate(typeof(Action), deformer,
                 typeof(LatticeDeformer).GetMethod("NotifyDeformationDataChanged", BindingFlags.Instance | BindingFlags.NonPublic));
+            bool alternateBrushHit = false;
             Action evaluate = () =>
             {
+                if (applyBrush != null) { applyBrush(alternateBrushHit); notify(); }
                 Mesh output = null;
                 try
                 {
@@ -228,7 +268,8 @@ public static class EvaluationBenchmark
             int edit = 0;
             Action editedEvaluation = () =>
             {
-                lattice.SetControlPointLocal(0, startPoint + Vector3.up * ((++edit % 2 == 0) ? 0.01f : -0.01f));
+                if (applyBrush != null) alternateBrushHit = ++edit % 2 == 0;
+                else lattice.SetControlPointLocal(0, startPoint + Vector3.up * ((++edit % 2 == 0) ? 0.01f : -0.01f));
                 if (!result.profileSource) notify();
                 evaluate();
             };
@@ -248,6 +289,19 @@ public static class EvaluationBenchmark
                 yield return new Work { action = editedEvaluation, accept = value => result.edited[index] = value,
                     captureName = i == samples - 1 ? result.name + ".edited-last" : null };
             }
+            if (applyBrush != null)
+            {
+                var displacements = deformer.Displacements;
+                if (!displacements.Any(v => v.sqrMagnitude > 0f)) throw new InvalidOperationException("Brush changed no vertices.");
+                using (var stream = new MemoryStream())
+                using (var writer = new BinaryWriter(stream))
+                using (var sha = System.Security.Cryptography.SHA256.Create())
+                {
+                    foreach (var v in displacements) { writer.Write(v.x); writer.Write(v.y); writer.Write(v.z); }
+                    writer.Flush();
+                    result.brushDisplacementHash = BitConverter.ToString(sha.ComputeHash(stream.ToArray())).Replace("-", "").ToLowerInvariant();
+                }
+            }
             result.unchangedP50 = Percentile(result.unchanged, 0.5);
             result.unchangedP95 = Percentile(result.unchanged, 0.95);
             result.editedP50 = Percentile(result.edited, 0.5);
@@ -255,6 +309,7 @@ public static class EvaluationBenchmark
         }
         finally
         {
+            releaseBrush?.Invoke();
             Object.DestroyImmediate(root);
             if (upstream != null) Object.DestroyImmediate(upstream);
             if (profile != null) Object.DestroyImmediate(profile);
