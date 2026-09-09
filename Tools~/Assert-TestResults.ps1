@@ -62,7 +62,9 @@ if (-not [string]::IsNullOrWhiteSpace($RequiredCategory)) {
         $xml.SelectNodes("//test-case") | Where-Object {
             $testCase = $_
             @(
-                $testCase.SelectNodes("properties/property") | Where-Object {
+                # NUnit can put Category on a fixture/suite rather than repeat it
+                # on every case. Count each case once, including inherited categories.
+                $testCase.SelectNodes("ancestor-or-self::*/properties/property") | Where-Object {
                     $_.GetAttribute("name") -eq "Category" -and
                     $_.GetAttribute("value") -eq $RequiredCategory
                 }

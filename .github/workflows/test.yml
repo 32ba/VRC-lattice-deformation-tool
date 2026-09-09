@@ -38,6 +38,9 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: python3 -m unittest discover -s Tools~/Release -p 'test_*.py'
+      - name: Test result verification
+        shell: pwsh
+        run: ./Tools~/Test-AssertTestResults.ps1
       - run: python3 Tools~/Release/package_release.py --commit HEAD --output release-artifacts
 
   # Run the package EditMode tests inside a scaffolded Unity project
@@ -269,7 +272,16 @@ jobs:
           ./Tools~/Assert-TestResults.ps1
           -TestResultsPath test-artifacts/editmode-results.xml
           -RequiredCategory GraphicsE2E
-          -RequiredCategoryCount 9
+          -RequiredCategoryCount 16
+
+      - name: Verify Playground E2E Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -RequiredCategory PlaygroundE2E
+          -RequiredCategoryCount 2
 
       - name: Verify Authoring Interaction Results
         if: always()
