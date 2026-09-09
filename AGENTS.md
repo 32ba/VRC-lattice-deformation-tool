@@ -9,19 +9,30 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 ## プロジェクト構造
 
 ```
-├── Editor/              # Unity エディタ拡張コード
-│   ├── Localization/    # 多言語対応（日本語/英語/韓国語/中国語）
-│   ├── WeightTransfer/  # ボーンウェイト再計算モジュール
-│   │   └── BurstSolver/ # Burst 対応の疎行列/線形ソルバ
-│   └── VRChat/          # VRChat 固有の機能
-├── Tests/Editor/        # EditMode テスト（レイヤースタック挙動など）
+├── Editor/
+│   ├── MeshDeformer/    # Authoring / Tools / UI / Validation / Build / Preview
+│   │   └── WeightTransfer/ # ボーンウェイト転写とBurst solver
+│   ├── Preview/         # Preview sessionとMeshの所有・終了処理
+│   ├── Legacy/          # 旧Brushの検出とEditor移行
+│   ├── Localization/    # 5言語のUIテキスト
+│   ├── Support/         # 診断と更新情報
+│   ├── VRChat/          # VRChat固有の連携
+│   ├── Plugins/         # 旧folder GUID保持用（実装は移動済み）
+│   └── WeightTransfer/  # 旧folder GUID保持用（実装は移動済み）
+├── Runtime/
+│   ├── MeshDeformer/    # 公開コンポーネント、保存入口、互換API
+│   ├── Model/           # モデルの読取り・コピー・互換規則
+│   ├── Evaluation/      # 共通評価、Mesh出力、cacheとbufferの所有
+│   ├── Migration/       # 公開release順の移行と原子的commit
+│   └── Legacy/          # 旧Brush保存データの互換処理
+├── Tests/Editor/
 │   └── Fixtures/
-│       ├── HistoricalReleases/ # 公開14リリースで実保存した移行fixture
-│       └── LaterReleases/ # 後続公開28リリースの83ケース（独立corpus）
-├── Runtime/             # ランタイムコンポーネント（MonoBehaviour, ScriptableObject）
-├── Tools~/HistoricalFixtures/ # 隔離Unityプロジェクトで履歴fixtureを再生成するツール
-├── Docs~/Architecture/  # 全体リファクタリングの監査、設計案、基準ファイル記録
-└── package.json         # VPM パッケージ定義
+│       ├── ArchitectureBaseline/ # 固定基準のAPI・保存path・出力
+│       ├── HistoricalReleases/  # 公開14リリースの実保存fixture
+│       └── LaterReleases/       # 後続公開28リリースの83ケース
+├── Tools~/              # 履歴fixture、性能計測、配布・結果検証
+├── Docs~/Architecture/  # 監査、計画、実装状況、検証記録
+└── package.json         # VPM/UPMパッケージ定義
 ```
 
 ### 2.0.0ベータのリファクタリング
@@ -30,10 +41,10 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 - 実装基準は公開済み `1.4.6-beta.1` に作業中のGuided UI・翻訳を統合した `c7f499c38e16f386fe6734e0f7937d50c502c529`。元の `1.4.5-rc.5` 作業ツリーと起動中のPlaygroundのpackage参照は保持し、`codex/refactor-2.0.0-beta` の隔離worktreeで作業する。
 - `Runtime/MeshDeformer/SerializedDeformerReader.cs` は初期化・移行・配列補正・Profile展開を行わず、壊れた保存内容もそのまま読むinternal API。返す参照は同期処理中だけ使う借用viewであり、非同期評価用の不変snapshotではない。ValidatorとInspectorのGroup/Layerコピーが利用する。
 - `Editor/MeshDeformer/Authoring/DeformerEditService.cs` はGroup/Layer追加・削除・並べ替え・複製・貼付を、1件のUndo、失敗時rollback、cache無効化、Prefab override記録へまとめる。Profile参照中の直接編集は拒否する。再評価とUI更新は呼出し側が担当し、raw readerから実行しない。
-- public `LatticeDeformer.InsertGroup` / `MoveGroup` を追加し、Inspectorのprivate field reflectionを除去した。既存APIの互換入口、保存フィールド、schema version、既存GUID、履歴fixtureと期待値は維持する。各ツールへの展開、評価・移行・Previewの分離は後続作業。
-- `DeformerAuthoringBoundaryTests` はraw読取り、Profile不変、失敗時rollback、Undo/Redo、Inspector callback、Prefab Apply/save-reloadを検証する。今回の隔離Unity batch検証は描画確認を含まないため、GraphicsE2Eと実際のScene View操作は別途実施する。
+- public `LatticeDeformer.InsertGroup` / `MoveGroup` を追加し、Inspectorのprivate field reflectionを除去した。既存APIの互換入口、保存フィールド、schema version、既存GUID、履歴fixtureと期待値は維持する。各ツールの編集寿命は `DeformerEditSession`、数値評価は `Runtime/Evaluation`、移行は `Runtime/Migration`、Previewの所有は `Editor/Preview` へ接続済み。
+- `DeformerAuthoringBoundaryTests` はraw読取り、Profile不変、失敗時rollback、Undo/Redo、Inspector callback、Prefab Apply/save-reloadを検証する。その検証だけで描画や実マウス操作の合格を主張しない。GraphicsE2Eの実XMLと利用者のScene View確認を区別して記録する。
 - `DeformerStore` はUnityのserialized propertyを変更するadapter。Layer削除後のnumeric selectionとclampは旧Inspectorの契約を保持し、public `RemoveLayer` が持つ選択規則と混同しない。Inspectorの構造操作は `PerformEditOperation` → service → store/API →再評価と表示更新へ統一した。
-- `DeformerEditService.ExecuteBatch` は対象集合を先に固定・検証し、全対象を1つのUndoへ記録する。途中の拒否・例外は全対象をrollbackしてcacheを破棄する。Profileやfuture component/layer-model/lattice versionはUndoを作る前に拒否し、実際の複数選択UIとdragへの接続は後続工程で扱う。
+- `DeformerEditService.ExecuteBatch` は対象集合を先に固定・検証し、全対象を1つのUndoへ記録する。途中の拒否・例外は全対象をrollbackしてcacheを破棄する。Profileやfuture component/layer-model/lattice versionはUndoを作る前に拒否し、複数選択のLayer設定UIは `LayerSettingsEdit.ExecuteBatch` へ接続する。3ツールの複数frame dragは別の `DeformerEditSession` がUndo snapshotと対象identityを所有する。
 - `Tests/Editor/Fixtures/ArchitectureBaseline/` は固定commit `c7f499c` の実行結果。`ArchitectureContractSnapshot.Export` と `LayerOperationBaselineFixture.Export` を隔離した基準版Unityで実行して生成し、新実装から期待値を上書きしない。公開API・保存field/path・enum・GUIDの維持と、6種類の旧Inspector操作を独立の互換性テストで照合する。`Docs~/Architecture/2026-09-07-p0-p1-contracts.md` に再実行条件と検証根拠を記録する。
 
 ### 統合 EditorTool アーキテクチャ
@@ -456,3 +467,5 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 更新時は既存のフォーマットに従い、簡潔かつ正確に記述してください。
 
 - 配布物は Tools~/Release/package_release.py で固定commitから作成し、ZIP/UnityPackageの共通対象・GUID・内容を再読込みして照合する。Tests/Tools~/Docs~/Architectureは配布しない。~ directory内の非import対象はZIPだけに含む従来契約をreportへ明示する。内容検査の成功をUnity importや通常更新の合格とは扱わない。release workflowのpublishは既定falseで、公開は最終確認と明示承認後にだけ実行する。
+
+- CIの必須Category検証は `Tools~/Assert-TestResults.ps1` でNUnit suiteからの継承も含めてcase単位に数える。`Tools~/Test-AssertTestResults.ps1` は継承・重複・欠落・Skippedを検査する。Category付きテストを増減した際は `.github/workflows/test.yml` の期待件数を実XMLで照合する。

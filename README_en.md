@@ -14,7 +14,7 @@ Use it for fitting clothing, hair, and accessories, manually correcting intersec
 日本語ドキュメント: [README.md](README.md)
 
 This branch develops `2.0.0-beta.1`, an internal refactoring that preserves existing data and functionality.
-The first stage separates validation reads and group editing operations while retaining the existing serialized format.
+The implementation separates data reads, editing operations, deformation evaluation, migration, and Preview management while preserving compatibility with existing components and saved data. Inspector and Scene View tools also separate interaction, calculation, and presentation responsibilities.
 See the [development status](https://github.com/32ba/VRC-lattice-deformation-tool/blob/2.0.0-beta.1/Docs~/Architecture/2.0.0-beta.1-progress.md) for the implemented scope, test results, and remaining stages.
 
 ## Main features

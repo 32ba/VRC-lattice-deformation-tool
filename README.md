@@ -14,7 +14,7 @@ Unity 内で `MeshRenderer` / `SkinnedMeshRenderer` の形状をレイヤーと�
 English documentation: [README_en.md](README_en.md)
 
 このブランチでは、既存データと機能を維持する内部リファクタリングを `2.0.0-beta.1` として開発しています。
-最初の段階として、保存形式を維持したまま、検証用のデータ読み取りとGroup編集操作を分離しました。
+既存コンポーネントと保存データの互換性を保ちながら、データ読取り・編集操作・変形評価・移行・Previewの管理を分離しています。InspectorとScene Viewの各ツールも、操作・計算・表示の役割ごとに整理しています。
 実装済みの範囲、テスト結果、残る工程は[開発状況](https://github.com/32ba/VRC-lattice-deformation-tool/blob/2.0.0-beta.1/Docs~/Architecture/2.0.0-beta.1-progress.md)を参照してください。
 
 ## 主な機能
