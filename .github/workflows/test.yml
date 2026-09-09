@@ -19,6 +19,7 @@ name: Test
 # When the secrets are missing, unity-test-runner fails the job with its own activation error.
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:

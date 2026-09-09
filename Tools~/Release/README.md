@@ -26,3 +26,11 @@ python Tools~/Release/verify_vpm_upgrade.py --baseline C:/evidence/NormalUpgrade
 ```
 
 baselineには `before.json`、`before-files.json`、`OldProject`、evidenceには `reloaded.json`、`old-vpm-manifest.json`、`new-vpm-manifest.json`、更新後の `Project` を置く。出力は新規ファイルだけを許容する。旧データと4対象の変形結果・参照・選択・override、新版ZIPとの全ファイル一致、旧C#ファイルの残存、他のVPM依存の維持を検査する。クライアント取得操作そのものは別の実行logと取得直後の照合記録で証明する。
+
+## 公開対象commitのCI確認
+
+publish=trueのときは、tag作成・Release・VPM更新より先にverify_release_ci.pyを実行する。対象の完全SHAに対するtest.ymlの最新push/manual runが成功し、Package archives、EditMode Tests (default)、EditMode Tests (next-release)がすべて完了・成功している必要がある。missing/skipped/duplicate job、進行中・失敗・取消を拒否し、古い成功runへfallbackしない。
+
+PRのCIは一時的なmerge commitを試すため、この公開確認には使わない。masterへのpush、またはtest.ymlのworkflow_dispatchで公開対象commitを直接検証する。両構成を導入する以前の単一job成功も受け入れない。CI照会はGitHub CLIのread操作のみで、publish=falseの配布物生成にはCI照会を要求しない。
+
+このチェックは実操作確認や利用者の公開承認を代替しない。workflowを追加しただけでリモートCIが成功したとは扱わない。

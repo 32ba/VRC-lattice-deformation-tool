@@ -14,11 +14,18 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     steps:
 
       # Checkout Local Repository
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Require successful CI for this commit
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 Tools~/Release/verify_release_ci.py --commit "$GITHUB_SHA"
 
       - name: Generate token
         if: inputs.publish

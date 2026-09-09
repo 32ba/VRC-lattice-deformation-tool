@@ -471,3 +471,5 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - CIの必須Category検証は `Tools~/Assert-TestResults.ps1` でNUnit suiteからの継承も含めてcase単位に数える。`Tools~/Test-AssertTestResults.ps1` は継承・重複・欠落・Skippedを検査する。Category付きテストを増減した際は `.github/workflows/test.yml` の期待件数を実XMLで照合する。
 
 - CIはdefault/next-releaseの2構成を別jobで実行する。warmup終了後に `Tools~/CI/feature_configuration.py` でStandaloneの機能defineだけを切り替え、結果XMLで指定構成のコンパイルを検証する。Library cacheとartifactは構成ごとに分ける。利用者の稼働中projectへこの設定ツールを使わない。
+
+- publish=trueでは `Tools~/Release/verify_release_ci.py` が同じcommitの最新push/manual Test runと配布物・両EditMode jobの成功を要求する。PR merge試験は公開commitの証拠に使わず、必要ならtest.ymlの手動実行を使う。dry-run生成と公開承認の条件は従来どおり。
