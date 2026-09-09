@@ -35,6 +35,7 @@ public static class EvaluationBenchmark
         public bool upstreamPreview;
         public int clearanceReferenceVertices;
         public string brushDisplacementHash;
+        public string proportionalInfluenceHash;
         public bool recalculateNormals, recalculateTangents;
         public bool recalculateBounds = true;
         public Measurement firstEvaluation;
@@ -120,12 +121,13 @@ public static class EvaluationBenchmark
         };
         if (calibrationOnly) yield break;
         foreach (int vertices in new[] { 70000, 200000 })
-            foreach (string kind in new[] { "direct", "groups", "generated", "profile", "preview", "clearance", "brush-normal" })
+            foreach (string kind in new[] { "direct", "groups", "generated", "profile", "preview", "clearance", "brush-normal", "proportional" })
             {
                 string scenarioName = kind + "-" + vertices;
                 if (!string.IsNullOrEmpty(s_document.scenarioFilter) &&
                     !s_document.scenarioFilter.Split(';').Contains(scenarioName)) continue;
-                foreach (var work in kind == "clearance" ? RunClearance(vertices, samples) : Run(vertices, kind, samples)) yield return work;
+                foreach (var work in kind == "clearance" ? RunClearance(vertices, samples) :
+                    kind == "proportional" ? RunProportional(vertices, samples) : Run(vertices, kind, samples)) yield return work;
                 SaveDocument();
                 UnityEngine.Debug.Log("Completed evaluation benchmark: " + kind + " " + vertices);
             }
@@ -398,6 +400,84 @@ public static class EvaluationBenchmark
         finally { Object.DestroyImmediate(reference); }
         scenario.meshCountDeltaAfterDispose = Resources.FindObjectsOfTypeAll<Mesh>().Length - meshCountBefore;
         s_document.scenarios.Add(scenario);
+    }
+
+    private static IEnumerable<Work> RunProportional(int count, int samples)
+    {
+        var root = new GameObject("Proportional benchmark");
+        int meshes = Resources.FindObjectsOfTypeAll<Mesh>().Length;
+        var type = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType(
+            "Net._32Ba.LatticeDeformationTool.Editor.VertexSelectionHandler")).First(t => t != null);
+        const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Static;
+        var radius = type.GetField("s_proportionalRadius", flags);
+        var falloff = type.GetField("s_proportionalFalloff", flags);
+        var selected = (HashSet<int>)type.GetField("s_selectedVertices", flags).GetValue(null);
+        var previousSelection = selected.ToArray();
+        object oldRadius = radius.GetValue(null), oldFalloff = falloff.GetValue(null);
+        var result = new Scenario { name = "proportional-" + count, vertices = count,
+            unchanged = new Measurement[samples], edited = new Measurement[samples] };
+        try
+        {
+            selected.Clear();
+            for (int i = 0; i < 256; i++) selected.Add(i * (count / 256));
+            radius.SetValue(null, 0.03f);
+            falloff.SetValue(null, Enum.Parse(falloff.FieldType, "Linear"));
+            object handler = Activator.CreateInstance(type, true);
+            var points = new Vector3[count];
+            for (int i = 0; i < count; i++) points[i] = new Vector3((i % 256) * 0.002f, (i / 256) * 0.002f, 0);
+            type.GetField("_deformedVertices", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(handler, points);
+            var ensure = Expression.Lambda<Action>(Expression.Call(Expression.Constant(handler, type),
+                type.GetMethod("EnsureProportionalInfluences", BindingFlags.Instance | BindingFlags.NonPublic),
+                Expression.Constant(root.transform))).Compile();
+            Action warm = () => { for (int i = 0; i < 100; i++) ensure(); };
+            int edits = 0;
+            Action edited = () =>
+            {
+                root.transform.localScale = ++edits % 2 == 0 ? Vector3.one : new Vector3(1.1f, 1f, 1f);
+                ensure();
+            };
+            yield return new Work { action = ensure, accept = m => result.firstEvaluation = m, captureName = result.name + ".first" };
+            for (int i = 0; i < 3; i++) yield return new Work { action = warm };
+            for (int i = 0; i < samples; i++)
+            {
+                int index = i;
+                yield return new Work { action = warm, accept = m => result.unchanged[index] = m,
+                    captureName = i == samples - 1 ? result.name + ".unchanged-last" : null };
+            }
+            for (int i = 0; i < 3; i++) yield return new Work { action = edited };
+            for (int i = 0; i < samples; i++)
+            {
+                int index = i;
+                yield return new Work { action = edited, accept = m => result.edited[index] = m,
+                    captureName = i == samples - 1 ? result.name + ".edited-last" : null };
+            }
+            object cache = type.GetField("_proportionalInfluenceCache", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(handler);
+            var getter = cache.GetType().GetMethod("GetInfluence", BindingFlags.Instance | BindingFlags.NonPublic);
+            using (var stream = new MemoryStream())
+            using (var writer = new BinaryWriter(stream))
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    float value = (float)getter.Invoke(cache, new object[] { i });
+                    if (float.IsNaN(value) || value < 0f || value > 1f || (selected.Contains(i) && value != 1f))
+                        throw new InvalidOperationException("Invalid proportional influence.");
+                    writer.Write(value);
+                }
+                writer.Flush();
+                result.proportionalInfluenceHash = BitConverter.ToString(sha.ComputeHash(stream.ToArray())).Replace("-", "").ToLowerInvariant();
+            }
+            result.unchangedP50 = Percentile(result.unchanged, 0.5); result.unchangedP95 = Percentile(result.unchanged, 0.95);
+            result.editedP50 = Percentile(result.edited, 0.5); result.editedP95 = Percentile(result.edited, 0.95);
+        }
+        finally
+        {
+            selected.Clear(); foreach (int index in previousSelection) selected.Add(index);
+            radius.SetValue(null, oldRadius); falloff.SetValue(null, oldFalloff);
+            Object.DestroyImmediate(root);
+        }
+        result.meshCountDeltaAfterDispose = Resources.FindObjectsOfTypeAll<Mesh>().Length - meshes;
+        s_document.scenarios.Add(result);
     }
 
     private static void Tick()

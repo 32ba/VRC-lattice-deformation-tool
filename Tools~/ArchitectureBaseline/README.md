@@ -79,3 +79,5 @@ p95が10%を超えて増加した条件、最大GC割当の増加、破棄後の
 UnityのJobs処理後のDLLに限り `-AllowUnityJobInitialization` を付けると、生成型 `__JobReflectionRegistrationOutput__<number>` の静的 `EarlyInit` に付いた `InitializeOnLoadMethodAttribute` だけを許可する。
 Editor APIの呼出し、他のEditor型、製品型への属性付与は引き続き拒否し、違反時は終了code 1を返す。
 Unityの自動生成方式が変わって検査に失敗した場合は、実際のILを確認してから許可条件を更新する。
+
+`proportional-70000;proportional-200000` は256選択頂点、半径0.03、Linearでhandlerの影響cacheを計測する。firstは初回生成、unchangedはcache hitを100回呼ぶbatch（1呼出しの値ではない）、editedはscale変更で1回再構築する処理。最終全頂点の影響度hash一致、有効範囲、選択頂点の影響度1を検査する。reflectionによる準備と結果検証は計測区間外。頂点の移動、Undo、pose取得、Scene View描画は含まない。

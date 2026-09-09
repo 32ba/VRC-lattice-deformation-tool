@@ -47,6 +47,9 @@ $rows = foreach ($after in $candidate.scenarios) {
     if ($before.brushDisplacementHash -ne $after.brushDisplacementHash) {
         throw ('Brush output differs: ' + $after.name)
     }
+    if ($before.proportionalInfluenceHash -ne $after.proportionalInfluenceHash) {
+        throw ('Proportional output differs: ' + $after.name)
+    }
     # Older captures predate the Profile scenario and omit this false field.
     if ([bool]$before.upstreamPreview -ne [bool]$after.upstreamPreview) {
         throw ('Scenario input differs: ' + $after.name + ' upstreamPreview')
