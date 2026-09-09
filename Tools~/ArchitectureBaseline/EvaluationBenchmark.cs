@@ -31,6 +31,7 @@ public static class EvaluationBenchmark
         public int vertices, groups;
         public bool generatedBlendShape;
         public bool profileSource;
+        public bool upstreamPreview;
         public bool recalculateNormals, recalculateTangents;
         public bool recalculateBounds = true;
         public Measurement firstEvaluation;
@@ -116,7 +117,7 @@ public static class EvaluationBenchmark
         };
         if (calibrationOnly) yield break;
         foreach (int vertices in new[] { 70000, 200000 })
-            foreach (string kind in new[] { "direct", "groups", "generated", "profile" })
+            foreach (string kind in new[] { "direct", "groups", "generated", "profile", "preview" })
             {
                 string scenarioName = kind + "-" + vertices;
                 if (!string.IsNullOrEmpty(s_document.scenarioFilter) &&
@@ -133,10 +134,12 @@ public static class EvaluationBenchmark
         var root = new GameObject("Evaluation benchmark");
         var mesh = CreateMesh(vertexCount);
         MeshDeformerProfile profile = null;
+        Mesh upstream = null;
         var result = new Scenario
         {
             name = kind + "-" + vertexCount, vertices = vertexCount, groups = kind == "groups" ? 4 : 1,
             generatedBlendShape = kind == "generated", profileSource = kind == "profile",
+            upstreamPreview = kind == "preview",
             unchanged = new Measurement[samples], edited = new Measurement[samples]
         };
         try
@@ -180,6 +183,16 @@ public static class EvaluationBenchmark
                 profile.Capture(deformer.Groups, 0, mesh);
                 if (!deformer.UseProfile(profile)) throw new InvalidOperationException("Profile was rejected.");
             }
+            if (result.upstreamPreview)
+            {
+                upstream = Object.Instantiate(mesh);
+                var points = upstream.vertices;
+                for (int i = 0; i < points.Length; i++) points[i] += Vector3.forward * 0.02f;
+                upstream.vertices = points;
+                var deltas = new Vector3[vertexCount];
+                for (int i = 0; i < deltas.Length; i++) deltas[i] = Vector3.up * 0.01f;
+                upstream.AddBlendShapeFrame("Upstream", 100f, deltas, null, null);
+            }
             // Profile edits change the shared asset, exercising external change
             // detection and replacement of the owner's independent evaluation copy.
             var lattice = result.profileSource ? profile.Groups[0].Layers[0].Settings : deformer.Layers[0].Settings;
@@ -189,12 +202,26 @@ public static class EvaluationBenchmark
                 typeof(LatticeDeformer).GetMethod("NotifyDeformationDataChanged", BindingFlags.Instance | BindingFlags.NonPublic));
             Action evaluate = () =>
             {
-                var output = deformer.Deform(false);
-                if (output == null || output.vertexCount != vertexCount)
-                    throw new InvalidOperationException("Evaluation was rejected or changed vertex count.");
-                if (result.generatedBlendShape &&
-                    (output.blendShapeCount != 1 || output.GetBlendShapeFrameCount(0) != 100))
-                    throw new InvalidOperationException("Expected the generated 100-frame BlendShape workload.");
+                Mesh output = null;
+                try
+                {
+                    output = result.upstreamPreview ? deformer.CreatePreviewMeshFromInput(upstream) : deformer.Deform(false);
+                    if (output == null || output.vertexCount != vertexCount)
+                        throw new InvalidOperationException("Evaluation was rejected or changed vertex count.");
+                    if (result.upstreamPreview && (output == upstream || output == mesh ||
+                        output.blendShapeCount != 1 || output.GetBlendShapeName(0) != "Upstream" ||
+                        output.GetBlendShapeFrameCount(0) != 1))
+                        throw new InvalidOperationException("Expected an independent upstream Preview with one source frame.");
+                    if (result.generatedBlendShape &&
+                        (output.blendShapeCount != 1 || output.GetBlendShapeFrameCount(0) != 100))
+                        throw new InvalidOperationException("Expected the generated 100-frame BlendShape workload.");
+                }
+                finally
+                {
+                    // Preview returns a caller-owned clone; include its disposal in each operation.
+                    if (result.upstreamPreview && output != null && output != upstream && output != mesh)
+                        Object.DestroyImmediate(output);
+                }
             };
             int edit = 0;
             Action editedEvaluation = () =>
@@ -227,6 +254,7 @@ public static class EvaluationBenchmark
         finally
         {
             Object.DestroyImmediate(root);
+            if (upstream != null) Object.DestroyImmediate(upstream);
             if (profile != null) Object.DestroyImmediate(profile);
             Object.DestroyImmediate(mesh);
         }

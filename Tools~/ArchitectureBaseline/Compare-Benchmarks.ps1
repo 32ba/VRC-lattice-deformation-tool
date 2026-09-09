@@ -42,6 +42,9 @@ if (($baseline.scenarios.name | ConvertTo-Json -Compress) -ne ($candidate.scenar
 $rows = foreach ($after in $candidate.scenarios) {
     $before = $baseline.scenarios | Where-Object name -EQ $after.name
     # Older captures predate the Profile scenario and omit this false field.
+    if ([bool]$before.upstreamPreview -ne [bool]$after.upstreamPreview) {
+        throw ('Scenario input differs: ' + $after.name + ' upstreamPreview')
+    }
     if ([bool]$before.profileSource -ne [bool]$after.profileSource) {
         throw ('Scenario input differs: ' + $after.name + ' profileSource')
     }

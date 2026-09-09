@@ -59,7 +59,9 @@ p95が10%を超えて増加した条件、最大GC割当の増加、破棄後の
 出力件数をレビューし、残る性能条件も含めて判断する。
 ソース照合は改行とUnityが空のimporter値へ追加する空白だけを明示的に正規化し、GUIDやC#本文の違いを許容しない。
 
-このharnessはScene Viewの描画、drag入力、上流Preview、Clearance、Weight Transferの測定を代替しない。
+`preview-70000;preview-200000` は上流で位置を変更したmeshと1つのBlendShape frameを入力する同期Preview評価を測る。初回・変更なし・ラティス編集後を区別し、各操作にcaller-owned出力の破棄を含む。通常評価のcomponent-owned出力とは所有契約が異なるため、同じscenario同士だけで比較する。
+
+このharnessはScene Viewの描画、drag入力、NDMF全体の非同期Preview更新、Clearance、Weight Transferの測定を代替しない。
 
 `ProfileSelectionBaselineProbe.cs` は固定基準 `c7f499c` 専用の再現probe。
 隔離基準hostの `Assets/Editor/` へコピーして `-executeMethod ProfileSelectionBaselineProbe.Run -quit` で実行すると、2番目のGroupを選んだProfileの適用結果、raw/public選択、Group数、Mesh生成可否をJSONに記録する。
