@@ -255,7 +255,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
         internal string GetContentFingerprint()
         {
-            return JsonUtility.ToJson(DeformerProfilePayload.From(_groups, _activeGroupIndex));
+            return ProfileContentFingerprint.Capture(_groups, _activeGroupIndex);
         }
 
         internal string GetCompatibilityFingerprint()

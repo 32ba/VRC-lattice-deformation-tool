@@ -38,6 +38,20 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, HideInInspector] private bool _hasImportedBlendShapeFrameWeight;
         [SerializeField, HideInInspector] private float _importedBlendShapeFrameWeight;
 
+        internal LatticeLayer CreateFingerprintMetadata(System.IO.BinaryWriter writer)
+        {
+            ProfileContentFingerprint.Write(writer, _brushDisplacements);
+            ProfileContentFingerprint.Write(writer, _vertexMask);
+            ProfileContentFingerprint.Write(writer, _fitCorrectionConstraintMask);
+            var copy = (LatticeLayer)MemberwiseClone();
+            copy._brushDisplacements = Array.Empty<Vector3>();
+            copy._vertexMask = Array.Empty<float>();
+            copy._fitCorrectionConstraintMask = Array.Empty<float>();
+            writer.Write(_settings != null);
+            copy._settings = _settings?.CreateFingerprintMetadata(writer);
+            return copy;
+        }
+
         public string Name
         {
             get => string.IsNullOrWhiteSpace(_name) ? "Layer" : _name;

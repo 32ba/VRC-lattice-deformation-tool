@@ -16,6 +16,22 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField] private string _blendShapeName = "";
         [SerializeField] private AnimationCurve _blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
         [SerializeField] private BlendShapeCompositionMode _blendShapeComposition = BlendShapeCompositionMode.Single;
+
+        internal DeformerGroup CreateFingerprintMetadata(System.IO.BinaryWriter writer)
+        {
+            var copy = (DeformerGroup)MemberwiseClone();
+            writer.Write(_layers?.Count ?? -1);
+            if (_layers != null)
+            {
+                copy._layers = new List<LatticeLayer>(_layers.Count);
+                for (int i = 0; i < _layers.Count; i++)
+                {
+                    writer.Write(_layers[i] != null);
+                    copy._layers.Add(_layers[i]?.CreateFingerprintMetadata(writer));
+                }
+            }
+            return copy;
+        }
         [NonSerialized] private List<LatticeLayer> _readOnlyLayerSource;
         [NonSerialized] private ReadOnlyCollection<LatticeLayer> _readOnlyLayers;
 
