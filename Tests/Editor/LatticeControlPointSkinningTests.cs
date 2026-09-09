@@ -8,8 +8,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public class LatticeControlPointSkinningTests
     {
-        [Test]
-        public void Update_UsesInterpolatedBoneWeightsAndRoundTripsControlPoint()
+        [TestCase(0)] [TestCase(1)] [TestCase(2)]
+        public void Update_UsesInterpolatedBoneWeightsAndRoundTripsControlPoint(int rootBoneMode)
         {
             var root = new GameObject("Root");
             var bone0 = new GameObject("Bone0");
@@ -24,7 +24,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var renderer = root.AddComponent<SkinnedMeshRenderer>();
                 renderer.sharedMesh = mesh;
                 renderer.bones = new[] { bone0.transform, bone1.transform };
-                renderer.rootBone = bone0.transform;
+                // The actual per-point binding uses vertex weights even without a listed rootBone.
+                renderer.rootBone = rootBoneMode == 0 ? bone0.transform :
+                    rootBoneMode == 1 ? null : root.transform;
 
                 var cache = new LatticeControlPointSkinning();
                 Assert.That(

@@ -1,4 +1,4 @@
-﻿#if UNITY_EDITOR
+#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -103,7 +103,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int _proxySnapshotHash;
         private Bounds _cachedProxyMeshBounds;
         private Bounds _cachedProxyRendererBounds;
-        private Matrix4x4? _cachedSkinningCorrection;
         private readonly LatticeControlPointSkinning _controlPointSkinning =
             new LatticeControlPointSkinning();
         private readonly SkinnedPoseSnapshot _poseSnapshot = new SkinnedPoseSnapshot("Lattice Cage Skinning Bounds");
@@ -115,7 +114,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Bounds _skinningReferenceSampleBounds;
         private Bounds _skinningReferenceBakedBounds;
         private Bounds _skinningDisplayBounds;
-        private bool _hasSkinningDisplayBounds;
         private bool _skinningSnapshotValid;
         private int _skinningSnapshotHash;
         private SkinnedMeshRenderer _cachedSkinningRenderer;
@@ -551,9 +549,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     $"useProxy={useProxy}, mode=per-control-point, controlCount={controlCount}");
             }
 
-            // Auto-initialize clamp values once per instance based on observed offset
-            // Auto alignment is now manual (via button); no automatic recalculation here.
-
             if (LatticePreviewUtility.DebugAlignLogs && useProxy)
             {
                 LatticePreviewUtility.LogAlign("Bounds",
@@ -968,11 +963,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (renderer == null)
             {
-                _cachedSkinningCorrection = null;
                 _controlPointSkinning.Reset();
                 _hasSkinningFallbackBounds = false;
                 _hasSkinningReferenceBounds = false;
-                _hasSkinningDisplayBounds = false;
                 _cachedSkinningRenderer = null;
                 _cachedSkinningBones = null;
                 _cachedSkinningRendererDirtyCount = 0;
@@ -1041,7 +1034,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     deformer != null ? deformer.GetComponent<SkinnedMeshRenderer>() : null,
                     deformer != null ? deformer.InitialBlendShapeWeightsForEditor : null);
                 _hasSkinningFallbackBounds = false;
-                _hasSkinningDisplayBounds = false;
                 if (hasPerPointSkinning && _controlPointSkinning.HasPoseBounds)
                 {
                     int geometryHash = ComputeSkinningReferenceGeometryHash(
@@ -1079,7 +1071,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                             _skinningReferenceBakedBounds,
                             _skinningReferenceSampleBounds,
                             _controlPointSkinning.PosedMeshBounds);
-                        _hasSkinningDisplayBounds = true;
                     }
                 }
                 else if (!hasPerPointSkinning)
@@ -1097,9 +1088,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                             _skinningFallbackBounds.size.sqrMagnitude > 1e-12f;
                     }
                 }
-                // Retained for serialized/test compatibility only. Display now uses the
-                // per-control-point matrices above instead of a root-bone approximation.
-                _cachedSkinningCorrection = null;
                 _skinningSnapshotHash = hash;
                 _skinningSnapshotValid = true;
             }
@@ -1189,7 +1177,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _cachedSkinningBones = null;
             _cachedSkinningRendererDirtyCount = 0;
             _skinningSnapshotValid = false;
-            _cachedSkinningCorrection = null;
             // hierarchyChanged/projectChanged also fire for transient in-place preview
             // mesh updates. Keep the surface-to-bone binding in that case; Update()
             // will rebuild it if the renderer, mesh identity, topology, bounds, or grid
@@ -1200,7 +1187,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
             _hasSkinningFallbackBounds = false;
             _hasSkinningReferenceBounds = false;
-            _hasSkinningDisplayBounds = false;
             _poseSnapshot.Reset();
         }
 
@@ -1358,93 +1344,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
                    !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
                    !float.IsNaN(value.z) && !float.IsInfinity(value.z);
-        }
-
-        /// <summary>
-        /// Computes a correction matrix (source-local → corrected source-local) that accounts for
-        /// the discrepancy between the renderer's Transform and the actual bone+bindPose placement.
-        /// This handles both position offsets (MA position reset) and scale differences (MA Scale Adjuster).
-        /// Returns null if no significant correction is needed.
-        /// </summary>
-        private static Matrix4x4? ComputeSkinningCorrectionMatrix(
-            SkinnedMeshRenderer skinnedRenderer, Bounds sourceBounds,
-            Matrix4x4 sourceToWorld, Matrix4x4 worldToSource)
-        {
-            var mesh = skinnedRenderer.sharedMesh;
-            if (mesh == null) return null;
-
-            var bones = skinnedRenderer.bones;
-            var bindposes = mesh.bindposes;
-            if (bones == null || bones.Length == 0 || bindposes == null || bindposes.Length == 0)
-                return null;
-
-            // The correction is only meaningful when rootBone has an explicit bind
-            // pose. Falling back to bone 0 shifts the cage on rigs whose rootBone is
-            // null or is intentionally outside the skinning set.
-            int boneIdx = -1;
-            var rootBone = skinnedRenderer.rootBone;
-            if (rootBone == null)
-                return null;
-            for (int i = 0; i < bones.Length; i++)
-            {
-                if (bones[i] == rootBone)
-                {
-                    boneIdx = i;
-                    break;
-                }
-            }
-
-            if (boneIdx < 0 || boneIdx >= bindposes.Length || bones[boneIdx] == null)
-                return null;
-
-            var meshToWorldViaBone = bones[boneIdx].localToWorldMatrix * bindposes[boneIdx];
-
-            // Check significance: compare center and a corner to detect both position and scale differences
-            var actualCenter = meshToWorldViaBone.MultiplyPoint3x4(sourceBounds.center);
-            var expectedCenter = sourceToWorld.MultiplyPoint3x4(sourceBounds.center);
-            var actualCorner = meshToWorldViaBone.MultiplyPoint3x4(sourceBounds.max);
-            var expectedCorner = sourceToWorld.MultiplyPoint3x4(sourceBounds.max);
-            if ((actualCenter - expectedCenter).sqrMagnitude < 0.0001f &&
-                (actualCorner - expectedCorner).sqrMagnitude < 0.0001f)
-                return null;
-
-            // skinningLocal transforms from source-local to corrected source-local
-            // so that: sourceToWorld * skinningLocal * point ≈ meshToWorldViaBone * point
-            return worldToSource * meshToWorldViaBone;
-        }
-
-        private static void AutoInitAlignment(LatticeDeformer deformer, Bounds sourceBounds, Vector3 centerOffsetProxyLocal, bool computeOffset, bool computeScale)
-        {
-            if (deformer == null)
-            {
-                return;
-            }
-
-            const float eps = 1e-4f;
-            var ext = sourceBounds.extents;
-            if (computeOffset)
-            {
-                deformer.ManualOffsetProxy = centerOffsetProxyLocal;
-                deformer.AllowCenterOffsetWhenBoundsSkipped = true;
-            }
-
-            if (computeScale)
-            {
-                // Compute scale ratio from proxy vs source bounds sizes if available
-                // Here we reuse centerOffsetProxyLocal magnitude relative to bounds as heuristic fallback
-                float absX = Mathf.Abs(centerOffsetProxyLocal.x);
-                float absY = Mathf.Abs(centerOffsetProxyLocal.y);
-                float absZ = Mathf.Abs(centerOffsetProxyLocal.z);
-
-                float sx = ext.x > eps ? (absX / (ext.x + eps) + 1f) : 1f;
-                float sy = ext.y > eps ? (absY / (ext.y + eps) + 1f) : 1f;
-                float sz = ext.z > eps ? (absZ / (ext.z + eps) + 1f) : 1f;
-
-                deformer.ManualScaleProxy = new Vector3(sx, sy, sz);
-            }
-
-            deformer.AlignAutoInitialized = true;
-            EditorUtility.SetDirty(deformer);
         }
 
         internal static void ClearSelection()
