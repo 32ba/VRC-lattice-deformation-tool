@@ -20,12 +20,14 @@ public static class AsyncPreviewBenchmark
         public int vertices, ordinal, polls;
         public double milliseconds;
         public bool warmup;
+        public int previousProxyId, observedProxyId;
     }
     [Serializable] public sealed class Report
     {
         public string unity, graphics, error;
         public string scope = "Brush payload write and interactive refresh to full final-proxy vertex match; Editor update polling included; no OS input, presentation or GC measurement";
         public bool complete;
+        public bool forceRebuild;
         public List<Sample> samples = new List<Sample>();
     }
     private delegate bool ProxyLookup(Renderer original, out Renderer proxy);
@@ -45,6 +47,7 @@ public static class AsyncPreviewBenchmark
     private static int s_count, s_ordinal, s_polls, s_stage;
     private static float s_expectedZ;
     private static double s_deadline;
+    private static int s_previousProxyId, s_observedProxyId;
 
     public static void Export()
     {
@@ -52,6 +55,7 @@ public static class AsyncPreviewBenchmark
             throw new InvalidOperationException("Use an isolated batch Editor with D3D11.");
         var args = Environment.GetCommandLineArgs();
         s_output = args[Array.IndexOf(args, "-asyncPreviewOutput") + 1];
+        s_report.forceRebuild = args.Contains("-asyncPreviewForceRebuild");
         s_report.unity = Application.unityVersion;
         s_report.graphics = SystemInfo.graphicsDeviceName;
         var types = AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetTypes()).ToArray();
@@ -108,6 +112,7 @@ public static class AsyncPreviewBenchmark
         s_deformer.EnsureDisplacementCapacity();
         Selection.activeGameObject = s_owner;
         s_expectedZ = 0;
+        s_previousProxyId = 0;
         s_ordinal = -1;
         PreviewSession.Current.ForceRebuild();
         s_deadline = EditorApplication.timeSinceStartup + 60;
@@ -117,6 +122,8 @@ public static class AsyncPreviewBenchmark
     {
         if (!s_lookup(s_renderer, out var proxy) || proxy == null || proxy == s_renderer ||
             NDMFPreview.GetOriginalObjectForProxy(proxy.gameObject) != s_owner) return false;
+        s_observedProxyId = proxy.GetInstanceID();
+        if (s_report.forceRebuild && s_ordinal >= 0 && s_observedProxyId == s_previousProxyId) return false;
         var filter = proxy.GetComponent<MeshFilter>();
         var mesh = filter != null ? filter.sharedMesh : null;
         if (mesh == null || mesh == s_source || mesh.vertexCount != s_count) return false;
@@ -143,7 +150,8 @@ public static class AsyncPreviewBenchmark
             {
                 s_clock.Stop();
                 s_report.samples.Add(new Sample { vertices = s_count, ordinal = s_ordinal,
-                    warmup = s_ordinal > 0 && s_ordinal < 4, polls = s_polls, milliseconds = s_clock.Elapsed.TotalMilliseconds });
+                    warmup = s_ordinal > 0 && s_ordinal < 4, polls = s_polls, milliseconds = s_clock.Elapsed.TotalMilliseconds,
+                    previousProxyId = s_previousProxyId, observedProxyId = s_observedProxyId });
             }
             if (++s_ordinal == 19)
             {
@@ -153,12 +161,14 @@ public static class AsyncPreviewBenchmark
                 s_report.complete = true; Finish(0); return;
             }
             s_polls = 0;
+            s_previousProxyId = s_observedProxyId;
             s_expectedZ = (s_ordinal + 1) * 0.0001f;
             s_deadline = EditorApplication.timeSinceStartup + 60;
             s_clock.Restart();
             var displacements = s_deformer.Displacements;
             for (int i = 0; i < displacements.Length; i++) displacements[i] = new Vector3(0, 0, s_expectedZ);
             s_refresh(s_deformer);
+            if (s_report.forceRebuild) PreviewSession.Current.ForceRebuild();
         }
         catch (Exception e) { s_report.error = e.ToString(); Finish(1); }
     }
