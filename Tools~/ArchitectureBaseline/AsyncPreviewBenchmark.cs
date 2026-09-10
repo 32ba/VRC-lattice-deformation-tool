@@ -9,7 +9,9 @@ using System.Reflection;
 using nadena.dev.ndmf.preview;
 using Net._32Ba.LatticeDeformationTool;
 using UnityEditor;
+using UnityEditorInternal;
 using UnityEngine;
+using UnityEngine.Profiling;
 using UnityEngine.Rendering;
 using Object = UnityEngine.Object;
 
@@ -21,13 +23,17 @@ public static class AsyncPreviewBenchmark
         public double milliseconds;
         public bool warmup;
         public int previousProxyId, observedProxyId;
+        public long refreshAllocatedBytes = -1;
     }
     [Serializable] public sealed class Report
     {
         public string unity, graphics, error;
-        public string scope = "Brush payload write and interactive refresh to full final-proxy vertex match; Editor update polling included; no OS input, presentation or GC measurement";
+        public string scope = "Brush payload write and interactive refresh to full final-proxy vertex match; Editor update polling included; no OS input or presentation measurement";
+        public string allocationScope = "Only when profileAllocations is true: GC.Alloc size metadata inside the synchronous Lattice.Async.Refresh sample on the Editor main thread; excludes later asynchronous work";
         public bool complete;
         public bool forceRebuild;
+        public bool profileAllocations;
+        public long calibrationBytes;
         public List<Sample> samples = new List<Sample>();
         public List<MeshLifetime> meshLifetimes = new List<MeshLifetime>();
     }
@@ -56,6 +62,9 @@ public static class AsyncPreviewBenchmark
     private static readonly Dictionary<int, Mesh> s_observedMeshes = new Dictionary<int, Mesh>();
     private static double s_cleanupStarted;
     private static int s_cleanupPolls;
+    private static CustomSampler s_allocationSampler;
+    private static int s_frameBefore;
+    private static bool s_profilerEnabled, s_profileEditor, s_cpuEnabled, s_memoryEnabled;
 
     public static void Export()
     {
@@ -64,6 +73,20 @@ public static class AsyncPreviewBenchmark
         var args = Environment.GetCommandLineArgs();
         s_output = args[Array.IndexOf(args, "-asyncPreviewOutput") + 1];
         s_report.forceRebuild = args.Contains("-asyncPreviewForceRebuild");
+        s_report.profileAllocations = args.Contains("-asyncPreviewProfileAllocations");
+        if (s_report.profileAllocations)
+        {
+            s_profilerEnabled = ProfilerDriver.enabled;
+            s_profileEditor = ProfilerDriver.profileEditor;
+            s_cpuEnabled = ProfilerDriver.IsAreaEnabled(ProfilerArea.CPU);
+            s_memoryEnabled = ProfilerDriver.IsAreaEnabled(ProfilerArea.Memory);
+            ProfilerDriver.profileEditor = true;
+            ProfilerDriver.SetAreaEnabled(ProfilerArea.CPU, true);
+            ProfilerDriver.SetAreaEnabled(ProfilerArea.Memory, false);
+            ProfilerDriver.ClearAllFrames();
+            ProfilerDriver.enabled = true;
+            s_allocationSampler = CustomSampler.Create("Lattice.Async.Refresh");
+        }
         s_report.unity = Application.unityVersion;
         s_report.graphics = SystemInfo.graphicsDeviceName;
         var types = AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetTypes()).ToArray();
@@ -152,6 +175,23 @@ public static class AsyncPreviewBenchmark
             if (s_stage == 0)
             {
                 if (PreviewSession.Current == null) return;
+                if (s_report.profileAllocations)
+                {
+                    s_frameBefore = ProfilerDriver.lastFrameIndex;
+                    s_allocationSampler.Begin();
+                    try { GC.KeepAlive(new byte[16384]); }
+                    finally { s_allocationSampler.End(); }
+                    s_stage = 3; return;
+                }
+                Create(70000); s_stage = 1; return;
+            }
+            if (s_stage == 3)
+            {
+                if (!TryReadAllocation(out var calibration)) return;
+                if (calibration < 16384) throw new Exception("GC.Alloc calibration failed");
+                s_report.calibrationBytes = calibration;
+                ProfilerDriver.SaveProfile(s_output + ".calibration.raw");
+                ProfilerDriver.ClearAllFrames();
                 Create(70000); s_stage = 1; return;
             }
             if (s_stage == 2)
@@ -169,10 +209,17 @@ public static class AsyncPreviewBenchmark
             if (!Matches()) return;
             if (s_ordinal >= 0)
             {
+                long allocation = -1;
+                if (s_report.profileAllocations && !TryReadAllocation(out allocation)) return;
                 s_clock.Stop();
                 s_report.samples.Add(new Sample { vertices = s_count, ordinal = s_ordinal,
                     warmup = s_ordinal > 0 && s_ordinal < 4, polls = s_polls, milliseconds = s_clock.Elapsed.TotalMilliseconds,
-                    previousProxyId = s_previousProxyId, observedProxyId = s_observedProxyId });
+                    previousProxyId = s_previousProxyId, observedProxyId = s_observedProxyId, refreshAllocatedBytes = allocation });
+                if (s_report.profileAllocations)
+                {
+                    if (s_ordinal == 0 || s_ordinal == 18) ProfilerDriver.SaveProfile(s_output + "." + s_count + "-" + s_ordinal + ".raw");
+                    ProfilerDriver.ClearAllFrames();
+                }
             }
             if (++s_ordinal == 19)
             {
@@ -190,10 +237,15 @@ public static class AsyncPreviewBenchmark
             s_expectedZ = (s_ordinal + 1) * 0.0001f;
             s_deadline = EditorApplication.timeSinceStartup + 60;
             s_clock.Restart();
-            var displacements = s_deformer.Displacements;
-            for (int i = 0; i < displacements.Length; i++) displacements[i] = new Vector3(0, 0, s_expectedZ);
-            s_refresh(s_deformer);
-            if (s_report.forceRebuild) PreviewSession.Current.ForceRebuild();
+            if (s_report.profileAllocations) { s_frameBefore = ProfilerDriver.lastFrameIndex; s_allocationSampler.Begin(); }
+            try
+            {
+                var displacements = s_deformer.Displacements;
+                for (int i = 0; i < displacements.Length; i++) displacements[i] = new Vector3(0, 0, s_expectedZ);
+                s_refresh(s_deformer);
+                if (s_report.forceRebuild) PreviewSession.Current.ForceRebuild();
+            }
+            finally { if (s_report.profileAllocations) s_allocationSampler.End(); }
         }
         catch (Exception e) { s_report.error = e.ToString(); Finish(1); }
     }
@@ -210,6 +262,38 @@ public static class AsyncPreviewBenchmark
         EditorApplication.update -= Tick;
         DisposeFixture();
         File.WriteAllText(s_output, JsonUtility.ToJson(s_report, true));
+        if (s_report.profileAllocations)
+        {
+            ProfilerDriver.enabled = s_profilerEnabled;
+            ProfilerDriver.profileEditor = s_profileEditor;
+            ProfilerDriver.SetAreaEnabled(ProfilerArea.CPU, s_cpuEnabled);
+            ProfilerDriver.SetAreaEnabled(ProfilerArea.Memory, s_memoryEnabled);
+        }
         EditorApplication.Exit(code);
+    }
+
+    private static bool TryReadAllocation(out long bytes)
+    {
+        bytes = 0;
+        for (int frame = Math.Max(ProfilerDriver.firstFrameIndex, s_frameBefore + 1); frame <= ProfilerDriver.lastFrameIndex; frame++)
+        {
+            using var data = ProfilerDriver.GetRawFrameDataView(frame, 0);
+            if (!data.valid) continue;
+            int marker = data.GetMarkerId("Lattice.Async.Refresh"), gc = data.GetMarkerId("GC.Alloc");
+            if (marker < 0) continue;
+            for (int sample = 0; sample < data.sampleCount; sample++)
+            {
+                if (data.GetSampleMarkerId(sample) != marker) continue;
+                int end = sample + data.GetSampleChildrenCountRecursive(sample);
+                for (int child = sample + 1; child <= end; child++)
+                {
+                    if (data.GetSampleMarkerId(child) != gc) continue;
+                    if (data.GetSampleMetadataCount(child) < 1) throw new Exception("Missing GC.Alloc size metadata");
+                    bytes += data.GetSampleMetadataAsLong(child, 0);
+                }
+                return true;
+            }
+        }
+        return false;
     }
 }
