@@ -71,6 +71,7 @@ public static class EvaluationBenchmark
     private static int s_frameBefore;
     private static CustomSampler s_sampler;
     private static double s_startedWaiting;
+    private static bool s_actionScheduled;
     private static bool s_previousEnabled, s_previousProfileEditor, s_previousCpu, s_previousMemory;
 
     public static void Export()
@@ -596,6 +597,24 @@ public static class EvaluationBenchmark
     {
         try
         {
+            // Let the recorder become active at a frame boundary before invoking
+            // an operation. Enabling it and sampling immediately can lose the
+            // entire first operation after substantial fixture setup.
+            if (s_actionScheduled)
+            {
+                s_actionScheduled = false;
+                s_frameBefore = ProfilerDriver.lastFrameIndex;
+                double actionStarted = EditorApplication.timeSinceStartup;
+                s_sampler.Begin();
+                try { s_pending.action(); }
+                finally { s_sampler.End(); }
+                s_startedWaiting = EditorApplication.timeSinceStartup;
+                if (s_pending.captureName != null)
+                    UnityEngine.Debug.Log("Benchmark action returned: " + s_pending.captureName +
+                        "; wallSeconds=" + (s_startedWaiting - actionStarted));
+                EditorApplication.QueuePlayerLoopUpdate();
+                return;
+            }
             // Reading sample names allocates managed strings. Do not profile the
             // Profiler reader itself: that would feed its allocations into the next
             // frame being scanned and grow the recording without bound.
@@ -610,6 +629,19 @@ public static class EvaluationBenchmark
                     if (EditorApplication.timeSinceStartup - s_startedWaiting > 30)
                     {
                         ProfilerDriver.SaveProfile(s_output + ".missing-frame.raw");
+                        var diagnostic = new List<string>();
+                        for (int frame = ProfilerDriver.firstFrameIndex; frame <= ProfilerDriver.lastFrameIndex; frame++)
+                        {
+                            using var view = ProfilerDriver.GetRawFrameDataView(frame, 0);
+                            if (!view.valid) continue;
+                            for (int sample = 0; sample < view.sampleCount; sample++)
+                            {
+                                string name = view.GetSampleName(sample);
+                                if (name.Contains("Lattice") || name.Contains("FitCorrection"))
+                                    diagnostic.Add(frame + ": " + name);
+                            }
+                        }
+                        File.WriteAllLines(s_output + ".missing-frame-markers.txt", diagnostic);
                         throw new TimeoutException("CPU Profiler did not provide the measurement frame: " +
                             s_pending.captureName + "; before=" + s_frameBefore +
                             "; first=" + ProfilerDriver.firstFrameIndex + "; last=" + ProfilerDriver.lastFrameIndex);
@@ -627,12 +659,8 @@ public static class EvaluationBenchmark
             if (!s_work.MoveNext()) { Finish(null); return; }
             s_pending = s_work.Current;
             s_pending.marker = "Lattice.Architecture.Measure";
-            s_frameBefore = ProfilerDriver.lastFrameIndex;
-            s_startedWaiting = EditorApplication.timeSinceStartup;
+            s_actionScheduled = true;
             ProfilerDriver.enabled = true;
-            s_sampler.Begin();
-            try { s_pending.action(); }
-            finally { s_sampler.End(); }
             EditorApplication.QueuePlayerLoopUpdate();
         }
         catch (Exception exception) { Finish(exception); }
