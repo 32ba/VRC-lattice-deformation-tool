@@ -81,7 +81,7 @@ To use a source checkout directly, place the repository under the VCC project's 
 3. If needed, enable **Show Penetration**, assign a reference Renderer, and correct the vertices highlighted in red.
 4. Switch the overlay to Vertex Selection for vertex-level finishing.
 
-Penetration visualization is an editing aid based on an approximate test. It is not an exact posed-surface test of a baked reference `SkinnedMeshRenderer`.
+Penetration visualization classifies target vertices against the nearest triangles of the reference mesh, using the reference surface normals to determine the side. A reference `SkinnedMeshRenderer` is baked in its current pose for evaluation. This is not an exhaustive mesh intersection test; intersections between sampled vertices may go undetected.
 
 ### 3. Edit and output a shape adjustment as a BlendShape
 

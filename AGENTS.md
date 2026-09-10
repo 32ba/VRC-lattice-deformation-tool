@@ -99,7 +99,7 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
   - 参照メッシュ（Renderer）を ObjectField で指定。SkinnedMeshRenderer / MeshRenderer に対応
   - 貫通頂点は赤色のドットで Scene ビューにハイライト表示
   - 表示結果は変形状態・参照メッシュ・関連 Transform をキーとしてキャッシュする
-  - 初回検出は全頂点の総当たりで、参照 SkinnedMeshRenderer の現在ポーズをベイクして扱わない制約は残る
+  - 対象頂点を評価し、参照側の最近傍三角形探索は共通BVHで枝刈りする。参照 SkinnedMeshRenderer は現在ポーズをBakeして扱い、通常のBrush貫通表示はReferenceNormalの片側判定を使う。頂点サンプルに基づくため全mesh交差の網羅判定とは扱わない
 
 **クリアランスヒートマップ:**
 - `ClearanceHeatmap.cs` (`Editor/MeshDeformer/Utilities/`): `ClearanceQuery` 結果を貫通・警告・目標未満・安全へ分類し、最小clearance、最大貫通深度、違反頂点数、評価頂点数を集計する。しきい値はworld-space meterで保持し、Inspectorではmm表示する
@@ -368,7 +368,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `DeformationOutputCompatibilityTests.cs` は13条件について全Mesh channel、BlendShape全frame、source/upstream不変を比較する。基準と検証hashは `Docs~/Architecture/2026-09-07-output-contracts.md` を参照する
 - 既存14タグcorpusは維持し、後続公開28件の83ケースは `Tests/Editor/Fixtures/LaterReleases/` に独立追加する。`Tools~/HistoricalFixtures/LaterReleases/` が各tagのRuntimeで生成し、manifestの4 helper hashと決定的GUID/fileIDを検証する。helperまたは期待schemaの変更時は28件すべてを独立に2回生成し、526fileのbyte-identicalと旧/新corpusの全テストを確認する。履歴fixtureを候補実装の出力で更新しない
 - `Runtime/Evaluation/` の `DeformationEvaluator` が通常Deformと上流PreviewのGroup/Layer合成を共有する。入力は検証済みの同期借用view、managed workspaceはコンポーネント所有とし、非同期処理へ渡さない
-- `GeneratedBlendShapeOutput` の候補は中間頂点bufferから独立させ、上流frameを評価しても保持済み候補を書き換えない。private互換wrapperは既存テスト用に残し、通常の内部利用を追加しない
+- `GeneratedBlendShapeOutput` の候補は中間頂点bufferから独立させ、上流frameを評価しても保持済み候補を書き換えない。旧評価wrapperは削除済みで、通常処理は専用評価型へ直接接続する。履歴移行テスト用に残すprivate移行入口とは区別する
 - `LatticeEvaluator` が補間cache・managed scratch・NativeArray・Burst Jobsを所有し、`BrushEvaluator` がmaskを含むBrush加算を扱う。owner行列と旧絶対評価規則は `EvaluationSemantics` へ明示し、数値評価からコンポーネント・Renderer・Transformを参照しない。Disable/Destroy/Invalidateと確保途中の例外は同じNative解放処理を通す
 - `DeformedMeshWriter` が既存/生成BlendShapeとsurface channelを書込み、`BlendShapeComposer` は所有者の `MeshOutputWorkspace` に100フレームを順次合成する。Meshへのコピー後だけbufferを再利用し、候補配列・sourceは変更しない。`DeformationPipeline` が上流Previewの評価と出力cloneを管理し、失敗時は自身のcloneを破棄する。Preview最終法線の旧再計算規則も維持する
 - `SourceMeshAccess` はR/W無効Meshの全channelコピーをleaseとして所有し、`SourceVertexResolver` は取得済みweight値から元頂点とBlendShapeを評価する。通常評価の最終frame外挿と表示範囲計算の最終frame固定は `SourceBlendShapeExtrapolation` で区別する。`DeformerPlatformAdapter` がassembly load時にMeshUtility読取りと旧移行の保存記録を登録し、RuntimeからUnityEditor/NDMF assemblyを直接参照しない

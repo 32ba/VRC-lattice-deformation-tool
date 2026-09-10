@@ -81,7 +81,7 @@ English documentation: [README_en.md](README_en.md)
 3. 必要に応じて **Show Penetration** を有効にして参照 Renderer を指定し、赤く表示された頂点を修正します。
 4. 頂点単位で仕上げる場合は Overlay を Vertex Selection に切り替えます。
 
-貫通表示は編集補助用の近似判定です。現在ポーズを Bake した参照 `SkinnedMeshRenderer` の厳密な表面判定ではありません。
+貫通表示は、対象頂点と参照メッシュの最近傍三角形との位置関係を、参照面の法線方向で判定します。参照が `SkinnedMeshRenderer` の場合は現在ポーズを Bake して評価します。メッシュ同士の交差を網羅する判定ではないため、頂点間で交差する箇所などは検出できない場合があります。
 
 ### 3. 形状差分を BlendShape として編集・出力
 
