@@ -25,7 +25,7 @@ workflow_dispatchのpublishは既定false。falseでは生成・内容検査・A
 python Tools~/Release/verify_vpm_upgrade.py --baseline C:/evidence/NormalUpgrade --evidence C:/evidence/VpmUpgrade --release C:/release/net.32ba.lattice-deformation-tool-2.0.0-beta.1.zip --output C:/evidence/VpmUpgrade/verification.json
 ```
 
-baselineには `before.json`、`before-files.json`、`OldProject`、evidenceには `reloaded.json`、`old-vpm-manifest.json`、`new-vpm-manifest.json`、更新後の `Project` を置く。出力は新規ファイルだけを許容する。旧データと4対象の変形結果・参照・選択・override、新版ZIPとの全ファイル一致、旧C#ファイルの残存、他のVPM依存の維持を検査する。クライアント取得操作そのものは別の実行logと取得直後の照合記録で証明する。
+baselineには `before.json`、`before-files.json`、`OldProject`、evidenceには `saved.json`、`reloaded.json`、`old-vpm-manifest.json`、`new-vpm-manifest.json`、更新後の `Project` を置く。出力は新規ファイルだけを許容する。保存直後と別起動再読込み後のreport全体一致、旧データと4対象の変形結果・参照・選択・override、新版ZIPとの全ファイル一致、旧C#ファイルの残存、他のVPM依存の維持を検査する。クライアント取得操作そのものは別の実行logと取得直後の照合記録で証明する。
 
 ## 公開対象commitのCI確認
 

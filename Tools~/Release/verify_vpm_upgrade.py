@@ -20,6 +20,8 @@ def require(condition, message):
 def verify(baseline, evidence, release):
     before = read(baseline / 'before.json')
     after = read(evidence / 'reloaded.json')
+    saved = read(evidence / 'saved.json')
+    require(saved == after, 'Saved and reloaded probe results differ')
     require(json.loads(before['package'])['version'] == '1.4.6-beta.1', 'Unexpected baseline')
     require(json.loads(after['package'])['version'] == '2.0.0-beta.1', 'Unexpected candidate')
     require(before['unity'] == after['unity'] == '2022.3.22f1', 'Unity version changed')
