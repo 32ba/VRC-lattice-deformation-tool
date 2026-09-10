@@ -75,6 +75,46 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
         [UnityTest]
         [Category("InteractionE2E")]
+        public IEnumerator BrushStroke_AcrossActualProxyReplacement_PreservesLaterInputAndUndo()
+        {
+            yield return PrepareBrushEdit();
+            Assert.That(TryReadProxy(out var before), Is.True);
+            Assert.That(NDMFPreviewProxyUtility.TryGetProxyRenderer(_renderer, out var firstProxy), Is.True);
+            int firstProxyId = firstProxy.GetInstanceID();
+            var points = (Vector2[])_inputPoints.Clone();
+            SendMouse(EventType.MouseDown, points[0], Vector2.zero);
+            yield return null;
+            SendMouse(EventType.MouseDrag, points[1], points[1] - points[0]);
+            yield return null;
+            var beforeReplacement = (Vector3[])_deformer.Displacements.Clone();
+            Assert.That(beforeReplacement.Any(v => v.sqrMagnitude > 1e-10f), Is.True);
+
+            PreviewSession.Current.ForceRebuild();
+            yield return WaitFor(() =>
+                NDMFPreviewProxyUtility.TryGetProxyRenderer(_renderer, out var current) &&
+                current != null && current.GetInstanceID() != firstProxyId && TryReadProxy(out _),
+                "NDMF did not replace the actual proxy while the stroke was held.");
+            Assert.That(_deformer.Displacements, Is.EqualTo(beforeReplacement),
+                "Replacing the proxy changed the stored stroke payload.");
+
+            SendMouse(EventType.MouseDrag, points[2], points[2] - points[1]);
+            yield return null;
+            SendMouse(EventType.MouseUp, points[2], Vector2.zero);
+            Assert.That((_deformer.Displacements[25] - beforeReplacement[25]).sqrMagnitude,
+                Is.GreaterThan(1e-10f), "Input after replacement did not reach its vertex.");
+            var edited = _deformer.Deform(false).vertices;
+            yield return WaitFor(() => MatchesProxy(edited), "The replacement proxy lost the completed stroke.");
+            Undo.FlushUndoRecordObjects();
+            Undo.PerformUndo();
+            Assert.That(_deformer.Displacements, Is.All.EqualTo(Vector3.zero));
+            yield return WaitFor(() => MatchesProxy(before), "Undo did not restore the replacement proxy.");
+            Undo.PerformRedo();
+            yield return WaitFor(() => MatchesProxy(edited), "Redo did not restore the complete stroke.");
+            Assert.That(_source.vertices, Is.EqualTo(CreateVertices()));
+        }
+
+        [UnityTest]
+        [Category("InteractionE2E")]
         public IEnumerator BrushEscape_CancelsAllFramesAndRestoresTheVisibleProxy()
         {
             yield return PrepareBrushEdit();
