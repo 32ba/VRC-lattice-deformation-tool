@@ -47,18 +47,30 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     LatticeLocalization.Tr(LocKey.DeformerProfile)), deformer, true);
 
             DrawCompatibility(deformer);
+            bool createProfile;
+            bool saveProfile;
+            bool copyProfile;
             using (new GUILayout.HorizontalScope())
             {
-                if (GUILayout.Button(LatticeLocalization.Content(LocKey.CreateProfile))) CreateAsset(deformer);
+                createProfile = GUILayout.Button(LatticeLocalization.Content(LocKey.CreateProfile));
                 using (new EditorGUI.DisabledScope(deformer.Profile == null))
                 {
-                    if (GUILayout.Button(LatticeLocalization.Content(LocKey.SaveToProfile)))
-                        Run(() => ProfileAuthoringService.SaveCurrent(deformer, deformer.Profile,
-                            LatticeLocalization.Tr(LocKey.SaveToProfile)), deformer, false);
-                    if (GUILayout.Button(LatticeLocalization.Content(LocKey.CopyProfileToInstance)))
-                        Run(() => ProfileAuthoringService.CopyToEmbedded(deformer,
-                            LatticeLocalization.Tr(LocKey.CopyProfileToInstance)), deformer, true);
+                    saveProfile = GUILayout.Button(LatticeLocalization.Content(LocKey.SaveToProfile));
+                    copyProfile = GUILayout.Button(LatticeLocalization.Content(LocKey.CopyProfileToInstance));
                 }
+            }
+            // Native dialogs can re-enter Inspector drawing. Close the button row
+            // before running commands, then rebuild the changed layout next event.
+            if (createProfile || saveProfile || copyProfile)
+            {
+                if (createProfile) CreateAsset(deformer);
+                else if (saveProfile)
+                    Run(() => ProfileAuthoringService.SaveCurrent(deformer, deformer.Profile,
+                        LatticeLocalization.Tr(LocKey.SaveToProfile)), deformer, false);
+                else
+                    Run(() => ProfileAuthoringService.CopyToEmbedded(deformer,
+                        LatticeLocalization.Tr(LocKey.CopyProfileToInstance)), deformer, true);
+                GUIUtility.ExitGUI();
             }
             if (deformer.DataSource == DeformerDataSource.Profile && deformer.Profile == null)
                 EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.ProfileRequired), MessageType.Warning);
