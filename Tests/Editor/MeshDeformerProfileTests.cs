@@ -115,6 +115,49 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void SharedProfile_TwoInstancesKeepEditsIndependentAndRefreshAfterExplicitSave()
+        {
+            var mesh = CreateMesh();
+            var author = CreateDeformer("Author", mesh);
+            var first = CreateDeformer("First", mesh);
+            var second = CreateDeformer("Second", mesh);
+            var profile = ScriptableObject.CreateInstance<MeshDeformerProfile>();
+            try
+            {
+                ConfigureBrushLayer(author, new[] { Vector3.up, Vector3.zero, Vector3.zero });
+                Assert.That(author.SaveToProfile(profile), Is.True);
+                Assert.That(first.UseProfile(profile), Is.True);
+                Assert.That(second.UseProfile(profile), Is.True);
+                var sourceBefore = mesh.vertices;
+                var profileBefore = JsonUtility.ToJson(profile);
+                var expected = author.Deform(false).vertices;
+                Assert.That(first.Deform(false).vertices, Is.EqualTo(expected));
+                Assert.That(second.Deform(false).vertices, Is.EqualTo(expected));
+
+                first.Layers[1].SetBrushDisplacement(0, Vector3.right);
+                Assert.That(first.Deform(false).vertices[0],
+                    Is.EqualTo(sourceBefore[0] + Vector3.right));
+                Assert.That(second.Deform(false).vertices, Is.EqualTo(expected));
+                Assert.That(JsonUtility.ToJson(profile), Is.EqualTo(profileBefore));
+
+                author.Layers[1].SetBrushDisplacement(0, Vector3.up * 2f);
+                Assert.That(author.SaveToProfile(profile), Is.True);
+                expected = author.Deform(false).vertices;
+                Assert.That(first.Deform(false).vertices, Is.EqualTo(expected));
+                Assert.That(second.Deform(false).vertices, Is.EqualTo(expected));
+                Assert.That(mesh.vertices, Is.EqualTo(sourceBefore));
+            }
+            finally
+            {
+                DestroyDeformer(first);
+                DestroyDeformer(second);
+                DestroyDeformer(author);
+                UnityEngine.Object.DestroyImmediate(profile);
+                UnityEngine.Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
         public void DuplicateProfile_CanBeEditedWithoutChangingOriginal()
         {
             var mesh = CreateMesh();
