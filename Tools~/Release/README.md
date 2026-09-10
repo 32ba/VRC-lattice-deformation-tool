@@ -2,6 +2,8 @@
 
 Python 3.10以降とGitを使用する。Unityや外部Python packageは不要。
 
+`verification.json`の`buildEnvironment`にPythonのversion・implementationと実行中zlibのversionを記録する。同じ展開内容でも圧縮実装によりarchiveのhashは変わり得るため、過去のhashと異なる場合はentryの内容と生成環境を照合する。byte-identicalの再現性は同じ生成環境で確認する。
+
 ```powershell
 python -m unittest discover -s Tools~/Release -p 'test_*.py'
 python Tools~/Release/package_release.py --commit HEAD --output C:/path/to/new-release-directory

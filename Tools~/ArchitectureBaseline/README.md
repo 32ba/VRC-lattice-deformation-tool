@@ -71,8 +71,6 @@ p95が10%を超えて増加した条件、最大GC割当の増加、破棄後の
 隔離基準hostの `Assets/Editor/` へコピーして `-executeMethod ProfileSelectionBaselineProbe.Run -quit` で実行すると、2番目のGroupを選んだProfileの適用結果、raw/public選択、Group数、Mesh生成可否をJSONに記録する。
 候補の検証には `DeformerDataResolverTests` を使い、この基準probeのcommit表示を候補結果として流用しない。
 
-## Runtimeのassembly依存
-
 ## 実NDMF proxy更新の計測
 
 `AsyncPreviewBenchmark.cs`を隔離Projectの`Assets/Editor`へコピーし、Unityを`-batchmode -force-d3d11 -executeMethod AsyncPreviewBenchmark.Export -asyncPreviewOutput <新しいJSONパス>`で起動する。起動中の利用者Projectや、保存したい未保存SceneがあるEditorでは実行しない。

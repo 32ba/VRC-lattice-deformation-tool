@@ -4,12 +4,14 @@ import gzip
 import hashlib
 import io
 import json
+import platform
 from pathlib import Path, PurePosixPath
 import re
 import subprocess
 import tarfile
 import tempfile
 import zipfile
+import zlib
 
 
 def selected(name):
@@ -143,6 +145,9 @@ def build(commit, output):
         artifacts = [{"file": p.name, "bytes": p.stat().st_size,
                       "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(stage.iterdir())]
         report = dict(schemaVersion=1, sourceCommit=commit, name=name, version=version,
+                      buildEnvironment=dict(python=platform.python_version(),
+                                            pythonImplementation=platform.python_implementation(),
+                                            zlib=zlib.ZLIB_RUNTIME_VERSION),
                       prerelease=prerelease, verified=True, unityImportVerified=False,
                       zipFiles=len(files), unityAssets=sum(n.endswith('/asset') for n in unity),
                       unityGuids=sum(n.endswith('/pathname') for n in unity),
