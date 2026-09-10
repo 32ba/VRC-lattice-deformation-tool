@@ -476,4 +476,6 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - GameCIのwarmupはroot所有のProjectSettings.assetを生成するため、CI runnerへその1ファイルの所有権を戻してからfeature defineを更新する。配布時のGit archiveは呼出し単位で改行変換を固定し、Windowsのcore.autocrlf設定を配布内容へ持ち込まない。
 
+- AuthoringGestureEndToEndTestsは固定サイズの独立Scene ViewをShowで開き、既存dockの幅とOverlay配置へ入力経路を依存させない。batchでreparentエラーになるShowAuxWindowは使わない。SupportReportFilesはOSのrename権限とは別にread-only属性を検査し、読み取り専用の既存reportを置換しない。
+
 - publish=trueでは `Tools~/Release/verify_release_ci.py` が同じcommitの最新push/manual Test runと配布物・両EditMode jobの成功を要求する。PR merge試験は公開commitの証拠に使わず、必要ならtest.ymlの手動実行を使う。dry-run生成と公開承認の条件は従来どおり。

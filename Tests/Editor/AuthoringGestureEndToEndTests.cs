@@ -296,7 +296,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             _pivot = _view.pivot; _rotation = _view.rotation; _size = _view.size;
             _orthographic = _view.orthographic; _in2DMode = _view.in2DMode;
             _view.position = new Rect(30, 30, 1000, 700);
-            _view.ShowAuxWindow();
+            _view.Show();
             _view.in2DMode = false; _view.pivot = Vector3.zero; _view.rotation = Quaternion.identity;
             _view.size = 2.2f; _view.orthographic = true;
             Undo.IncrementCurrentGroup();
