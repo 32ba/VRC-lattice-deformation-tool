@@ -217,10 +217,13 @@ jobs:
       # The warmup has exited and produced ProjectSettings.asset. Change only the
       # Standalone feature flag before the next Editor launch.
       - name: Configure feature coverage
-        run: >-
-          python3 Tools~/CI/feature_configuration.py
-          --mode ${{ matrix.configuration }}
-          --settings ci-project/ProjectSettings/ProjectSettings.asset
+        run: |
+          # Unity runs as root in GameCI's container; give this single generated
+          # settings file back to the runner before editing the feature define.
+          sudo chown "$(id -u):$(id -g)" ci-project/ProjectSettings/ProjectSettings.asset
+          python3 Tools~/CI/feature_configuration.py \
+            --mode ${{ matrix.configuration }} \
+            --settings ci-project/ProjectSettings/ProjectSettings.asset
 
       - name: Run EditMode Tests
         id: tests
@@ -318,5 +321,5 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: editmode-test-results-${{ matrix.configuration }}
-          path: ${{ steps.tests.outputs.artifactsPath }}
+          path: test-artifacts/
           if-no-files-found: warn

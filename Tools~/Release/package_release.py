@@ -38,7 +38,10 @@ def version_info(package):
 def snapshot(commit):
     commit = subprocess.check_output(['git', 'rev-parse', '--verify', '--end-of-options',
                                       commit + '^{commit}'], text=True).strip()
-    raw = subprocess.check_output(['git', 'archive', '--format=tar', commit])
+    # git archive applies checkout line endings too. Keep a Windows caller's
+    # core.autocrlf/core.eol settings out of the distributed text bytes.
+    raw = subprocess.check_output(['git', '-c', 'core.autocrlf=false', '-c', 'core.eol=lf',
+                                   'archive', '--format=tar', commit])
     files = {}
     with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
         for item in archive:

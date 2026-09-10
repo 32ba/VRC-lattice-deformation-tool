@@ -11,6 +11,8 @@ python Tools~/Release/package_release.py --commit HEAD --output C:/path/to/new-r
 
 出力directoryは新規に限る。指定commitのGit bytesを読み、未コミット変更や未追跡ファイルを含めない。ZIP、UnityPackage、package.json、verification.jsonを作る。両archiveを再読込みし、対象一覧・各byte・GUID・Packages配下のpathnameを照合してから出力directoryを確定する。同じcommit・Python/zlib環境では時刻に依存しないbyte-identical出力を要求する。
 
+Git archiveの呼出しでは`core.autocrlf=false`と`core.eol=lf`を指定し、実行者のWindows改行設定が配布内容へ入るのを防ぐ。実Gitリポジトリを使う試験で3通りの改行設定・未コミット編集・binary保持を照合する。圧縮実装の差とテキスト内容の差は区別する。
+
 Tests、Tools~、AGENTS、隠しファイル、Docs~/Architectureは配布しない。Unityが無視する~ directoryのファイルは従来のexporterと同じくZIPだけに含み、reportへ一覧を出す。READMEのロゴと開発状況は公開versionのGitHub tagを参照するため、tag公開前のURL到達性は保証しない。
 
 UnityPackageは既存の固定exporterと同じGUID directory内のasset.meta・pathname・非folderのassetを保存する。空folderのGUIDも保持する。参考: [既存actionの実装](https://github.com/pCYSl5EDgo/create-unitypackage/blob/b5c57408698b1fab8b3a84d4b67f767b8b7c0be9/src/index.ts)と、そのlockfileのunitypackage 1.0.8。

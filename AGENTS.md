@@ -474,4 +474,6 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - CIはdefault/next-releaseの2構成を別jobで実行する。warmup終了後に `Tools~/CI/feature_configuration.py` でStandaloneの機能defineだけを切り替え、結果XMLで指定構成のコンパイルを検証する。Library cacheとartifactは構成ごとに分ける。利用者の稼働中projectへこの設定ツールを使わない。
 
+- GameCIのwarmupはroot所有のProjectSettings.assetを生成するため、CI runnerへその1ファイルの所有権を戻してからfeature defineを更新する。配布時のGit archiveは呼出し単位で改行変換を固定し、Windowsのcore.autocrlf設定を配布内容へ持ち込まない。
+
 - publish=trueでは `Tools~/Release/verify_release_ci.py` が同じcommitの最新push/manual Test runと配布物・両EditMode jobの成功を要求する。PR merge試験は公開commitの証拠に使わず、必要ならtest.ymlの手動実行を使う。dry-run生成と公開承認の条件は従来どおり。

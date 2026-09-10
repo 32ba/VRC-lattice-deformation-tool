@@ -1,5 +1,7 @@
 import json
 import io
+import os
+import subprocess
 import tarfile
 from pathlib import Path
 import tempfile
@@ -32,6 +34,36 @@ class ReleaseTests(unittest.TestCase):
             self.assertFalse(release.selected(path), path)
         for path in ['Runtime/code.cs', 'Editor/tool.cs.meta', 'README.md', 'LICENSE', 'Blobs~/logo.png']:
             self.assertTrue(release.selected(path), path)
+
+    def test_snapshot_is_independent_of_checkout_line_endings_and_working_edits(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            def git(*args):
+                return subprocess.check_output(['git', *args], cwd=directory)
+            git('init', '--quiet')
+            git('config', 'core.autocrlf', 'false')
+            expected = {'README.md': b'line one\nline two\n',
+                        'raw.bin': b'\x00binary\r\n\xff',
+                        'Editor.meta': b'fileFormatVersion: 2\nguid: ' + b'a' * 32 + b'\n'}
+            for name, data in expected.items():
+                (directory / name).write_bytes(data)
+            git('add', '.')
+            git('-c', 'user.name=Release Test', '-c', 'user.email=test@example.invalid',
+                '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'Fixture')
+            commit = git('rev-parse', 'HEAD').decode().strip()
+            (directory / 'README.md').write_bytes(b'uncommitted edit')
+            previous = Path.cwd()
+            try:
+                os.chdir(directory)
+                for autocrlf, eol in [('true', 'crlf'), ('false', 'lf'), ('input', 'native')]:
+                    git('config', 'core.autocrlf', autocrlf)
+                    git('config', 'core.eol', eol)
+                    with self.subTest(autocrlf=autocrlf, eol=eol):
+                        actual_commit, actual = release.snapshot(commit)
+                        self.assertEqual(actual_commit, commit)
+                        self.assertEqual(actual, expected)
+            finally:
+                os.chdir(previous)
 
     def test_missing_duplicate_and_orphan_metadata_rejected(self):
         for mutation in ['missing', 'duplicate', 'orphan', 'parent', 'folder']:
