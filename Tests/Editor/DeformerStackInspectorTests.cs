@@ -122,6 +122,36 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [UnityTest]
+        public IEnumerator FieldInput_WithCapturedRelease_DoesNotBlockRowRefresh()
+        {
+            foreach (string name in new[] { "layer-weight", "layer-name", "layer-enabled", "group-name" })
+            {
+                using var f = new Fixture();
+                f.Attach(f.Section.Root);
+                f.ResizeWindowForInput();
+                yield return f.WaitForPanelUpdate();
+                var list = name == "group-name" ? f.Section.GroupList : f.Section.LayerList;
+                var control = list.Q<VisualElement>(name);
+                Assert.That(control, Is.Not.Null, name);
+                Assert.That(control.worldBound.height, Is.GreaterThan(0), name);
+                using (var down = PointerDownEvent.GetPooled(new Event
+                    { type = EventType.MouseDown, button = 0, mousePosition = control.worldBound.center }))
+                {
+                    down.target = list; list.SendEvent(down);
+                }
+                // A field manipulator owns release; it need not reach the list.
+                // A later authoring operation must still replace displayed rows.
+                var oldList = f.Section.GroupList;
+                f.Target.AddLayer("Imported", MeshDeformerLayerType.Brush);
+                f.Editor.serializedObject.Update();
+                f.Section.RebuildGroupList();
+                yield return f.WaitForPanelUpdate();
+                Assert.That(f.Section.GroupList, Is.Not.SameAs(oldList), name);
+                Assert.That(f.Section.LayerList.itemsSource.Count, Is.EqualTo(3), name);
+            }
+        }
+
+        [UnityTest]
         public IEnumerator RetargetedLayerClick_SelectsHitRowAfterPointerUp()
         {
             using var f = new Fixture();

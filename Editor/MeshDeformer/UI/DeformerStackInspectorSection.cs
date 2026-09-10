@@ -80,6 +80,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // ListView. Use panel coordinates to identify the original detail hit.
             foreach (var detail in list.Query<IMGUIContainer>().ToList())
                 if (detail.visible && detail.worldBound.Contains(evt.position)) return true;
+            // Field manipulators capture their own release. They edit values,
+            // not list order, and must not suspend later structural refreshes.
+            foreach (var field in list.Query<VisualElement>().ToList())
+                if ((field.name == "layer-weight" || field.name == "layer-name" ||
+                     field.name == "layer-enabled" || field.name == "group-name") &&
+                    field.visible && field.worldBound.Contains(evt.position)) return true;
             return false;
         }
 
