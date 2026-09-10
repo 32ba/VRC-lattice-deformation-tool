@@ -288,12 +288,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                          .SelectMany(t => t.GetProperties(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)))
                 if (property.CanRead && property.CanWrite && property.GetIndexParameters().Length == 0)
                     _settings.Add(property, property.GetValue(null));
-            _view = SceneView.sceneViews.Cast<SceneView>().FirstOrDefault(v => v != null);
-            _createdView = _view == null;
-            if (_view == null) _view = EditorWindow.GetWindow<SceneView>();
+            // The default CI dock can be too small for the tool overlay and the
+            // projected gesture path. Own a fixed-size view so the same actual
+            // mouse events reach the viewport on Linux and Windows alike.
+            _view = ScriptableObject.CreateInstance<SceneView>();
+            _createdView = true;
             _pivot = _view.pivot; _rotation = _view.rotation; _size = _view.size;
             _orthographic = _view.orthographic; _in2DMode = _view.in2DMode;
-            _view.Show();
+            _view.position = new Rect(30, 30, 1000, 700);
+            _view.ShowAuxWindow();
             _view.in2DMode = false; _view.pivot = Vector3.zero; _view.rotation = Quaternion.identity;
             _view.size = 2.2f; _view.orthographic = true;
             Undo.IncrementCurrentGroup();
