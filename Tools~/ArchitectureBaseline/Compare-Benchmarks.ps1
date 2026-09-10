@@ -44,6 +44,9 @@ $rows = foreach ($after in $candidate.scenarios) {
     if ([int]$before.clearanceReferenceVertices -ne [int]$after.clearanceReferenceVertices) {
         throw ('Scenario input differs: ' + $after.name + ' clearanceReferenceVertices')
     }
+    if ([int]$before.scanConditionCount -ne [int]$after.scanConditionCount) {
+        throw ('Scenario input differs: ' + $after.name + ' scanConditionCount')
+    }
     if ($before.brushDisplacementHash -ne $after.brushDisplacementHash) {
         throw ('Brush output differs: ' + $after.name)
     }

@@ -34,6 +34,7 @@ public static class EvaluationBenchmark
         public bool profileSource;
         public bool upstreamPreview;
         public int clearanceReferenceVertices;
+        public int scanConditionCount;
         public string brushDisplacementHash;
         public string proportionalInfluenceHash;
         public bool recalculateNormals, recalculateTangents;
@@ -122,12 +123,12 @@ public static class EvaluationBenchmark
         };
         if (calibrationOnly) yield break;
         foreach (int vertices in new[] { 70000, 200000 })
-            foreach (string kind in new[] { "direct", "groups", "generated", "profile", "preview", "clearance", "fit", "brush-normal", "proportional" })
+            foreach (string kind in new[] { "direct", "groups", "generated", "profile", "preview", "clearance", "fit", "scan", "brush-normal", "proportional" })
             {
                 string scenarioName = kind + "-" + vertices;
                 if (!string.IsNullOrEmpty(s_document.scenarioFilter) &&
                     !s_document.scenarioFilter.Split(';').Contains(scenarioName)) continue;
-                foreach (var work in kind == "fit" ? RunFit(vertices, samples) : kind == "clearance" ? RunClearance(vertices, samples) :
+                foreach (var work in kind == "scan" ? RunScan(vertices, samples) : kind == "fit" ? RunFit(vertices, samples) : kind == "clearance" ? RunClearance(vertices, samples) :
                     kind == "proportional" ? RunProportional(vertices, samples) : Run(vertices, kind, samples)) yield return work;
                 SaveDocument();
                 UnityEngine.Debug.Log("Completed evaluation benchmark: " + kind + " " + vertices);
@@ -322,6 +323,142 @@ public static class EvaluationBenchmark
         s_document.scenarios.Add(result);
     }
 
+
+    private static IEnumerable<Work> RunScan(int vertexCount, int samples)
+    {
+        int meshCountBefore = Resources.FindObjectsOfTypeAll<Mesh>().Length;
+        var root = new GameObject("Scan benchmark root");
+        var targetRoot = new GameObject("Target");
+        targetRoot.transform.SetParent(root.transform, false);
+        var referenceRoot = new GameObject("Reference");
+        referenceRoot.transform.SetParent(root.transform, false);
+        var mesh = CreateMesh(vertexCount);
+        var referenceMesh = new Mesh { name = "Scan reference plane" };
+        var scanSet = ScriptableObject.CreateInstance<ClearanceScanSet>();
+        var depths = new[] { -0.002f, 0.003f, 0.015f };
+        var scenario = new Scenario { name = "scan-" + vertexCount, vertices = vertexCount,
+            clearanceReferenceVertices = 4, scanConditionCount = depths.Length,
+            unchanged = new Measurement[samples], edited = new Measurement[samples] };
+        LatticeDeformer deformer = null;
+        Action clearCache = null;
+        try
+        {
+            referenceMesh.vertices = new[] { new Vector3(-2,-2,0), new Vector3(2,-2,0),
+                new Vector3(2,2,0), new Vector3(-2,2,0) };
+            referenceMesh.triangles = new[] { 0,1,2,0,2,3 };
+            referenceMesh.RecalculateNormals();
+            referenceMesh.RecalculateBounds();
+            targetRoot.AddComponent<MeshFilter>().sharedMesh = mesh;
+            targetRoot.AddComponent<MeshRenderer>();
+            referenceRoot.AddComponent<MeshFilter>().sharedMesh = referenceMesh;
+            var reference = referenceRoot.AddComponent<MeshRenderer>();
+            var originalPosition = new Vector3(0, 0, 0.037f);
+            targetRoot.transform.localPosition = originalPosition;
+            deformer = targetRoot.AddComponent<LatticeDeformer>();
+            deformer.Reset();
+            var sourceVertices = mesh.vertices;
+            var sourceIndices = mesh.triangles;
+            string originalPayload = EditorJsonUtility.ToJson(deformer);
+            var referenceVertices = referenceMesh.vertices;
+            var referenceIndices = referenceMesh.triangles;
+            float expectedReferenceZ = 0f;
+            foreach (float depth in depths)
+            {
+                var condition = new ClearanceScanCondition { Name = "Z=" + depth };
+                condition.TransformOverrides.Add(new ClearanceTransformPoseOverride {
+                    RelativePath = "Target", OverridePosition = true,
+                    LocalPosition = Vector3.forward * depth, OverrideRotation = false, OverrideScale = false });
+                scanSet.Conditions.Add(condition);
+            }
+            Func<string, Type> find = name => AppDomain.CurrentDomain.GetAssemblies()
+                .Select(a => a.GetType("Net._32Ba.LatticeDeformationTool.Editor." + name)).First(t => t != null);
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+            var type = find("ClearanceScanOperation");
+            var ctor = type.GetConstructors(flags).Single();
+            var cp = ctor.GetParameters();
+            var args = new Expression[] { Expression.Constant(scanSet), Expression.Constant(deformer),
+                Expression.Constant(reference, typeof(Renderer)), Expression.Constant(root.transform),
+                Expression.Constant(Enum.Parse(cp[4].ParameterType, "ReferenceNormal")),
+                Expression.Constant(0.005f), Expression.Constant(0.01f), Expression.Constant(true),
+                Expression.Default(cp[8].ParameterType), Expression.Default(cp[9].ParameterType) };
+            var operation = Expression.Variable(type, "operation");
+            var run = type.GetMethod("RunToCompletion", flags);
+            // Constructor, complete scan, restoration, and disposal are timed together.
+            // Reflection and the independent numerical oracle remain outside the marker.
+            var execute = Expression.Lambda<Func<object>>(Expression.Block(new[] { operation },
+                Expression.Assign(operation, Expression.New(ctor, args)),
+                Expression.TryFinally(Expression.Convert(Expression.Call(operation, run,
+                    Expression.Default(run.GetParameters()[0].ParameterType)), typeof(object)),
+                    Expression.Call(Expression.Convert(operation, typeof(IDisposable)),
+                        typeof(IDisposable).GetMethod("Dispose"))))).Compile();
+            clearCache = (Action)Delegate.CreateDelegate(typeof(Action), find("ClearanceQueryCache")
+                .GetMethod("Clear", BindingFlags.Static | BindingFlags.NonPublic));
+            clearCache();
+            object report = null;
+            Action action = () => report = execute();
+            Action validate = () =>
+            {
+                var reportType = report.GetType();
+                var conditions = (IList)reportType.GetField("Conditions", flags).GetValue(report);
+                if ((bool)reportType.GetField("WasCancelled", flags).GetValue(report) || conditions.Count != depths.Length)
+                    throw new InvalidOperationException("Scan did not complete every condition.");
+                for (int c = 0; c < conditions.Count; c++)
+                {
+                    object result = conditions[c];
+                    var rt = result.GetType();
+                    if (!(bool)rt.GetProperty("IsSuccess", flags).GetValue(result) ||
+                        (bool)rt.GetField("UsedNdmfPreviewProxy", flags).GetValue(result))
+                        throw new InvalidOperationException("Unexpected Scan condition status or proxy.");
+                    var values = (float[])rt.GetField("VertexClearances", flags).GetValue(result);
+                    float expected = depths[c] - expectedReferenceZ;
+                    if (values.Length != vertexCount || values.Any(v => !float.IsFinite(v) || Mathf.Abs(v - expected) > 1e-5f))
+                        throw new InvalidOperationException("Scan condition differs from the plane oracle.");
+                }
+                var worst = (float[])reportType.GetField("WorstClearances", flags).GetValue(report);
+                var indices = (int[])reportType.GetField("WorstConditionIndices", flags).GetValue(report);
+                float expectedWorst = depths[0] - expectedReferenceZ;
+                if (worst.Length != vertexCount || indices.Length != vertexCount || indices.Any(v => v != 0) ||
+                    worst.Any(v => !float.IsFinite(v) || Mathf.Abs(v - expectedWorst) > 1e-5f) ||
+                    targetRoot.transform.localPosition != originalPosition ||
+                    referenceRoot.transform.localPosition != Vector3.forward * expectedReferenceZ ||
+                    EditorJsonUtility.ToJson(deformer) != originalPayload ||
+                    !sourceVertices.SequenceEqual(mesh.vertices) || !sourceIndices.SequenceEqual(mesh.triangles) ||
+                    !referenceVertices.SequenceEqual(referenceMesh.vertices) ||
+                    !referenceIndices.SequenceEqual(referenceMesh.triangles))
+                    throw new InvalidOperationException("Scan worst-condition, restoration, or source preservation failed.");
+            };
+            yield return new Work { action = action, accept = m => scenario.firstEvaluation = m,
+                captureName = scenario.name + ".first" };
+            validate();
+            for (int phase = 0; phase < 2; phase++)
+                for (int i = -3; i < samples; i++)
+                {
+                    expectedReferenceZ = phase == 0 || (i & 1) == 0 ? 0f : 0.001f;
+                    referenceRoot.transform.localPosition = Vector3.forward * expectedReferenceZ;
+                    int index = i;
+                    var values = phase == 0 ? scenario.unchanged : scenario.edited;
+                    yield return new Work { action = action,
+                        accept = i < 0 ? (Action<Measurement>)null : m => values[index] = m,
+                        captureName = i == samples - 1 ? scenario.name + (phase == 0 ? ".unchanged-last" : ".edited-last") : null };
+                    validate();
+                }
+            scenario.unchangedP50 = Percentile(scenario.unchanged, 0.5);
+            scenario.unchangedP95 = Percentile(scenario.unchanged, 0.95);
+            scenario.editedP50 = Percentile(scenario.edited, 0.5);
+            scenario.editedP95 = Percentile(scenario.edited, 0.95);
+        }
+        finally
+        {
+            clearCache?.Invoke();
+            if (deformer != null && deformer.RuntimeMesh != null) Object.DestroyImmediate(deformer.RuntimeMesh);
+            Object.DestroyImmediate(root);
+            Object.DestroyImmediate(mesh);
+            Object.DestroyImmediate(referenceMesh);
+            Object.DestroyImmediate(scanSet);
+        }
+        scenario.meshCountDeltaAfterDispose = Resources.FindObjectsOfTypeAll<Mesh>().Length - meshCountBefore;
+        s_document.scenarios.Add(scenario);
+    }
 
     private static IEnumerable<Work> RunFit(int vertexCount, int samples)
     {
