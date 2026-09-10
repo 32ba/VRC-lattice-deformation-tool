@@ -17,6 +17,10 @@ workflow_dispatchのpublishは既定false。falseでは生成・内容検査・A
 
 この検査はUnity Import、旧project更新、依存下限、native操作の検証を代替しない。reportのunityImportVerifiedはfalseのままにし、実際のUnityによる結果を別途保持する。
 
+## 通常更新後の保存データ照合
+
+`verify_normal_upgrade.py` には、同じevidence directory内の `before.json`、`saved.json`、`reloaded.json`、`before-files.json`、`old-archives`、`OldProject`、`UnityPackageProject` が必要。保存直後と再読み込み後のreport全体一致を必須とし、その後に旧版との4対象の出力・参照・選択・overrideと元assetの保持を検査する。Unity起動・importの成否と実行順序は別のlogで確認する。
+
 ## VPM更新後の保存データ照合
 
 `verify_vpm_upgrade.py` は、旧版で保存した `NormalUpgradeProbe` の結果と、VPMクライアントで更新後に `SaveAndCapture`、別起動の `Capture` を実行した結果を照合する。

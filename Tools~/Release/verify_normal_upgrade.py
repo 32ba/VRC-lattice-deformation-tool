@@ -13,6 +13,8 @@ def verify(root):
         baseline_entries = len(archive.namelist())
     before = json.loads((root / 'before.json').read_text())
     after = json.loads((root / 'reloaded.json').read_text())
+    saved = json.loads((root / 'saved.json').read_text())
+    assert saved == after, 'Saved and reloaded probe results differ'
     assert json.loads(before['package'])['version'] == '1.4.6-beta.1'
     assert json.loads(after['package'])['version'] == '2.0.0-beta.1'
     assert before['unity'] == after['unity'] == '2022.3.22f1'
