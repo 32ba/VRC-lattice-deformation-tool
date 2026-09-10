@@ -345,6 +345,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             MeshDeformerTool.CurrentBrushSubMode = MeshDeformerTool.BrushSubMode.Brush;
         }
 
+        private Vector2[] _modifierSelectionPoints;
+
         private void ProjectInput(SceneView view)
         {
             if (view != _view || Event.current.type != EventType.Repaint) return;
@@ -352,6 +354,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             try
             {
                 Handles.matrix = Matrix4x4.identity;
+                _modifierSelectionPoints = new[] { CreateVertices()[0], CreateVertices()[44] }.Select(point =>
+                    GUIUtility.GUIToScreenPoint(HandleUtility.WorldToGUIPoint(point)) - view.position.position).ToArray();
                 _inputPoints = new[] { -0.375f, 0f, 0.375f }.Select(x =>
                     GUIUtility.GUIToScreenPoint(HandleUtility.WorldToGUIPoint(new Vector3(x, 0, 0))) - view.position.position).ToArray();
                 _pickPoint = GUIUtility.GUIToScreenPoint(HandleUtility.WorldToGUIPoint(_handlePivot)) - view.position.position;
@@ -361,9 +365,45 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally { Handles.matrix = previous; }
         }
 
-        private void SendMouse(EventType type, Vector2 point, Vector2 delta)
+        [UnityTest]
+        [Category("InteractionE2E")]
+        public IEnumerator VertexClickModifiers_ReplaceAddAndToggleWithoutEditingPayload()
         {
-            _view.SendEvent(new Event { type = type, button = 0, mousePosition = point, delta = delta, clickCount = 1 });
+            yield return PrepareBrushEdit();
+            MeshDeformerTool.CurrentBrushSubMode = MeshDeformerTool.BrushSubMode.VertexSelection;
+            VertexSelectionHandler.ProportionalRadius = 0;
+            _view.Repaint();
+            yield return null;
+            yield return null;
+            string before = EditorJsonUtility.ToJson(_deformer);
+            var points = (Vector2[])_modifierSelectionPoints.Clone();
+            var modifiers = new[] { EventModifiers.None, EventModifiers.Shift,
+                EventModifiers.Control, EventModifiers.Control, EventModifiers.None };
+            var pointIndices = new[] { 0, 1, 0, 0, 1 };
+            var expected = new[] { new[] { 0 }, new[] { 0, 44 }, new[] { 44 },
+                new[] { 0, 44 }, new[] { 44 } };
+            var selectionField = typeof(VertexSelectionHandler).GetField("s_selectedVertices",
+                BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(selectionField, Is.Not.Null);
+            for (int i = 0; i < modifiers.Length; i++)
+            {
+                var point = points[pointIndices[i]];
+                SendMouse(EventType.MouseMove, point, Vector2.zero, modifiers[i]);
+                yield return null;
+                SendMouse(EventType.MouseDown, point, Vector2.zero, modifiers[i]);
+                SendMouse(EventType.MouseUp, point, Vector2.zero, modifiers[i]);
+                yield return null;
+                var selected = (System.Collections.Generic.HashSet<int>)selectionField.GetValue(null);
+                Assert.That(selected.OrderBy(index => index).ToArray(), Is.EqualTo(expected[i]), "Click " + i);
+                Assert.That(EditorJsonUtility.ToJson(_deformer), Is.EqualTo(before));
+                Assert.That(_source.vertices, Is.EqualTo(CreateVertices()));
+            }
+        }
+
+        private void SendMouse(EventType type, Vector2 point, Vector2 delta,
+            EventModifiers modifiers = EventModifiers.None)
+        {
+            _view.SendEvent(new Event { type = type, button = 0, mousePosition = point, delta = delta, clickCount = 1, modifiers = modifiers });
             _view.Repaint();
         }
 
