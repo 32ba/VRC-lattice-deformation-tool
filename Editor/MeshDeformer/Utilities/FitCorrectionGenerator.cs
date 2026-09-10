@@ -448,7 +448,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 adjacency[vertex] = new List<int>();
 
             int[] triangles = mesh != null ? mesh.triangles : Array.Empty<int>();
-            var edgeCounts = new Dictionary<ulong, int>();
+            var edgeCounts = new Dictionary<ulong, int>(EdgeKeyComparer.Instance);
             for (int triangle = 0; triangle + 2 < triangles.Length; triangle += 3)
             {
                 int a = triangles[triangle];
@@ -489,6 +489,29 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ulong key = ((ulong)min << 32) | max;
             counts.TryGetValue(key, out int count);
             counts[key] = count + 1;
+        }
+
+        private sealed class EdgeKeyComparer : IEqualityComparer<ulong>
+        {
+            internal static readonly EdgeKeyComparer Instance = new EdgeKeyComparer();
+
+            public bool Equals(ulong x, ulong y) => x == y;
+
+            public int GetHashCode(ulong key)
+            {
+                // The default UInt64 hash XORs the two vertex indices. Regular
+                // grids then put thousands of distinct edges in the same bucket.
+                // Mix all bits while keeping equality and the stored key unchanged.
+                unchecked
+                {
+                    key ^= key >> 30;
+                    key *= 0xbf58476d1ce4e5b9UL;
+                    key ^= key >> 27;
+                    key *= 0x94d049bb133111ebUL;
+                    key ^= key >> 31;
+                    return (int)key;
+                }
+            }
         }
 
         private static void SmoothDisplacements(
