@@ -29,6 +29,11 @@ public static class AsyncPreviewBenchmark
         public bool complete;
         public bool forceRebuild;
         public List<Sample> samples = new List<Sample>();
+        public List<MeshLifetime> meshLifetimes = new List<MeshLifetime>();
+    }
+    [Serializable] public sealed class MeshLifetime
+    {
+        public int vertices, observedDistinctMeshes, survivingMeshes, cleanupPolls;
     }
     private delegate bool ProxyLookup(Renderer original, out Renderer proxy);
     private static ProxyLookup s_lookup;
@@ -48,6 +53,9 @@ public static class AsyncPreviewBenchmark
     private static float s_expectedZ;
     private static double s_deadline;
     private static int s_previousProxyId, s_observedProxyId;
+    private static readonly Dictionary<int, Mesh> s_observedMeshes = new Dictionary<int, Mesh>();
+    private static double s_cleanupStarted;
+    private static int s_cleanupPolls;
 
     public static void Export()
     {
@@ -113,6 +121,7 @@ public static class AsyncPreviewBenchmark
         Selection.activeGameObject = s_owner;
         s_expectedZ = 0;
         s_previousProxyId = 0;
+        s_observedMeshes.Clear();
         s_ordinal = -1;
         PreviewSession.Current.ForceRebuild();
         s_deadline = EditorApplication.timeSinceStartup + 60;
@@ -127,6 +136,7 @@ public static class AsyncPreviewBenchmark
         var filter = proxy.GetComponent<MeshFilter>();
         var mesh = filter != null ? filter.sharedMesh : null;
         if (mesh == null || mesh == s_source || mesh.vertexCount != s_count) return false;
+        s_observedMeshes[mesh.GetInstanceID()] = mesh;
         mesh.GetVertices(s_vertices);
         for (int i = 0; i < s_count; i++)
             if ((s_vertices[i] - s_original[i] - new Vector3(0, 0, s_expectedZ)).sqrMagnitude > 1e-12f) return false;
@@ -144,6 +154,17 @@ public static class AsyncPreviewBenchmark
                 if (PreviewSession.Current == null) return;
                 Create(70000); s_stage = 1; return;
             }
+            if (s_stage == 2)
+            {
+                s_cleanupPolls++;
+                // Permit delayed NDMF retirement to run before observing survivors.
+                if (s_cleanupPolls < 10 || EditorApplication.timeSinceStartup - s_cleanupStarted < 1) return;
+                s_report.meshLifetimes.Add(new MeshLifetime { vertices = s_count,
+                    observedDistinctMeshes = s_observedMeshes.Count,
+                    survivingMeshes = s_observedMeshes.Values.Count(mesh => mesh != null), cleanupPolls = s_cleanupPolls });
+                if (s_count == 70000) { Create(200000); s_stage = 1; return; }
+                s_report.complete = true; Finish(0); return;
+            }
             s_polls++;
             if (!Matches()) return;
             if (s_ordinal >= 0)
@@ -157,8 +178,12 @@ public static class AsyncPreviewBenchmark
             {
                 if (!s_source.vertices.SequenceEqual(s_original)) throw new Exception("Source mutated");
                 DisposeFixture();
-                if (s_count == 70000) { Create(200000); return; }
-                s_report.complete = true; Finish(0); return;
+                PreviewSession.Current.ForceRebuild();
+                s_stage = 2;
+                s_cleanupStarted = EditorApplication.timeSinceStartup;
+                s_cleanupPolls = 0;
+                s_deadline = s_cleanupStarted + 60;
+                return;
             }
             s_polls = 0;
             s_previousProxyId = s_observedProxyId;
