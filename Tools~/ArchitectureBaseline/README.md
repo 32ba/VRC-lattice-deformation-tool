@@ -73,6 +73,16 @@ p95が10%を超えて増加した条件、最大GC割当の増加、破棄後の
 
 ## Runtimeのassembly依存
 
+## 実NDMF proxy更新の計測
+
+`AsyncPreviewBenchmark.cs`を隔離Projectの`Assets/Editor`へコピーし、Unityを`-batchmode -force-d3d11 -executeMethod AsyncPreviewBenchmark.Export -asyncPreviewOutput <新しいJSONパス>`で起動する。起動中の利用者Projectや、保存したい未保存SceneがあるEditorでは実行しない。
+
+7万/20万頂点のMeshRendererとBrush変位を使い、初回1回・warmup 3回・測定15回について編集通知から実proxyの全頂点一致までを測る。`-asyncPreviewForceRebuild`を追加すると、毎操作でForceRebuildを要求し、proxyのinstance IDが実際に変わるまで待つ。後片付けでは観測したMeshの残存数を記録する。completeは実行完了を示すため、残存数や比較結果は出力JSONで別途検査する。
+
+`-asyncPreviewProfileAllocations`は同期書込み・refresh区間のCPU Profiler GC.Alloc size metadataを取得する。較正失敗やmetadata欠落はエラー。後続の非同期処理や描画のGCは含まない。Profilerを有効にしたrunの時間は、無効にしたrunの性能値へ代入しない。OS入力遅延・画面描画完了の計測ではない。全体試験数や製品配布内容にはこの開発用計測器を含めない。
+
+## Runtimeのassembly依存（検査手順）
+
 `Verify-RuntimeDependencies.ps1` はUnityのコンパイルDLLをMono.Cecilで読み、Editor/NDMFのassembly・型・member参照とIL呼出しを検査する。
 `-AssemblyPath`、検証projectに導入済みの `Mono.Cecil.dll` を示す `-CecilPath`、結果の `-OutputPath` を指定する。
 コンパイル直後のDLLは例外なしで検査する。
