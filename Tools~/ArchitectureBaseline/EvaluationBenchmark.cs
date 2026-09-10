@@ -121,12 +121,12 @@ public static class EvaluationBenchmark
         };
         if (calibrationOnly) yield break;
         foreach (int vertices in new[] { 70000, 200000 })
-            foreach (string kind in new[] { "direct", "groups", "generated", "profile", "preview", "clearance", "brush-normal", "proportional" })
+            foreach (string kind in new[] { "direct", "groups", "generated", "profile", "preview", "clearance", "fit", "brush-normal", "proportional" })
             {
                 string scenarioName = kind + "-" + vertices;
                 if (!string.IsNullOrEmpty(s_document.scenarioFilter) &&
                     !s_document.scenarioFilter.Split(';').Contains(scenarioName)) continue;
-                foreach (var work in kind == "clearance" ? RunClearance(vertices, samples) :
+                foreach (var work in kind == "fit" ? RunFit(vertices, samples) : kind == "clearance" ? RunClearance(vertices, samples) :
                     kind == "proportional" ? RunProportional(vertices, samples) : Run(vertices, kind, samples)) yield return work;
                 SaveDocument();
                 UnityEngine.Debug.Log("Completed evaluation benchmark: " + kind + " " + vertices);
@@ -321,6 +321,118 @@ public static class EvaluationBenchmark
         s_document.scenarios.Add(result);
     }
 
+
+    private static IEnumerable<Work> RunFit(int vertexCount, int samples)
+    {
+        int meshCountBefore = Resources.FindObjectsOfTypeAll<Mesh>().Length;
+        var root = new GameObject("Fit benchmark target");
+        var referenceRoot = new GameObject("Fit benchmark reference");
+        var mesh = CreateMesh(vertexCount);
+        var referenceMesh = new Mesh { name = "Fit reference plane" };
+        var scenario = new Scenario { name = "fit-" + vertexCount, vertices = vertexCount,
+            clearanceReferenceVertices = 4, unchanged = new Measurement[samples], edited = new Measurement[samples] };
+        LatticeDeformer deformer = null;
+        Action clearCache = null;
+        try
+        {
+            referenceMesh.vertices = new[] { new Vector3(-2,-2,0), new Vector3(2,-2,0),
+                new Vector3(2,2,0), new Vector3(-2,2,0) };
+            referenceMesh.triangles = new[] { 0,1,2,0,2,3 };
+            referenceMesh.RecalculateNormals();
+            referenceMesh.RecalculateBounds();
+            root.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var target = root.AddComponent<MeshRenderer>();
+            referenceRoot.AddComponent<MeshFilter>().sharedMesh = referenceMesh;
+            var reference = referenceRoot.AddComponent<MeshRenderer>();
+            root.transform.position = Vector3.back * 0.002f;
+            deformer = root.AddComponent<LatticeDeformer>();
+            deformer.Reset();
+            var sourceVertices = mesh.vertices;
+            var sourceIndices = mesh.triangles;
+            int initialLayers = deformer.Layers.Count;
+
+            Func<string, Type> find = name => AppDomain.CurrentDomain.GetAssemblies()
+                .Select(a => a.GetType("Net._32Ba.LatticeDeformationTool.Editor." + name)).First(t => t != null);
+            var flags = BindingFlags.Static | BindingFlags.NonPublic;
+            var evaluate = find("ClearanceHeatmapEvaluator").GetMethod("Evaluate", flags);
+            var analyze = find("FitCorrectionGenerator").GetMethod("Analyze", flags);
+            var generate = find("FitCorrectionGenerator").GetMethod("Generate", flags);
+            clearCache = (Action)Delegate.CreateDelegate(typeof(Action), find("ClearanceQueryCache").GetMethod("Clear", flags));
+            clearCache();
+            var raw = Expression.Variable(evaluate.ReturnType, "raw");
+            var plan = Expression.Variable(analyze.ReturnType, "plan");
+            var ap = analyze.GetParameters();
+            var sign = evaluate.GetParameters()[2].ParameterType;
+            var queryMode = Expression.Constant(Enum.Parse(ap[3].ParameterType, "ReferenceNormal"));
+            var scope = Expression.Constant(Enum.Parse(ap[4].ParameterType, "TargetClearance"));
+            var owner = Expression.Constant(deformer);
+            var referenceArg = Expression.Constant(reference, typeof(Renderer));
+            // Build one direct-call delegate before timing: reflection and invocation arrays
+            // are diagnostic setup only, not part of the measured product operation.
+            var operation = Expression.Lambda<Func<object>>(Expression.Block(new[] { raw, plan },
+                Expression.Assign(raw, Expression.Call(evaluate, Expression.Constant(target, typeof(Renderer)),
+                    referenceArg, Expression.Constant(Enum.Parse(sign, "ReferenceNormal")))),
+                Expression.Assign(plan, Expression.Call(analyze, owner, raw, referenceArg, queryMode, scope,
+                    Expression.Constant(0.005f), Expression.Constant(0.01f), Expression.Constant(0.1f),
+                    Expression.Default(ap[8].ParameterType))),
+                Expression.Convert(Expression.Call(generate, owner, plan, referenceArg, queryMode, scope,
+                    Expression.Constant(0.005f), Expression.Constant(0.01f), Expression.Constant(0.1f)), typeof(object)))).Compile();
+            var reportType = generate.ReturnType;
+            var reportFlags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+            object report = null;
+            Action operationAction = () => report = operation();
+            Action validateAndReset = () =>
+            {
+                if (reportType.GetField("Status", reportFlags).GetValue(report).ToString() != "Success" ||
+                    (int)reportType.GetField("MovedVertexCount", reportFlags).GetValue(report) != vertexCount ||
+                    (int)reportType.GetField("ImprovedVertexCount", reportFlags).GetValue(report) != vertexCount ||
+                    (int)reportType.GetField("UnresolvedVertexCount", reportFlags).GetValue(report) != 0 ||
+                    deformer.Layers.Count != initialLayers + 1)
+                    throw new InvalidOperationException("Fit result does not meet the independent plane oracle.");
+                var layer = deformer.Layers[initialLayers];
+                float expected = 0.01f - root.transform.position.z;
+                for (int i = 0; i < vertexCount; i++)
+                    if ((layer.GetBrushDisplacement(i) - Vector3.forward * expected).sqrMagnitude > 1e-10f)
+                        throw new InvalidOperationException("Fit displacement mismatch at " + i);
+                if (!sourceVertices.SequenceEqual(mesh.vertices) || !sourceIndices.SequenceEqual(mesh.triangles))
+                    throw new InvalidOperationException("Fit modified source mesh.");
+                deformer.RemoveLayer(initialLayers);
+                deformer.ActiveLayerIndex = 0;
+            };
+            yield return new Work { action = operationAction, accept = m => scenario.firstEvaluation = m,
+                captureName = scenario.name + ".first" };
+            validateAndReset();
+            for (int phase = 0; phase < 2; phase++)
+            {
+                for (int i = -3; i < samples; i++)
+                {
+                    root.transform.position = Vector3.back * (phase == 0 || (i & 1) == 0 ? 0.002f : 0.004f);
+                    int index = i;
+                    var values = phase == 0 ? scenario.unchanged : scenario.edited;
+                    yield return new Work { action = operationAction,
+                        accept = i < 0 ? (Action<Measurement>)null : m => values[index] = m,
+                        captureName = i == samples - 1 ? scenario.name + (phase == 0 ? ".unchanged-last" : ".edited-last") : null };
+                    validateAndReset();
+                }
+            }
+            scenario.unchangedP50 = Percentile(scenario.unchanged, 0.5);
+            scenario.unchangedP95 = Percentile(scenario.unchanged, 0.95);
+            scenario.editedP50 = Percentile(scenario.edited, 0.5);
+            scenario.editedP95 = Percentile(scenario.edited, 0.95);
+        }
+        finally
+        {
+            clearCache?.Invoke();
+            if (deformer != null && deformer.RuntimeMesh != null) Object.DestroyImmediate(deformer.RuntimeMesh);
+            Object.DestroyImmediate(root);
+            Object.DestroyImmediate(referenceRoot);
+            Object.DestroyImmediate(mesh);
+            Object.DestroyImmediate(referenceMesh);
+        }
+        scenario.meshCountDeltaAfterDispose = Resources.FindObjectsOfTypeAll<Mesh>().Length - meshCountBefore;
+        s_document.scenarios.Add(scenario);
+    }
+
     private static IEnumerable<Work> RunClearance(int vertexCount, int samples)
     {
         int meshCountBefore = Resources.FindObjectsOfTypeAll<Mesh>().Length;
@@ -496,7 +608,12 @@ public static class EvaluationBenchmark
                 if (!TryReadSample(s_pending.marker, out var measurement))
                 {
                     if (EditorApplication.timeSinceStartup - s_startedWaiting > 30)
-                        throw new TimeoutException("CPU Profiler did not provide the measurement frame.");
+                    {
+                        ProfilerDriver.SaveProfile(s_output + ".missing-frame.raw");
+                        throw new TimeoutException("CPU Profiler did not provide the measurement frame: " +
+                            s_pending.captureName + "; before=" + s_frameBefore +
+                            "; first=" + ProfilerDriver.firstFrameIndex + "; last=" + ProfilerDriver.lastFrameIndex);
+                    }
                     ProfilerDriver.enabled = true;
                     EditorApplication.QueuePlayerLoopUpdate();
                     return;
