@@ -359,109 +359,121 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 evaluationTarget = ResolveEvaluationTarget(originalTarget, out usedPreviewProxy);
             }
-            if (evaluationTarget != originalTarget &&
-                !TrySynchronizePose(originalTarget, evaluationTarget, out string poseError))
+            // NDMF updates the proxy parent on the next frame. Keep the synchronous
+            // pose/weight synchronization local to this evaluation, including Apply preview.
+            var proxySnapshot = evaluationTarget != originalTarget
+                ? SceneStateSnapshot.Capture(null, evaluationTarget, null)
+                : null;
+            try
             {
-                return Error(
-                    conditionIndex,
-                    condition,
-                    ClearanceScanConditionStatus.InvalidRenderer,
-                    "Preview proxy: " + poseError);
-            }
-            if (evaluationTarget != originalTarget &&
-                !TrySynchronizeBlendShapeWeights(originalTarget, evaluationTarget, out string syncError))
-            {
-                return Error(
-                    conditionIndex,
-                    condition,
-                    ClearanceScanConditionStatus.MissingBlendShape,
-                    syncError);
-            }
-            for (int index = 0; index < condition.BlendShapeOverrides.Count; index++)
-            {
-                ClearanceBlendShapeOverride blendShape = condition.BlendShapeOverrides[index];
-                if (blendShape == null) continue;
-                Renderer renderer = blendShape.RendererRole == ClearanceScanRendererRole.Target
-                    ? originalTarget
-                    : _referenceRenderer;
-                if (!TrySetBlendShape(renderer, blendShape, out string error))
-                    return Error(conditionIndex, condition,
-                        error == "Renderer is not a SkinnedMeshRenderer."
-                            ? ClearanceScanConditionStatus.InvalidRenderer
-                            : ClearanceScanConditionStatus.MissingBlendShape,
-                        error);
-                if (blendShape.RendererRole == ClearanceScanRendererRole.Target &&
-                    evaluationTarget != originalTarget)
+                if (evaluationTarget != originalTarget &&
+                    !TrySynchronizePose(originalTarget, evaluationTarget, out string poseError))
                 {
-                    if (!TrySetBlendShape(evaluationTarget, blendShape, out string proxyError))
-                    {
-                        return Error(
-                            conditionIndex,
-                            condition,
-                            proxyError == "Renderer is not a SkinnedMeshRenderer."
+                    return Error(
+                        conditionIndex,
+                        condition,
+                        ClearanceScanConditionStatus.InvalidRenderer,
+                        "Preview proxy: " + poseError);
+                }
+                if (evaluationTarget != originalTarget &&
+                    !TrySynchronizeBlendShapeWeights(originalTarget, evaluationTarget, out string syncError))
+                {
+                    return Error(
+                        conditionIndex,
+                        condition,
+                        ClearanceScanConditionStatus.MissingBlendShape,
+                        syncError);
+                }
+                for (int index = 0; index < condition.BlendShapeOverrides.Count; index++)
+                {
+                    ClearanceBlendShapeOverride blendShape = condition.BlendShapeOverrides[index];
+                    if (blendShape == null) continue;
+                    Renderer renderer = blendShape.RendererRole == ClearanceScanRendererRole.Target
+                        ? originalTarget
+                        : _referenceRenderer;
+                    if (!TrySetBlendShape(renderer, blendShape, out string error))
+                        return Error(conditionIndex, condition,
+                            error == "Renderer is not a SkinnedMeshRenderer."
                                 ? ClearanceScanConditionStatus.InvalidRenderer
                                 : ClearanceScanConditionStatus.MissingBlendShape,
-                            "Preview proxy: " + proxyError);
+                            error);
+                    if (blendShape.RendererRole == ClearanceScanRendererRole.Target &&
+                        evaluationTarget != originalTarget)
+                    {
+                        if (!TrySetBlendShape(evaluationTarget, blendShape, out string proxyError))
+                        {
+                            return Error(
+                                conditionIndex,
+                                condition,
+                                proxyError == "Renderer is not a SkinnedMeshRenderer."
+                                    ? ClearanceScanConditionStatus.InvalidRenderer
+                                    : ClearanceScanConditionStatus.MissingBlendShape,
+                                "Preview proxy: " + proxyError);
+                        }
                     }
                 }
-            }
 
-            _afterConditionApplied?.Invoke(conditionIndex);
+                _afterConditionApplied?.Invoke(conditionIndex);
 
-            Mesh currentEvaluationMesh = GetRendererMesh(evaluationTarget);
-            string currentTopologyHash = GetTopologyHash(currentEvaluationMesh);
-            if (string.IsNullOrEmpty(_expectedTopologyHash) ||
-                (!usedPreviewProxy && !ReferenceEquals(currentEvaluationMesh, _expectedEvaluationMesh)) ||
-                !string.Equals(currentTopologyHash, _expectedTopologyHash, StringComparison.Ordinal))
-            {
-                return Error(
+                Mesh currentEvaluationMesh = GetRendererMesh(evaluationTarget);
+                string currentTopologyHash = GetTopologyHash(currentEvaluationMesh);
+                if (string.IsNullOrEmpty(_expectedTopologyHash) ||
+                    (!usedPreviewProxy && !ReferenceEquals(currentEvaluationMesh, _expectedEvaluationMesh)) ||
+                    !string.Equals(currentTopologyHash, _expectedTopologyHash, StringComparison.Ordinal))
+                {
+                    return Error(
+                        conditionIndex,
+                        condition,
+                        ClearanceScanConditionStatus.EvaluationFailed,
+                        "Target topology or vertex identity changed during the scan.");
+                }
+
+                float warningDistance = condition.OverrideThresholds
+                    ? condition.WarningDistance
+                    : _defaultWarningDistance;
+                float targetDistance = condition.OverrideThresholds
+                    ? condition.TargetDistance
+                    : _defaultTargetDistance;
+                ClearanceHeatmapRawEvaluation raw = ClearanceHeatmapEvaluator.Evaluate(
+                    evaluationTarget,
+                    _referenceRenderer,
+                    _queryMode == ClearanceQueryMode.ClosedMesh
+                        ? ClearanceSignMode.ClosedMesh
+                        : ClearanceSignMode.ReferenceNormal);
+                ClearanceHeatmapEvaluation evaluation = ClearanceHeatmapEvaluator.Classify(
+                    raw,
+                    warningDistance,
+                    targetDistance);
+                if (evaluation.Status != ClearanceEvaluationStatus.Valid)
+                    return Error(conditionIndex, condition,
+                        ClearanceScanConditionStatus.EvaluationFailed,
+                        "Clearance evaluation failed.");
+
+                var clearances = new float[evaluation.QueryResults.Length];
+                for (int vertex = 0; vertex < clearances.Length; vertex++)
+                {
+                    clearances[vertex] = evaluation.QueryResults[vertex].IsValid
+                        ? evaluation.QueryResults[vertex].SignedClearance
+                        : float.PositiveInfinity;
+                }
+                return new ClearanceScanConditionResult(
                     conditionIndex,
-                    condition,
-                    ClearanceScanConditionStatus.EvaluationFailed,
-                    "Target topology or vertex identity changed during the scan.");
+                    condition.Name,
+                    ClearanceScanConditionStatus.Success,
+                    warningDistance: warningDistance,
+                    targetDistance: targetDistance,
+                    statistics: evaluation.Statistics,
+                    vertexClearances: clearances,
+                    usedNdmfPreviewProxy: usedPreviewProxy,
+                    evaluatedRendererName: evaluationTarget != null
+                        ? GetHierarchyName(evaluationTarget.transform)
+                        : "",
+                    conditionDefinition: condition);
             }
-
-            float warningDistance = condition.OverrideThresholds
-                ? condition.WarningDistance
-                : _defaultWarningDistance;
-            float targetDistance = condition.OverrideThresholds
-                ? condition.TargetDistance
-                : _defaultTargetDistance;
-            ClearanceHeatmapRawEvaluation raw = ClearanceHeatmapEvaluator.Evaluate(
-                evaluationTarget,
-                _referenceRenderer,
-                _queryMode == ClearanceQueryMode.ClosedMesh
-                    ? ClearanceSignMode.ClosedMesh
-                    : ClearanceSignMode.ReferenceNormal);
-            ClearanceHeatmapEvaluation evaluation = ClearanceHeatmapEvaluator.Classify(
-                raw,
-                warningDistance,
-                targetDistance);
-            if (evaluation.Status != ClearanceEvaluationStatus.Valid)
-                return Error(conditionIndex, condition,
-                    ClearanceScanConditionStatus.EvaluationFailed,
-                    "Clearance evaluation failed.");
-
-            var clearances = new float[evaluation.QueryResults.Length];
-            for (int vertex = 0; vertex < clearances.Length; vertex++)
+            finally
             {
-                clearances[vertex] = evaluation.QueryResults[vertex].IsValid
-                    ? evaluation.QueryResults[vertex].SignedClearance
-                    : float.PositiveInfinity;
+                proxySnapshot?.Restore();
             }
-            return new ClearanceScanConditionResult(
-                conditionIndex,
-                condition.Name,
-                ClearanceScanConditionStatus.Success,
-                warningDistance: warningDistance,
-                targetDistance: targetDistance,
-                statistics: evaluation.Statistics,
-                vertexClearances: clearances,
-                usedNdmfPreviewProxy: usedPreviewProxy,
-                evaluatedRendererName: evaluationTarget != null
-                    ? GetHierarchyName(evaluationTarget.transform)
-                    : "",
-                conditionDefinition: condition);
         }
 
         private void AccumulateWorst(ClearanceScanConditionResult condition)
