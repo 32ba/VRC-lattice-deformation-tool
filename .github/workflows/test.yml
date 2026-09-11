@@ -165,7 +165,7 @@ jobs:
           # RealPreviewPipelineEndToEndTests also requires its RemoveMeshInBox component; that
           # E2E still skips under -nographics, but the surrounding suite must compile against a
           # real AAO layout instead of silently passing in an environment no user has.
-          AVATAR_OPTIMIZER_VERSION: 1.9.18
+          AVATAR_OPTIMIZER_VERSION: 1.9.19
         run: |
           set -euo pipefail
 
