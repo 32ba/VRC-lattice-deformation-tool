@@ -31,13 +31,14 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 │       ├── HistoricalReleases/  # 公開14リリースの実保存fixture
 │       └── LaterReleases/       # 後続公開28リリースの83ケース
 ├── Tools~/              # 履歴fixture、性能計測、配布・結果検証
-├── Docs~/Architecture/  # 監査、計画、実装状況、検証記録
+├── Docs~/Architecture/  # 内部構成、互換性、検証手順、公開版一覧
 └── package.json         # VPM/UPMパッケージ定義
 ```
 
 ### 2.0.0ベータのリファクタリング
 
-- `Docs~/Architecture/2026-09-07-audit.md` と `2026-09-07-refactoring-plan.md` に従い、`2.0.0-beta.1` として実装中。達成範囲と検証記録は `2.0.0-beta.1-progress.md` を参照し、計画全体を実装済みと扱わない。
+- `2.0.0-beta.1` の内部構成と互換性契約は `Docs~/Architecture/2.0.0-beta.1-progress.md`、再検証手順は同directoryの `validation.md` を参照する。
+- `Docs~/Architecture/` には上記2文書と移行テスト入力の `2026-09-07-published-releases.json` だけを保存する。個人名、利用者のプロジェクト名、絶対パス、端末情報、画面記録、実行ログ、作業日誌をコミットしない。ローカル検証の原本はリポジトリ外へ保存する。
 - 実装基準は公開済み `1.4.6-beta.1` に作業中のGuided UI・翻訳を統合した `c7f499c38e16f386fe6734e0f7937d50c502c529`。元の `1.4.5-rc.5` 作業ツリーと起動中のPlaygroundのpackage参照は保持し、`codex/refactor-2.0.0-beta` の隔離worktreeで作業する。
 - `Runtime/MeshDeformer/SerializedDeformerReader.cs` は初期化・移行・配列補正・Profile展開を行わず、壊れた保存内容もそのまま読むinternal API。返す参照は同期処理中だけ使う借用viewであり、非同期評価用の不変snapshotではない。ValidatorとInspectorのGroup/Layerコピーが利用する。
 - `Editor/MeshDeformer/Authoring/DeformerEditService.cs` はGroup/Layer追加・削除・並べ替え・複製・貼付を、1件のUndo、失敗時rollback、cache無効化、Prefab override記録へまとめる。Profile参照中の直接編集は拒否する。再評価とUI更新は呼出し側が担当し、raw readerから実行しない。
@@ -45,7 +46,7 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 - `DeformerAuthoringBoundaryTests` はraw読取り、Profile不変、失敗時rollback、Undo/Redo、Inspector callback、Prefab Apply/save-reloadを検証する。その検証だけで描画や実マウス操作の合格を主張しない。GraphicsE2Eの実XMLと利用者のScene View確認を区別して記録する。
 - `DeformerStore` はUnityのserialized propertyを変更するadapter。Layer削除後のnumeric selectionとclampは旧Inspectorの契約を保持し、public `RemoveLayer` が持つ選択規則と混同しない。Inspectorの構造操作は `PerformEditOperation` → service → store/API →再評価と表示更新へ統一した。
 - `DeformerEditService.ExecuteBatch` は対象集合を先に固定・検証し、全対象を1つのUndoへ記録する。途中の拒否・例外は全対象をrollbackしてcacheを破棄する。Profileやfuture component/layer-model/lattice versionはUndoを作る前に拒否し、複数選択のLayer設定UIは `LayerSettingsEdit.ExecuteBatch` へ接続する。3ツールの複数frame dragは別の `DeformerEditSession` がUndo snapshotと対象identityを所有する。
-- `Tests/Editor/Fixtures/ArchitectureBaseline/` は固定commit `c7f499c` の実行結果。`ArchitectureContractSnapshot.Export` と `LayerOperationBaselineFixture.Export` を隔離した基準版Unityで実行して生成し、新実装から期待値を上書きしない。公開API・保存field/path・enum・GUIDの維持と、6種類の旧Inspector操作を独立の互換性テストで照合する。`Docs~/Architecture/2026-09-07-p0-p1-contracts.md` に再実行条件と検証根拠を記録する。
+- `Tests/Editor/Fixtures/ArchitectureBaseline/` は固定基準の実行結果。`ArchitectureContractSnapshot.Export` と `LayerOperationBaselineFixture.Export` を隔離した基準版Unityで実行して生成し、新実装から期待値を上書きしない。公開API・保存field/path・enum・GUIDの維持と、6種類の旧Inspector操作を独立の互換性テストで照合する。fixtureのcommit値は生成元の由来であり、履歴整理後のcommitへ機械的に置換しない。
 
 ### 統合 EditorTool アーキテクチャ
 
@@ -366,7 +367,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - `Runtime/Model/` は既存の `LatticeLayer` / `DeformerGroup` とenumを同一namespace・assembly・保存fieldのまま配置する。`LatticeDeformer.cs` と既存metaはコンポーネントの互換入口として維持し、ファイル移動をschema変更として扱わない
 - `DeformationOutputBaselineFixture.cs` は固定commitの隔離Unityでのみ期待出力を生成する。候補実装でfixtureを更新して差を吸収しない
-- `DeformationOutputCompatibilityTests.cs` は13条件について全Mesh channel、BlendShape全frame、source/upstream不変を比較する。基準と検証hashは `Docs~/Architecture/2026-09-07-output-contracts.md` を参照する
+- `DeformationOutputCompatibilityTests.cs` は13条件について全Mesh channel、BlendShape全frame、source/upstream不変を比較する。基準と検証hashは `Tests/Editor/Fixtures/ArchitectureBaseline/` のfixtureを参照する
 - 既存14タグcorpusは維持し、後続公開28件の83ケースは `Tests/Editor/Fixtures/LaterReleases/` に独立追加する。`Tools~/HistoricalFixtures/LaterReleases/` が各tagのRuntimeで生成し、manifestの4 helper hashと決定的GUID/fileIDを検証する。helperまたは期待schemaの変更時は28件すべてを独立に2回生成し、526fileのbyte-identicalと旧/新corpusの全テストを確認する。履歴fixtureを候補実装の出力で更新しない
 - `Runtime/Evaluation/` の `DeformationEvaluator` が通常Deformと上流PreviewのGroup/Layer合成を共有する。入力は検証済みの同期借用view、managed workspaceはコンポーネント所有とし、非同期処理へ渡さない
 - `GeneratedBlendShapeOutput` の候補は中間頂点bufferから独立させ、上流frameを評価しても保持済み候補を書き換えない。旧評価wrapperは削除済みで、通常処理は専用評価型へ直接接続する。履歴移行テスト用に残すprivate移行入口とは区別する
@@ -383,7 +384,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `PublishedDeformationMigrationRunner` が通常の移行入口となり、既存の変換は旧runnerへ委譲する。1.4.0→1.4.1と16以降の境界は明示的no-opだが、境界ごとに記録成功後だけ進捗を確定する。負の進捗、未来の進捗、破損payloadを変更せず拒否し、Editorの共通診断は `MDV023` を5言語で返す
 - 進捗番号はschema識別そのものではない。Prefab Variantが更新済みの親から進捗を継承し、自身のoverrideに古いschemaを残す場合は、純粋なpreflightを通ったraw markerから進捗を再開する。既知のstale-current構造の復旧もraw fieldとPrefab overrideを含む同じ原子的commitに入れる。未知の破損や範囲外の選択をこの処理で補正しない
 - `PublishedDeformationMigrationTests` は全42境界の失敗・再試行、途中保存、Prefab Variantの継承/Apply/Revert、Undo、拒否時の不変を確認する。`ReleaseJournalFixtureTests` は旧/後続corpusのLatticeDeformer 102ケースで新しい全release入口のdirect/stepwise/save-reloadを照合する。既存の旧enum段階テストとfixture期待値は変更しない
-- `Tools~/ArchitectureBaseline/` は隔離Unityでの同期評価Profiler、プロセス上限監視、比較とソース照合を提供する。較正に成功した `GC.Alloc` のsize metadataだけを割当量として扱い、frame読取りにsample名の大量文字列化を使わない。基準は `Docs~/Architecture/2026-09-07-evaluation-performance.md` を参照する
+- `Tools~/ArchitectureBaseline/` は隔離Unityでの同期評価Profiler、プロセス上限監視、比較とソース照合を提供する。較正に成功した `GC.Alloc` のsize metadataだけを割当量として扱い、frame読取りにsample名の大量文字列化を使わない。入力、依存、計測方法を揃えた基準と比較し、結果原本はリポジトリ外で管理する
 - `Editor/Preview/DeformerPreviewSession` はNDMF nodeごとの変更revision、同一Meshへの更新、Interactive通知とUndo購読を所有する。`MeshDeformerPreviewFilter` はplacement・入力検証とNDMF callbackの接続を維持し、既存のprivate node入口は互換テストから利用できる
 - Preview session は `AssemblyReloadEvents.beforeAssemblyReload` でも同じ `Dispose` を実行し、通常終了時にはこの購読も解除する。NDMFの遅延終了だけに依存すると、domain終了後にHideAndDontSave Meshが残る。実reloadの検証はTest Runner内の通常Dispose検証と分け、再読み込み前のinstance IDの消滅、借用Meshの復元、source不変、実graphの再生成を確認する。
 - `PreviewMeshLease` は生成Meshだけを所有し、各proxyで置き換えた上流Meshを借用する。終了時はproxyが自身の一意な出力Meshをまだ参照している場合だけ復元し、別世代・後段の割当てを上書きしない。元Renderer、上流Mesh、既存のproxy generation/token登録を変更・破棄しない。遅れて届いたproxyにも独立した復元先を保持し、終了・二重終了・破棄済みproxyを同じ処理で扱う

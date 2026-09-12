@@ -66,3 +66,9 @@ Assets/PackageMakerWindowData.asset*
 # Local Python tool caches
 __pycache__/
 *.py[cod]
+
+# Keep architecture documentation limited to reviewed, reusable content.
+/Docs~/Architecture/*
+!/Docs~/Architecture/2.0.0-beta.1-progress.md
+!/Docs~/Architecture/validation.md
+!/Docs~/Architecture/2026-09-07-published-releases.json
