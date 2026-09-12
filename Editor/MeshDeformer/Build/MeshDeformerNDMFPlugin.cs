@@ -22,13 +22,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             InPhase(BuildPhase.Transforming)
                 .Run(LatticeDeformerBakePass.Instance)
-                .PreviewingWith(new LatticeDeformerPreviewFilter())
+                .PreviewingWith(new LatticeDeformerPreviewFilter(
+                    LatticeDeformerPreviewFilter.Placement.BeforeTopologyChanges))
                 .BeforePlugin("com.anatawa12.avatar-optimizer");
 
+            // A lattice-only stack is a spatial deformation field and does not
+            // depend on source vertex indices. Preview it after topology-changing
+            // optimizers so handle edits can update the final displayed mesh in
+            // place without rebuilding the global NDMF preview tree.
             InPhase(BuildPhase.Optimizing)
                 .AfterPlugin("com.anatawa12.avatar-optimizer")
-                .Run("Mesh Deformer AAO Preview Sync", _ => { })
-                .PreviewingWith(new LatticeDeformerPostAaoPreviewFilter());
+                .Run("Mesh Deformer Interactive Preview", _ => { })
+                .PreviewingWith(new LatticeDeformerPreviewFilter(
+                    LatticeDeformerPreviewFilter.Placement.AfterTopologyChanges));
         }
     }
 
@@ -53,19 +59,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     $"Mesh Deformer validation failed for '{invalidName}'. See MDV diagnostic codes in the Editor log.");
             }
 
-            bool previousSuppressRestore = LatticeDeformer.SuppressRestoreOnDisable;
-            try
+            foreach (var deformer in deformers)
             {
-                LatticeDeformer.SuppressRestoreOnDisable = true;
-
-                foreach (var deformer in deformers)
-                {
-                    ProcessValidatedDeformer(context, deformer);
-                }
-            }
-            finally
-            {
-                LatticeDeformer.SuppressRestoreOnDisable = previousSuppressRestore;
+                ProcessValidatedDeformer(context, deformer);
             }
         }
 
@@ -153,7 +149,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 meshFilter.sharedMesh = exportMesh;
             }
 
-            Object.DestroyImmediate(deformer, true);
+            using (deformer.SuppressMeshRestoration())
+                Object.DestroyImmediate(deformer, true);
         }
 
         internal static bool ShouldProcessDeformer(LatticeDeformer deformer)

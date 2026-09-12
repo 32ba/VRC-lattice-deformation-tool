@@ -1,0 +1,1166 @@
+{
+  "baselineCommit": "691723bbf64832db5ef6420cb9b89e99f3a34542",
+  "packageVersion": "1.4.6-beta.1",
+  "unityVersion": "2022.3.22f1",
+  "cases": [
+    {
+      "operation": "resize",
+      "groupJson": "{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":4,\"y\":3,\"z\":2},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":-0.2733333110809326,\"y\":-0.6800000071525574,\"z\":-0.7800000309944153},{\"x\":0.5533334016799927,\"y\":-0.6800000071525574,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":-0.2733333110809326,\"y\":0.20999999344348908,\"z\":-0.7800000309944153},{\"x\":0.5533334016799927,\"y\":0.20999999344348908,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":-0.2733333110809326,\"y\":1.119999885559082,\"z\":-0.7800000309944153},{\"x\":0.5533334016799927,\"y\":1.119999885559082,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":-0.2733333110809326,\"y\":-0.6800000071525574,\"z\":1.4200000762939454},{\"x\":0.5533334016799927,\"y\":-0.6800000071525574,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":-0.2733333110809326,\"y\":0.20999999344348908,\"z\":1.4200000762939454},{\"x\":0.5533334016799927,\"y\":0.20999999344348908,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4200000762939454},{\"x\":-0.2733333110809326,\"y\":1.119999885559082,\"z\":1.4200000762939454},{\"x\":0.5533334016799927,\"y\":1.119999885559082,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":1.4200000762939454}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":0,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}",
+      "activeLayer": 0,
+      "vertices": [
+        {
+          "x": -0.99666667,
+          "y": -0.9975,
+          "z": -0.98
+        },
+        {
+          "x": 1.07,
+          "y": -0.9925,
+          "z": -0.98
+        },
+        {
+          "x": -0.99666667,
+          "y": 1.00527775,
+          "z": -0.98
+        },
+        {
+          "x": 1.07,
+          "y": 1.00916672,
+          "z": -0.98
+        },
+        {
+          "x": -0.99666667,
+          "y": -0.9975,
+          "z": 1.02
+        },
+        {
+          "x": 1.07,
+          "y": -0.9925,
+          "z": 1.02
+        },
+        {
+          "x": -0.99666667,
+          "y": 1.00527775,
+          "z": 1.02
+        },
+        {
+          "x": 1.07,
+          "y": 1.00916672,
+          "z": 1.02
+        }
+      ],
+      "sourceVertices": [
+        {
+          "x": -1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      ]
+    },
+    {
+      "operation": "reset",
+      "groupJson": "{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.0,\"y\":0.0,\"z\":0.0},\"m_Extent\":{\"x\":1.0,\"y\":1.0,\"z\":1.0}},\"_controlPointsLocal\":[{\"x\":-1.0,\"y\":-1.0,\"z\":-1.0},{\"x\":0.0,\"y\":-1.0,\"z\":-1.0},{\"x\":1.0,\"y\":-1.0,\"z\":-1.0},{\"x\":-1.0,\"y\":0.0,\"z\":-1.0},{\"x\":0.0,\"y\":0.0,\"z\":-1.0},{\"x\":1.0,\"y\":0.0,\"z\":-1.0},{\"x\":-1.0,\"y\":1.0,\"z\":-1.0},{\"x\":0.0,\"y\":1.0,\"z\":-1.0},{\"x\":1.0,\"y\":1.0,\"z\":-1.0},{\"x\":-1.0,\"y\":-1.0,\"z\":0.0},{\"x\":0.0,\"y\":-1.0,\"z\":0.0},{\"x\":1.0,\"y\":-1.0,\"z\":0.0},{\"x\":-1.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":1.0,\"y\":0.0,\"z\":0.0},{\"x\":-1.0,\"y\":1.0,\"z\":0.0},{\"x\":0.0,\"y\":1.0,\"z\":0.0},{\"x\":1.0,\"y\":1.0,\"z\":0.0},{\"x\":-1.0,\"y\":-1.0,\"z\":1.0},{\"x\":0.0,\"y\":-1.0,\"z\":1.0},{\"x\":1.0,\"y\":-1.0,\"z\":1.0},{\"x\":-1.0,\"y\":0.0,\"z\":1.0},{\"x\":0.0,\"y\":0.0,\"z\":1.0},{\"x\":1.0,\"y\":0.0,\"z\":1.0},{\"x\":-1.0,\"y\":1.0,\"z\":1.0},{\"x\":0.0,\"y\":1.0,\"z\":1.0},{\"x\":1.0,\"y\":1.0,\"z\":1.0}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":0,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}",
+      "activeLayer": 0,
+      "vertices": [
+        {
+          "x": -1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      ],
+      "sourceVertices": [
+        {
+          "x": -1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      ]
+    },
+    {
+      "operation": "clear",
+      "groupJson": "{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":-0.699999988079071,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":0.22999998927116395,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":1.0999999046325684,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":1.4200000762939454}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Brush\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":1.4000000953674317}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0}],\"_vertexMask\":[0.25,1.0,0.25,1.0,0.25,1.0,0.25,1.0],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":1,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}",
+      "activeLayer": 1,
+      "vertices": [
+        {
+          "x": -0.99666667,
+          "y": -0.9975,
+          "z": -0.98
+        },
+        {
+          "x": 1.07,
+          "y": -0.9925,
+          "z": -0.98
+        },
+        {
+          "x": -0.99666667,
+          "y": 1.00527775,
+          "z": -0.98
+        },
+        {
+          "x": 1.07,
+          "y": 1.00916672,
+          "z": -0.98
+        },
+        {
+          "x": -0.99666667,
+          "y": -0.9884091,
+          "z": 1.02
+        },
+        {
+          "x": 1.07,
+          "y": -0.987045467,
+          "z": 1.02
+        },
+        {
+          "x": -0.99666667,
+          "y": 1.01234853,
+          "z": 1.02
+        },
+        {
+          "x": 1.07,
+          "y": 1.01340914,
+          "z": 1.02
+        }
+      ],
+      "sourceVertices": [
+        {
+          "x": -1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      ]
+    },
+    {
+      "operation": "lattice-split-left",
+      "groupJson": "{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4200000762939454},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":1.4000000953674317}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":0,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}",
+      "activeLayer": 0,
+      "vertices": [
+        {
+          "x": -1,
+          "y": -1,
+          "z": -0.9816667
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": 1.00305557,
+          "z": -0.9816667
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": -0.99,
+          "z": 1.01833332
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": -1,
+          "y": 1.01083338,
+          "z": 1.01833332
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      ],
+      "sourceVertices": [
+        {
+          "x": -1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      ]
+    },
+    {
+      "operation": "lattice-split-right",
+      "groupJson": "{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":0.14000001549720765,\"y\":-0.699999988079071,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":0.14000001549720765,\"y\":0.22999998927116395,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":0.14000001549720765,\"y\":1.0999999046325684,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4000000953674317},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":1.4200000762939454}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":0,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}",
+      "activeLayer": 0,
+      "vertices": [
+        {
+          "x": -0.99666667,
+          "y": -0.9975,
+          "z": -0.998333335
+        },
+        {
+          "x": 1.07,
+          "y": -0.9925,
+          "z": -0.98
+        },
+        {
+          "x": -0.99666667,
+          "y": 1.00222218,
+          "z": -0.998333335
+        },
+        {
+          "x": 1.07,
+          "y": 1.00916672,
+          "z": -0.98
+        },
+        {
+          "x": -0.99666667,
+          "y": -0.9984091,
+          "z": 1.00166667
+        },
+        {
+          "x": 1.07,
+          "y": -0.987045467,
+          "z": 1.02
+        },
+        {
+          "x": -0.99666667,
+          "y": 1.00151515,
+          "z": 1.00166667
+        },
+        {
+          "x": 1.07,
+          "y": 1.01340914,
+          "z": 1.02
+        }
+      ],
+      "sourceVertices": [
+        {
+          "x": -1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      ]
+    },
+    {
+      "operation": "lattice-flip-x",
+      "groupJson": "{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.1800000667572022,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":0.06000003218650818,\"y\":-0.6700000166893005,\"z\":-0.7800000309944153},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":-1.1800000667572022,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":0.06000003218650818,\"y\":0.19999998807907105,\"z\":-0.7800000309944153},{\"x\":1.3000000715255738,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":-1.1800000667572022,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":0.06000003218650818,\"y\":1.1299998760223389,\"z\":-0.7800000309944153},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":-1.1800000667572022,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":0.06000003218650818,\"y\":-0.699999988079071,\"z\":0.320000022649765},{\"x\":1.3000000715255738,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":-1.1800000667572022,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":0.06000003218650818,\"y\":0.22999998927116395,\"z\":0.320000022649765},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":-1.1800000667572022,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":0.06000003218650818,\"y\":1.0999999046325684,\"z\":0.320000022649765},{\"x\":1.3000000715255738,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":-1.1800000667572022,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":0.06000003218650818,\"y\":-0.6700000166893005,\"z\":1.4200000762939454},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":-1.1800000667572022,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":0.06000003218650818,\"y\":0.19999998807907105,\"z\":1.4200000762939454},{\"x\":1.3000000715255738,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":-1.1800000667572022,\"y\":1.0999999046325684,\"z\":1.4200000762939454},{\"x\":0.06000003218650818,\"y\":1.1299998760223389,\"z\":1.4200000762939454},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":1.4200000762939454}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":0,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}",
+      "activeLayer": 0,
+      "vertices": [
+        {
+          "x": -1.07666671,
+          "y": -0.9975,
+          "z": -0.98
+        },
+        {
+          "x": 0.99,
+          "y": -0.9925,
+          "z": -0.98
+        },
+        {
+          "x": -1.07666671,
+          "y": 1.00527775,
+          "z": -0.98
+        },
+        {
+          "x": 0.99,
+          "y": 1.00916672,
+          "z": -0.98
+        },
+        {
+          "x": -1.07666671,
+          "y": -0.9884091,
+          "z": 1.02
+        },
+        {
+          "x": 0.99,
+          "y": -0.987045467,
+          "z": 1.02
+        },
+        {
+          "x": -1.07666671,
+          "y": 1.01234853,
+          "z": 1.02
+        },
+        {
+          "x": 0.99,
+          "y": 1.01340914,
+          "z": 1.02
+        }
+      ],
+      "sourceVertices": [
+        {
+          "x": -1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      ]
+    },
+    {
+      "operation": "lattice-flip-y",
+      "groupJson": "{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":-0.7299999594688416,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":0.16999998688697816,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":0.16999998688697816,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":1.0699999332427979,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":-0.7299999594688416,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":-0.699999988079071,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":-0.7299999594688416,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":0.16999998688697816,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":1.0699999332427979,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":1.0999999046325684,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":1.0699999332427979,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":-0.7299999594688416,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":0.16999998688697816,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":0.16999998688697816,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":1.0699999332427979,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":1.4200000762939454}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":0,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}",
+      "activeLayer": 0,
+      "vertices": [
+        {
+          "x": -0.99666667,
+          "y": -1.0025,
+          "z": -0.98
+        },
+        {
+          "x": 1.07,
+          "y": -1.0075,
+          "z": -0.98
+        },
+        {
+          "x": -0.99666667,
+          "y": 0.994722247,
+          "z": -0.98
+        },
+        {
+          "x": 1.07,
+          "y": 0.990833342,
+          "z": -0.98
+        },
+        {
+          "x": -0.99666667,
+          "y": -1.011591,
+          "z": 1.02
+        },
+        {
+          "x": 1.07,
+          "y": -1.01295459,
+          "z": 1.02
+        },
+        {
+          "x": -0.99666667,
+          "y": 0.9876515,
+          "z": 1.02
+        },
+        {
+          "x": 1.07,
+          "y": 0.9865909,
+          "z": 1.02
+        }
+      ],
+      "sourceVertices": [
+        {
+          "x": -1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      ]
+    },
+    {
+      "operation": "lattice-flip-z",
+      "groupJson": "{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.8199999928474426},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":-0.8199999928474426},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":-0.8199999928474426},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":-0.8199999928474426},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":-0.8199999928474426},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":-0.8199999928474426},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.8199999928474426},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":-0.8199999928474426},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":-0.8199999928474426},{\"x\":-1.100000023841858,\"y\":-0.6700000166893005,\"z\":0.2800000011920929},{\"x\":0.14000001549720765,\"y\":-0.699999988079071,\"z\":0.2800000011920929},{\"x\":1.380000114440918,\"y\":-0.6700000166893005,\"z\":0.2800000011920929},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.2800000011920929},{\"x\":0.14000001549720765,\"y\":0.22999998927116395,\"z\":0.2800000011920929},{\"x\":1.380000114440918,\"y\":0.19999998807907105,\"z\":0.2800000011920929},{\"x\":-1.100000023841858,\"y\":1.1299998760223389,\"z\":0.2800000011920929},{\"x\":0.14000001549720765,\"y\":1.0999999046325684,\"z\":0.2800000011920929},{\"x\":1.380000114440918,\"y\":1.1299998760223389,\"z\":0.2800000011920929},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.380000114440918},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":1.380000114440918},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":1.380000114440918},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":1.380000114440918},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":1.380000114440918},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":1.380000114440918},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.380000114440918},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":1.380000114440918},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":1.380000114440918}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":0,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}",
+      "activeLayer": 0,
+      "vertices": [
+        {
+          "x": -0.99666667,
+          "y": -0.9975,
+          "z": -1.02
+        },
+        {
+          "x": 1.07,
+          "y": -0.9925,
+          "z": -1.02
+        },
+        {
+          "x": -0.99666667,
+          "y": 1.00527775,
+          "z": -1.02
+        },
+        {
+          "x": 1.07,
+          "y": 1.00916672,
+          "z": -1.02
+        },
+        {
+          "x": -0.99666667,
+          "y": -0.9884091,
+          "z": 0.98
+        },
+        {
+          "x": 1.07,
+          "y": -0.987045467,
+          "z": 0.98
+        },
+        {
+          "x": -0.99666667,
+          "y": 1.01234853,
+          "z": 0.98
+        },
+        {
+          "x": 1.07,
+          "y": 1.01340914,
+          "z": 0.98
+        }
+      ],
+      "sourceVertices": [
+        {
+          "x": -1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      ]
+    },
+    {
+      "operation": "brush-split-left",
+      "groupJson": "{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":-0.699999988079071,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":0.22999998927116395,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":1.0999999046325684,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":1.4200000762939454}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Brush\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":1.4000000953674317}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.009999999776482582,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.029999999329447748,\"y\":0.03999999910593033,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.04999999701976776,\"y\":0.019999999552965165,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.07000000029802323,\"y\":0.0,\"z\":0.0},{\"x\":0.0,\"y\":0.0,\"z\":0.0}],\"_vertexMask\":[0.25,1.0,0.25,1.0,0.25,1.0,0.25,1.0],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":1,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}",
+      "activeLayer": 1,
+      "vertices": [
+        {
+          "x": -0.9941667,
+          "y": -0.9975,
+          "z": -0.98
+        },
+        {
+          "x": 1.07,
+          "y": -0.9925,
+          "z": -0.98
+        },
+        {
+          "x": -0.9891667,
+          "y": 1.01527774,
+          "z": -0.98
+        },
+        {
+          "x": 1.07,
+          "y": 1.00916672,
+          "z": -0.98
+        },
+        {
+          "x": -0.9841667,
+          "y": -0.9834091,
+          "z": 1.02
+        },
+        {
+          "x": 1.07,
+          "y": -0.987045467,
+          "z": 1.02
+        },
+        {
+          "x": -0.9791667,
+          "y": 1.01234853,
+          "z": 1.02
+        },
+        {
+          "x": 1.07,
+          "y": 1.01340914,
+          "z": 1.02
+        }
+      ],
+      "sourceVertices": [
+        {
+          "x": -1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      ]
+    },
+    {
+      "operation": "brush-split-right",
+      "groupJson": "{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":-0.699999988079071,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":0.22999998927116395,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":1.0999999046325684,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":1.4200000762939454}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Brush\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":1.4000000953674317}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.019999999552965165,\"y\":0.019999999552965165,\"z\":0.029999999329447748},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.03999999910593033,\"y\":0.0,\"z\":0.029999999329447748},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.05999999865889549,\"y\":0.03999999910593033,\"z\":0.029999999329447748},{\"x\":0.0,\"y\":0.0,\"z\":0.0},{\"x\":0.07999999821186066,\"y\":0.019999999552965165,\"z\":0.029999999329447748}],\"_vertexMask\":[0.25,1.0,0.25,1.0,0.25,1.0,0.25,1.0],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":1,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}",
+      "activeLayer": 1,
+      "vertices": [
+        {
+          "x": -0.99666667,
+          "y": -0.9975,
+          "z": -0.98
+        },
+        {
+          "x": 1.09,
+          "y": -0.9725,
+          "z": -0.950000048
+        },
+        {
+          "x": -0.99666667,
+          "y": 1.00527775,
+          "z": -0.98
+        },
+        {
+          "x": 1.11,
+          "y": 1.00916672,
+          "z": -0.950000048
+        },
+        {
+          "x": -0.99666667,
+          "y": -0.9884091,
+          "z": 1.02
+        },
+        {
+          "x": 1.13,
+          "y": -0.947045445,
+          "z": 1.05
+        },
+        {
+          "x": -0.99666667,
+          "y": 1.01234853,
+          "z": 1.02
+        },
+        {
+          "x": 1.1500001,
+          "y": 1.03340912,
+          "z": 1.05
+        }
+      ],
+      "sourceVertices": [
+        {
+          "x": -1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      ]
+    },
+    {
+      "operation": "brush-flip-x",
+      "groupJson": "{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":-0.699999988079071,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":0.22999998927116395,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":1.0999999046325684,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":1.4200000762939454}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Brush\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":1.4000000953674317}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":-0.019999999552965165,\"y\":0.019999999552965165,\"z\":0.029999999329447748},{\"x\":-0.009999999776482582,\"y\":0.0,\"z\":0.0},{\"x\":-0.03999999910593033,\"y\":0.0,\"z\":0.029999999329447748},{\"x\":-0.029999999329447748,\"y\":0.03999999910593033,\"z\":0.0},{\"x\":-0.05999999865889549,\"y\":0.03999999910593033,\"z\":0.029999999329447748},{\"x\":-0.04999999701976776,\"y\":0.019999999552965165,\"z\":0.0},{\"x\":-0.07999999821186066,\"y\":0.019999999552965165,\"z\":0.029999999329447748},{\"x\":-0.07000000029802323,\"y\":0.0,\"z\":0.0}],\"_vertexMask\":[1.0,0.25,1.0,0.25,1.0,0.25,1.0,0.25],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":1,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}",
+      "activeLayer": 1,
+      "vertices": [
+        {
+          "x": -1.01666665,
+          "y": -0.9775,
+          "z": -0.950000048
+        },
+        {
+          "x": 1.0675,
+          "y": -0.9925,
+          "z": -0.98
+        },
+        {
+          "x": -1.03666663,
+          "y": 1.00527775,
+          "z": -0.950000048
+        },
+        {
+          "x": 1.0625,
+          "y": 1.01916671,
+          "z": -0.98
+        },
+        {
+          "x": -1.05666661,
+          "y": -0.9484091,
+          "z": 1.05
+        },
+        {
+          "x": 1.0575,
+          "y": -0.9820455,
+          "z": 1.02
+        },
+        {
+          "x": -1.07666671,
+          "y": 1.03234851,
+          "z": 1.05
+        },
+        {
+          "x": 1.0525,
+          "y": 1.01340914,
+          "z": 1.02
+        }
+      ],
+      "sourceVertices": [
+        {
+          "x": -1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      ]
+    },
+    {
+      "operation": "brush-flip-y",
+      "groupJson": "{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":-0.699999988079071,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":0.22999998927116395,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":1.0999999046325684,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":1.4200000762939454}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Brush\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":1.4000000953674317}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.029999999329447748,\"y\":-0.03999999910593033,\"z\":0.0},{\"x\":0.03999999910593033,\"y\":0.0,\"z\":0.029999999329447748},{\"x\":0.009999999776482582,\"y\":0.0,\"z\":0.0},{\"x\":0.019999999552965165,\"y\":-0.019999999552965165,\"z\":0.029999999329447748},{\"x\":0.07000000029802323,\"y\":0.0,\"z\":0.0},{\"x\":0.07999999821186066,\"y\":-0.019999999552965165,\"z\":0.029999999329447748},{\"x\":0.04999999701976776,\"y\":-0.019999999552965165,\"z\":0.0},{\"x\":0.05999999865889549,\"y\":-0.03999999910593033,\"z\":0.029999999329447748}],\"_vertexMask\":[0.25,1.0,0.25,1.0,0.25,1.0,0.25,1.0],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":1,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}",
+      "activeLayer": 1,
+      "vertices": [
+        {
+          "x": -0.9891667,
+          "y": -1.0075,
+          "z": -0.98
+        },
+        {
+          "x": 1.11,
+          "y": -0.9925,
+          "z": -0.950000048
+        },
+        {
+          "x": -0.9941667,
+          "y": 1.00527775,
+          "z": -0.98
+        },
+        {
+          "x": 1.09,
+          "y": 0.989166737,
+          "z": -0.950000048
+        },
+        {
+          "x": -0.9791667,
+          "y": -0.9884091,
+          "z": 1.02
+        },
+        {
+          "x": 1.1500001,
+          "y": -1.00704551,
+          "z": 1.05
+        },
+        {
+          "x": -0.9841667,
+          "y": 1.00734854,
+          "z": 1.02
+        },
+        {
+          "x": 1.13,
+          "y": 0.9734091,
+          "z": 1.05
+        }
+      ],
+      "sourceVertices": [
+        {
+          "x": -1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      ]
+    },
+    {
+      "operation": "brush-flip-z",
+      "groupJson": "{\"_name\":\"Group\",\"_enabled\":true,\"_layers\":[{\"_name\":\"Lattice Layer\",\"_enabled\":true,\"_weight\":1.0,\"_type\":0,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":-0.7800000309944153},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":-0.7800000309944153},{\"x\":-1.100000023841858,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":-0.699999988079071,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":-0.6700000166893005,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":0.22999998927116395,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":0.19999998807907105,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":0.14000001549720765,\"y\":1.0999999046325684,\"z\":0.320000022649765},{\"x\":1.380000114440918,\"y\":1.1299998760223389,\"z\":0.320000022649765},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":-0.6700000166893005,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":-0.699999988079071,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":0.19999998807907105,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":0.22999998927116395,\"z\":1.4200000762939454},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4200000762939454},{\"x\":0.14000001549720765,\"y\":1.1299998760223389,\"z\":1.4200000762939454},{\"x\":1.380000114440918,\"y\":1.0999999046325684,\"z\":1.4200000762939454}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[],\"_vertexMask\":[],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0},{\"_name\":\"Brush\",\"_enabled\":true,\"_weight\":1.0,\"_type\":1,\"_settings\":{\"_gridSize\":{\"x\":3,\"y\":3,\"z\":3},\"_localBounds\":{\"m_Center\":{\"x\":0.10000000149011612,\"y\":0.20000000298023225,\"z\":0.30000001192092898},\"m_Extent\":{\"x\":1.2000000476837159,\"y\":0.8999999761581421,\"z\":1.100000023841858}},\"_controlPointsLocal\":[{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":-0.800000011920929},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":0.30000001192092898},{\"x\":-1.100000023841858,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":-0.699999988079071,\"z\":1.4000000953674317},{\"x\":-1.100000023841858,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":0.19999998807907105,\"z\":1.4000000953674317},{\"x\":-1.100000023841858,\"y\":1.0999999046325684,\"z\":1.4000000953674317},{\"x\":0.10000002384185791,\"y\":1.0999999046325684,\"z\":1.4000000953674317},{\"x\":1.3000000715255738,\"y\":1.0999999046325684,\"z\":1.4000000953674317}],\"_interpolation\":0,\"_legacyTrilinearInterpolation\":false,\"_applySpace\":0,\"_serializationVersion\":1},\"_brushDisplacements\":[{\"x\":0.04999999701976776,\"y\":0.019999999552965165,\"z\":0.0},{\"x\":0.05999999865889549,\"y\":0.03999999910593033,\"z\":-0.029999999329447748},{\"x\":0.07000000029802323,\"y\":0.0,\"z\":0.0},{\"x\":0.07999999821186066,\"y\":0.019999999552965165,\"z\":-0.029999999329447748},{\"x\":0.009999999776482582,\"y\":0.0,\"z\":0.0},{\"x\":0.019999999552965165,\"y\":0.019999999552965165,\"z\":-0.029999999329447748},{\"x\":0.029999999329447748,\"y\":0.03999999910593033,\"z\":0.0},{\"x\":0.03999999910593033,\"y\":0.0,\"z\":-0.029999999329447748}],\"_vertexMask\":[0.25,1.0,0.25,1.0,0.25,1.0,0.25,1.0],\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_isFitCorrection\":false,\"_fitCorrectionReferenceRenderer\":{\"instanceID\":0},\"_fitCorrectionQueryMode\":0,\"_fitCorrectionScope\":0,\"_fitCorrectionWarningDistance\":0.0,\"_fitCorrectionTargetDistance\":0.0,\"_fitCorrectionMaximumMove\":0.0,\"_fitCorrectionUsedVertexMask\":false,\"_fitCorrectionConstraintMask\":[],\"_fitCorrectionPinnedOpenBoundaries\":false,\"_fitCorrectionIsolatedComponents\":false,\"_fitCorrectionSmoothedSurface\":false,\"_fitCorrectionSmoothingIterations\":0,\"_fitCorrectionSmoothingStrength\":0.0,\"_fitCorrectionPreservedClearance\":false,\"_fitCorrectionUsedSymmetry\":false,\"_fitCorrectionSymmetryAxis\":0,\"_fitCorrectionSymmetryTolerance\":0.0,\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_hasImportedBlendShapeFrameWeight\":false,\"_importedBlendShapeFrameWeight\":0.0}],\"_activeLayerIndex\":1,\"_blendShapeOutput\":0,\"_blendShapeName\":\"\",\"_blendShapeCurve\":{\"serializedVersion\":\"2\",\"m_Curve\":[{\"serializedVersion\":\"3\",\"time\":0.0,\"value\":0.0,\"inSlope\":0.0,\"outSlope\":1.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0},{\"serializedVersion\":\"3\",\"time\":1.0,\"value\":1.0,\"inSlope\":1.0,\"outSlope\":0.0,\"tangentMode\":0,\"weightedMode\":0,\"inWeight\":0.0,\"outWeight\":0.0}],\"m_PreInfinity\":2,\"m_PostInfinity\":2,\"m_RotationOrder\":4},\"_blendShapeComposition\":0}",
+      "activeLayer": 1,
+      "vertices": [
+        {
+          "x": -0.9841667,
+          "y": -0.9925,
+          "z": -0.98
+        },
+        {
+          "x": 1.13,
+          "y": -0.9525,
+          "z": -1.01
+        },
+        {
+          "x": -0.9791667,
+          "y": 1.00527775,
+          "z": -0.98
+        },
+        {
+          "x": 1.1500001,
+          "y": 1.0291667,
+          "z": -1.01
+        },
+        {
+          "x": -0.9941667,
+          "y": -0.9884091,
+          "z": 1.02
+        },
+        {
+          "x": 1.09,
+          "y": -0.9670455,
+          "z": 0.99
+        },
+        {
+          "x": -0.9891667,
+          "y": 1.02234852,
+          "z": 1.02
+        },
+        {
+          "x": 1.11,
+          "y": 1.01340914,
+          "z": 0.99
+        }
+      ],
+      "sourceVertices": [
+        {
+          "x": -1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": -1
+        },
+        {
+          "x": -1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": -1,
+          "z": 1
+        },
+        {
+          "x": -1,
+          "y": 1,
+          "z": 1
+        },
+        {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      ]
+    }
+  ],
+  "originalSha256": "2a4459c8c5dc9b0a48992bb30ad8c5afe6e03d600e980bcc15cb77ef09063208",
+  "normalization": "float[3] to {x,y,z}; no numeric or groupJson changes"
+}

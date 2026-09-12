@@ -630,6 +630,51 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void AppliedCondition_ReleasesProxyOffsetBeforeParentTracksTarget(bool throwDuringEvaluation)
+        {
+            var fixture = Fixture.CreateMeshRenderers();
+            var shadow = new GameObject("Tracking Parent");
+            var proxyObject = new GameObject("Preview Proxy");
+            proxyObject.transform.SetParent(shadow.transform, false);
+            proxyObject.AddComponent<MeshFilter>().sharedMesh = fixture.TargetMesh;
+            var proxy = proxyObject.AddComponent<MeshRenderer>();
+            var scanSet = NewScanSet(PoseCondition("Move", 0.005f));
+            var operation = new ClearanceScanOperation(
+                scanSet, fixture.Deformer, fixture.Reference, fixture.Root.transform,
+                ClearanceQueryMode.ReferenceNormal, 0.005f, 0.01f,
+                restoreOnComplete: false, previewProxyResolver: _ => proxy,
+                afterConditionApplied: _ =>
+                {
+                    Assert.That(proxy.transform.position.z, Is.EqualTo(0.005f).Within(1e-6f));
+                    if (throwDuringEvaluation) throw new InvalidOperationException("Injected evaluation failure");
+                });
+            try
+            {
+                var result = operation.RunToCompletion().Conditions.Single();
+                Assert.That(result.IsSuccess, Is.EqualTo(!throwDuringEvaluation));
+                Assert.That(proxy.transform.localPosition, Is.EqualTo(Vector3.zero),
+                    "A synchronous query must not leave an offset on the renderer owned by NDMF.");
+                if (!throwDuringEvaluation)
+                {
+                    Assert.That(result.Statistics.MinimumClearance, Is.EqualTo(0.005f).Within(1e-6f));
+                    Assert.That(fixture.Target.transform.localPosition.z, Is.EqualTo(0.005f).Within(1e-6f));
+                    // Model the next NDMF frame: the parent follows the original, without resetting child local pose.
+                    shadow.transform.position = fixture.Target.transform.position;
+                    var raw = ClearanceHeatmapEvaluator.Evaluate(proxy, fixture.Reference, ClearanceSignMode.ReferenceNormal);
+                    Assert.That(raw.QueryResults[0].SignedClearance, Is.EqualTo(0.005f).Within(1e-6f));
+                }
+            }
+            finally
+            {
+                operation.Dispose();
+                Object.DestroyImmediate(shadow);
+                Object.DestroyImmediate(scanSet);
+                fixture.Dispose();
+            }
+        }
+
         [Test]
         public void TransformOverridePose_IsSynchronizedToExternalPreviewProxyBonesAndRestored()
         {

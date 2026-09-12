@@ -264,12 +264,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void NdmfPreviewInstantiate_ProxyTopologyMismatchWarnsAndRestoresProxy()
+        public void NdmfPreviewInstantiate_ProxyTopologyMismatchWarnsWithoutMutatingUpstream()
         {
             using var fixture = CreateFixture("NDMF Preview Topology");
             var proxyObject = new GameObject("NDMF Preview Mismatched Proxy");
             Mesh proxyMesh = CreateMesh("Mismatched Proxy Mesh");
             proxyMesh.triangles = new[] { 0, 2, 1, 1, 2, 3 };
+            int[] upstreamTriangles = proxyMesh.triangles;
             IRenderFilterNode node = null;
             try
             {
@@ -289,7 +290,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(proxyRenderer.GetComponent<MeshFilter>().sharedMesh, Is.Not.SameAs(proxyMesh));
                 node.Dispose();
                 node = null;
-                Assert.That(proxyRenderer.GetComponent<MeshFilter>().sharedMesh, Is.SameAs(proxyMesh));
+                Assert.That(proxyMesh.triangles, Is.EqualTo(upstreamTriangles),
+                    "Disposal must not rewrite the upstream mesh owned by the preceding NDMF node.");
+                Assert.That(fixture.Filter.sharedMesh, Is.SameAs(fixture.Mesh));
             }
             finally
             {
@@ -504,7 +507,24 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(diagnostics.Count(d => d.Code == MeshDeformerValidator.ExistingBlendShapeCollision), Is.EqualTo(2));
 
             first.BlendShapeName = "";
+            Assert.That(MeshDeformerValidator.Validate(fixture.Deformer)
+                .Any(d => d.Code == MeshDeformerValidator.EmptyBlendShapeName), Is.False,
+                "An empty stored name must use the same object-name fallback as Deform().");
+            fixture.Deformer.gameObject.name = "";
             AssertCode(fixture.Deformer, MeshDeformerValidator.EmptyBlendShapeName);
+        }
+
+        [Test]
+        public void EmptyLayerBlendShapeName_UsesLayerNameFallback()
+        {
+            using var fixture = CreateFixture("Layer BlendShape Fallback");
+            LatticeLayer layer = fixture.Deformer.Groups[0].Layers[0];
+            layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+            layer.BlendShapeName = "";
+
+            Assert.That(layer.EffectiveBlendShapeName, Is.Not.Empty);
+            Assert.That(MeshDeformerValidator.Validate(fixture.Deformer)
+                .Any(d => d.Code == MeshDeformerValidator.EmptyBlendShapeName), Is.False);
         }
 
         [Test]
@@ -569,6 +589,29 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally
             {
                 Object.DestroyImmediate(other);
+            }
+        }
+
+        [Test]
+        public void IntentionalLateLatticePreview_DoesNotReportPreviewBakeTargetMismatch()
+        {
+            using var fixture = CreateFixture("Intentional Late Preview Target");
+            var reduced = CreateMesh("Reduced Proxy Topology");
+            reduced.triangles = new[] { 0, 2, 1 };
+            try
+            {
+                Assert.That(fixture.Deformer.CanPreviewAfterTopologyChanges(), Is.True);
+                var diagnostics = LatticeDeformerPreviewFilter.ValidateBeforePreview(
+                    fixture.Deformer,
+                    reduced,
+                    intentionalTopologyChangedInput: true);
+
+                Assert.That(diagnostics.Any(d =>
+                    d.Code == MeshDeformerValidator.PreviewBakeTargetMismatch), Is.False);
+            }
+            finally
+            {
+                Object.DestroyImmediate(reduced);
             }
         }
 

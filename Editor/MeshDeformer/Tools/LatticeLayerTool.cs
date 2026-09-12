@@ -71,16 +71,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static GUIContent s_icon;
         private static bool s_showIndices = false;
         private static bool s_includeInteriorControls = false;
-        private static readonly HashSet<int> s_selectedControls = new HashSet<int>();
+        private static readonly LatticeControlSelection s_selectedControls = new LatticeControlSelection();
         private static bool s_mirrorEditing = false;
         private static MirrorAxis s_mirrorAxis = MirrorAxis.X;
         private static MirrorBehavior s_mirrorBehavior = MirrorBehavior.Mirrored;
         private static bool s_occludeWithSceneGeometry = true;
         private static Vector3Int s_lastGridSize = Vector3Int.one;
-        private static readonly Vector3[] s_mirrorPlaneCorners = new Vector3[4];
-
-        // Overlay foldout states
-        private static bool s_showSymmetrySection = false;
 
         private LatticeDeformer _activeDeformer;
         private Vector3[] _worldPositions = Array.Empty<Vector3>();
@@ -104,12 +100,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int _proxySnapshotHash;
         private Bounds _cachedProxyMeshBounds;
         private Bounds _cachedProxyRendererBounds;
-        private Matrix4x4? _cachedSkinningCorrection;
         private readonly LatticeControlPointSkinning _controlPointSkinning =
             new LatticeControlPointSkinning();
-        private Mesh _skinningFallbackMesh;
-        private readonly List<Vector3> _skinningBakedVertices = new List<Vector3>();
-        private readonly List<int> _skinningTopologyIndices = new List<int>();
+        private readonly SkinnedPoseSnapshot _poseSnapshot = new SkinnedPoseSnapshot("Lattice Cage Skinning Bounds");
+        private readonly LatticeCageGeometry _cageGeometry = new LatticeCageGeometry();
         private Bounds _skinningFallbackBounds;
         private bool _hasSkinningFallbackBounds;
         private int _skinningReferenceGeometryHash;
@@ -117,7 +111,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Bounds _skinningReferenceSampleBounds;
         private Bounds _skinningReferenceBakedBounds;
         private Bounds _skinningDisplayBounds;
-        private bool _hasSkinningDisplayBounds;
         private bool _skinningSnapshotValid;
         private int _skinningSnapshotHash;
         private SkinnedMeshRenderer _cachedSkinningRenderer;
@@ -130,6 +123,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal int SkinningRefreshCountForTests { get; private set; }
         internal int ControlPointBindingRefreshCountForTests =>
             _controlPointSkinning.BindingRefreshCountForTests;
+        internal bool TryGetControlPointBindingForTests(
+            int controlIndex,
+            out int[] boneIndices,
+            out float[] weights) =>
+            _controlPointSkinning.TryGetBindingForTests(
+                controlIndex,
+                out boneIndices,
+                out weights);
         internal Bounds ProxyMeshBoundsForTests => _cachedProxyMeshBounds;
         internal bool CaptureCageFramesForTests { get; set; }
         internal int CageRepaintCountForTests { get; private set; }
@@ -215,7 +216,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 s_includeInteriorControls = value;
                 if (!s_includeInteriorControls)
                 {
-                    FilterSelectionToBoundary(s_lastGridSize);
+                    s_selectedControls.KeepBoundary(s_lastGridSize);
                 }
 
                 SceneView.RepaintAll();
@@ -278,6 +279,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal void Deactivate()
         {
+            _editSession?.Dispose();
+            _editSession = null;
             Undo.undoRedoPerformed -= OnUndoRedo;
             EditorApplication.hierarchyChanged -= InvalidateProxyCache;
             EditorApplication.projectChanged -= InvalidateProxyCache;
@@ -286,10 +289,31 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _activeDeformer = null;
         }
 
+        private DeformerEditSession _editSession;
+
         internal void OnToolGUI(EditorWindow window, LatticeDeformer deformer)
         {
             if (Event.current != null && Event.current.commandName == "UndoRedoPerformed")
             {
+                return;
+            }
+
+            if (_editSession != null && !_editSession.MatchesTarget(deformer))
+            {
+                _editSession.Dispose();
+                _editSession = null;
+                InvalidateProxyCache(true);
+                ClearSelection();
+                GUIUtility.hotControl = 0;
+                return;
+            }
+            if (_editSession != null && Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Escape)
+            {
+                _editSession.TryCancel();
+                _editSession = null;
+                InvalidateProxyCache(true);
+                GUIUtility.hotControl = 0;
+                Event.current.Use();
                 return;
             }
 
@@ -315,12 +339,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
 
             Profiler.BeginSample("LatticeTool.DrawHandles");
+            bool endsGesture = Event.current.rawType == EventType.MouseUp && Event.current.button == 0;
             try
             {
                 DrawControlHandles(deformer, settings, controlCount);
             }
             finally
             {
+                if (endsGesture)
+                {
+                    _editSession?.Dispose();
+                    _editSession = null;
+                }
                 Profiler.EndSample();
             }
         }
@@ -398,15 +428,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     proxyBoundsRenderer = _cachedProxyRendererBounds;
                 }
             }
+
             var sourceToProxy = worldToProxy * sourceToWorld;
             var proxyToSource = worldToSource * proxyToWorld;
-            // Both helpers already return proxy-local bounds. Dividing by lossyScale here
-            // would apply the transform scale a second time and shrink/enlarge the cage.
-            var proxyBoundsLocal = useProxy ? ChooseLargerBounds(proxyBoundsMesh, proxyBoundsRenderer) : sourceBounds;
-            if (!_controlPointSkinning.IsValid && _hasSkinningFallbackBounds)
-            {
-                proxyBoundsLocal = _skinningFallbackBounds;
-            }
+            // The lattice bounds are authored input state. The proxy mesh already
+            // contains this deformer output, so using its bounds here creates a
+            // feedback loop: a drag changes the mesh bounds and releasing the handle
+            // then resizes the cage. Keep the domain fixed while still using the proxy
+            // transform and per-control-point skinning to follow upstream pose changes.
+            var proxyBoundsLocal = sourceBounds;
             const float k_BoundsTolerance = 0.02f;
             const float k_MaxVolumeRatio = 4f; // if proxy bounds are >4x volume, treat as unreliable
             var proxyVolume = proxyBoundsLocal.size.x * proxyBoundsLocal.size.y * proxyBoundsLocal.size.z;
@@ -419,17 +449,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var manualScale = LatticePreviewUtility.GetManualScaleProxy(deformer);
             bool hasManualAdjust = manualOffset != Vector3.zero || manualScale != Vector3.one;
 
-            bool useBoundsRemap =
-                useProxy &&
-                mode == LatticeDeformer.LatticeAlignMode.Mode3_BoundsRemap &&
-                !proxyTooBig &&
-                !hasManualAdjust &&
-                !AreBoundsApproximatelyEqual(sourceBounds, proxyBoundsLocal, k_BoundsTolerance);
+            bool useBoundsRemap = false;
 
-            bool useSkinningFallback =
-                !_controlPointSkinning.IsValid &&
-                _hasSkinningFallbackBounds &&
-                !AreBoundsApproximatelyEqual(sourceBounds, proxyBoundsLocal, k_BoundsTolerance);
+            bool useSkinningFallback = false;
             var needBoundsMap = useBoundsRemap || useSkinningFallback;
 
             if (proxyTooBig && LatticePreviewUtility.DebugAlignLogs)
@@ -524,9 +546,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     $"useProxy={useProxy}, mode=per-control-point, controlCount={controlCount}");
             }
 
-            // Auto-initialize clamp values once per instance based on observed offset
-            // Auto alignment is now manual (via button); no automatic recalculation here.
-
             if (LatticePreviewUtility.DebugAlignLogs && useProxy)
             {
                 LatticePreviewUtility.LogAlign("Bounds",
@@ -557,14 +576,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                             _controlPointSkinning.TryTransformPoint(index, local, out correctedLocal);
                             if (normalizeSkinnedBounds)
                             {
-                                correctedLocal = MapPointBetweenBounds(
+                                correctedLocal = LatticeCageGeometry.MapPointBetweenBounds(
                                     correctedLocal,
                                     _controlPointSkinning.PosedControlBounds,
                                     _skinningDisplayBounds);
                             }
                         }
                         var mappedLocal = needBoundsMap
-                            ? MapPointBetweenBounds(correctedLocal, sourceBounds, proxyBoundsLocal)
+                            ? LatticeCageGeometry.MapPointBetweenBounds(correctedLocal, sourceBounds, proxyBoundsLocal)
                             : correctedLocal;
                         var proxyLocal = needBoundsMap
                             ? useSkinningFallback
@@ -593,7 +612,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var mirrorScale = LatticePreviewUtility.GetManualScaleProxy(deformer);
                 mirrorBounds.size = Vector3.Scale(mirrorBounds.size, mirrorScale);
                 mirrorBounds.center += centerOffsetProxyLocal;
-                DrawMirrorPlane(mirrorBounds, proxyToWorld);
+                LatticeMirrorPlaneVisualization.Draw(mirrorBounds, proxyToWorld, (int)CurrentMirrorAxis);
             }
 
             var cageColor = new Color(1f, 1f, 1f, 0.8f);
@@ -637,7 +656,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _lastCageHandlePositionsForTests = new Vector3[controlCount];
             }
 
-            s_selectedControls.RemoveWhere(idx => idx < 0 || idx >= controlCount);
+            s_selectedControls.TrimToCount(controlCount);
 
             for (int index = 0; index < controlCount; index++)
             {
@@ -645,7 +664,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 int iy = (index / nx) % ny;
                 int iz = index / (nx * ny);
 
-                bool onBoundary = IsBoundaryIndex(ix, iy, iz, nx, ny, nz);
+                bool onBoundary = LatticeControlSelection.IsBoundaryIndex(ix, iy, iz, nx, ny, nz);
                 if (!onBoundary && !IncludeInteriorControls)
                 {
                     continue;
@@ -677,18 +696,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 if (Handles.Button(worldPosition, Quaternion.identity, handleSize, handleSize, Handles.CubeHandleCap))
                 {
-                    if (additive)
-                    {
-                        if (!s_selectedControls.Add(index))
-                        {
-                            s_selectedControls.Remove(index);
-                        }
-                    }
-                    else
-                    {
-                        s_selectedControls.Clear();
-                        s_selectedControls.Add(index);
-                    }
+                    s_selectedControls.Select(index, additive);
 
                     SceneView.RepaintAll();
                 }
@@ -745,9 +753,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         var delta = newPivot - pivot;
                         if (delta != Vector3.zero)
                         {
-                            Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.MoveLatticeControls));
+                            _editSession ??= DeformerEditSession.TryBegin(deformer, MeshDeformerLayerType.Lattice,
+                                LatticeLocalization.Tr(LocKey.MoveLatticeControls));
+                            if (_editSession == null || !_editSession.TryPrepareWrite(deformer)) return;
 
-                            var deltaProxy = worldToProxy.MultiplyVector(delta);
+                            var dragGeometry = new LatticeDragGeometry(worldToProxy, proxyToSource,
+                                sourceBounds, proxyBoundsLocal, LatticePreviewUtility.GetManualScaleProxy(deformer),
+                                centerOffsetProxyLocal, rootOffsetProxyLocal, useProxy, needBoundsMap,
+                                useSkinningFallback, hasControlPointSkinning ? _controlPointSkinning : null,
+                                normalizeSkinnedBounds, _skinningDisplayBounds);
                             _processedIndices.Clear();
 
                             foreach (var selectedIndex in s_selectedControls)
@@ -758,71 +772,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                 }
 
                                 var newWorldPosition = worldPositions[selectedIndex] + delta;
-                                var proxyLocal = worldToProxy.MultiplyPoint3x4(newWorldPosition);
-                                // remove manual scale before mapping back
-                                var scaleProxy = LatticePreviewUtility.GetManualScaleProxy(deformer);
-                                proxyLocal = new Vector3(
-                                    scaleProxy.x != 0f ? proxyLocal.x / scaleProxy.x : proxyLocal.x,
-                                    scaleProxy.y != 0f ? proxyLocal.y / scaleProxy.y : proxyLocal.y,
-                                    scaleProxy.z != 0f ? proxyLocal.z / scaleProxy.z : proxyLocal.z);
-
-                                Vector3 storedLocal;
-                                if (useProxy)
-                                {
-                                    var proxyLocalAdjusted = proxyLocal - centerOffsetProxyLocal;
-                                    var mappedSource = proxyLocalAdjusted;
-                                    if (needBoundsMap)
-                                    {
-                                        if (useSkinningFallback)
-                                        {
-                                            mappedSource = proxyToSource.MultiplyPoint3x4(mappedSource);
-                                        }
-                                        mappedSource = MapPointBetweenBounds(
-                                            mappedSource,
-                                            proxyBoundsLocal,
-                                            sourceBounds);
-                                    }
-                                    mappedSource -= rootOffsetProxyLocal;
-                                    storedLocal = needBoundsMap
-                                        ? mappedSource
-                                        : proxyToSource.MultiplyPoint3x4(mappedSource);
-                                    if (hasControlPointSkinning)
-                                    {
-                                        if (normalizeSkinnedBounds)
-                                        {
-                                            storedLocal = MapPointBetweenBounds(
-                                                storedLocal,
-                                                _skinningDisplayBounds,
-                                                _controlPointSkinning.PosedControlBounds);
-                                        }
-                                        _controlPointSkinning.TryInverseTransformPoint(
-                                            selectedIndex,
-                                            storedLocal,
-                                            out storedLocal);
-                                    }
-                                    settings.SetControlPointLocal(selectedIndex, storedLocal);
-                                }
-                                else
-                                {
-                                    storedLocal = needBoundsMap
-                                        ? MapPointBetweenBounds(proxyLocal, proxyBoundsLocal, sourceBounds)
-                                        : proxyToSource.MultiplyPoint3x4(proxyLocal);
-                                    if (hasControlPointSkinning)
-                                    {
-                                        if (normalizeSkinnedBounds)
-                                        {
-                                            storedLocal = MapPointBetweenBounds(
-                                                storedLocal,
-                                                _skinningDisplayBounds,
-                                                _controlPointSkinning.PosedControlBounds);
-                                        }
-                                        _controlPointSkinning.TryInverseTransformPoint(
-                                            selectedIndex,
-                                            storedLocal,
-                                            out storedLocal);
-                                    }
-                                    settings.SetControlPointLocal(selectedIndex, storedLocal);
-                                }
+                                Vector3 storedLocal = dragGeometry.StorePoint(selectedIndex, newWorldPosition);
+                                settings.SetControlPointLocal(selectedIndex, storedLocal);
 
                                 if (MirrorEditing && TryGetSymmetryIndex(selectedIndex, gridSize, CurrentMirrorBehavior, CurrentMirrorAxis, out var mirrorIndex))
                                 {
@@ -833,74 +784,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                                     Vector3 mirrorLocal;
 
-                                    Vector3 deltaSource;
-                                    if (useProxy)
-                                    {
-                                        deltaSource = deltaProxy;
-                                        if (needBoundsMap)
-                                        {
-                                            if (useSkinningFallback)
-                                            {
-                                                deltaSource = proxyToSource.MultiplyVector(deltaSource);
-                                            }
-                                            deltaSource = MapDeltaBetweenBounds(
-                                                deltaSource,
-                                                proxyBoundsLocal,
-                                                sourceBounds);
-                                        }
-                                        // Remove root offset contribution before mapping back
-                                        if (!needBoundsMap)
-                                        {
-                                            deltaSource = proxyToSource.MultiplyVector(deltaSource);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        deltaSource = needBoundsMap
-                                            ? MapDeltaBetweenBounds(deltaProxy, proxyBoundsLocal, sourceBounds)
-                                            : proxyToSource.MultiplyVector(deltaProxy);
-                                    }
                                     switch (CurrentMirrorBehavior)
                                     {
                                         case MirrorBehavior.Identical:
                                         {
-                                            if (hasControlPointSkinning)
-                                            {
-                                                if (normalizeSkinnedBounds)
-                                                {
-                                                    deltaSource = MapDeltaBetweenBounds(
-                                                        deltaSource,
-                                                        _skinningDisplayBounds,
-                                                        _controlPointSkinning.PosedControlBounds);
-                                                }
-                                                _controlPointSkinning.TryInverseTransformVector(
-                                                    mirrorIndex,
-                                                    deltaSource,
-                                                    out deltaSource);
-                                            }
+                                            Vector3 deltaSource = dragGeometry.StoreMirrorDelta(mirrorIndex, delta);
                                             var original = settings.GetControlPointLocal(mirrorIndex);
                                             mirrorLocal = original + deltaSource;
                                             break;
                                         }
                                         case MirrorBehavior.Mirrored:
-                                            mirrorLocal = MirrorPointAxis(storedLocal, sourceBounds, CurrentMirrorAxis);
+                                            mirrorLocal = LatticeCageGeometry.MirrorPointAxis(storedLocal, sourceBounds, (int)CurrentMirrorAxis);
                                             break;
                                         case MirrorBehavior.Antisymmetric:
                                         {
-                                            if (hasControlPointSkinning)
-                                            {
-                                                if (normalizeSkinnedBounds)
-                                                {
-                                                    deltaSource = MapDeltaBetweenBounds(
-                                                        deltaSource,
-                                                        _skinningDisplayBounds,
-                                                        _controlPointSkinning.PosedControlBounds);
-                                                }
-                                                _controlPointSkinning.TryInverseTransformVector(
-                                                    mirrorIndex,
-                                                    deltaSource,
-                                                    out deltaSource);
-                                            }
+                                            Vector3 deltaSource = dragGeometry.StoreMirrorDelta(mirrorIndex, delta);
                                             var original = settings.GetControlPointLocal(mirrorIndex);
                                             mirrorLocal = original - deltaSource;
                                             break;
@@ -923,11 +821,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                             // Grid size, bounds, interpolation and source vertices are
                             // unchanged, so keep the per-vertex interpolation cache and
                             // persistent NativeArrays alive throughout the drag.
+                            _editSession.RecordChange();
                             deformer.NotifyDeformationDataChanged();
                             bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
                             deformer.Deform(assignRuntimeMesh);
-                            LatticePrefabUtility.MarkModified(deformer);
-                            LatticePreviewUtility.RequestSceneRepaint();
+                            LatticePreviewUtility.PublishInteractiveDeformation(deformer);
                         }
                     }
                 }
@@ -942,31 +840,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal Renderer ResolveProxyRenderer(Renderer sourceRenderer, bool interactionActive)
         {
-            int mappingRevision = LatticePreviewUtility.ProxyMappingRevision;
+            Renderer candidate = null;
+            if (sourceRenderer != null)
+                LatticePreviewUtility.TryGetPreviewProxy(sourceRenderer, out candidate);
+
             if (!_proxyResolved || !ReferenceEquals(_cachedSourceRenderer, sourceRenderer))
             {
                 _cachedSourceRenderer = sourceRenderer;
-                _cachedProxyRenderer = null;
-                if (sourceRenderer != null)
-                    LatticePreviewUtility.TryGetPreviewProxy(sourceRenderer, out _cachedProxyRenderer);
+                _cachedProxyRenderer = candidate;
                 _proxyResolved = true;
-                _cachedProxyMappingRevision = mappingRevision;
+                _cachedProxyMappingRevision = LatticePreviewUtility.ProxyMappingRevision;
                 _proxySnapshotValid = false;
                 _proxyAlignmentSnapshotValid = false;
                 ResetPendingProxyResolution();
                 return _cachedProxyRenderer;
             }
 
-            if (_cachedProxyMappingRevision == mappingRevision)
-                return _cachedProxyRenderer;
-
-            Renderer candidate = null;
-            if (sourceRenderer != null)
-                LatticePreviewUtility.TryGetPreviewProxy(sourceRenderer, out candidate);
-
             if (ReferenceEquals(candidate, _cachedProxyRenderer))
             {
-                _cachedProxyMappingRevision = mappingRevision;
                 ResetPendingProxyResolution();
                 return _cachedProxyRenderer;
             }
@@ -984,12 +875,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // semantics used by utility tests and non-interactive callers.
             if (_activeDeformer == null)
             {
-                CommitProxyResolution(candidate, mappingRevision);
+                CommitProxyResolution(candidate, LatticePreviewUtility.ProxyMappingRevision);
                 return _cachedProxyRenderer;
             }
 
             _pendingProxyRenderer = candidate;
-            _pendingProxyMappingRevision = mappingRevision;
+            _pendingProxyMappingRevision = LatticePreviewUtility.ProxyMappingRevision;
 
             // Post-AAO candidates increment the mapping revision only after their
             // output is displayed. While a handle owns the interaction, retain the
@@ -1069,11 +960,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (renderer == null)
             {
-                _cachedSkinningCorrection = null;
                 _controlPointSkinning.Reset();
                 _hasSkinningFallbackBounds = false;
                 _hasSkinningReferenceBounds = false;
-                _hasSkinningDisplayBounds = false;
                 _cachedSkinningRenderer = null;
                 _cachedSkinningBones = null;
                 _cachedSkinningRendererDirtyCount = 0;
@@ -1138,9 +1027,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     mesh,
                     sourceBounds,
                     gridSize,
-                    worldToSource);
+                    worldToSource,
+                    deformer != null ? deformer.GetComponent<SkinnedMeshRenderer>() : null,
+                    deformer != null ? deformer.InitialBlendShapeWeightsForEditor : null);
                 _hasSkinningFallbackBounds = false;
-                _hasSkinningDisplayBounds = false;
                 if (hasPerPointSkinning && _controlPointSkinning.HasPoseBounds)
                 {
                     int geometryHash = ComputeSkinningReferenceGeometryHash(
@@ -1174,11 +1064,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                     if (_hasSkinningReferenceBounds)
                     {
-                        _skinningDisplayBounds = RemapBounds(
+                        _skinningDisplayBounds = LatticeCageGeometry.RemapBounds(
                             _skinningReferenceBakedBounds,
                             _skinningReferenceSampleBounds,
                             _controlPointSkinning.PosedMeshBounds);
-                        _hasSkinningDisplayBounds = true;
                     }
                 }
                 else if (!hasPerPointSkinning)
@@ -1196,9 +1085,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                             _skinningFallbackBounds.size.sqrMagnitude > 1e-12f;
                     }
                 }
-                // Retained for serialized/test compatibility only. Display now uses the
-                // per-control-point matrices above instead of a root-bone approximation.
-                _cachedSkinningCorrection = null;
                 _skinningSnapshotHash = hash;
                 _skinningSnapshotValid = true;
             }
@@ -1288,7 +1174,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _cachedSkinningBones = null;
             _cachedSkinningRendererDirtyCount = 0;
             _skinningSnapshotValid = false;
-            _cachedSkinningCorrection = null;
             // hierarchyChanged/projectChanged also fire for transient in-place preview
             // mesh updates. Keep the surface-to-bone binding in that case; Update()
             // will rebuild it if the renderer, mesh identity, topology, bounds, or grid
@@ -1299,16 +1184,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
             _hasSkinningFallbackBounds = false;
             _hasSkinningReferenceBounds = false;
-            _hasSkinningDisplayBounds = false;
-            if (_skinningFallbackMesh != null)
-            {
-                UnityEngine.Object.DestroyImmediate(_skinningFallbackMesh);
-                _skinningFallbackMesh = null;
-            }
+            _poseSnapshot.Reset();
         }
 
         private void OnUndoRedo()
         {
+            _editSession?.Abandon();
+            _editSession = null;
             InvalidateProxyCache();
             if (_activeDeformer == null)
             {
@@ -1319,51 +1201,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _activeDeformer.Deform(assignRuntimeMesh);
 
             LatticePreviewUtility.RequestSceneRepaint();
-        }
-
-        private static void DrawMirrorPlane(Bounds bounds, Matrix4x4 meshToWorld)
-        {
-            var size = bounds.size;
-            if (size == Vector3.zero)
-            {
-                return;
-            }
-
-            var centerLocal = bounds.center;
-            Vector3 axisA;
-            Vector3 axisB;
-
-            switch (CurrentMirrorAxis)
-            {
-                case MirrorAxis.X:
-                    axisA = Vector3.up * (size.y * 0.5f);
-                    axisB = Vector3.forward * (size.z * 0.5f);
-                    break;
-                case MirrorAxis.Y:
-                    axisA = Vector3.right * (size.x * 0.5f);
-                    axisB = Vector3.forward * (size.z * 0.5f);
-                    break;
-                case MirrorAxis.Z:
-                default:
-                    axisA = Vector3.right * (size.x * 0.5f);
-                    axisB = Vector3.up * (size.y * 0.5f);
-                    break;
-            }
-
-            var localCorners = s_mirrorPlaneCorners;
-            localCorners[0] = centerLocal + axisA + axisB;
-            localCorners[1] = centerLocal + axisA - axisB;
-            localCorners[2] = centerLocal - axisA - axisB;
-            localCorners[3] = centerLocal - axisA + axisB;
-
-            for (int i = 0; i < localCorners.Length; i++)
-            {
-                localCorners[i] = meshToWorld.MultiplyPoint3x4(localCorners[i]);
-            }
-
-            var fillColor = new Color(0.3f, 0.6f, 1f, 0.3f);
-            var outlineColor = new Color(0.3f, 0.6f, 1f, 0.6f);
-            Handles.DrawSolidRectangleWithOutline(localCorners, fillColor, outlineColor);
         }
 
         private static bool TryGetSymmetryIndex(int index, Vector3Int gridSize, MirrorBehavior behavior, MirrorAxis axis, out int symmetryIndex)
@@ -1411,51 +1248,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             symmetryIndex = mirrorX + mirrorY * nx + mirrorZ * nx * ny;
             return symmetryIndex != index;
-        }
-
-        private static Vector3 MapPointBetweenBounds(Vector3 point, Bounds from, Bounds to)
-        {
-            var fromSize = from.size;
-            var toSize = to.size;
-
-            float nx = fromSize.x != 0f ? (point.x - from.min.x) / fromSize.x : 0f;
-            float ny = fromSize.y != 0f ? (point.y - from.min.y) / fromSize.y : 0f;
-            float nz = fromSize.z != 0f ? (point.z - from.min.z) / fromSize.z : 0f;
-
-            return new Vector3(
-                to.min.x + nx * toSize.x,
-                to.min.y + ny * toSize.y,
-                to.min.z + nz * toSize.z);
-        }
-
-        private static Vector3 MapDeltaBetweenBounds(Vector3 delta, Bounds from, Bounds to)
-        {
-            var fromSize = from.size;
-            var toSize = to.size;
-
-            float sx = fromSize.x != 0f ? toSize.x / fromSize.x : 0f;
-            float sy = fromSize.y != 0f ? toSize.y / fromSize.y : 0f;
-            float sz = fromSize.z != 0f ? toSize.z / fromSize.z : 0f;
-
-            return new Vector3(delta.x * sx, delta.y * sy, delta.z * sz);
-        }
-
-        private static bool AreBoundsApproximatelyEqual(Bounds a, Bounds b, float relativeTolerance)
-        {
-            float tolX = Mathf.Abs(a.size.x) * relativeTolerance + 1e-5f;
-            float tolY = Mathf.Abs(a.size.y) * relativeTolerance + 1e-5f;
-            float tolZ = Mathf.Abs(a.size.z) * relativeTolerance + 1e-5f;
-
-            return Mathf.Abs(a.size.x - b.size.x) <= tolX &&
-                   Mathf.Abs(a.size.y - b.size.y) <= tolY &&
-                   Mathf.Abs(a.size.z - b.size.z) <= tolZ;
-        }
-
-        private static Bounds ChooseLargerBounds(Bounds a, Bounds b)
-        {
-            var min = Vector3.Min(a.min, b.min);
-            var max = Vector3.Max(a.max, b.max);
-            return new Bounds((min + max) * 0.5f, max - min);
         }
 
         private static string FormatBounds(Bounds b)
@@ -1520,30 +1312,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return false;
             }
 
-            if (_skinningFallbackMesh == null)
-            {
-                _skinningFallbackMesh = new Mesh
-                {
-                    name = "Lattice Cage Skinning Bounds",
-                    hideFlags = HideFlags.HideAndDontSave
-                };
-            }
-
             try
             {
-                renderer.BakeMesh(_skinningFallbackMesh);
-                _skinningBakedVertices.Clear();
-                _skinningFallbackMesh.GetVertices(_skinningBakedVertices);
-                if (_skinningBakedVertices.Count == 0)
+                int vertexCount = renderer.sharedMesh != null ? renderer.sharedMesh.vertexCount : 0;
+                if (!_poseSnapshot.TryCapture(renderer, vertexCount))
                 {
                     return false;
                 }
 
                 Matrix4x4 rendererToSource =
-                    worldToSource * renderer.transform.localToWorldMatrix;
-                bounds = CalculateTransformedReferencedBounds(
+                    worldToSource * _poseSnapshot.LocalToWorld;
+                bounds = _cageGeometry.CalculateTransformedReferencedBounds(
                     topologyMesh,
-                    _skinningBakedVertices,
+                    _poseSnapshot.LocalVertices,
                     rendererToSource);
                 return IsFinite(bounds.center) &&
                        IsFinite(bounds.size) &&
@@ -1555,189 +1336,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private Bounds CalculateTransformedReferencedBounds(
-            Mesh topologyMesh,
-            List<Vector3> vertices,
-            Matrix4x4 matrix)
-        {
-            Bounds bounds = default;
-            bool hasPoint = false;
-
-            if (topologyMesh != null && topologyMesh.vertexCount == vertices.Count)
-            {
-                int subMeshCount = Mathf.Max(1, topologyMesh.subMeshCount);
-                for (int subMesh = 0; subMesh < subMeshCount; subMesh++)
-                {
-                    _skinningTopologyIndices.Clear();
-                    topologyMesh.GetIndices(_skinningTopologyIndices, subMesh);
-                    for (int i = 0; i < _skinningTopologyIndices.Count; i++)
-                    {
-                        int vertexIndex = _skinningTopologyIndices[i];
-                        if (vertexIndex < 0 || vertexIndex >= vertices.Count)
-                        {
-                            continue;
-                        }
-
-                        Vector3 point = matrix.MultiplyPoint3x4(vertices[vertexIndex]);
-                        if (!hasPoint)
-                        {
-                            bounds = new Bounds(point, Vector3.zero);
-                            hasPoint = true;
-                        }
-                        else
-                        {
-                            bounds.Encapsulate(point);
-                        }
-                    }
-                }
-            }
-
-            if (hasPoint)
-            {
-                return bounds;
-            }
-
-            bounds = new Bounds(matrix.MultiplyPoint3x4(vertices[0]), Vector3.zero);
-            for (int i = 1; i < vertices.Count; i++)
-            {
-                bounds.Encapsulate(matrix.MultiplyPoint3x4(vertices[i]));
-            }
-            return bounds;
-        }
-
-        private static Bounds RemapBounds(
-            Bounds referenceBounds,
-            Bounds referenceSampleBounds,
-            Bounds currentSampleBounds)
-        {
-            Vector3 center = MapPointBetweenBounds(
-                referenceBounds.center,
-                referenceSampleBounds,
-                currentSampleBounds);
-            Vector3 size = MapDeltaBetweenBounds(
-                referenceBounds.size,
-                referenceSampleBounds,
-                currentSampleBounds);
-            size = new Vector3(
-                Mathf.Abs(size.x),
-                Mathf.Abs(size.y),
-                Mathf.Abs(size.z));
-            return new Bounds(center, size);
-        }
-
         private static bool IsFinite(Vector3 value)
         {
             return !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
                    !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
                    !float.IsNaN(value.z) && !float.IsInfinity(value.z);
-        }
-
-        /// <summary>
-        /// Computes a correction matrix (source-local → corrected source-local) that accounts for
-        /// the discrepancy between the renderer's Transform and the actual bone+bindPose placement.
-        /// This handles both position offsets (MA position reset) and scale differences (MA Scale Adjuster).
-        /// Returns null if no significant correction is needed.
-        /// </summary>
-        private static Matrix4x4? ComputeSkinningCorrectionMatrix(
-            SkinnedMeshRenderer skinnedRenderer, Bounds sourceBounds,
-            Matrix4x4 sourceToWorld, Matrix4x4 worldToSource)
-        {
-            var mesh = skinnedRenderer.sharedMesh;
-            if (mesh == null) return null;
-
-            var bones = skinnedRenderer.bones;
-            var bindposes = mesh.bindposes;
-            if (bones == null || bones.Length == 0 || bindposes == null || bindposes.Length == 0)
-                return null;
-
-            // The correction is only meaningful when rootBone has an explicit bind
-            // pose. Falling back to bone 0 shifts the cage on rigs whose rootBone is
-            // null or is intentionally outside the skinning set.
-            int boneIdx = -1;
-            var rootBone = skinnedRenderer.rootBone;
-            if (rootBone == null)
-                return null;
-            for (int i = 0; i < bones.Length; i++)
-            {
-                if (bones[i] == rootBone)
-                {
-                    boneIdx = i;
-                    break;
-                }
-            }
-
-            if (boneIdx < 0 || boneIdx >= bindposes.Length || bones[boneIdx] == null)
-                return null;
-
-            var meshToWorldViaBone = bones[boneIdx].localToWorldMatrix * bindposes[boneIdx];
-
-            // Check significance: compare center and a corner to detect both position and scale differences
-            var actualCenter = meshToWorldViaBone.MultiplyPoint3x4(sourceBounds.center);
-            var expectedCenter = sourceToWorld.MultiplyPoint3x4(sourceBounds.center);
-            var actualCorner = meshToWorldViaBone.MultiplyPoint3x4(sourceBounds.max);
-            var expectedCorner = sourceToWorld.MultiplyPoint3x4(sourceBounds.max);
-            if ((actualCenter - expectedCenter).sqrMagnitude < 0.0001f &&
-                (actualCorner - expectedCorner).sqrMagnitude < 0.0001f)
-                return null;
-
-            // skinningLocal transforms from source-local to corrected source-local
-            // so that: sourceToWorld * skinningLocal * point ≈ meshToWorldViaBone * point
-            return worldToSource * meshToWorldViaBone;
-        }
-
-        private static void AutoInitAlignment(LatticeDeformer deformer, Bounds sourceBounds, Vector3 centerOffsetProxyLocal, bool computeOffset, bool computeScale)
-        {
-            if (deformer == null)
-            {
-                return;
-            }
-
-            const float eps = 1e-4f;
-            var ext = sourceBounds.extents;
-            if (computeOffset)
-            {
-                deformer.ManualOffsetProxy = centerOffsetProxyLocal;
-                deformer.AllowCenterOffsetWhenBoundsSkipped = true;
-            }
-
-            if (computeScale)
-            {
-                // Compute scale ratio from proxy vs source bounds sizes if available
-                // Here we reuse centerOffsetProxyLocal magnitude relative to bounds as heuristic fallback
-                float absX = Mathf.Abs(centerOffsetProxyLocal.x);
-                float absY = Mathf.Abs(centerOffsetProxyLocal.y);
-                float absZ = Mathf.Abs(centerOffsetProxyLocal.z);
-
-                float sx = ext.x > eps ? (absX / (ext.x + eps) + 1f) : 1f;
-                float sy = ext.y > eps ? (absY / (ext.y + eps) + 1f) : 1f;
-                float sz = ext.z > eps ? (absZ / (ext.z + eps) + 1f) : 1f;
-
-                deformer.ManualScaleProxy = new Vector3(sx, sy, sz);
-            }
-
-            deformer.AlignAutoInitialized = true;
-            EditorUtility.SetDirty(deformer);
-        }
-
-        private static Vector3 MirrorPointAxis(Vector3 localPoint, Bounds bounds, MirrorAxis axis)
-        {
-            var mirrored = localPoint;
-            var center = bounds.center;
-
-            switch (axis)
-            {
-                case MirrorAxis.X:
-                    mirrored.x = center.x - (localPoint.x - center.x);
-                    break;
-                case MirrorAxis.Y:
-                    mirrored.y = center.y - (localPoint.y - center.y);
-                    break;
-                case MirrorAxis.Z:
-                    mirrored.z = center.z - (localPoint.z - center.z);
-                    break;
-            }
-
-            return mirrored;
         }
 
         internal static void ClearSelection()
@@ -1749,31 +1352,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             s_selectedControls.Clear();
             SceneView.RepaintAll();
-        }
-
-        private static bool IsBoundaryIndex(int ix, int iy, int iz, int nx, int ny, int nz)
-        {
-            return ix == 0 || ix == nx - 1 || iy == 0 || iy == ny - 1 || iz == 0 || iz == nz - 1;
-        }
-
-        private static void FilterSelectionToBoundary(Vector3Int gridSize)
-        {
-            if (s_selectedControls.Count == 0)
-            {
-                return;
-            }
-
-            int nx = Mathf.Max(1, gridSize.x);
-            int ny = Mathf.Max(1, gridSize.y);
-            int nz = Mathf.Max(1, gridSize.z);
-
-            s_selectedControls.RemoveWhere(index =>
-            {
-                int ix = index % nx;
-                int iy = (index / nx) % ny;
-                int iz = index / (nx * ny);
-                return !IsBoundaryIndex(ix, iy, iz, nx, ny, nz);
-            });
         }
 
         internal static string GetSelectionLabel()
@@ -1794,69 +1372,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return string.Format(LatticeLocalization.Tr(LocKey.SelectedControlsFormat), s_selectedControls.Count);
         }
 
-        internal static void DrawOverlayGUI(LatticeDeformer deformer)
-        {
-            GUILayout.Label(LatticeLocalization.Content(LocKey.ControlPointScope), EditorStyles.miniLabel);
-            int scopeSelection = GUILayout.Toolbar(
-                LatticeToolHandler.IncludeInteriorControls ? 1 : 0,
-                new[]
-                {
-                    LatticeLocalization.Content(LocKey.BoundaryOnly),
-                    LatticeLocalization.Content(LocKey.AllControls)
-                });
-            bool includeInterior = scopeSelection == 1;
-            LatticeToolHandler.IncludeInteriorControls = includeInterior;
-            GUILayout.Space(2f);
+        internal static void DrawOverlayGUI(LatticeDeformer deformer) => LatticeToolOverlay.Draw(deformer);
 
-            // Compact toggles (horizontal)
-            using (new GUILayout.HorizontalScope())
-            {
-                LatticeToolHandler.ShowIndices = GUILayout.Toggle(LatticeToolHandler.ShowIndices, ToolIcons.Content(ToolIcons.Eye, LocKey.ShowControlIds));
-
-                bool keepControlsVisible = GUILayout.Toggle(
-                    !LatticeToolHandler.OccludeWithSceneGeometry,
-                    LatticeLocalization.Content(LocKey.KeepControlPointsVisible));
-                LatticeToolHandler.OccludeWithSceneGeometry = !keepControlsVisible;
-            }
-
-            GUILayout.Space(2f);
-
-            using (new GUILayout.HorizontalScope())
-            {
-                if (GUILayout.Button(ToolIcons.Content(ToolIcons.Clear, LocKey.ClearSelection), GUILayout.Width(110f)))
-                {
-                    LatticeToolHandler.ClearSelection();
-                }
-
-                GUILayout.Label(LatticeToolHandler.GetSelectionLabel());
-            }
-
-            // --- Symmetry section (foldout) ---
-            s_showSymmetrySection = EditorGUILayout.Foldout(s_showSymmetrySection, LatticeLocalization.Tr(LocKey.EnableSymmetryEditing), true);
-            if (s_showSymmetrySection)
-            {
-                EditorGUI.indentLevel++;
-                LatticeToolHandler.MirrorEditing = GUILayout.Toggle(LatticeToolHandler.MirrorEditing, ToolIcons.Content(ToolIcons.Mirror, LocKey.EnableSymmetryEditing));
-
-                using (new EditorGUI.DisabledScope(!LatticeToolHandler.MirrorEditing))
-                {
-                    int modeSelection = EditorGUILayout.Popup(
-                        LatticeLocalization.Content(LocKey.SymmetryMode),
-                        (int)LatticeToolHandler.CurrentMirrorBehavior,
-                        LatticeToolHandler.BehaviorOptions);
-                    modeSelection = Mathf.Clamp(modeSelection, 0, LatticeToolHandler.BehaviorOptions.Length - 1);
-                    LatticeToolHandler.CurrentMirrorBehavior = (LatticeToolHandler.MirrorBehavior)modeSelection;
-
-                    GUILayout.Label(LatticeLocalization.Content(LocKey.SymmetryAxis), EditorStyles.miniLabel);
-                    int axisSelection = GUILayout.Toolbar((int)LatticeToolHandler.CurrentMirrorAxis, LatticeToolHandler.AxisOptions);
-                    axisSelection = Mathf.Clamp(axisSelection, 0, LatticeToolHandler.AxisOptions.Length - 1);
-                    LatticeToolHandler.CurrentMirrorAxis = (LatticeToolHandler.MirrorAxis)axisSelection;
-                }
-                EditorGUI.indentLevel--;
-            }
-
-            GUILayout.Label(LatticeLocalization.Content(LocKey.ShiftClickHint), EditorStyles.miniLabel);
-        }
     }
 }
 #endif

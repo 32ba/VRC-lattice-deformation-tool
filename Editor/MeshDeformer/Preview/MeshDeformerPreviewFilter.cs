@@ -15,16 +15,26 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     [ExcludeFromCodeCoverage]
     internal sealed class LatticeDeformerPreviewFilter : IRenderFilter
     {
-        private static readonly ProfilerMarker s_updateMeshMarker =
-            new ProfilerMarker("Preview.UpdateMesh");
+        internal enum Placement
+        {
+            Any,
+            BeforeTopologyChanges,
+            AfterTopologyChanges,
+        }
+
         private static readonly ProfilerMarker s_copyBlendShapesMarker =
             new ProfilerMarker("Preview.CopyBlendShapes");
-        private static readonly ProfilerMarker s_deformMarker =
-            new ProfilerMarker("Preview.Deform");
         private static readonly ProfilerMarker s_bakeBlendShapeSurfaceMarker =
             new ProfilerMarker("Preview.BakeBlendShapeSurfaceDeltas");
         internal static int BlendShapeCopyCount { get; set; }
         private readonly Dictionary<Renderer, LatticeDeformer> _rendererToDeformer = new Dictionary<Renderer, LatticeDeformer>();
+        private readonly Placement _placement;
+        internal Placement FilterPlacement => _placement;
+
+        internal LatticeDeformerPreviewFilter(Placement placement = Placement.Any)
+        {
+            _placement = placement;
+        }
 
         private static readonly TogglablePreviewNode s_previewToggle = TogglablePreviewNode.Create(
             () => LatticeLocalization.Tr(LocKey.MeshDeformer),
@@ -66,38 +76,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        internal static Mesh GetRendererMesh(Renderer renderer)
-        {
-            switch (renderer)
-            {
-                case SkinnedMeshRenderer skinned:
-                    return skinned.sharedMesh;
-                case MeshRenderer meshRenderer:
-                    return meshRenderer.GetComponent<MeshFilter>()?.sharedMesh;
-                default:
-                    return null;
-            }
-        }
+        internal static Mesh GetRendererMesh(Renderer renderer) => PreviewRendererMesh.Get(renderer);
 
-        internal static void AssignRendererMesh(Renderer renderer, Mesh mesh)
-        {
-            switch (renderer)
-            {
-                case SkinnedMeshRenderer skinned:
-                    skinned.sharedMesh = mesh;
-                    break;
-                case MeshRenderer meshRenderer:
-                {
-                    var meshFilter = meshRenderer.GetComponent<MeshFilter>();
-                    if (meshFilter != null)
-                    {
-                        meshFilter.sharedMesh = mesh;
-                    }
-
-                    break;
-                }
-            }
-        }
+        internal static void AssignRendererMesh(Renderer renderer, Mesh mesh) => PreviewRendererMesh.Assign(renderer, mesh);
 
         internal static void RestoreProxyMesh(
             Renderer original,
@@ -168,9 +149,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     continue;
                 }
 
-                if (!context.ActiveAndEnabled(deformer))
+                // Keep observing hierarchy activity so NDMF rebuilds when an outfit is
+                // toggled, but do not remove an enabled deformer from the graph merely
+                // because MA or another upstream operation currently owns an inactive
+                // source object. Such operations can produce an active downstream proxy.
+                _ = context.ActiveAndEnabled(deformer);
+                if (!deformer.enabled)
                 {
                     continue;
+                }
+
+                if (!MatchesPlacement(deformer))
+                {
+                    continue;
+                }
+
+                var interactiveRevision = LatticePreviewUtility.GetInteractiveRevision(deformer);
+                if (interactiveRevision != null)
+                {
+                    _ = context.Observe(interactiveRevision);
                 }
 
                 _rendererToDeformer[renderer] = deformer;
@@ -226,10 +223,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return Task.FromResult<IRenderFilterNode>(new NoOpNode());
             }
 
+            if (!MatchesPlacement(deformer))
+            {
+                return Task.FromResult<IRenderFilterNode>(new NoOpNode());
+            }
+
+            var interactiveRevision = LatticePreviewUtility.GetInteractiveRevision(deformer);
+            if (interactiveRevision != null)
+            {
+                _ = context.Observe(interactiveRevision);
+            }
+
             var evaluationPair = pairList.FirstOrDefault(pair =>
                 pair.original != null && pair.original.GetComponent<LatticeDeformer>() == deformer);
             Mesh evaluationTarget = GetRendererMesh(evaluationPair.proxy);
-            var diagnostics = MeshDeformerValidator.Validate(deformer, evaluationTarget);
+            var diagnostics = ValidateBeforePreview(
+                deformer,
+                evaluationTarget,
+                _placement == Placement.AfterTopologyChanges &&
+                deformer.CanPreviewAfterTopologyChanges());
             MeshDeformerValidator.Log(diagnostics);
             if (MeshDeformerValidator.HasErrors(diagnostics))
             {
@@ -256,14 +268,34 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _ = context.Observe(sourceMesh);
             }
 
-            var previewMesh = GeneratePreviewMesh(deformer);
+            var previewMesh = GeneratePreviewMeshFromInput(deformer, evaluationTarget);
             if (previewMesh == null)
             {
                 return Task.FromResult<IRenderFilterNode>(new NoOpNode());
             }
 
-            var node = new PreviewNode(deformer, pairList, previewMesh);
-            return Task.FromResult<IRenderFilterNode>(node);
+            try
+            {
+                return Task.FromResult<IRenderFilterNode>(
+                    new PreviewNode(deformer, pairList, previewMesh, evaluationTarget));
+            }
+            catch
+            {
+                if (previewMesh != null) UnityEngine.Object.DestroyImmediate(previewMesh);
+                throw;
+            }
+        }
+
+        private bool MatchesPlacement(LatticeDeformer deformer)
+        {
+            if (deformer == null) return false;
+            bool canRunAfterTopologyChanges = deformer.CanPreviewAfterTopologyChanges();
+            return _placement switch
+            {
+                Placement.BeforeTopologyChanges => !canRunAfterTopologyChanges,
+                Placement.AfterTopologyChanges => canRunAfterTopologyChanges,
+                _ => true,
+            };
         }
 
         internal static bool ObservePreviewEnabled(ComputeContext context)
@@ -307,332 +339,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                    typeName.StartsWith("RemoveMesh", StringComparison.Ordinal);
         }
 
-        private sealed class PreviewNode : IRenderFilterNode
-        {
-            private readonly LatticeDeformer _deformer;
-            private readonly List<Target> _targets = new List<Target>();
-            private readonly Mesh _previewMesh;
-            private readonly List<Vector3> _vertexBuffer = new List<Vector3>();
-            private readonly List<Vector3> _normalBuffer = new List<Vector3>();
-            private readonly List<Vector4> _tangentBuffer = new List<Vector4>();
-            private readonly BlendShapeCopyBuffers _blendShapeBuffers = new BlendShapeCopyBuffers();
-            private int _lastBlendShapeWeightStateHash;
-            private int _lastDeformationDataRevision;
-            private int _lastRuntimeMeshRevision;
-            private readonly int _sourceBlendShapeCount;
-            private bool _suppressProxySourceBlendShapeWeights;
-
-            public PreviewNode(
-                LatticeDeformer deformer,
-                IEnumerable<(Renderer original, Renderer proxy)> proxyPairs,
-                Mesh previewMesh)
-            {
-                _deformer = deformer;
-                _previewMesh = previewMesh;
-                _previewMesh.MarkDynamic();
-                _sourceBlendShapeCount = _deformer != null && _deformer.SourceMesh != null
-                    ? _deformer.SourceMesh.blendShapeCount
-                    : 0;
-                _lastBlendShapeWeightStateHash = ComputeBlendShapeWeightStateHash(
-                    _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
-                    _deformer != null ? _deformer.SourceMesh : null);
-                _lastDeformationDataRevision = _deformer != null
-                    ? _deformer.DeformationDataRevision
-                    : 0;
-                _lastRuntimeMeshRevision = _deformer != null
-                    ? _deformer.RuntimeMeshRevision
-                    : 0;
-
-                foreach (var (original, proxy) in proxyPairs)
-                {
-                    if (original == null || proxy == null)
-                    {
-                        continue;
-                    }
-
-                    var observedProxyMesh = GetRendererMesh(proxy);
-                    long registrationGeneration = LatticePreviewUtility.RegisterProxy(
-                        original,
-                        proxy,
-                        observedProxyMesh,
-                        out var restorationMesh);
-                    long previewMeshGeneration =
-                        LatticePreviewUtility.RegisterPreviewMesh(original, _previewMesh);
-                    var target = new Target
-                    {
-                        OriginalRenderer = original,
-                        ProxyRenderer = proxy,
-                        PreviousProxyMesh = restorationMesh,
-                        PreviousProxyBlendShapeWeights = CaptureBlendShapeWeights(proxy),
-                        RegistrationGeneration = registrationGeneration,
-                        PreviewMeshGeneration = previewMeshGeneration,
-                    };
-
-                    ApplyPreviewMesh(target);
-                    _targets.Add(target);
-                }
-            }
-
-            public RenderAspects WhatChanged => RenderAspects.Mesh;
-
-            public void OnFrame(Renderer original, Renderer proxy)
-            {
-                var target = EnsureTarget(original, proxy);
-                ApplyPreviewMesh(target);
-            }
-
-            public void OnFrameGroup()
-            {
-                int currentHash = ComputeBlendShapeWeightStateHash(
-                    _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
-                    _deformer != null ? _deformer.SourceMesh : null);
-                int currentDeformationDataRevision = _deformer != null
-                    ? _deformer.DeformationDataRevision
-                    : 0;
-                int currentRuntimeMeshRevision = _deformer != null
-                    ? _deformer.RuntimeMeshRevision
-                    : 0;
-                bool deformationChanged =
-                    currentDeformationDataRevision != _lastDeformationDataRevision ||
-                    currentRuntimeMeshRevision != _lastRuntimeMeshRevision;
-                if (currentHash == _lastBlendShapeWeightStateHash &&
-                    !deformationChanged)
-                {
-                    if (_suppressProxySourceBlendShapeWeights)
-                        SuppressProxySourceBlendShapeWeights();
-                    return;
-                }
-
-                // Keep the same Mesh instance assigned to every proxy. Replacing the
-                // node here would briefly restore the upstream mesh and visibly drop
-                // active source BlendShapes for one rendered frame.
-                //
-                // Interactive tools call Deform(false) before requesting a repaint.
-                // Reuse that completed runtime mesh instead of running the full
-                // deformation (including normal/bounds recalculation) a second time.
-                bool runtimeMeshWasUpdated =
-                    currentRuntimeMeshRevision != _lastRuntimeMeshRevision;
-                if (UpdatePreviewMesh(runtimeMeshWasUpdated))
-                {
-                    foreach (var target in _targets)
-                    {
-                        LatticePreviewUtility.MarkPreviewMeshUpdated(
-                            target.OriginalRenderer,
-                            _previewMesh,
-                            target.PreviewMeshGeneration);
-                    }
-
-                    _lastBlendShapeWeightStateHash = ComputeBlendShapeWeightStateHash(
-                        _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
-                        _deformer != null ? _deformer.SourceMesh : null);
-                    _lastDeformationDataRevision = _deformer != null
-                        ? _deformer.DeformationDataRevision
-                        : 0;
-                    _lastRuntimeMeshRevision = _deformer != null
-                        ? _deformer.RuntimeMeshRevision
-                        : 0;
-
-                }
-            }
-
-            public void Dispose()
-            {
-                foreach (var target in _targets)
-                {
-                    LatticePreviewUtility.ClearPreviewMesh(
-                        target.OriginalRenderer,
-                        _previewMesh,
-                        target.PreviewMeshGeneration);
-                    bool restoreWeights = LatticePreviewUtility.IsCurrentProxyRegistration(
-                        target.OriginalRenderer,
-                        target.ProxyRenderer,
-                        target.RegistrationGeneration);
-                    RestoreProxyMesh(
-                        target.OriginalRenderer,
-                        target.ProxyRenderer,
-                        target.PreviousProxyMesh,
-                        target.RegistrationGeneration);
-                    if (restoreWeights)
-                        RestoreProxyBlendShapeWeights(
-                            target.ProxyRenderer,
-                            target.PreviousProxyBlendShapeWeights,
-                            _deformer != null ? _deformer.GetComponent<SkinnedMeshRenderer>() : null,
-                            _deformer != null ? _deformer.SourceMesh : null);
-                }
-
-                if (_previewMesh != null)
-                {
-                    UnityEngine.Object.DestroyImmediate(_previewMesh);
-                }
-            }
-
-            private void ApplyPreviewMesh(Target target)
-            {
-                if (target == null ||
-                    !LatticePreviewUtility.IsCurrentProxyRegistration(
-                        target.OriginalRenderer,
-                        target.ProxyRenderer,
-                        target.RegistrationGeneration))
-                {
-                    return;
-                }
-
-                AssignRendererMesh(target.ProxyRenderer, _previewMesh);
-                if (_suppressProxySourceBlendShapeWeights)
-                    SuppressProxySourceBlendShapeWeights(target.ProxyRenderer);
-            }
-
-            private bool UpdatePreviewMesh(bool reuseRuntimeMesh)
-            {
-                if (_deformer == null || _previewMesh == null)
-                {
-                    return false;
-                }
-
-                Mesh runtimeMesh = reuseRuntimeMesh ? _deformer.RuntimeMesh : null;
-                if (runtimeMesh == null)
-                {
-                    using (s_deformMarker.Auto())
-                        runtimeMesh = _deformer.Deform(false);
-                }
-                if (runtimeMesh == null)
-                {
-                    return false;
-                }
-
-                using (s_updateMeshMarker.Auto())
-                {
-                    runtimeMesh.GetVertices(_vertexBuffer);
-                    if (_vertexBuffer.Count > 0)
-                        _previewMesh.SetVertices(_vertexBuffer);
-
-                    runtimeMesh.GetNormals(_normalBuffer);
-                    if (_normalBuffer.Count == _previewMesh.vertexCount)
-                        _previewMesh.SetNormals(_normalBuffer);
-
-                    runtimeMesh.GetTangents(_tangentBuffer);
-                    if (_tangentBuffer.Count == _previewMesh.vertexCount)
-                        _previewMesh.SetTangents(_tangentBuffer);
-
-                    if (HasSourceOnlyBlendShapeLayout(runtimeMesh))
-                    {
-                        BakeCurrentSourceBlendShapeSurfaceDeltas(
-                            _deformer.SourceMesh,
-                            _deformer.GetComponent<SkinnedMeshRenderer>(),
-                            _normalBuffer,
-                            _tangentBuffer,
-                            _blendShapeBuffers);
-                        if (_normalBuffer.Count == _previewMesh.vertexCount)
-                            _previewMesh.SetNormals(_normalBuffer);
-                        if (_tangentBuffer.Count == _previewMesh.vertexCount)
-                            _previewMesh.SetTangents(_tangentBuffer);
-                        _suppressProxySourceBlendShapeWeights = true;
-                    }
-                    else
-                    {
-                        CopyBlendShapes(runtimeMesh, _previewMesh, _blendShapeBuffers);
-                        _suppressProxySourceBlendShapeWeights = false;
-                    }
-                    _previewMesh.bounds = runtimeMesh.bounds;
-                    _previewMesh.UploadMeshData(false);
-                }
-
-                foreach (var target in _targets)
-                {
-                    ApplyPreviewMesh(target);
-                }
-                if (!_suppressProxySourceBlendShapeWeights)
-                    SynchronizeProxySourceBlendShapeWeights();
-
-                return true;
-            }
-
-            private bool HasSourceOnlyBlendShapeLayout(Mesh runtimeMesh)
-            {
-                Mesh sourceMesh = _deformer != null ? _deformer.SourceMesh : null;
-                return runtimeMesh != null && sourceMesh != null &&
-                       runtimeMesh.blendShapeCount == _sourceBlendShapeCount;
-            }
-
-            private void SuppressProxySourceBlendShapeWeights()
-            {
-                for (int targetIndex = 0; targetIndex < _targets.Count; targetIndex++)
-                    SuppressProxySourceBlendShapeWeights(_targets[targetIndex]?.ProxyRenderer);
-            }
-
-            private void SuppressProxySourceBlendShapeWeights(Renderer renderer)
-            {
-                if (renderer is not SkinnedMeshRenderer skinned || skinned.sharedMesh == null) return;
-                int count = Mathf.Min(_sourceBlendShapeCount, skinned.sharedMesh.blendShapeCount);
-                for (int shape = 0; shape < count; shape++)
-                    skinned.SetBlendShapeWeight(shape, 0f);
-            }
-
-            private void SynchronizeProxySourceBlendShapeWeights()
-            {
-                var original = _deformer != null
-                    ? _deformer.GetComponent<SkinnedMeshRenderer>()
-                    : null;
-                if (original == null) return;
-                for (int targetIndex = 0; targetIndex < _targets.Count; targetIndex++)
-                {
-                    if (_targets[targetIndex]?.ProxyRenderer is not SkinnedMeshRenderer proxy ||
-                        proxy.sharedMesh == null)
-                        continue;
-                    int count = Mathf.Min(
-                        _sourceBlendShapeCount,
-                        proxy.sharedMesh.blendShapeCount);
-                    for (int shape = 0; shape < count; shape++)
-                        proxy.SetBlendShapeWeight(shape, original.GetBlendShapeWeight(shape));
-                }
-            }
-
-            private Target EnsureTarget(Renderer original, Renderer proxy)
-            {
-                var existing = _targets.FirstOrDefault(t => t.ProxyRenderer == proxy);
-                if (existing != null)
-                {
-                    return existing;
-                }
-
-                if (original == null || proxy == null)
-                {
-                    return null;
-                }
-
-                var observedProxyMesh = GetRendererMesh(proxy);
-                long registrationGeneration = LatticePreviewUtility.RegisterProxy(
-                    original,
-                    proxy,
-                    observedProxyMesh,
-                    out var restorationMesh);
-                long previewMeshGeneration =
-                    LatticePreviewUtility.RegisterPreviewMesh(original, _previewMesh);
-                var target = new Target
-                {
-                    OriginalRenderer = original,
-                    ProxyRenderer = proxy,
-                    PreviousProxyMesh = restorationMesh,
-                    PreviousProxyBlendShapeWeights = CaptureBlendShapeWeights(proxy),
-                    RegistrationGeneration = registrationGeneration,
-                    PreviewMeshGeneration = previewMeshGeneration,
-                };
-
-                ApplyPreviewMesh(target);
-                _targets.Add(target);
-                return target;
-            }
-        }
-
         private sealed class NoOpNode : IRenderFilterNode
         {
             public RenderAspects WhatChanged => 0;
 
-            public void OnFrame(Renderer original, Renderer proxy)
+            public void OnFrameGroup()
             {
             }
 
-            public void OnFrameGroup()
+            public void OnFrame(Renderer original, Renderer proxy)
             {
             }
 
@@ -641,32 +356,41 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private sealed class Target
+        private sealed class PreviewNode : IRenderFilterNode
         {
-            public Renderer OriginalRenderer;
-            public Renderer ProxyRenderer;
-            public Mesh PreviousProxyMesh;
-            public float[] PreviousProxyBlendShapeWeights;
-            public long RegistrationGeneration;
-            public long PreviewMeshGeneration;
+            private readonly DeformerPreviewSession _session;
+
+            public PreviewNode(
+                LatticeDeformer deformer,
+                IEnumerable<(Renderer original, Renderer proxy)> proxyPairs,
+                Mesh previewMesh,
+                Mesh upstreamMesh = null)
+            {
+                _session = new DeformerPreviewSession(deformer, proxyPairs, previewMesh, upstreamMesh);
+            }
+
+            public RenderAspects WhatChanged => RenderAspects.Mesh;
+            public void OnFrame(Renderer original, Renderer proxy) => _session.OnFrame(original, proxy);
+            public void OnFrameGroup() => _session.UpdateIfChanged();
+            public void Dispose() => _session.Dispose();
         }
 
         private static Mesh GeneratePreviewMesh(LatticeDeformer deformer)
         {
+            return GeneratePreviewMeshFromInput(deformer, deformer != null ? deformer.SourceMesh : null);
+        }
+
+        private static Mesh GeneratePreviewMeshFromInput(LatticeDeformer deformer, Mesh inputMesh)
+        {
             try
             {
-                deformer.InvalidateCache();
-                var runtimeMesh = deformer.Deform(false);
+                var runtimeMesh = deformer.CreatePreviewMeshFromInput(inputMesh ?? deformer.SourceMesh);
                 if (runtimeMesh == null)
                 {
                     return null;
                 }
-
-                var previewMesh = UnityEngine.Object.Instantiate(runtimeMesh);
-                previewMesh.name = runtimeMesh.name + " (Preview)";
-                previewMesh.hideFlags = HideFlags.HideAndDontSave;
-                previewMesh.UploadMeshData(false);
-                return previewMesh;
+                runtimeMesh.hideFlags = HideFlags.HideAndDontSave;
+                return runtimeMesh;
             }
             catch
             {
@@ -676,9 +400,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static IReadOnlyList<MeshDeformerDiagnostic> ValidateBeforePreview(
             LatticeDeformer deformer,
-            Mesh evaluationTarget = null)
+            Mesh evaluationTarget = null,
+            bool intentionalTopologyChangedInput = false)
         {
-            return MeshDeformerValidator.Validate(deformer, evaluationTarget);
+            var diagnostics = MeshDeformerValidator.Validate(deformer, evaluationTarget);
+            if (!intentionalTopologyChangedInput)
+            {
+                return diagnostics;
+            }
+
+            // The late lattice-only preview deliberately evaluates the completed
+            // upstream NDMF mesh, whose topology may differ from the authored
+            // renderer. MDV018 protects callers which accidentally mix Preview and
+            // Bake targets; it is not actionable for this explicitly-routed spatial
+            // deformation path. Preserve every other diagnostic unchanged.
+            return diagnostics
+                .Where(diagnostic =>
+                    diagnostic.Code != MeshDeformerValidator.PreviewBakeTargetMismatch)
+                .ToArray();
         }
 
         internal sealed class BlendShapeCopyBuffers
@@ -863,6 +602,45 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     destination.AddBlendShapeFrame(
                         shapeName,
                         frameWeight,
+                        buffers.DeltaVertices,
+                        buffers.DeltaNormals,
+                        buffers.DeltaTangents);
+                }
+            }
+        }
+
+        internal static void AppendMissingBlendShapes(
+            Mesh source,
+            Mesh destination,
+            BlendShapeCopyBuffers buffers)
+        {
+            if (source == null || destination == null ||
+                source.vertexCount != destination.vertexCount)
+                return;
+
+            var existingNames = new HashSet<string>(StringComparer.Ordinal);
+            for (int shape = 0; shape < destination.blendShapeCount; shape++)
+                existingNames.Add(destination.GetBlendShapeName(shape));
+
+            buffers ??= new BlendShapeCopyBuffers();
+            buffers.EnsureCapacity(source.vertexCount);
+            for (int shape = 0; shape < source.blendShapeCount; shape++)
+            {
+                string name = source.GetBlendShapeName(shape);
+                if (!existingNames.Add(name)) continue;
+
+                int frameCount = source.GetBlendShapeFrameCount(shape);
+                for (int frame = 0; frame < frameCount; frame++)
+                {
+                    source.GetBlendShapeFrameVertices(
+                        shape,
+                        frame,
+                        buffers.DeltaVertices,
+                        buffers.DeltaNormals,
+                        buffers.DeltaTangents);
+                    destination.AddBlendShapeFrame(
+                        name,
+                        source.GetBlendShapeFrameWeight(shape, frame),
                         buffers.DeltaVertices,
                         buffers.DeltaNormals,
                         buffers.DeltaTangents);

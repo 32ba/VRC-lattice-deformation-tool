@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="Blobs~/logo-white.png">
-    <img src="Blobs~/logo.png" alt="Lattice Deformation Tool" width="500">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/32ba/VRC-lattice-deformation-tool/2.0.0-beta.1/Blobs~/logo-white.png">
+    <img src="https://raw.githubusercontent.com/32ba/VRC-lattice-deformation-tool/2.0.0-beta.1/Blobs~/logo.png" alt="Lattice Deformation Tool" width="500">
   </picture>
 </p>
 
@@ -12,6 +12,10 @@ Unity 内で `MeshRenderer` / `SkinnedMeshRenderer` の形状をレイヤーと�
 衣装・髪・アクセサリのフィット調整、貫通箇所の手動修正、形状差分の BlendShape 化などに利用できます。元の Mesh アセットは変更しません。
 
 English documentation: [README_en.md](README_en.md)
+
+このブランチでは、既存データと機能を維持する内部リファクタリングを `2.0.0-beta.1` として開発しています。
+既存コンポーネントと保存データの互換性を保ちながら、データ読取り・編集操作・変形評価・移行・Previewの管理を分離しています。InspectorとScene Viewの各ツールも、操作・計算・表示の役割ごとに整理しています。
+実装済みの範囲、テスト結果、残る工程は[開発状況](https://github.com/32ba/VRC-lattice-deformation-tool/blob/2.0.0-beta.1/Docs~/Architecture/2.0.0-beta.1-progress.md)を参照してください。
 
 ## 主な機能
 
@@ -32,7 +36,7 @@ English documentation: [README_en.md](README_en.md)
 
 - Unity 2022.3 LTS 以降
 - `MeshFilter` + `MeshRenderer`、または `SkinnedMeshRenderer`
-- NDMF (`nadena.dev.ndmf`) 1.9.0 以降
+- NDMF (`nadena.dev.ndmf`) 1.14.8 以降
 - VRChat Creator Companion（VPM から導入する場合に推奨）
 
 ## 導入
@@ -77,7 +81,7 @@ English documentation: [README_en.md](README_en.md)
 3. 必要に応じて **Show Penetration** を有効にして参照 Renderer を指定し、赤く表示された頂点を修正します。
 4. 頂点単位で仕上げる場合は Overlay を Vertex Selection に切り替えます。
 
-貫通表示は編集補助用の近似判定です。現在ポーズを Bake した参照 `SkinnedMeshRenderer` の厳密な表面判定ではありません。
+貫通表示は、対象頂点と参照メッシュの最近傍三角形との位置関係を、参照面の法線方向で判定します。参照が `SkinnedMeshRenderer` の場合は現在ポーズを Bake して評価します。メッシュ同士の交差を網羅する判定ではないため、頂点間で交差する箇所などは検出できない場合があります。
 
 ### 3. 形状差分を BlendShape として編集・出力
 

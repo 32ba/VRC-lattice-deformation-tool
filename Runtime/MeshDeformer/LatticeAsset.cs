@@ -49,6 +49,14 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, HideInInspector]
         private int _serializationVersion;
 
+        internal LatticeAsset CreateFingerprintMetadata(System.IO.BinaryWriter writer)
+        {
+            ProfileContentFingerprint.Write(writer, _controlPointsLocal);
+            var copy = (LatticeAsset)MemberwiseClone();
+            copy._controlPointsLocal = Array.Empty<Vector3>();
+            return copy;
+        }
+
 
 
 

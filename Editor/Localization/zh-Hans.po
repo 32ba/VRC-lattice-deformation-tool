@@ -25,6 +25,92 @@ msgstr "无损网格变形的主要组件。"
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer-overview"
 msgstr "使用 Lattice、Brush 和 Vertex Selection 图层调整 Mesh / SkinnedMesh 形状。源 Mesh 保持不变，结果通过 NDMF Preview 和构建流程以非破坏方式应用。"
 
+# Guided inspector
+msgid "net.32ba.lattice-deformation-tool.localization.guided-question"
+msgstr "您想做什么？"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-intro"
+msgstr "选择想做的操作后即可立即开始编辑，原始 Mesh 数据不会被更改。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-target"
+msgstr "目标网格"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-no-target"
+msgstr "未找到目标网格。请将此组件添加到要编辑的 Renderer 所在的 GameObject，或在下方指定目标。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-current-edit"
+msgstr "当前编辑内容：{0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape"
+msgstr "调整整体形状"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape-description"
+msgstr "框住衣物或身体的较大区域并一次性调整形状。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface"
+msgstr "沿表面进行调整"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface-description"
+msgstr "使用笔刷推动、移动或平滑表面。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices"
+msgstr "抓取并移动顶点"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices-description"
+msgstr "选择顶点并使用操作手柄精细调整位置。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-preview-note"
+msgstr "开始编辑后，可以在 Scene 视图中查看结果。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-single-selection-required"
+msgstr "要从简易界面编辑，请只选择一个 Mesh Deformer。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-profile-read-only"
+msgstr "无法在此界面直接编辑共享 Profile。请在详细编辑中先复制到内嵌数据。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-unable-to-start"
+msgstr "无法开始编辑。请在详细编辑中检查目标网格和编辑内容。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-detailed-inspector"
+msgstr "详细编辑..."
+
+msgid "net.32ba.lattice-deformation-tool.localization.return-to-guided-inspector"
+msgstr "返回简易界面"
+
+# Guided Scene View overlay
+msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-adjust-shape-hint"
+msgstr "拖动浅蓝色控制点来调整整体形状。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-sculpt-surface-hint"
+msgstr "在表面拖动进行调整。可选择笔刷作用、大小和强度。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-move-vertices-hint"
+msgstr "选择顶点，然后使用显示的手柄移动它们。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-push-pull"
+msgstr "改变形状"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-move"
+msgstr "推移"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-smooth"
+msgstr "平滑"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-raise"
+msgstr "凸起"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-indent"
+msgstr "凹陷"
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-detailed-overlay"
+msgstr "显示详细操作"
+
+msgid "net.32ba.lattice-deformation-tool.localization.return-to-simple-overlay"
+msgstr "返回简易操作"
+
+msgid "net.32ba.lattice-deformation-tool.localization.finish-editing"
+msgstr "结束编辑"
+
 msgid "net.32ba.lattice-deformation-tool.localization.yes"
 msgstr "是"
 
@@ -1352,3 +1438,21 @@ msgstr "验证"
 
 msgid "net.32ba.lattice-deformation-tool.localization.validation-fix"
 msgstr "修复"
+
+msgid "net.32ba.lattice-deformation-tool.localization.support-information"
+msgstr "支持信息"
+
+msgid "net.32ba.lattice-deformation-tool.localization.support-information-description"
+msgstr "将排查问题所需的技术信息保存为编码 PNG 图像。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-support-information"
+msgstr "保存支持信息图像"
+
+msgid "net.32ba.lattice-deformation-tool.localization.support-information-copied"
+msgstr "支持信息图像已保存。请将其附加到支持消息中。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.invalid-migration-journal"
+msgstr "保存数据的迁移信息不受支持或无效，已停止处理，未更改保存的数据。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-operation-failed"
+msgstr "无法修改 Profile。请检查保存的数据和保存位置。新建时请使用尚未使用的文件名。"

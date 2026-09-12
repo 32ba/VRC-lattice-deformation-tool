@@ -1,18 +1,18 @@
 {
   "name": "net.32ba.lattice-deformation-tool",
   "displayName": "Lattice Deformation Tool",
-  "version": "1.4.5-rc.5",
+  "version": "2.0.0-beta.1",
   "unity": "2022.3",
   "description": "Non-destructive layered mesh deformation for MeshRenderer and SkinnedMeshRenderer, with lattice, brush, vertex editing, BlendShape I/O, and NDMF Preview/Bake. Formerly known as Mesh Deformation Tool.",
   "author": {
     "name": "32ba"
   },
   "vpmDependencies": {
-    "nadena.dev.ndmf": ">=1.9.0"
+    "nadena.dev.ndmf": ">=1.14.8"
   },
   "dependencies": {
-    "com.unity.mathematics": "1.2.6",
-    "com.unity.burst": "1.8.12",
-    "com.unity.collections": "1.2.4"
+    "com.unity.mathematics": "1.3.3",
+    "com.unity.burst": "1.8.29",
+    "com.unity.collections": "2.6.8"
   }
 }

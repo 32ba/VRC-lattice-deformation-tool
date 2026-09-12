@@ -1,0 +1,548 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &6984234972155481845
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7891888311653028043}
+  - component: {fileID: 9210714684814543581}
+  - component: {fileID: 9037612744984689139}
+  - component: {fileID: 7746643566934081421}
+  m_Layer: 0
+  m_Name: embedded-rebuild
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!4 &7891888311653028043
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6984234972155481845}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.056536715, y: -0.09822657, z: 0.04918326, w: 0.9923387}
+  m_LocalPosition: {x: 0.35, y: -0.2, z: 0.15}
+  m_LocalScale: {x: 1.1, y: 0.9, z: 1.2}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!33 &9210714684814543581
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6984234972155481845}
+  m_Mesh: {fileID: 4300000, guid: 80a5bdc07dc6b8606d9cb4beac9155c3, type: 2}
+--- !u!23 &9037612744984689139
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6984234972155481845}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 0}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &7746643566934081421
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6984234972155481845}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29946ddaafa0c41468ecfc2a1a3a4297, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _settings:
+    _gridSize: {x: 3, y: 3, z: 3}
+    _localBounds:
+      m_Center: {x: 0, y: 0, z: 0.1}
+      m_Extent: {x: 1, y: 1, z: 0.1}
+    _controlPointsLocal:
+    - {x: -1, y: -1, z: 0}
+    - {x: 0, y: -1, z: 0}
+    - {x: 1, y: -1, z: 0}
+    - {x: -1, y: 0, z: 0}
+    - {x: 0, y: 0, z: 0}
+    - {x: 1, y: 0, z: 0}
+    - {x: -1, y: 1, z: 0}
+    - {x: 0, y: 1, z: 0}
+    - {x: 1, y: 1, z: 0}
+    - {x: -1, y: -1, z: 0.1}
+    - {x: 0, y: -1, z: 0.1}
+    - {x: 1, y: -1, z: 0.1}
+    - {x: -1, y: 0, z: 0.1}
+    - {x: 0, y: 0, z: 0.1}
+    - {x: 1, y: 0, z: 0.1}
+    - {x: -1, y: 1, z: 0.1}
+    - {x: 0, y: 1, z: 0.1}
+    - {x: 1, y: 1, z: 0.1}
+    - {x: -1, y: -1, z: 0.2}
+    - {x: 0, y: -1, z: 0.2}
+    - {x: 1, y: -1, z: 0.2}
+    - {x: -1, y: 0, z: 0.2}
+    - {x: 0, y: 0, z: 0.2}
+    - {x: 1, y: 0, z: 0.2}
+    - {x: -1, y: 1, z: 0.2}
+    - {x: 0, y: 1, z: 0.2}
+    - {x: 1, y: 1, z: 0.2}
+    _interpolation: 0
+    _legacyTrilinearInterpolation: 0
+    _applySpace: 0
+    _serializationVersion: 1
+  _layers: []
+  _activeLayerIndex: 0
+  _layerModelVersion: 3
+  _blendShapeOutput: 0
+  _blendShapeName: 
+  _blendShapeCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 1
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 1
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  _deformationDataVersion: 15
+  _deformationDataSourceVersion: 15
+  _legacyAbsoluteLatticeEvaluation: 0
+  _legacyPublishedBlendShapeSemantics: 0
+  _groups:
+  - _name: Historical Primary Group
+    _enabled: 1
+    _layers:
+    - _name: Historical Lattice Layer
+      _enabled: 1
+      _weight: 0.72
+      _type: 0
+      _settings:
+        _gridSize: {x: 3, y: 3, z: 3}
+        _localBounds:
+          m_Center: {x: 0.02, y: -0.04, z: 0.03}
+          m_Extent: {x: 1.1, y: 0.95, z: 0.85}
+        _controlPointsLocal:
+        - {x: -1.136, y: -0.958, z: -0.84400004}
+        - {x: 0.08239998, y: -0.9532, z: -0.84720004}
+        - {x: 1.0512, y: -1.0316, z: -0.85040003}
+        - {x: -1.0048001, y: -0.08640002, z: -0.8536}
+        - {x: -0.061600015, y: 0.011199977, z: -0.7832}
+        - {x: 1.208, y: 0.015999977, z: -0.78000003}
+        - {x: -1.1744001, y: 0.84919995, z: -0.77680004}
+        - {x: 0.12079997, y: 0.8444, z: -0.77360004}
+        - {x: 1.0128, y: 0.98039997, z: -0.86960006}
+        - {x: -0.9664, y: -0.9148, z: -0.022800028}
+        - {x: -0.10000002, y: -1.07, z: -0.026000027}
+        - {x: 1.2464, y: -1.0748, z: -0.029200029}
+        - {x: -1.2128, y: 0.049599975, z: 0.09239997}
+        - {x: 0.15919997, y: 0.054399975, z: 0.09559997}
+        - {x: 0.97440004, y: -0.13920002, z: 0.09879997}
+        - {x: -0.92800003, y: 0.806, z: 0.10199997}
+        - {x: -0.13840002, y: 1.0188, z: -0.045200028}
+        - {x: 1.2848, y: 1.0236, z: -0.04840003}
+        - {x: -1.2512001, y: -1.1084, z: 0.7984}
+        - {x: 0.19759998, y: -1.1132, z: 0.7952}
+        - {x: 0.936, y: -0.862, z: 0.968}
+        - {x: -0.88960004, y: 0.09279998, z: 0.9712}
+        - {x: -0.17680001, y: -0.17760001, z: 0.9744}
+        - {x: 1.3232, y: -0.18240002, z: 0.9776}
+        - {x: -1.2896, y: 1.0572, z: 0.7792}
+        - {x: 0.23599997, y: 1.0619999, z: 0.776}
+        - {x: 0.8976, y: 0.7532, z: 0.77279997}
+        _interpolation: 1
+        _legacyTrilinearInterpolation: 0
+        _applySpace: 0
+        _serializationVersion: 1
+      _brushDisplacements: []
+      _vertexMask: []
+      _blendShapeOutput: 1
+      _blendShapeName: Historical Lattice Layer Shape
+      _isFitCorrection: 0
+      _fitCorrectionReferenceRenderer: {fileID: 0}
+      _fitCorrectionQueryMode: 0
+      _fitCorrectionScope: 0
+      _fitCorrectionWarningDistance: 0
+      _fitCorrectionTargetDistance: 0
+      _fitCorrectionMaximumMove: 0
+      _fitCorrectionUsedVertexMask: 0
+      _fitCorrectionConstraintMask: []
+      _fitCorrectionPinnedOpenBoundaries: 0
+      _fitCorrectionIsolatedComponents: 0
+      _fitCorrectionSmoothedSurface: 0
+      _fitCorrectionSmoothingIterations: 0
+      _fitCorrectionSmoothingStrength: 0
+      _fitCorrectionPreservedClearance: 0
+      _fitCorrectionUsedSymmetry: 0
+      _fitCorrectionSymmetryAxis: 0
+      _fitCorrectionSymmetryTolerance: 0
+      _blendShapeCurve:
+        serializedVersion: 2
+        m_Curve:
+        - serializedVersion: 3
+          time: 0
+          value: 0
+          inSlope: 0
+          outSlope: 1
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 1
+          value: 1
+          inSlope: 1
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+      _hasImportedBlendShapeFrameWeight: 0
+      _importedBlendShapeFrameWeight: 0
+    - _name: Historical Brush Layer
+      _enabled: 1
+      _weight: 0.58
+      _type: 1
+      _settings:
+        _gridSize: {x: 2, y: 2, z: 2}
+        _localBounds:
+          m_Center: {x: 0.02, y: -0.04, z: 0.03}
+          m_Extent: {x: 1.1, y: 0.95, z: 0.85}
+        _controlPointsLocal:
+        - {x: -1.08, y: -0.99, z: -0.82000005}
+        - {x: 1.12, y: -0.99, z: -0.82000005}
+        - {x: -1.08, y: 0.90999997, z: -0.82000005}
+        - {x: 1.12, y: 0.90999997, z: -0.82000005}
+        - {x: -1.08, y: -0.99, z: 0.88}
+        - {x: 1.12, y: -0.99, z: 0.88}
+        - {x: -1.08, y: 0.90999997, z: 0.88}
+        - {x: 1.12, y: 0.90999997, z: 0.88}
+        _interpolation: 1
+        _legacyTrilinearInterpolation: 0
+        _applySpace: 0
+        _serializationVersion: 1
+      _brushDisplacements:
+      - {x: 0.11, y: -0.03, z: 0.02}
+      - {x: -0.05, y: 0.09, z: -0.04}
+      - {x: 0.03, y: 0.02, z: 0.08}
+      - {x: -0.07, y: -0.01, z: 0.05}
+      - {x: 0.11, y: -0.03, z: 0.02}
+      - {x: -0.05, y: 0.09, z: -0.04}
+      - {x: 0.03, y: 0.02, z: 0.08}
+      - {x: -0.07, y: -0.01, z: 0.05}
+      - {x: 0.11, y: -0.03, z: 0.02}
+      _vertexMask:
+      - 0.2
+      - 0.55
+      - 0.85
+      - 1
+      - 0.2
+      - 0.55
+      - 0.85
+      - 1
+      - 0.2
+      _blendShapeOutput: 0
+      _blendShapeName: Historical Brush Layer Shape
+      _isFitCorrection: 0
+      _fitCorrectionReferenceRenderer: {fileID: 0}
+      _fitCorrectionQueryMode: 0
+      _fitCorrectionScope: 0
+      _fitCorrectionWarningDistance: 0
+      _fitCorrectionTargetDistance: 0
+      _fitCorrectionMaximumMove: 0
+      _fitCorrectionUsedVertexMask: 0
+      _fitCorrectionConstraintMask: []
+      _fitCorrectionPinnedOpenBoundaries: 0
+      _fitCorrectionIsolatedComponents: 0
+      _fitCorrectionSmoothedSurface: 0
+      _fitCorrectionSmoothingIterations: 0
+      _fitCorrectionSmoothingStrength: 0
+      _fitCorrectionPreservedClearance: 0
+      _fitCorrectionUsedSymmetry: 0
+      _fitCorrectionSymmetryAxis: 0
+      _fitCorrectionSymmetryTolerance: 0
+      _blendShapeCurve:
+        serializedVersion: 2
+        m_Curve:
+        - serializedVersion: 3
+          time: 0
+          value: 0
+          inSlope: 0
+          outSlope: 1
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 1
+          value: 1
+          inSlope: 1
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+      _hasImportedBlendShapeFrameWeight: 0
+      _importedBlendShapeFrameWeight: 0
+    _activeLayerIndex: 1
+    _blendShapeOutput: 1
+    _blendShapeName: Historical Primary Shape
+    _blendShapeCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0.8
+        tangentMode: 0
+        weightedMode: 3
+        inWeight: 0.15
+        outWeight: 0.25
+      - serializedVersion: 3
+        time: 0.45
+        value: 0.31
+        inSlope: 0.7
+        outSlope: 1.1
+        tangentMode: 0
+        weightedMode: 3
+        inWeight: 0.3
+        outWeight: 0.4
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0.9
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 3
+        inWeight: 0.2
+        outWeight: 0.2
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    _blendShapeComposition: 0
+  - _name: Historical Secondary Group
+    _enabled: 1
+    _layers:
+    - _name: Historical Secondary Lattice
+      _enabled: 1
+      _weight: 0.33
+      _type: 0
+      _settings:
+        _gridSize: {x: 2, y: 2, z: 2}
+        _localBounds:
+          m_Center: {x: -0.06, y: 0.05, z: -0.02}
+          m_Extent: {x: 1.1, y: 0.95, z: 0.85}
+        _controlPointsLocal:
+        - {x: -1.18975, y: -0.88299996, z: -0.88275003}
+        - {x: 1.07315, y: -0.88044995, z: -0.88445}
+        - {x: -1.19655, y: 0.9779, z: -0.88615}
+        - {x: 1.0799501, y: 0.97535, z: -0.88785}
+        - {x: -1.20335, y: -0.8728, z: 0.84955007}
+        - {x: 1.08675, y: -0.87025, z: 0.85125005}
+        - {x: -1.21015, y: 0.9677, z: 0.85295004}
+        - {x: 1.0935501, y: 0.96515, z: 0.85465}
+        _interpolation: 0
+        _legacyTrilinearInterpolation: 0
+        _applySpace: 0
+        _serializationVersion: 1
+      _brushDisplacements: []
+      _vertexMask: []
+      _blendShapeOutput: 0
+      _blendShapeName: Historical Secondary Layer Shape
+      _isFitCorrection: 0
+      _fitCorrectionReferenceRenderer: {fileID: 0}
+      _fitCorrectionQueryMode: 0
+      _fitCorrectionScope: 0
+      _fitCorrectionWarningDistance: 0
+      _fitCorrectionTargetDistance: 0
+      _fitCorrectionMaximumMove: 0
+      _fitCorrectionUsedVertexMask: 0
+      _fitCorrectionConstraintMask: []
+      _fitCorrectionPinnedOpenBoundaries: 0
+      _fitCorrectionIsolatedComponents: 0
+      _fitCorrectionSmoothedSurface: 0
+      _fitCorrectionSmoothingIterations: 0
+      _fitCorrectionSmoothingStrength: 0
+      _fitCorrectionPreservedClearance: 0
+      _fitCorrectionUsedSymmetry: 0
+      _fitCorrectionSymmetryAxis: 0
+      _fitCorrectionSymmetryTolerance: 0
+      _blendShapeCurve:
+        serializedVersion: 2
+        m_Curve:
+        - serializedVersion: 3
+          time: 0
+          value: 0
+          inSlope: 0
+          outSlope: 1
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        - serializedVersion: 3
+          time: 1
+          value: 1
+          inSlope: 1
+          outSlope: 0
+          tangentMode: 0
+          weightedMode: 0
+          inWeight: 0
+          outWeight: 0
+        m_PreInfinity: 2
+        m_PostInfinity: 2
+        m_RotationOrder: 4
+      _hasImportedBlendShapeFrameWeight: 0
+      _importedBlendShapeFrameWeight: 0
+    _activeLayerIndex: 0
+    _blendShapeOutput: 0
+    _blendShapeName: Historical Secondary Shape
+    _blendShapeCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0.8
+        tangentMode: 0
+        weightedMode: 3
+        inWeight: 0.15
+        outWeight: 0.25
+      - serializedVersion: 3
+        time: 0.45
+        value: 0.67
+        inSlope: 0.7
+        outSlope: 1.1
+        tangentMode: 0
+        weightedMode: 3
+        inWeight: 0.3
+        outWeight: 0.4
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0.9
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 3
+        inWeight: 0.2
+        outWeight: 0.2
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    _blendShapeComposition: 0
+  _activeGroupIndex: 1
+  _dataSource: 0
+  _profile: {fileID: 0}
+  _skinnedMeshRenderer: {fileID: 0}
+  _meshFilter: {fileID: 9210714684814543581}
+  _recalculateNormals: 1
+  _normalsRecalculationMode: 1
+  _recalculateTangents: 1
+  _recalculateBounds: 1
+  _recalculateBoneWeights: 0
+  _weightTransferSettings:
+    maxTransferDistance: 0.05
+    normalAngleThreshold: 60
+    enableInpainting: 1
+    maxIterations: 1000
+    tolerance: 0.000001
+  _showClearanceHeatmap: 0
+  _clearanceReferenceRenderer: {fileID: 0}
+  _clearanceQueryMode: 0
+  _clearanceHeatmapDisplayMode: 1
+  _clearanceWarningDistance: 0.005
+  _clearanceTargetDistance: 0.01
+  _clearanceDisplayStride: 1
+  _clearanceUpdateInterval: 0.1
+  _clearanceScanSet: {fileID: 0}
+  _clearanceScanAvatarRoot: {fileID: 0}
+  _fitCorrectionScope: 2
+  _fitCorrectionMaximumMove: 0.02
+  _fitCorrectionUseVertexMask: 1
+  _fitCorrectionPinOpenBoundaries: 1
+  _fitCorrectionIsolateComponents: 1
+  _fitCorrectionSmoothSurface: 1
+  _fitCorrectionSmoothingIterations: 2
+  _fitCorrectionSmoothingStrength: 0.5
+  _fitCorrectionPreserveClearance: 1
+  _fitCorrectionUseSymmetry: 0
+  _fitCorrectionSymmetryAxis: 0
+  _fitCorrectionSymmetryTolerance: 0.001
+  _fitCorrectionPreview: 1
+  _hasInitializedFromSource: 1
+  _serializedSourceMesh: {fileID: 4300000, guid: 80a5bdc07dc6b8606d9cb4beac9155c3, type: 2}
+  _serializedSourceVertexCount: 9
+  _serializedSourceTopologyHash: 861291898
+  _alignMode: 0
+  _centerClampMulXY: 0
+  _centerClampMinXY: 0
+  _centerClampMulZ: 0
+  _centerClampMinZ: 0
+  _allowCenterOffsetWhenBoundsSkipped: 0
+  _alignAutoInitialized: 0
+  _manualOffsetProxy: {x: 0, y: 0, z: 0}
+  _manualScaleProxy: {x: 1, y: 1, z: 1}

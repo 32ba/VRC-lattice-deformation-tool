@@ -3,740 +3,41 @@ using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using Unity.Burst;
-using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
-using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool
 {
-    public enum MeshDeformerLayerType
-    {
-        Lattice = 0,
-        Brush = 1
-    }
-
-    public enum BlendShapeOutputMode
-    {
-        Disabled = 0,
-        OutputAsBlendShape = 1
-    }
-
-    public enum NormalsRecalculationMode
-    {
-        LegacyUnityRecalculate = 0,
-        PreserveSourceSmoothing = 1
-    }
-
-    public enum ClearanceHeatmapDisplayMode
-    {
-        PenetrationOnly = 0,
-        WarningAndPenetration = 1,
-        FullDistribution = 2
-    }
-
-    public enum ClearanceQueryMode
-    {
-        ReferenceNormal = 0,
-        ClosedMesh = 1
-    }
-
-    public enum FitCorrectionScope
-    {
-        PenetrationOnly = 0,
-        WarningThreshold = 1,
-        TargetClearance = 2
-    }
-
-    public enum BlendShapeCompositionMode
-    {
-        Single = 0,
-        Progressive = 1,
-        Crossfade = 2
-    }
-
-    /// <summary>
-    /// Published deformation-data schemas in release order. Every value is retained in
-    /// the migration dispatcher even when that release did not change serialized data,
-    /// so an upgrade can be audited and resumed one published release at a time.
-    /// </summary>
-    public enum DeformationDataVersion
-    {
-        Unversioned = 0,
-        V0_0_1 = 1,
-        V0_0_2 = 2,
-        V0_0_3 = 3,
-        V0_0_4 = 4,
-        V0_0_5 = 5,
-        V0_0_6 = 6,
-        V1_0_0 = 7,
-        V1_0_1 = 8,
-        V1_1_0 = 9,
-        V1_2_0 = 10,
-        V1_2_1 = 11,
-        V1_3_0 = 12,
-        V1_3_1 = 13,
-        V1_4_0 = 14,
-        CurrentDevelopment = 15
-    }
-
-    internal enum DeformationDataMigrationStatus
-    {
-        Uninitialized = 0,
-        Ready = 1,
-        InProgress = 2,
-        PendingOwnerTransform = 3,
-        InvalidData = 4,
-        UnsupportedFutureVersion = 5
-    }
-
-    [Serializable]
-    public sealed class LatticeLayer
-    {
-        [SerializeField] private string _name = "Layer";
-        [SerializeField] private bool _enabled = true;
-        [SerializeField] private float _weight = 1f;
-        [SerializeField] private MeshDeformerLayerType _type = MeshDeformerLayerType.Lattice;
-        [SerializeField] private LatticeAsset _settings = new LatticeAsset();
-        [SerializeField, HideInInspector] private Vector3[] _brushDisplacements = Array.Empty<Vector3>();
-        [SerializeField, HideInInspector] private float[] _vertexMask = Array.Empty<float>();
-        [SerializeField] private BlendShapeOutputMode _blendShapeOutput = BlendShapeOutputMode.Disabled;
-        [SerializeField] private string _blendShapeName = "";
-        [SerializeField, HideInInspector] private bool _isFitCorrection;
-        [SerializeField, HideInInspector] private Renderer _fitCorrectionReferenceRenderer;
-        [SerializeField, HideInInspector] private ClearanceQueryMode _fitCorrectionQueryMode;
-        [SerializeField, HideInInspector] private FitCorrectionScope _fitCorrectionScope;
-        [SerializeField, HideInInspector] private float _fitCorrectionWarningDistance;
-        [SerializeField, HideInInspector] private float _fitCorrectionTargetDistance;
-        [SerializeField, HideInInspector] private float _fitCorrectionMaximumMove;
-        [SerializeField, HideInInspector] private bool _fitCorrectionUsedVertexMask;
-        [SerializeField, HideInInspector] private float[] _fitCorrectionConstraintMask = Array.Empty<float>();
-        [SerializeField, HideInInspector] private bool _fitCorrectionPinnedOpenBoundaries;
-        [SerializeField, HideInInspector] private bool _fitCorrectionIsolatedComponents;
-        [SerializeField, HideInInspector] private bool _fitCorrectionSmoothedSurface;
-        [SerializeField, HideInInspector] private int _fitCorrectionSmoothingIterations;
-        [SerializeField, HideInInspector] private float _fitCorrectionSmoothingStrength;
-        [SerializeField, HideInInspector] private bool _fitCorrectionPreservedClearance;
-        [SerializeField, HideInInspector] private bool _fitCorrectionUsedSymmetry;
-        [SerializeField, HideInInspector] private int _fitCorrectionSymmetryAxis;
-        [SerializeField, HideInInspector] private float _fitCorrectionSymmetryTolerance;
-        [SerializeField] private AnimationCurve _blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
-        [SerializeField, HideInInspector] private bool _hasImportedBlendShapeFrameWeight;
-        [SerializeField, HideInInspector] private float _importedBlendShapeFrameWeight;
-
-        public string Name
-        {
-            get => string.IsNullOrWhiteSpace(_name) ? "Layer" : _name;
-            set => _name = string.IsNullOrWhiteSpace(value) ? "Layer" : value;
-        }
-
-        public bool Enabled
-        {
-            get => _enabled;
-            set => _enabled = value;
-        }
-
-        public float Weight
-        {
-            get => _weight;
-            set => _weight = Mathf.Clamp01(value);
-        }
-
-        public MeshDeformerLayerType Type
-        {
-            get => _type;
-        }
-
-        internal void SetType(MeshDeformerLayerType type) => _type = type;
-
-        public LatticeAsset Settings
-        {
-            get
-            {
-                if (_settings == null)
-                {
-                    _settings = new LatticeAsset();
-                }
-
-                _settings.EnsureInitialized();
-                return _settings;
-            }
-            set => _settings = value ?? new LatticeAsset();
-        }
-
-        public BlendShapeOutputMode BlendShapeOutput
-        {
-            get => _blendShapeOutput;
-            set => _blendShapeOutput = value;
-        }
-
-        public string BlendShapeName
-        {
-            get => _blendShapeName;
-            set => _blendShapeName = value ?? "";
-        }
-
-        public AnimationCurve BlendShapeCurve
-        {
-            get => _blendShapeCurve ?? (_blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f));
-            set => _blendShapeCurve = value ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
-        }
-
-        public string EffectiveBlendShapeName => string.IsNullOrWhiteSpace(_blendShapeName) ? Name : _blendShapeName;
-
-        public bool IsFitCorrection => _isFitCorrection;
-        public Renderer FitCorrectionReferenceRenderer => _fitCorrectionReferenceRenderer;
-        public ClearanceQueryMode FitCorrectionQueryMode => _fitCorrectionQueryMode;
-        public FitCorrectionScope FitCorrectionScope => _fitCorrectionScope;
-        public float FitCorrectionWarningDistance => _fitCorrectionWarningDistance;
-        public float FitCorrectionTargetDistance => _fitCorrectionTargetDistance;
-        public float FitCorrectionMaximumMove => _fitCorrectionMaximumMove;
-        public bool FitCorrectionUsedVertexMask => _fitCorrectionUsedVertexMask;
-        public IReadOnlyList<float> FitCorrectionConstraintMask =>
-            _fitCorrectionConstraintMask ?? (_fitCorrectionConstraintMask = Array.Empty<float>());
-        public bool FitCorrectionPinnedOpenBoundaries => _fitCorrectionPinnedOpenBoundaries;
-        public bool FitCorrectionIsolatedComponents => _fitCorrectionIsolatedComponents;
-        public bool FitCorrectionSmoothedSurface => _fitCorrectionSmoothedSurface;
-        public int FitCorrectionSmoothingIterations => _fitCorrectionSmoothingIterations;
-        public float FitCorrectionSmoothingStrength => _fitCorrectionSmoothingStrength;
-        public bool FitCorrectionPreservedClearance => _fitCorrectionPreservedClearance;
-        public bool FitCorrectionUsedSymmetry => _fitCorrectionUsedSymmetry;
-        public int FitCorrectionSymmetryAxis => _fitCorrectionSymmetryAxis;
-        public float FitCorrectionSymmetryTolerance => _fitCorrectionSymmetryTolerance;
-
-        public void ConfigureFitCorrection(
-            Renderer referenceRenderer,
-            ClearanceQueryMode queryMode,
-            FitCorrectionScope scope,
-            float warningDistance,
-            float targetDistance,
-            float maximumMove)
-        {
-            _isFitCorrection = true;
-            _fitCorrectionReferenceRenderer = referenceRenderer;
-            _fitCorrectionQueryMode = queryMode;
-            _fitCorrectionScope = scope;
-            _fitCorrectionWarningDistance = IsFinite(warningDistance) ? Mathf.Max(0f, warningDistance) : 0f;
-            _fitCorrectionTargetDistance = IsFinite(targetDistance)
-                ? Mathf.Max(_fitCorrectionWarningDistance, targetDistance)
-                : _fitCorrectionWarningDistance;
-            _fitCorrectionMaximumMove = IsFinite(maximumMove) ? Mathf.Max(0f, maximumMove) : 0f;
-        }
-
-        public void ConfigureFitCorrectionConstraints(
-            bool useVertexMask,
-            float[] constraintMask,
-            bool pinOpenBoundaries,
-            bool isolateComponents,
-            bool smoothSurface,
-            int smoothingIterations,
-            float smoothingStrength,
-            bool preserveClearance,
-            bool useSymmetry,
-            int symmetryAxis,
-            float symmetryTolerance)
-        {
-            _fitCorrectionUsedVertexMask = useVertexMask;
-            if (constraintMask == null)
-            {
-                _fitCorrectionConstraintMask = Array.Empty<float>();
-            }
-            else
-            {
-                _fitCorrectionConstraintMask = new float[constraintMask.Length];
-                for (int vertex = 0; vertex < constraintMask.Length; vertex++)
-                {
-                    float value = constraintMask[vertex];
-                    _fitCorrectionConstraintMask[vertex] = IsFinite(value) ? Mathf.Clamp01(value) : 0f;
-                }
-            }
-            _fitCorrectionPinnedOpenBoundaries = pinOpenBoundaries;
-            _fitCorrectionIsolatedComponents = isolateComponents;
-            _fitCorrectionSmoothedSurface = smoothSurface;
-            _fitCorrectionSmoothingIterations = Mathf.Max(0, smoothingIterations);
-            _fitCorrectionSmoothingStrength = IsFinite(smoothingStrength)
-                ? Mathf.Clamp01(smoothingStrength)
-                : 0f;
-            _fitCorrectionPreservedClearance = preserveClearance;
-            _fitCorrectionUsedSymmetry = useSymmetry;
-            _fitCorrectionSymmetryAxis = Mathf.Clamp(symmetryAxis, 0, 2);
-            _fitCorrectionSymmetryTolerance = IsFinite(symmetryTolerance)
-                ? Mathf.Max(1e-6f, symmetryTolerance)
-                : 1e-4f;
-        }
-
-        internal void CopyFitCorrectionMetadataFrom(LatticeLayer source)
-        {
-            if (source == null || !source._isFitCorrection) return;
-            ConfigureFitCorrection(
-                source._fitCorrectionReferenceRenderer,
-                source._fitCorrectionQueryMode,
-                source._fitCorrectionScope,
-                source._fitCorrectionWarningDistance,
-                source._fitCorrectionTargetDistance,
-                source._fitCorrectionMaximumMove);
-            ConfigureFitCorrectionConstraints(
-                source._fitCorrectionUsedVertexMask,
-                source._fitCorrectionConstraintMask,
-                source._fitCorrectionPinnedOpenBoundaries,
-                source._fitCorrectionIsolatedComponents,
-                source._fitCorrectionSmoothedSurface,
-                source._fitCorrectionSmoothingIterations,
-                source._fitCorrectionSmoothingStrength,
-                source._fitCorrectionPreservedClearance,
-                source._fitCorrectionUsedSymmetry,
-                source._fitCorrectionSymmetryAxis,
-                source._fitCorrectionSymmetryTolerance);
-        }
-
-        public bool HasImportedBlendShapeFrameWeight => _hasImportedBlendShapeFrameWeight;
-
-        public float ImportedBlendShapeFrameWeight => _importedBlendShapeFrameWeight;
-
-        internal void SetImportedBlendShapeFrameWeight(float frameWeight)
-        {
-            _hasImportedBlendShapeFrameWeight = true;
-            _importedBlendShapeFrameWeight = frameWeight;
-        }
-
-        public Vector3[] BrushDisplacements
-        {
-            get => _brushDisplacements ?? (_brushDisplacements = Array.Empty<Vector3>());
-            set => _brushDisplacements = value ?? Array.Empty<Vector3>();
-        }
-
-        public int BrushDisplacementCount => _brushDisplacements?.Length ?? 0;
-
-        internal LatticeAsset SerializedSettings => _settings;
-
-        internal int SerializedBrushDisplacementCount => _brushDisplacements?.Length ?? 0;
-
-        internal int SerializedVertexMaskCount => _vertexMask?.Length ?? 0;
-
-        internal bool HasMalformedSerializedMetadata =>
-            (_type != MeshDeformerLayerType.Lattice && _type != MeshDeformerLayerType.Brush) ||
-            (_blendShapeOutput != BlendShapeOutputMode.Disabled &&
-             _blendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape) ||
-            float.IsNaN(_weight) || float.IsInfinity(_weight) ||
-            (_hasImportedBlendShapeFrameWeight &&
-             (float.IsNaN(_importedBlendShapeFrameWeight) || float.IsInfinity(_importedBlendShapeFrameWeight))) ||
-            (_isFitCorrection &&
-             ((_fitCorrectionQueryMode != ClearanceQueryMode.ReferenceNormal &&
-               _fitCorrectionQueryMode != ClearanceQueryMode.ClosedMesh) ||
-              (_fitCorrectionScope != FitCorrectionScope.PenetrationOnly &&
-               _fitCorrectionScope != FitCorrectionScope.WarningThreshold &&
-               _fitCorrectionScope != FitCorrectionScope.TargetClearance) ||
-              !IsFinite(_fitCorrectionWarningDistance) ||
-              !IsFinite(_fitCorrectionTargetDistance) ||
-              !IsFinite(_fitCorrectionMaximumMove) ||
-              _fitCorrectionWarningDistance < 0f ||
-              _fitCorrectionTargetDistance < _fitCorrectionWarningDistance ||
-              _fitCorrectionMaximumMove < 0f ||
-              HasMalformedFitCorrectionConstraints()));
-
-        private bool HasMalformedFitCorrectionConstraints()
-        {
-            if (_fitCorrectionSmoothedSurface &&
-                (_fitCorrectionSmoothingIterations < 0 ||
-                 !IsFinite(_fitCorrectionSmoothingStrength) ||
-                 _fitCorrectionSmoothingStrength < 0f ||
-                 _fitCorrectionSmoothingStrength > 1f))
-            {
-                return true;
-            }
-
-            if (_fitCorrectionUsedSymmetry &&
-                ((_fitCorrectionSymmetryAxis < 0 || _fitCorrectionSymmetryAxis > 2) ||
-                 !IsFinite(_fitCorrectionSymmetryTolerance) ||
-                 _fitCorrectionSymmetryTolerance < 1e-6f))
-            {
-                return true;
-            }
-
-            if (!_fitCorrectionUsedVertexMask) return false;
-            if (_fitCorrectionConstraintMask == null ||
-                _fitCorrectionConstraintMask.Length != SerializedBrushDisplacementCount)
-            {
-                return true;
-            }
-
-            for (int vertex = 0; vertex < _fitCorrectionConstraintMask.Length; vertex++)
-            {
-                float value = _fitCorrectionConstraintMask[vertex];
-                if (!IsFinite(value) || value < 0f || value > 1f) return true;
-            }
-            return false;
-        }
-
-        private static bool IsFinite(float value)
-        {
-            return !float.IsNaN(value) && !float.IsInfinity(value);
-        }
-
-        internal bool HasNonFiniteSerializedBrushDisplacements
-        {
-            get
-            {
-                if (_brushDisplacements != null)
-                {
-                    for (int i = 0; i < _brushDisplacements.Length; i++)
-                    {
-                        Vector3 value = _brushDisplacements[i];
-                        if (float.IsNaN(value.x) || float.IsInfinity(value.x) ||
-                            float.IsNaN(value.y) || float.IsInfinity(value.y) ||
-                            float.IsNaN(value.z) || float.IsInfinity(value.z))
-                        {
-                            return true;
-                        }
-                    }
-                }
-
-                return false;
-            }
-        }
-
-        internal bool HasInvalidSerializedVertexMask
-        {
-            get
-            {
-                if (_vertexMask != null)
-                {
-                    for (int i = 0; i < _vertexMask.Length; i++)
-                    {
-                        float value = _vertexMask[i];
-                        if (!IsFinite(value) || value < 0f || value > 1f)
-                        {
-                            return true;
-                        }
-                    }
-                }
-
-                return false;
-            }
-        }
-
-        internal bool HasNonFiniteSerializedVertexData =>
-            HasNonFiniteSerializedBrushDisplacements || HasInvalidSerializedVertexMask;
-
-        public void EnsureBrushDisplacementCapacity(int vertexCount)
-        {
-            vertexCount = Mathf.Max(0, vertexCount);
-            if (_brushDisplacements == null || _brushDisplacements.Length != vertexCount)
-            {
-                var previous = _brushDisplacements;
-                _brushDisplacements = new Vector3[vertexCount];
-                if (previous != null)
-                {
-                    Array.Copy(previous, _brushDisplacements, Mathf.Min(previous.Length, vertexCount));
-                }
-            }
-        }
-
-        internal bool TryEnsureBrushDataCapacityPreservingExisting(int vertexCount)
-        {
-            vertexCount = Mathf.Max(0, vertexCount);
-
-            // Validate every existing payload before allocating either one. Failure is
-            // intentionally mutation-free so historical data can still be recovered.
-            if (_vertexMask != null && _vertexMask.Length != 0 && _vertexMask.Length != vertexCount)
-            {
-                return false;
-            }
-
-            if (_brushDisplacements == null || _brushDisplacements.Length == 0)
-            {
-                _brushDisplacements = new Vector3[vertexCount];
-            }
-            else if (_brushDisplacements.Length != vertexCount)
-            {
-                return false;
-            }
-
-            // An empty mask means fully editable and does not require allocation.
-            return true;
-        }
-
-        public bool HasBrushDisplacements()
-        {
-            if (_brushDisplacements == null || _brushDisplacements.Length == 0)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < _brushDisplacements.Length; i++)
-            {
-                if (_brushDisplacements[i].sqrMagnitude > 1e-12f)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        public void ClearBrushDisplacements()
-        {
-            if (_brushDisplacements == null)
-            {
-                return;
-            }
-
-            Array.Clear(_brushDisplacements, 0, _brushDisplacements.Length);
-        }
-
-        public Vector3 GetBrushDisplacement(int index)
-        {
-            if (_brushDisplacements == null || index < 0 || index >= _brushDisplacements.Length)
-            {
-                return Vector3.zero;
-            }
-
-            return _brushDisplacements[index];
-        }
-
-        public void SetBrushDisplacement(int index, Vector3 displacement)
-        {
-            if (_brushDisplacements == null || index < 0 || index >= _brushDisplacements.Length)
-            {
-                return;
-            }
-
-            if (!IsFinite(displacement.x) || !IsFinite(displacement.y) || !IsFinite(displacement.z))
-            {
-                return;
-            }
-
-            _brushDisplacements[index] = displacement;
-        }
-
-        public void AddBrushDisplacement(int index, Vector3 delta)
-        {
-            if (_brushDisplacements == null || index < 0 || index >= _brushDisplacements.Length)
-            {
-                return;
-            }
-
-            if (!IsFinite(delta.x) || !IsFinite(delta.y) || !IsFinite(delta.z))
-            {
-                return;
-            }
-
-            _brushDisplacements[index] += delta;
-        }
-
-        public float[] VertexMask
-        {
-            get => _vertexMask ?? (_vertexMask = Array.Empty<float>());
-            set => _vertexMask = value ?? Array.Empty<float>();
-        }
-
-        public void EnsureVertexMaskCapacity(int vertexCount)
-        {
-            vertexCount = Mathf.Max(0, vertexCount);
-            if (_vertexMask == null || _vertexMask.Length != vertexCount)
-            {
-                var previous = _vertexMask;
-                _vertexMask = new float[vertexCount];
-                // Initialize to 1.0 (fully editable)
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    _vertexMask[i] = 1f;
-                }
-
-                if (previous != null)
-                {
-                    int copyLen = Mathf.Min(previous.Length, vertexCount);
-                    Array.Copy(previous, _vertexMask, copyLen);
-                }
-            }
-        }
-
-        public float GetVertexMask(int index)
-        {
-            if (_vertexMask == null || index < 0 || index >= _vertexMask.Length)
-            {
-                return 1f; // Default: fully editable
-            }
-
-            return _vertexMask[index];
-        }
-
-        public void SetVertexMask(int index, float value)
-        {
-            if (_vertexMask == null || index < 0 || index >= _vertexMask.Length)
-            {
-                return;
-            }
-
-            if (!IsFinite(value))
-            {
-                return;
-            }
-
-            _vertexMask[index] = Mathf.Clamp01(value);
-        }
-
-        public void ClearVertexMask()
-        {
-            if (_vertexMask == null)
-            {
-                return;
-            }
-
-            for (int i = 0; i < _vertexMask.Length; i++)
-            {
-                _vertexMask[i] = 1f;
-            }
-        }
-
-        public bool HasVertexMask()
-        {
-            if (_vertexMask == null || _vertexMask.Length == 0)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < _vertexMask.Length; i++)
-            {
-                if (_vertexMask[i] < 1f - 1e-6f)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-    }
-
-    [Serializable]
-    public sealed class DeformerGroup
-    {
-        [SerializeField] private string _name = "Group";
-        [SerializeField] private bool _enabled = true;
-        [SerializeField] private List<LatticeLayer> _layers = new List<LatticeLayer>();
-        [SerializeField] private int _activeLayerIndex = 0;
-        [SerializeField] private BlendShapeOutputMode _blendShapeOutput = BlendShapeOutputMode.Disabled;
-        [SerializeField] private string _blendShapeName = "";
-        [SerializeField] private AnimationCurve _blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
-        [SerializeField] private BlendShapeCompositionMode _blendShapeComposition = BlendShapeCompositionMode.Single;
-        [NonSerialized] private List<LatticeLayer> _readOnlyLayerSource;
-        [NonSerialized] private ReadOnlyCollection<LatticeLayer> _readOnlyLayers;
-
-        public string Name
-        {
-            get => string.IsNullOrWhiteSpace(_name) ? "Group" : _name;
-            set => _name = string.IsNullOrWhiteSpace(value) ? "Group" : value;
-        }
-
-        public bool Enabled
-        {
-            get => _enabled;
-            set => _enabled = value;
-        }
-
-        /// <summary>
-        /// Legacy mutable collection retained for source compatibility. Prefer
-        /// <see cref="Layers"/> and the mutation methods on <see cref="LatticeDeformer"/>
-        /// so cache invalidation and active-index maintenance cannot be bypassed.
-        /// </summary>
-        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-        public List<LatticeLayer> LayersList
-        {
-            get
-            {
-                if (_layers == null) _layers = new List<LatticeLayer>();
-                return _layers;
-            }
-        }
-
-        public IReadOnlyList<LatticeLayer> Layers
-        {
-            get
-            {
-                var layers = MutableLayers;
-                if (_readOnlyLayers == null || !ReferenceEquals(_readOnlyLayerSource, layers))
-                {
-                    _readOnlyLayerSource = layers;
-                    _readOnlyLayers = layers.AsReadOnly();
-                }
-                return _readOnlyLayers;
-            }
-        }
-
-        internal List<LatticeLayer> MutableLayers
-        {
-            get
-            {
-                if (_layers == null) _layers = new List<LatticeLayer>();
-                return _layers;
-            }
-        }
-
-        internal List<LatticeLayer> SerializedLayers => _layers;
-
-        internal int SerializedActiveLayerIndex => _activeLayerIndex;
-
-        internal void SetSerializedActiveLayerIndex(int value) => _activeLayerIndex = value;
-
-        internal bool HasMalformedSerializedMetadata =>
-            (_blendShapeOutput != BlendShapeOutputMode.Disabled &&
-             _blendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape) ||
-            (_blendShapeComposition != BlendShapeCompositionMode.Single &&
-             _blendShapeComposition != BlendShapeCompositionMode.Progressive &&
-             _blendShapeComposition != BlendShapeCompositionMode.Crossfade);
-
-        public int ActiveLayerIndex
-        {
-            get
-            {
-                if (_layers == null || _layers.Count == 0) return 0;
-                return Mathf.Clamp(_activeLayerIndex, 0, _layers.Count - 1);
-            }
-            set
-            {
-                if (_layers == null || _layers.Count == 0) { _activeLayerIndex = 0; return; }
-                _activeLayerIndex = Mathf.Clamp(value, 0, _layers.Count - 1);
-            }
-        }
-
-        public BlendShapeOutputMode BlendShapeOutput
-        {
-            get => _blendShapeOutput;
-            set => _blendShapeOutput = value;
-        }
-
-        public string BlendShapeName
-        {
-            get => _blendShapeName;
-            set => _blendShapeName = value ?? "";
-        }
-
-        public AnimationCurve BlendShapeCurve
-        {
-            get => _blendShapeCurve ?? (_blendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f));
-            set => _blendShapeCurve = value ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
-        }
-
-        public BlendShapeCompositionMode BlendShapeComposition
-        {
-            get => _blendShapeComposition;
-            set => _blendShapeComposition = value;
-        }
-
-        public string EffectiveBlendShapeName(string fallback)
-        {
-            return string.IsNullOrWhiteSpace(_blendShapeName) ? fallback : _blendShapeName;
-        }
-    }
-
     [DisallowMultipleComponent]
     [ExecuteAlways]
     [AddComponentMenu("32ba/Mesh Deformer")]
     public class LatticeDeformer : MonoBehaviour
     {
         public static bool SuppressRestoreOnDisable { get; set; } = false;
+
+        [NonSerialized] private int _meshRestorationSuppressionDepth;
+
+        internal IDisposable SuppressMeshRestoration() => new MeshRestorationScope(this);
+
+        private sealed class MeshRestorationScope : IDisposable
+        {
+            private LatticeDeformer _owner;
+
+            internal MeshRestorationScope(LatticeDeformer owner)
+            {
+                _owner = owner;
+                owner._meshRestorationSuppressionDepth++;
+            }
+
+            public void Dispose()
+            {
+                var owner = _owner;
+                _owner = null;
+                // The build destroys the native component before this scope closes.
+                // Its managed lifetime still owns the suppression counter.
+                if (!ReferenceEquals(owner, null)) owner._meshRestorationSuppressionDepth--;
+            }
+        }
 
         public enum LatticeAlignMode
         {
@@ -759,6 +60,10 @@ namespace Net._32Ba.LatticeDeformationTool
 
         [SerializeField, HideInInspector]
         private DeformationDataVersion _deformationDataSourceVersion = DeformationDataVersion.Unversioned;
+
+        // Append-only release journal. The legacy enum value 15 and layer model
+        // version 3 keep their existing meaning; absent journal data starts at 0.
+        [SerializeField, HideInInspector] private int _migrationReleaseIndex;
 
         // Historical releases evaluated interpolated absolute control points. Current
         // data evaluates a neutral-relative offset field. Existing data keeps the former
@@ -813,6 +118,8 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, HideInInspector] private Mesh _serializedSourceMesh;
         [SerializeField, HideInInspector] private int _serializedSourceVertexCount;
         [SerializeField, HideInInspector] private int _serializedSourceTopologyHash;
+        [SerializeField, HideInInspector] private float[] _initialBlendShapeWeights = Array.Empty<float>();
+        [SerializeField, HideInInspector] private bool _hasInitialBlendShapeWeightBaseline;
 
         // Preview alignment (per-instance)
         [SerializeField, HideInInspector] private LatticeAlignMode _alignMode = LatticeAlignMode.Mode1_TransformOnly;
@@ -824,49 +131,30 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, HideInInspector] private bool _alignAutoInitialized = false;
         [SerializeField, HideInInspector] private Vector3 _manualOffsetProxy = Vector3.zero;
         [SerializeField, HideInInspector] private Vector3 _manualScaleProxy = Vector3.one;
-        [NonSerialized] private LatticeDeformerCache _cache = new LatticeDeformerCache();
         [NonSerialized] private Mesh _runtimeMesh;
+        [NonSerialized] private RuntimeMeshAssignment _runtimeMeshAssignment;
         [NonSerialized] private Mesh _sourceMesh;
-#if UNITY_EDITOR
-        [NonSerialized] private Mesh _editorReadableSourceMeshOverride;
-#endif
+        [NonSerialized] private Mesh _readableSourceMeshOverride;
         [NonSerialized] private int _lastBlendShapeHash;
         [NonSerialized] private int _lastBakedBlendShapeHash;
+        // Retained for historical private read-only test probes; cache owns the data.
         [NonSerialized] private List<DeformerGroup> _profileGroups;
-        [NonSerialized] private List<DeformerGroup> _blockedProfileGroups;
+        [NonSerialized] private DeformerDataResolver _dataResolver = new DeformerDataResolver();
+        [NonSerialized] private int _appliedProfileRevision;
         [NonSerialized] private List<DeformerGroup> _readOnlyGroupSource;
         [NonSerialized] private ReadOnlyCollection<DeformerGroup> _readOnlyGroups;
-        [NonSerialized] private string _profileFingerprint;
         [NonSerialized] private bool _blendShapeOutputDirty = true;
         [NonSerialized] private int _runtimeMeshRevision;
         [NonSerialized] private int _deformationDataRevision;
         [NonSerialized] private bool _isEnsuringLayerModelReady;
         [NonSerialized] private bool _hasIncompatibleBrushData;
-        [NonSerialized] private List<Vector3> _sourceVertexScratch = new List<Vector3>();
-        [NonSerialized] private List<Vector3> _sourceNormalScratch = new List<Vector3>();
-        [NonSerialized] private List<Vector4> _sourceTangentScratch = new List<Vector4>();
-        [NonSerialized] private Vector3[] _sourceVerticesBuffer = Array.Empty<Vector3>();
-        [NonSerialized] private Vector3[] _directDeltasBuffer = Array.Empty<Vector3>();
-        [NonSerialized] private Vector3[] _groupVerticesBuffer = Array.Empty<Vector3>();
-        [NonSerialized] private Vector3[] _layerVerticesBuffer = Array.Empty<Vector3>();
-        [NonSerialized] private Vector3[] _finalVerticesBuffer = Array.Empty<Vector3>();
-        [NonSerialized] private Vector3[] _latticeOutputBuffer = Array.Empty<Vector3>();
-        [NonSerialized] private List<GeneratedBlendShape> _generatedBlendShapeBuffer =
-            new List<GeneratedBlendShape>();
-        [NonSerialized] private NativeArray<float3> _deformControlNative;
-        [NonSerialized] private NativeArray<LatticeCacheEntry> _deformEntriesNative;
-        [NonSerialized] private NativeArray<float3> _deformOutputNative;
-        [NonSerialized] private NativeArray<float> _deformBernsteinWeightsNative;
-        [NonSerialized] private LatticeCacheEntry[] _deformEntriesSource;
-        [NonSerialized] private float[] _deformBernsteinWeightsSource;
+        [NonSerialized] private SourceVertexWorkspace _sourceVertexWorkspace = new SourceVertexWorkspace();
+        [NonSerialized] private EvaluationWorkspace _evaluationWorkspace = new EvaluationWorkspace();
         [NonSerialized] private DeformationDataMigrationStatus _migrationStatus =
             DeformationDataMigrationStatus.Uninitialized;
-        private const int k_CurrentLayerModelVersion = 3;
+        private const int k_CurrentLayerModelVersion = DeformationMigrationPreflight.CurrentLayerModelVersion;
         private const string k_PrimaryLayerName = "Lattice Layer";
         private const string k_BrushLayerName = "Brush Layer";
-        private const string k_RecoveredLegacyFlatLayersGroupName = "Recovered Legacy Flat Layers";
-
-        private Vector3[] _controlBuffer = Array.Empty<Vector3>();
 
         internal static DeformationDataVersion CurrentDeformationDataVersion =>
             DeformationDataVersion.CurrentDevelopment;
@@ -879,62 +167,26 @@ namespace Net._32Ba.LatticeDeformationTool
                 : _deformationDataSourceVersion;
 
         internal DeformationDataMigrationStatus MigrationStatus => _migrationStatus;
+        internal int SerializedMigrationReleaseIndex => _migrationReleaseIndex;
 
         internal bool UsesLegacyAbsoluteLatticeEvaluation => _legacyAbsoluteLatticeEvaluation;
 
-        private readonly struct GeneratedBlendShape
-        {
-            public readonly string Name;
-            public readonly AnimationCurve Curve;
-            public readonly BlendShapeCompositionMode Composition;
-            public readonly Vector3[][] Candidates;
-            public readonly float[] CandidateWeights;
+        internal bool CanStartAuthoringEdit =>
+            (int)_deformationDataVersion >= 0 && _deformationDataVersion <= CurrentDeformationDataVersion &&
+            _layerModelVersion >= 0 && _layerModelVersion <= k_CurrentLayerModelVersion &&
+            DeformationReleaseManifest.ValidateCursor(_migrationReleaseIndex) == DeformationDataMigrationStatus.Ready &&
+            !HasUnsupportedFutureLatticeAsset();
 
-            public GeneratedBlendShape(string name, AnimationCurve curve, Vector3[] deltas)
-                : this(name, curve, BlendShapeCompositionMode.Single, new[] { deltas }, null)
-            {
-            }
+        // Pure preflight for interactive writes, including disabled authoring data.
+        // The command boundary may intentionally repair data; a drag must not do so.
+        internal bool HasValidSerializedAuthoringData => CanStartAuthoringEdit &&
+            DeformationMigrationPreflight.ValidateSchema(ReadMigrationInput()) == DeformationDataMigrationStatus.Ready &&
+            !HasIncompatibleSerializedVertexIndexedData();
 
-            public GeneratedBlendShape(
-                string name,
-                AnimationCurve curve,
-                BlendShapeCompositionMode composition,
-                Vector3[][] candidates,
-                float[] candidateWeights = null)
-            {
-                Name = name;
-                Curve = curve ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
-                Composition = composition;
-                Candidates = candidates;
-                CandidateWeights = candidateWeights;
-            }
-        }
-
-        private readonly struct GroupSelectionSnapshot
-        {
-            public readonly DeformerGroup Group;
-            public readonly int ActiveLayerIndex;
-
-            public GroupSelectionSnapshot(DeformerGroup group, int activeLayerIndex)
-            {
-                Group = group;
-                ActiveLayerIndex = activeLayerIndex;
-            }
-        }
-
-        private readonly struct LatticeInterpolationCompatibilitySnapshot
-        {
-            public readonly LatticeAsset Asset;
-            public readonly bool UsedLegacyTrilinearInterpolation;
-
-            public LatticeInterpolationCompatibilitySnapshot(
-                LatticeAsset asset,
-                bool usedLegacyTrilinearInterpolation)
-            {
-                Asset = asset;
-                UsedLegacyTrilinearInterpolation = usedLegacyTrilinearInterpolation;
-            }
-        }
+        internal SerializedDeformerData ReadSerializedData() => new SerializedDeformerData(
+            _groups, _activeGroupIndex, _dataSource, _profile,
+            _skinnedMeshRenderer, _meshFilter, _serializedSourceMesh,
+            _serializedSourceVertexCount, _serializedSourceTopologyHash);
 
         /// <summary>
         /// Base layer settings (legacy). Delegates to the first layer of the active group.
@@ -986,7 +238,8 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 if (_dataSource == value) return;
                 if (value == DeformerDataSource.Profile && _profile != null &&
-                    EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch)
+                    (EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch ||
+                     !HasValidProfileForSource(_profile)))
                 {
                     return;
                 }
@@ -994,8 +247,10 @@ namespace Net._32Ba.LatticeDeformationTool
                 if (_dataSource == DeformerDataSource.Profile && _profile != null)
                 {
                     _groups?.Clear();
+                    _activeGroupIndex = _profile.SerializedActiveGroupIndex;
                 }
-                _profileFingerprint = null;
+                else if (_groups == null || _groups.Count == 0) _activeGroupIndex = 0;
+                _dataResolver?.Invalidate();
                 EnsureGroups();
                 InvalidateCache();
             }
@@ -1008,7 +263,8 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 if (_profile == value) return;
                 if (_dataSource == DeformerDataSource.Profile && value != null &&
-                    EvaluateProfileCompatibility(value) == ProfileCompatibilityStatus.TopologyMismatch)
+                    (EvaluateProfileCompatibility(value) == ProfileCompatibilityStatus.TopologyMismatch ||
+                     !HasValidProfileForSource(value)))
                 {
                     return;
                 }
@@ -1016,8 +272,10 @@ namespace Net._32Ba.LatticeDeformationTool
                 if (_dataSource == DeformerDataSource.Profile && _profile != null)
                 {
                     _groups?.Clear();
+                    _activeGroupIndex = _profile.SerializedActiveGroupIndex;
                 }
-                _profileFingerprint = null;
+                else if (_groups == null || _groups.Count == 0) _activeGroupIndex = 0;
+                _dataResolver?.Invalidate();
                 EnsureGroups();
                 InvalidateCache();
             }
@@ -1025,14 +283,14 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public bool UseProfile(MeshDeformerProfile profile)
         {
-            if (profile == null) return false;
+            if (profile == null || !HasValidProfileForSource(profile)) return false;
             if (EvaluateProfileCompatibility(profile) == ProfileCompatibilityStatus.TopologyMismatch) return false;
             _profile = profile;
             _dataSource = DeformerDataSource.Profile;
             _groups?.Clear();
+            _activeGroupIndex = profile.SerializedActiveGroupIndex;
             _profileGroups = null;
-            _blockedProfileGroups = null;
-            _profileFingerprint = null;
+            _dataResolver?.Clear();
             EnsureGroups();
             InvalidateCache();
             return true;
@@ -1040,7 +298,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public bool CopyProfileToEmbedded()
         {
-            if (_profile == null) return false;
+            if (_profile == null || !HasValidProfileForSource(_profile)) return false;
             if (EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch)
                 return false;
             var payload = _profile.CreateIndependentPayload();
@@ -1048,8 +306,7 @@ namespace Net._32Ba.LatticeDeformationTool
             _activeGroupIndex = payload.ActiveGroupIndex;
             _dataSource = DeformerDataSource.Embedded;
             _profileGroups = null;
-            _blockedProfileGroups = null;
-            _profileFingerprint = null;
+            _dataResolver?.Clear();
             EnsureGroups();
             InvalidateCache();
             return true;
@@ -1057,7 +314,8 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public bool SaveToProfile(MeshDeformerProfile destination)
         {
-            if (destination == null) return false;
+            if (destination == null || (_dataSource == DeformerDataSource.Profile &&
+                _profile != null && !HasValidProfileForSource(_profile))) return false;
             CacheSourceMesh();
             if (_dataSource == DeformerDataSource.Profile && _profile != null &&
                 EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch)
@@ -1068,9 +326,15 @@ namespace Net._32Ba.LatticeDeformationTool
             destination.Capture(GetGroupStorage(), _activeGroupIndex, _sourceMesh);
             if (_profile == destination)
             {
-                _profileFingerprint = null;
+                _dataResolver?.Invalidate();
             }
             return true;
+        }
+
+        private bool HasValidProfileForSource(MeshDeformerProfile profile)
+        {
+            var source = GetCompatibilitySourceMesh();
+            return DeformerDataResolver.HasValidProfilePayload(profile, source != null ? source.vertexCount : -1);
         }
 
         public ProfileCompatibilityStatus EvaluateProfileCompatibility(
@@ -1094,8 +358,9 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             get
             {
-                if (!EnsureGroups()) return Array.Empty<DeformerGroup>();
-                var groups = GetGroupStorage();
+                bool ready = EnsureGroups();
+                if (!ready && !CanInspectStoredSourceMismatch()) return Array.Empty<DeformerGroup>();
+                var groups = ready ? GetGroupStorage() : _groups;
                 if (_readOnlyGroups == null || !ReferenceEquals(_readOnlyGroupSource, groups))
                 {
                     _readOnlyGroupSource = groups;
@@ -1109,7 +374,7 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             get
             {
-                return EnsureGroups() ? GetGroupStorage().Count : 0;
+                return EnsureGroups() ? GetGroupStorage().Count : CanInspectStoredSourceMismatch() ? _groups.Count : 0;
             }
         }
 
@@ -1147,6 +412,39 @@ namespace Net._32Ba.LatticeDeformationTool
             groups.Add(group);
             _activeGroupIndex = groups.Count - 1;
             return _activeGroupIndex;
+        }
+
+        /// <summary>
+        /// Inserts an authored group and selects it. Like InsertLayer, the caller
+        /// owns the inserted payload and requests evaluation after editing.
+        /// An index of -1 appends the group.
+        /// </summary>
+        public int InsertGroup(DeformerGroup group, int index = -1)
+        {
+            if (group == null || index < -1) return -1;
+            if (!EnsureGroups()) return -1;
+            var groups = GetGroupStorage();
+            int insertAt = index < 0 ? groups.Count : index;
+            if (insertAt > groups.Count) return -1;
+            groups.Insert(insertAt, group);
+            _activeGroupIndex = insertAt;
+            return insertAt;
+        }
+
+        /// <summary>Moves a group while retaining the selected group's identity.</summary>
+        public bool MoveGroup(int oldIndex, int newIndex)
+        {
+            if (oldIndex < 0 || newIndex < 0 || oldIndex == newIndex) return false;
+            if (!EnsureGroups()) return false;
+            var groups = GetGroupStorage();
+            if (oldIndex >= groups.Count || newIndex >= groups.Count) return false;
+            var group = groups[oldIndex];
+            groups.RemoveAt(oldIndex);
+            groups.Insert(newIndex, group);
+            if (_activeGroupIndex == oldIndex) _activeGroupIndex = newIndex;
+            else if (oldIndex < _activeGroupIndex && newIndex >= _activeGroupIndex) _activeGroupIndex--;
+            else if (oldIndex > _activeGroupIndex && newIndex <= _activeGroupIndex) _activeGroupIndex++;
+            return true;
         }
 
         public bool RemoveGroup(int index)
@@ -1311,6 +609,8 @@ namespace Net._32Ba.LatticeDeformationTool
         internal int DeformationDataRevision => _deformationDataRevision;
 
         public Mesh SourceMesh => _sourceMesh;
+
+        internal Mesh CompatibilitySourceMesh => GetCompatibilitySourceMesh();
 
         public Renderer TargetRenderer
         {
@@ -1698,104 +998,14 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public int ImportBlendShapeAsLayer(int blendShapeIndex, int frameIndex = 0)
         {
-            if (_sourceMesh == null) return -1;
-            int shapeCount = _sourceMesh.blendShapeCount;
-            if (blendShapeIndex < 0 || blendShapeIndex >= shapeCount) return -1;
-            int frameCount = _sourceMesh.GetBlendShapeFrameCount(blendShapeIndex);
-            if (frameIndex < 0 || frameIndex >= frameCount) return -1;
-            int vertexCount = _sourceMesh.vertexCount;
-            if (vertexCount == 0) return -1;
-
-            var deltaVertices = new Vector3[vertexCount];
-            var deltaNormals = new Vector3[vertexCount];
-            var deltaTangents = new Vector3[vertexCount];
-            _sourceMesh.GetBlendShapeFrameVertices(blendShapeIndex, frameIndex, deltaVertices, deltaNormals, deltaTangents);
-
-            string shapeName = _sourceMesh.GetBlendShapeName(blendShapeIndex);
-            var layer = new LatticeLayer();
-            layer.Name = shapeName;
-            layer.SetType(MeshDeformerLayerType.Brush);
-            layer.Weight = 1f;
-            layer.EnsureBrushDisplacementCapacity(vertexCount);
-            for (int i = 0; i < vertexCount; i++)
-                layer.SetBrushDisplacement(i, deltaVertices[i]);
-
-            if (!EnsureGroups()) return -1;
-            var group = ActiveGroup;
-            if (group == null) return -1;
-            group.LayersList.Add(layer);
-            int addedIndex = group.LayersList.Count - 1;
-            group.ActiveLayerIndex = addedIndex;
-            return addedIndex;
+            var layer = BlendShapeLayerImport.CreateLayer(_sourceMesh, blendShapeIndex, frameIndex);
+            return layer != null ? InsertLayer(layer) : -1;
         }
 
         public int ImportBlendShapeAllFramesAsGroup(int blendShapeIndex)
         {
-            if (_sourceMesh == null) return -1;
-            if (blendShapeIndex < 0 || blendShapeIndex >= _sourceMesh.blendShapeCount) return -1;
-
-            int frameCount = _sourceMesh.GetBlendShapeFrameCount(blendShapeIndex);
-            int vertexCount = _sourceMesh.vertexCount;
-            if (frameCount <= 0 || vertexCount <= 0) return -1;
-
-            string shapeName = _sourceMesh.GetBlendShapeName(blendShapeIndex);
-            var importedLayers = new List<LatticeLayer>(frameCount);
-            float previousWeight = float.NegativeInfinity;
-
-            for (int frameIndex = 0; frameIndex < frameCount; frameIndex++)
-            {
-                float frameWeight = _sourceMesh.GetBlendShapeFrameWeight(blendShapeIndex, frameIndex);
-                if (float.IsNaN(frameWeight) || float.IsInfinity(frameWeight) || frameWeight <= previousWeight)
-                    return -1;
-
-                var deltaVertices = new Vector3[vertexCount];
-                _sourceMesh.GetBlendShapeFrameVertices(
-                    blendShapeIndex,
-                    frameIndex,
-                    deltaVertices,
-                    new Vector3[vertexCount],
-                    new Vector3[vertexCount]);
-
-                for (int vertex = 0; vertex < vertexCount; vertex++)
-                {
-                    Vector3 delta = deltaVertices[vertex];
-                    if (float.IsNaN(delta.x) || float.IsInfinity(delta.x) ||
-                        float.IsNaN(delta.y) || float.IsInfinity(delta.y) ||
-                        float.IsNaN(delta.z) || float.IsInfinity(delta.z))
-                    {
-                        return -1;
-                    }
-                }
-
-                var layer = new LatticeLayer
-                {
-                    Name = string.Format(
-                        CultureInfo.InvariantCulture,
-                        "{0} [{1:0.###}]",
-                        shapeName,
-                        frameWeight),
-                    Weight = 1f
-                };
-                layer.SetType(MeshDeformerLayerType.Brush);
-                layer.BrushDisplacements = deltaVertices;
-                layer.SetImportedBlendShapeFrameWeight(frameWeight);
-                importedLayers.Add(layer);
-                previousWeight = frameWeight;
-            }
-
-            if (!EnsureGroups()) return -1;
-
-            var group = new DeformerGroup
-            {
-                Name = shapeName + " Imported",
-                BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape,
-                BlendShapeName = shapeName + " Imported",
-                BlendShapeComposition = BlendShapeCompositionMode.Crossfade,
-                BlendShapeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f)
-            };
-            group.LayersList.AddRange(importedLayers);
-            group.ActiveLayerIndex = 0;
-
+            var group = BlendShapeLayerImport.CreateGroup(_sourceMesh, blendShapeIndex);
+            if (group == null || !EnsureGroups()) return -1;
             _groups.Add(group);
             _activeGroupIndex = _groups.Count - 1;
             return _activeGroupIndex;
@@ -2280,6 +1490,13 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
+            var cursorStatus = DeformationReleaseManifest.ValidateCursor(_migrationReleaseIndex);
+            if (cursorStatus != DeformationDataMigrationStatus.Ready)
+            {
+                _migrationStatus = cursorStatus;
+                return;
+            }
+
             if (_skinnedMeshRenderer == null)
             {
                 _skinnedMeshRenderer = GetComponent<SkinnedMeshRenderer>();
@@ -2290,7 +1507,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 _meshFilter = GetComponent<MeshFilter>();
             }
 
-            if (!EnsureLayerModelReady())
+            if (!EnsureLayerModelReadyCore(allowSourceRebind: true))
             {
                 return;
             }
@@ -2308,7 +1525,20 @@ namespace Net._32Ba.LatticeDeformationTool
         }
         private void OnEnable()
         {
-            EnsureLayerModelReady();
+            if (EnsureLayerModelReady()) CaptureMissingBlendShapeBaseline();
+        }
+
+        private void CaptureMissingBlendShapeBaseline()
+        {
+            if (_hasInitialBlendShapeWeightBaseline) return;
+            if (_skinnedMeshRenderer == null)
+                _skinnedMeshRenderer = GetComponent<SkinnedMeshRenderer>();
+            Mesh mesh = _skinnedMeshRenderer != null ? _skinnedMeshRenderer.sharedMesh : null;
+            int shapeCount = mesh != null ? mesh.blendShapeCount : 0;
+            _initialBlendShapeWeights = new float[shapeCount];
+            for (int shape = 0; shape < shapeCount; shape++)
+                _initialBlendShapeWeights[shape] = _skinnedMeshRenderer.GetBlendShapeWeight(shape);
+            _hasInitialBlendShapeWeightBaseline = true;
         }
 
         [ExcludeFromCodeCoverage]
@@ -2320,172 +1550,53 @@ namespace Net._32Ba.LatticeDeformationTool
                 return;
             }
 
-            if (SuppressRestoreOnDisable)
+            if (SuppressRestoreOnDisable || _meshRestorationSuppressionDepth > 0)
             {
-                ReleaseRuntimeMesh();
+                ReleaseRuntimeMeshWithoutRestoration();
                 return;
             }
 
-            RestoreOriginalMesh();
+            RestoreOwnedRuntimeMesh();
         }
 
         private void OnDestroy()
         {
             ReleaseDeformationNativeBuffers();
-            if (SuppressRestoreOnDisable)
+            if (SuppressRestoreOnDisable || _meshRestorationSuppressionDepth > 0)
             {
-                ReleaseRuntimeMesh();
+                ReleaseRuntimeMeshWithoutRestoration();
                 return;
             }
 
-            RestoreOriginalMesh();
+            RestoreOwnedRuntimeMesh();
         }
 
         public Mesh Deform(bool assignToRenderer = true)
         {
-#if UNITY_EDITOR
+            using var nativeScope = new InactiveEvaluationScope(this);
+            if (DeformerPlatformServices.EditorMeshDataReader == null)
+                return DeformReadableSource(assignToRenderer);
             Mesh originalSourceMesh = _sourceMesh;
-            Mesh readableSourceMesh = null;
-            if (originalSourceMesh != null && !originalSourceMesh.isReadable)
+            using var sourceLease = SourceMeshAccess.Acquire(originalSourceMesh);
+            if (sourceLease.OwnsMesh)
             {
-                // Imported meshes keep their CPU-side data in the Editor even when
-                // Read/Write is disabled, but the original asset still rejects the
-                // managed vertex getters. Instantiating it gives this deformation a
-                // non-asset working copy whose full mesh data can be read without
-                // changing the importer's Read/Write setting.
-                readableSourceMesh = CreateEditorReadableSourceMesh(originalSourceMesh);
-                _editorReadableSourceMeshOverride = readableSourceMesh;
-                _sourceMesh = readableSourceMesh;
+                _readableSourceMeshOverride = sourceLease.Mesh;
+                _sourceMesh = sourceLease.Mesh;
             }
-
             try
             {
                 return DeformReadableSource(assignToRenderer);
             }
             finally
             {
-                _editorReadableSourceMeshOverride = null;
+                _readableSourceMeshOverride = null;
                 _sourceMesh = originalSourceMesh;
-                if (readableSourceMesh != null)
-                {
-                    DestroyImmediate(readableSourceMesh);
-                }
             }
-#else
-            return DeformReadableSource(assignToRenderer);
-#endif
         }
-
-#if UNITY_EDITOR
-        private static Mesh CreateEditorReadableSourceMesh(Mesh sourceMesh)
-        {
-            var readableMesh = new Mesh();
-            readableMesh.name = sourceMesh.name;
-            readableMesh.hideFlags = HideFlags.HideAndDontSave;
-
-            // NDMF may hand this component a cloned imported mesh whose managed
-            // getters no longer have a CPU copy. MeshUtility can still read its
-            // vertex and index buffers in the Editor, so copy those buffers into
-            // a new readable Mesh without touching the imported asset.
-            using Mesh.MeshDataArray sourceDataArray = UnityEditor.MeshUtility.AcquireReadOnlyMeshData(sourceMesh);
-            Mesh.MeshData sourceData = sourceDataArray[0];
-            Mesh.MeshDataArray writableDataArray = Mesh.AllocateWritableMeshData(1);
-            bool writableDataApplied = false;
-            try
-            {
-                Mesh.MeshData writableData = writableDataArray[0];
-                var attributes = new List<UnityEngine.Rendering.VertexAttributeDescriptor>();
-                foreach (UnityEngine.Rendering.VertexAttribute attribute in
-                         Enum.GetValues(typeof(UnityEngine.Rendering.VertexAttribute)))
-                {
-                    if (sourceData.HasVertexAttribute(attribute))
-                    {
-                        attributes.Add(new UnityEngine.Rendering.VertexAttributeDescriptor(
-                            attribute,
-                            sourceData.GetVertexAttributeFormat(attribute),
-                            sourceData.GetVertexAttributeDimension(attribute),
-                            sourceData.GetVertexAttributeStream(attribute)));
-                    }
-                }
-
-                attributes.Sort((left, right) =>
-                {
-                    int streamOrder = left.stream.CompareTo(right.stream);
-                    return streamOrder != 0
-                        ? streamOrder
-                        : sourceData.GetVertexAttributeOffset(left.attribute)
-                            .CompareTo(sourceData.GetVertexAttributeOffset(right.attribute));
-                });
-
-                writableData.SetVertexBufferParams(sourceData.vertexCount, attributes.ToArray());
-                for (int stream = 0; stream < sourceData.vertexBufferCount; stream++)
-                {
-                    NativeArray<byte> sourceBuffer = sourceData.GetVertexData<byte>(stream);
-                    NativeArray<byte> destinationBuffer = writableData.GetVertexData<byte>(stream);
-                    sourceBuffer.CopyTo(destinationBuffer);
-                }
-
-                NativeArray<byte> sourceIndices = sourceData.GetIndexData<byte>();
-                int indexElementSize = sourceData.indexFormat == UnityEngine.Rendering.IndexFormat.UInt16
-                    ? sizeof(ushort)
-                    : sizeof(uint);
-                writableData.SetIndexBufferParams(
-                    sourceIndices.Length / indexElementSize,
-                    sourceData.indexFormat);
-                sourceIndices.CopyTo(writableData.GetIndexData<byte>());
-
-                writableData.subMeshCount = sourceData.subMeshCount;
-                for (int subMesh = 0; subMesh < sourceData.subMeshCount; subMesh++)
-                {
-                    writableData.SetSubMesh(
-                        subMesh,
-                        sourceData.GetSubMesh(subMesh),
-                        UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds |
-                        UnityEngine.Rendering.MeshUpdateFlags.DontValidateIndices);
-                }
-
-                Mesh.ApplyAndDisposeWritableMeshData(
-                    writableDataArray,
-                    readableMesh,
-                    UnityEngine.Rendering.MeshUpdateFlags.DontRecalculateBounds |
-                    UnityEngine.Rendering.MeshUpdateFlags.DontValidateIndices);
-                writableDataApplied = true;
-
-                readableMesh.bounds = sourceMesh.bounds;
-                Matrix4x4[] bindPoses = sourceMesh.bindposes;
-                if (bindPoses != null && bindPoses.Length > 0)
-                {
-                    readableMesh.bindposes = bindPoses;
-                }
-
-                using NativeArray<byte> bonesPerVertex = sourceMesh.GetBonesPerVertex();
-                using NativeArray<BoneWeight1> boneWeights = sourceMesh.GetAllBoneWeights();
-                if (bonesPerVertex.Length == sourceMesh.vertexCount && boneWeights.Length > 0)
-                {
-                    readableMesh.SetBoneWeights(bonesPerVertex, boneWeights);
-                }
-
-                CopyBlendShapes(sourceMesh, readableMesh);
-            }
-            catch
-            {
-                DestroyImmediate(readableMesh);
-                throw;
-            }
-            finally
-            {
-                if (!writableDataApplied)
-                {
-                    writableDataArray.Dispose();
-                }
-            }
-
-            return readableMesh;
-        }
-#endif
 
         private Mesh DeformReadableSource(bool assignToRenderer)
         {
+            using var dataScope = BeginEvaluationDataRead();
             UnityEngine.Profiling.Profiler.BeginSample("LatticeDeformer.Deform");
             if (!EnsureLayerModelReady())
             {
@@ -2540,120 +1651,17 @@ namespace Net._32Ba.LatticeDeformationTool
             }
 #line default
 
-            // Accumulate direct-deform deltas across all groups
             EnsureManagedDeformationBuffers(vertexCount);
-            var directDeltas = _directDeltasBuffer;
-            Array.Clear(directDeltas, 0, vertexCount);
-            // Collect generated BlendShapes from groups and individual layers.
-            var generatedBlendShapes = _generatedBlendShapeBuffer;
-            generatedBlendShapes.Clear();
-            var groups = GetGroupStorage();
-
-            for (int g = 0; g < groups.Count; g++)
-            {
-                var group = groups[g];
-                if (group == null || !group.Enabled) continue;
-
-                var groupVertices = _groupVerticesBuffer;
-                Array.Copy(sourceVertices, groupVertices, vertexCount);
-                var layers = group.LayersList;
-                bool stagedGroupOutput =
-                    group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape &&
-                    group.BlendShapeComposition != BlendShapeCompositionMode.Single;
-                var stageCandidates = stagedGroupOutput ? new List<Vector3[]>() : null;
-                var stageCandidateWeights = stagedGroupOutput ? new List<float>() : null;
-                bool preserveCandidateWeights = stagedGroupOutput;
-
-                for (int i = 0; i < layers.Count; i++)
-                {
-                    var layer = layers[i];
-                    if (layer == null || !layer.Enabled || layer.Weight <= 0f) continue;
-
-                    if (!_legacyPublishedBlendShapeSemantics &&
-                        layer.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
-                    {
-                        var layerVertices = _layerVerticesBuffer;
-                        Array.Copy(sourceVertices, layerVertices, vertexCount);
-                        TryApplyLayerContribution(layer, sourceVertices, layerVertices);
-                        if (TryBuildDeltas(sourceVertices, layerVertices, out var layerDeltas))
-                        {
-                            generatedBlendShapes.Add(new GeneratedBlendShape(
-                                layer.EffectiveBlendShapeName,
-                                layer.BlendShapeCurve,
-                                layerDeltas));
-                        }
-
-                        continue;
-                    }
-
-                    if (stagedGroupOutput)
-                    {
-                        var layerVertices = _layerVerticesBuffer;
-                        Array.Copy(sourceVertices, layerVertices, vertexCount);
-                        TryApplyLayerContribution(layer, sourceVertices, layerVertices);
-                        if (TryBuildDeltas(
-                                sourceVertices,
-                                layerVertices,
-                                out var stageDeltas,
-                                !layer.HasImportedBlendShapeFrameWeight))
-                        {
-                            stageCandidates.Add(stageDeltas);
-                            if (layer.HasImportedBlendShapeFrameWeight)
-                                stageCandidateWeights.Add(layer.ImportedBlendShapeFrameWeight);
-                            else
-                                preserveCandidateWeights = false;
-                        }
-                    }
-                    else
-                    {
-                        TryApplyLayerContribution(layer, sourceVertices, groupVertices);
-                    }
-                }
-
-                if (group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
-                {
-                    if (stagedGroupOutput && stageCandidates.Count > 0)
-                    {
-                        float[] candidateWeights =
-                            group.BlendShapeComposition == BlendShapeCompositionMode.Crossfade &&
-                            preserveCandidateWeights &&
-                                                   HaveStrictlyIncreasingWeights(stageCandidateWeights)
-                            ? stageCandidateWeights.ToArray()
-                            : null;
-                        generatedBlendShapes.Add(new GeneratedBlendShape(
-                            group.EffectiveBlendShapeName(gameObject.name),
-                            group.BlendShapeCurve,
-                            group.BlendShapeComposition,
-                            stageCandidates.ToArray(),
-                            candidateWeights));
-                    }
-                    else if (!stagedGroupOutput &&
-                             TryBuildDeltas(sourceVertices, groupVertices, out var groupDeltas))
-                    {
-                        generatedBlendShapes.Add(new GeneratedBlendShape(
-                            group.EffectiveBlendShapeName(gameObject.name),
-                            group.BlendShapeCurve,
-                            groupDeltas));
-                    }
-                }
-                else
-                {
-                    for (int v = 0; v < vertexCount; v++)
-                        directDeltas[v] += groupVertices[v] - sourceVertices[v];
-                }
-            }
-
-            // Apply direct deltas
-            var finalVertices = _finalVerticesBuffer;
-            for (int v = 0; v < vertexCount; v++)
-                finalVertices[v] = sourceVertices[v] + directDeltas[v];
+            var finalVertices = _evaluationWorkspace.FinalVertices;
+            var generatedBlendShapes = _evaluationWorkspace.GeneratedShapes;
+            EvaluateLayerStack(sourceVertices, finalVertices, generatedBlendShapes);
 
             // Handle BlendShape output
             if (generatedBlendShapes.Count > 0)
             {
                 int blendShapeHash = HashCode.Combine(
-                    ComputeBlendShapeOutputHash(generatedBlendShapes),
-                    HashVertices(finalVertices),
+                    DeformationEvaluationMath.ComputeBlendShapeOutputHash(generatedBlendShapes),
+                    DeformationEvaluationMath.HashVertices(finalVertices),
                     bakedBlendShapeHash,
                     _recalculateNormals,
                     _normalsRecalculationMode,
@@ -2665,13 +1673,14 @@ namespace Net._32Ba.LatticeDeformationTool
                     _lastBlendShapeHash = blendShapeHash;
 
                     mesh.ClearBlendShapes();
-                    CopyBlendShapes(_sourceMesh, mesh, bakedBlendShapeDeltas, bakedBlendShapeWeights);
+                    DeformedMeshWriter.CopyBlendShapes(_sourceMesh, mesh, _evaluationWorkspace.MeshOutput, bakedBlendShapeDeltas, bakedBlendShapeWeights);
 
-                    var usedNames = CollectBlendShapeNames(mesh);
+                    var usedNames = DeformedMeshWriter.CollectBlendShapeNames(mesh);
                     foreach (var generated in generatedBlendShapes)
                     {
-                        string shapeName = MakeUniqueBlendShapeName(generated.Name, usedNames);
-                        AddGeneratedBlendShapeFrames(mesh, shapeName, finalVertices, generated);
+                        string shapeName = DeformedMeshWriter.MakeUniqueBlendShapeName(generated.Name, usedNames);
+                        DeformedMeshWriter.AddGeneratedBlendShapeFrames(mesh, shapeName, finalVertices, generated,
+                            GetMeshOutputOptions(), _evaluationWorkspace.MeshOutput);
                     }
                     _blendShapeOutputDirty = false;
                     UnityEngine.Profiling.Profiler.EndSample();
@@ -2683,14 +1692,14 @@ namespace Net._32Ba.LatticeDeformationTool
                 if (_blendShapeOutputDirty || _lastBlendShapeHash != 0)
                 {
                     mesh.ClearBlendShapes();
-                    CopyBlendShapes(_sourceMesh, mesh, bakedBlendShapeDeltas, bakedBlendShapeWeights);
+                    DeformedMeshWriter.CopyBlendShapes(_sourceMesh, mesh, _evaluationWorkspace.MeshOutput, bakedBlendShapeDeltas, bakedBlendShapeWeights);
                     _lastBlendShapeHash = 0;
                     _blendShapeOutputDirty = false;
                 }
                 else if (bakedBlendShapeHash != _lastBakedBlendShapeHash)
                 {
                     mesh.ClearBlendShapes();
-                    CopyBlendShapes(_sourceMesh, mesh, bakedBlendShapeDeltas, bakedBlendShapeWeights);
+                    DeformedMeshWriter.CopyBlendShapes(_sourceMesh, mesh, _evaluationWorkspace.MeshOutput, bakedBlendShapeDeltas, bakedBlendShapeWeights);
                 }
             }
 
@@ -2698,41 +1707,8 @@ namespace Net._32Ba.LatticeDeformationTool
 
             mesh.vertices = finalVertices;
 
-            if (_recalculateNormals)
-            {
-                if (_normalsRecalculationMode == NormalsRecalculationMode.PreserveSourceSmoothing)
-                {
-                    mesh.SetNormals(SeamAwareMeshNormalCalculator.Calculate(mesh, _sourceMesh));
-                }
-                else
-                {
-                    mesh.RecalculateNormals();
-                }
-            }
-            else
-            {
-                RestoreSourceNormals(mesh);
-            }
-
-            if (_recalculateTangents)
-            {
-                mesh.RecalculateTangents();
-            }
-            else
-            {
-                RestoreSourceTangents(mesh);
-            }
-
-            if (_recalculateBounds)
-            {
-                mesh.RecalculateBounds();
-            }
-            else
-            {
-                mesh.bounds = _sourceMesh.bounds;
-            }
-
-            mesh.UploadMeshData(false);
+            DeformedMeshWriter.FinalizeSurface(_sourceMesh, mesh, GetMeshOutputOptions(),
+                _evaluationWorkspace.MeshOutput, _normalsRecalculationMode);
 
             if (assignToRenderer)
                 AssignRuntimeMesh(mesh);
@@ -2746,98 +1722,165 @@ namespace Net._32Ba.LatticeDeformationTool
             return mesh;
         }
 
-        private void RestoreSourceNormals(Mesh mesh)
+#if UNITY_EDITOR
+        /// <summary>
+        /// Evaluates the authored deformation against the mesh supplied by the
+        /// current NDMF preview stage. The input mesh is read-only and the returned
+        /// mesh is owned by the caller.
+        /// </summary>
+        public Mesh CreatePreviewMeshFromInput(Mesh inputMesh)
         {
-            if (mesh == null || _sourceMesh == null)
-            {
-                return;
-            }
+            using var nativeScope = new InactiveEvaluationScope(this);
+            using var dataScope = BeginEvaluationDataRead();
+            if (!EnsureLayerModelReady() || inputMesh == null || !inputMesh.isReadable ||
+                _sourceMesh == null)
+                return null;
+            bool sourceTopologyMatches = inputMesh.vertexCount == _sourceMesh.vertexCount;
+            if (!sourceTopologyMatches && !CanPreviewAfterTopologyChanges())
+                return null;
+            if (sourceTopologyMatches && !EnsureAllBrushLayerDisplacementCapacity(inputMesh.vertexCount))
+                return null;
 
-            _sourceNormalScratch ??= new List<Vector3>(mesh.vertexCount);
-            _sourceMesh.GetNormals(_sourceNormalScratch);
-            if (_sourceNormalScratch.Count == mesh.vertexCount)
-            {
-                mesh.SetNormals(_sourceNormalScratch);
-            }
-            else
-            {
-                mesh.normals = Array.Empty<Vector3>();
-            }
+            return DeformationPipeline.CreatePreviewMeshFromInput(inputMesh, ResolveEvaluationInput(true),
+                GetMeshOutputOptions(), GetEvaluationWorkspace());
         }
 
-        private void RestoreSourceTangents(Mesh mesh)
+        /// <summary>
+        /// True when every contribution that can affect the current preview is a
+        /// spatial lattice field. Such a stack can be evaluated after topology-
+        /// changing NDMF filters without relying on source vertex indices.
+        /// </summary>
+        internal bool CanPreviewAfterTopologyChanges()
         {
-            if (mesh == null || _sourceMesh == null)
+            if (!EnsureLayerModelReady()) return false;
+            foreach (var group in GetGroupStorage())
             {
-                return;
+                if (group == null || !group.Enabled) continue;
+                foreach (var layer in group.LayersList)
+                {
+                    if (layer == null || !layer.Enabled || layer.Weight <= 0f) continue;
+                    if (layer.Type == MeshDeformerLayerType.Brush) return false;
+                }
             }
 
-            _sourceTangentScratch ??= new List<Vector4>(mesh.vertexCount);
-            _sourceMesh.GetTangents(_sourceTangentScratch);
-            if (_sourceTangentScratch.Count == mesh.vertexCount)
-            {
-                mesh.SetTangents(_sourceTangentScratch);
-            }
-            else
-            {
-                mesh.tangents = Array.Empty<Vector4>();
-            }
+            return true;
         }
 
-        private bool EnsureLayerModelReady()
+#endif
+
+        private EvaluationWorkspace GetEvaluationWorkspace()
         {
-            if (_isEnsuringLayerModelReady)
-            {
-                return _deformationDataVersion == DeformationDataVersion.CurrentDevelopment &&
-                       !_hasIncompatibleBrushData;
-            }
+            _evaluationWorkspace ??= new EvaluationWorkspace();
+            return _evaluationWorkspace;
+        }
 
-            int rawVersion = (int)_deformationDataVersion;
-            if (rawVersion > (int)DeformationDataVersion.CurrentDevelopment)
+        private EvaluationSemantics ResolveEvaluationSemantics() => new EvaluationSemantics(
+            _legacyPublishedBlendShapeSemantics, _legacyAbsoluteLatticeEvaluation,
+            _legacyAbsoluteLatticeEvaluation ? MeshTransform.worldToLocalMatrix : Matrix4x4.identity);
+
+        private DeformationEvaluationInput ResolveEvaluationInput(bool collectGeneratedShapes)
+        {
+            var groups = ReadResolvedData().Groups;
+            string defaultOutputName = null;
+            if (collectGeneratedShapes)
             {
-                _migrationStatus = DeformationDataMigrationStatus.UnsupportedFutureVersion;
+                for (int i = 0; i < groups.Count; i++)
+                {
+                    var group = groups[i];
+                    if (group == null || !group.Enabled ||
+                        group.BlendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape ||
+                        !string.IsNullOrWhiteSpace(group.BlendShapeName)) continue;
+                    // Unity allocates a managed string on every name read. Direct
+                    // evaluation needs no owner name; resolve only actual fallbacks.
+                    defaultOutputName = gameObject.name;
+                    break;
+                }
+            }
+            return new DeformationEvaluationInput(groups, defaultOutputName,
+                ResolveEvaluationSemantics());
+        }
+
+        internal MeshOutputOptions GetMeshOutputOptions() => new MeshOutputOptions(
+            _recalculateNormals, _recalculateTangents, _recalculateBounds, _normalsRecalculationMode,
+            _legacyPublishedBlendShapeSemantics);
+
+        private void EvaluateLayerStack(Vector3[] sourceVertices, Vector3[] finalVertices,
+            List<GeneratedBlendShapeOutput> generatedBlendShapes)
+        {
+            var input = ResolveEvaluationInput(generatedBlendShapes != null);
+            DeformationEvaluator.Evaluate(input, sourceVertices, finalVertices,
+                GetEvaluationWorkspace(), generatedBlendShapes);
+        }
+
+        private void RestoreSourceNormals(Mesh mesh) =>
+            DeformedMeshWriter.RestoreSourceNormals(_sourceMesh, mesh, GetEvaluationWorkspace().MeshOutput);
+
+        private void RestoreSourceTangents(Mesh mesh) =>
+            DeformedMeshWriter.RestoreSourceTangents(_sourceMesh, mesh, GetEvaluationWorkspace().MeshOutput);
+
+        internal DeformationMigrationInput ReadMigrationInput() => new DeformationMigrationInput(
+            _settings, _layers, _activeLayerIndex, _groups, _activeGroupIndex,
+            _deformationDataVersion, _layerModelVersion, _blendShapeOutput,
+            _dataSource == DeformerDataSource.Profile && _profile != null ? _profile.SerializedGroups?.Count ?? 0 : 0);
+
+        private bool ValidateMigrationInput(bool allowSourceRebind = false)
+        {
+            var input = ReadMigrationInput();
+            var status = DeformationMigrationPreflight.ValidateSchema(input);
+            if (status == DeformationDataMigrationStatus.Ready)
+                status = DeformationReleaseManifest.ValidateCursor(_migrationReleaseIndex);
+            if (status != DeformationDataMigrationStatus.Ready)
+            {
+                _migrationStatus = status;
                 return false;
             }
-
-            if (_layerModelVersion > k_CurrentLayerModelVersion)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.UnsupportedFutureVersion;
-                return false;
-            }
-
-            if (rawVersion < (int)DeformationDataVersion.Unversioned)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-
-            if (HasUnsupportedFutureLatticeAsset())
-            {
-                _migrationStatus = DeformationDataMigrationStatus.UnsupportedFutureVersion;
-                return false;
-            }
-
-            if (HasMalformedLatticeAsset())
-            {
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-
-            if (HasIncompatibleSerializedVertexIndexedData())
+            if (DeformationMigrationPreflight.HasIncompatibleVertexData(input, ReadMigrationSourceVertexCount()))
             {
                 _hasIncompatibleBrushData = true;
                 _migrationStatus = DeformationDataMigrationStatus.InvalidData;
                 return false;
             }
+            if (!allowSourceRebind && !ReadSourceBinding().CanUse(GetCurrentAuthoringSource()))
+            {
+                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
+                return false;
+            }
+            return true;
+        }
+
+        private bool EnsureLayerModelReady() => EnsureLayerModelReadyCore(allowSourceRebind: false);
+
+        private bool EnsureLayerModelReadyCore(bool allowSourceRebind)
+        {
+            if (_isEnsuringLayerModelReady)
+            {
+                return _deformationDataVersion == DeformationDataVersion.CurrentDevelopment &&
+                       _migrationReleaseIndex == DeformationReleaseManifest.Current &&
+                       !_hasIncompatibleBrushData;
+            }
+
+            if (_dataSource == DeformerDataSource.Profile && _profile != null &&
+                !HasValidProfileForSource(_profile))
+            {
+                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
+                return false;
+            }
+
+            // Reset is an explicit reinitialization of already-current data. It must
+            // not retarget a historical payload while its migration is still pending.
+            allowSourceRebind &= _migrationReleaseIndex == DeformationReleaseManifest.Current &&
+                                 _deformationDataVersion == DeformationDataVersion.CurrentDevelopment &&
+                                 GetCurrentAuthoringSource() != null;
+            if (!ValidateMigrationInput(allowSourceRebind)) return false;
 
             _isEnsuringLayerModelReady = true;
             try
             {
-                RecoverStaleCurrentStructureVersionIfNeeded();
-
-                while (_deformationDataVersion != DeformationDataVersion.CurrentDevelopment)
+                while (_migrationReleaseIndex != DeformationReleaseManifest.Current ||
+                       _deformationDataVersion != DeformationDataVersion.CurrentDevelopment ||
+                       NeedsStaleCurrentStructureRecovery())
                 {
-                    if (!TryUpgradeDeformationDataOneRelease())
+                    if (!TryUpgradePublishedDeformationDataOneRelease())
                     {
                         return false;
                     }
@@ -2848,7 +1891,11 @@ namespace Net._32Ba.LatticeDeformationTool
                 if (_groups == null) _groups = new List<DeformerGroup>();
 
                 EnsureGroupsCore();
-                CacheSourceMesh();
+                if (!TryCacheSourceMesh(allowSourceRebind))
+                {
+                    _migrationStatus = DeformationDataMigrationStatus.InvalidData;
+                    return false;
+                }
                 TryAutoConfigureSettings();
 
                 _migrationStatus = _hasIncompatibleBrushData
@@ -2862,510 +1909,151 @@ namespace Net._32Ba.LatticeDeformationTool
             }
         }
 
+        private DeformationMigrationState CaptureMigrationState()
+        {
+            Matrix4x4? ownerWorldToLocal = null;
+            if (_settings != null && _settings.HasPendingLegacyWorldSpace)
+            {
+                var owner = MeshTransform;
+                if (owner != null) ownerWorldToLocal = owner.worldToLocalMatrix;
+            }
+            return new DeformationMigrationState
+            {
+                Settings = _settings, FlatLayers = _layers, Groups = _groups,
+                ActiveLayerIndex = _activeLayerIndex, ActiveGroupIndex = _activeGroupIndex,
+                LayerModelVersion = _layerModelVersion, Version = _deformationDataVersion,
+                ReleaseIndex = _migrationReleaseIndex,
+                SourceVersion = _deformationDataSourceVersion, BlendShapeOutput = _blendShapeOutput,
+                BlendShapeName = _blendShapeName, BlendShapeCurve = _blendShapeCurve,
+                LegacyAbsoluteEvaluation = _legacyAbsoluteLatticeEvaluation,
+                LegacyPublishedBlendShapeSemantics = _legacyPublishedBlendShapeSemantics,
+                HasInitializedFromSource = _hasInitializedFromSource,
+                HasSerializedSource = _serializedSourceMesh != null,
+                HasIncompatibleBrushData = _hasIncompatibleBrushData, Status = _migrationStatus,
+                ProfileGroupCount = _dataSource == DeformerDataSource.Profile && _profile != null
+                    ? _profile.SerializedGroups?.Count ?? 0 : 0,
+                SourceVertexCount = ReadMigrationSourceVertexCount(), OwnerWorldToLocal = ownerWorldToLocal
+            };
+        }
+
+        private void ApplyMigrationState(DeformationMigrationState state)
+        {
+            _migrationStatus = state.Status;
+            _hasIncompatibleBrushData = state.HasIncompatibleBrushData;
+            _settings = state.Settings;
+            _layers = state.FlatLayers;
+            _groups = state.Groups;
+            _activeLayerIndex = state.ActiveLayerIndex;
+            _activeGroupIndex = state.ActiveGroupIndex;
+            _layerModelVersion = state.LayerModelVersion;
+            _deformationDataVersion = state.Version;
+            _migrationReleaseIndex = state.ReleaseIndex;
+            _deformationDataSourceVersion = state.SourceVersion;
+            _legacyAbsoluteLatticeEvaluation = state.LegacyAbsoluteEvaluation;
+            _legacyPublishedBlendShapeSemantics = state.LegacyPublishedBlendShapeSemantics;
+        }
+
+        // Historical private structural helpers can update the conceptual model
+        // version while returning false. Keep that contract only in these seams.
+        private bool RunLegacyMigration(Func<DeformationMigrationRunner, bool> operation)
+        {
+            var runner = new DeformationMigrationRunner(CaptureMigrationState());
+            bool succeeded = operation(runner);
+            ApplyMigrationState(runner.State);
+            if (succeeded && runner.State.CommitRequested) MarkMigrationCommitted();
+            return succeeded;
+        }
+
         private void RecoverStaleCurrentStructureVersionIfNeeded()
         {
-            if (_deformationDataVersion != DeformationDataVersion.CurrentDevelopment ||
-                _layerModelVersion >= k_CurrentLayerModelVersion ||
-                HasNonNullGroups(_groups) ||
-                (!HasNonNullLayers(_layers) && !HasMeaningfulBaseSettings()))
-            {
-                return;
-            }
+            if (NeedsStaleCurrentStructureRecovery()) TryUpgradePublishedDeformationDataOneRelease();
+        }
 
-            // A current release marker paired with only an older serialized shape can
-            // result from an interrupted save or an Inspector-first partial migration.
-            // Recover the older shape instead of creating a default group over it.
-            _deformationDataVersion = _settings != null && _settings.HasPendingLegacyWorldSpace
-                ? DeformationDataVersion.V0_0_1
-                : DeformationDataVersion.V1_2_0;
-            _deformationDataSourceVersion = _deformationDataVersion;
-            _migrationStatus = DeformationDataMigrationStatus.InProgress;
-            MarkMigrationCommitted();
+        // The normal current-model path does not allocate a migration state.
+        private bool NeedsStaleCurrentStructureRecovery() =>
+            _deformationDataVersion == DeformationDataVersion.CurrentDevelopment &&
+            _layerModelVersion < k_CurrentLayerModelVersion &&
+            new DeformationMigrationRunner(CaptureMigrationState()).NeedsStaleCurrentStructureRecovery;
+
+        internal bool TryUpgradePublishedDeformationDataOneRelease()
+        {
+            if (!ValidateMigrationInput()) return false;
+            if (_migrationReleaseIndex == DeformationReleaseManifest.Current &&
+                _deformationDataVersion == DeformationDataVersion.CurrentDevelopment &&
+                _layerModelVersion >= k_CurrentLayerModelVersion)
+            {
+                _migrationStatus = _hasIncompatibleBrushData ? DeformationDataMigrationStatus.InvalidData
+                    : DeformationDataMigrationStatus.Ready;
+                return false;
+            }
+            var runner = new PublishedDeformationMigrationRunner(CaptureMigrationState());
+            return CommitOwnedMigration(runner.State, commit => runner.TryAdvanceOneRelease(commit));
+        }
+
+        private bool CommitOwnedMigration(DeformationMigrationState state,
+            Func<Action<DeformationMigrationState>, bool> advance)
+        {
+            bool ownerCommitStarted = false;
+            Action rollbackRecord = null;
+            bool succeeded = advance(next =>
+            {
+                rollbackRecord = DeformerPlatformServices.CaptureLegacyMigrationRecordRollback?.Invoke(this);
+                ownerCommitStarted = true;
+                ApplyMigrationState(next);
+                if (next.CommitRequested) MarkMigrationCommitted();
+            });
+            if (!succeeded)
+            {
+                ApplyMigrationState(state);
+                if (ownerCommitStarted)
+                {
+                    rollbackRecord?.Invoke();
+                    InvalidateCache();
+                }
+            }
+            return succeeded;
         }
 
         /// <summary>
-        /// Advances exactly one published release boundary. Unversioned data is first
+        /// Preserves the frozen legacy-enum stepping contract. Normal initialization
+        /// uses the complete published-release journal instead. Unversioned data is first
         /// classified by its oldest unambiguous serialized shape; no release-specific
         /// mutation occurs until the following call. A failed step never advances the
         /// version and must leave its source payload intact.
         /// </summary>
         internal bool TryUpgradeDeformationDataOneRelease()
         {
-            int rawVersion = (int)_deformationDataVersion;
-            if (rawVersion > (int)DeformationDataVersion.CurrentDevelopment)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.UnsupportedFutureVersion;
-                return false;
-            }
-
-            if (_layerModelVersion > k_CurrentLayerModelVersion)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.UnsupportedFutureVersion;
-                return false;
-            }
-
-            if (rawVersion < (int)DeformationDataVersion.Unversioned)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-
-            if (HasUnsupportedFutureLatticeAsset())
-            {
-                _migrationStatus = DeformationDataMigrationStatus.UnsupportedFutureVersion;
-                return false;
-            }
-
-            if (HasMalformedLatticeAsset())
-            {
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-
-            if (HasIncompatibleSerializedVertexIndexedData())
-            {
-                _hasIncompatibleBrushData = true;
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-
+            if (!ValidateMigrationInput()) return false;
             if (_deformationDataVersion == DeformationDataVersion.CurrentDevelopment)
             {
-                _migrationStatus = _hasIncompatibleBrushData
-                    ? DeformationDataMigrationStatus.InvalidData
+                _migrationStatus = _hasIncompatibleBrushData ? DeformationDataMigrationStatus.InvalidData
                     : DeformationDataMigrationStatus.Ready;
                 return false;
             }
-
-            _migrationStatus = DeformationDataMigrationStatus.InProgress;
-            switch (_deformationDataVersion)
-            {
-                case DeformationDataVersion.Unversioned:
-                    return ClassifyUnversionedDeformationData();
-
-                case DeformationDataVersion.V0_0_1:
-                    return TryUpgradeV0_0_1ToV0_0_2();
-
-                // These releases did not alter the serialized deformation payload.
-                // They remain explicit so interrupted upgrades resume deterministically.
-                case DeformationDataVersion.V0_0_2:
-                    return CommitReleaseVersion(DeformationDataVersion.V0_0_3);
-                case DeformationDataVersion.V0_0_3:
-                    return CommitReleaseVersion(DeformationDataVersion.V0_0_4);
-                case DeformationDataVersion.V0_0_4:
-                    return CommitReleaseVersion(DeformationDataVersion.V0_0_5);
-                case DeformationDataVersion.V0_0_5:
-                    return CommitReleaseVersion(DeformationDataVersion.V0_0_6);
-                case DeformationDataVersion.V0_0_6:
-                    return CommitReleaseVersion(DeformationDataVersion.V1_0_0);
-                case DeformationDataVersion.V1_0_0:
-                    return CommitReleaseVersion(DeformationDataVersion.V1_0_1);
-                case DeformationDataVersion.V1_0_1:
-                    return CommitReleaseVersion(DeformationDataVersion.V1_1_0);
-                case DeformationDataVersion.V1_1_0:
-                    return CommitReleaseVersion(DeformationDataVersion.V1_2_0);
-
-                case DeformationDataVersion.V1_2_0:
-                    return TryUpgradeV1_2_0ToV1_2_1();
-
-                case DeformationDataVersion.V1_2_1:
-                    return TryUpgradeV1_2_1ToV1_3_0();
-                case DeformationDataVersion.V1_3_0:
-                    return TryNormalizePublishedGroupSelectionAndCommit(
-                        DeformationDataVersion.V1_3_1);
-                case DeformationDataVersion.V1_3_1:
-                    return TryNormalizePublishedGroupSelectionAndCommit(
-                        DeformationDataVersion.V1_4_0);
-
-                case DeformationDataVersion.V1_4_0:
-                    return TryUpgradeV1_4_0ToCurrent();
-
-                // The serialized enum is contiguous; range guards reject every unknown value.
-#line hidden
-                default:
-                    _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                    return false;
-#line default
-            }
+            var runner = new DeformationMigrationRunner(CaptureMigrationState());
+            return CommitOwnedMigration(runner.State, commit => runner.TryAdvanceOneRelease(commit));
         }
 
-        private void NormalizeAuthoritativeGroupShapeVersion()
-        {
-            if (HasNonNullGroups(_groups) && !HasNonNullLayers(_layers) &&
-                _layerModelVersion < k_CurrentLayerModelVersion)
-            {
-                _layerModelVersion = k_CurrentLayerModelVersion;
-            }
-        }
+        private void NormalizeAuthoritativeGroupShapeVersion() =>
+            RunLegacyMigration(runner => { runner.NormalizeAuthoritativeGroupShapeVersion(); return true; });
 
-        private bool ClassifyUnversionedDeformationData()
-        {
-            DeformationDataVersion detected;
-            bool hasGroups = HasNonNullGroups(_groups);
-            bool hasFlatLayers = HasNonNullLayers(_layers);
-            bool hasBaseSettings = HasMeaningfulBaseSettings();
+        private bool ClassifyUnversionedDeformationData() => RunLegacyMigration(runner => runner.ClassifyUnversionedDeformationData());
 
-            if (!hasGroups && !hasFlatLayers && !hasBaseSettings)
-            {
-                _layerModelVersion = k_CurrentLayerModelVersion;
-                _legacyAbsoluteLatticeEvaluation = false;
-                _deformationDataSourceVersion = DeformationDataVersion.CurrentDevelopment;
-                return CommitReleaseVersion(DeformationDataVersion.CurrentDevelopment);
-            }
+        private bool TryUpgradeV0_0_1ToV0_0_2() => RunLegacyMigration(runner => runner.TryUpgradeV0_0_1ToV0_0_2());
 
-            if (hasGroups)
-            {
-                // Serialized groups first shipped in 1.2.1. The published releases can
-                // also contain an eagerly-created group beside a stale flat-layer copy
-                // and conceptual-v2 marker; those are still 1.2.1 evidence.
-                detected = DeformationDataVersion.V1_2_1;
-            }
-            else if (hasFlatLayers || _layerModelVersion > 0)
-            {
-                // Internal conceptual-v1/v2 builds are treated as the immediately
-                // preceding public release and normalized in the 1.2.0→1.2.1 step.
-                detected = DeformationDataVersion.V1_2_0;
-            }
-            else
-            {
-                // Single-settings payloads are intentionally classified at the oldest
-                // compatible release. Only an intact _applySpace=1 marker identifies
-                // 0.0.1 World data; marker-less 0.0.2+ data is never guessed as World.
-                detected = DeformationDataVersion.V0_0_1;
-            }
+        private bool TryUpgradeV1_2_0ToV1_2_1() => RunLegacyMigration(runner => runner.TryUpgradeV1_2_0ToV1_2_1());
 
-            _deformationDataSourceVersion = detected;
-            _deformationDataVersion = detected;
-            MarkMigrationCommitted();
-            return true;
-        }
+        private bool TryUpgradeV1_2_1ToV1_3_0() => RunLegacyMigration(runner => runner.TryUpgradeV1_2_1ToV1_3_0());
 
-        private bool TryUpgradeV0_0_1ToV0_0_2()
-        {
-            if (_settings == null)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
+        private bool TryNormalizePublishedGroupSelectionAndCommit(DeformationDataVersion next) => RunLegacyMigration(runner => runner.TryNormalizePublishedGroupSelectionAndCommit(next));
 
-            if (_settings.HasInvalidLegacyApplySpace)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
+        private bool TryUpgradeV1_4_0ToCurrent() => RunLegacyMigration(runner => runner.TryUpgradeV1_4_0ToCurrent());
 
-            if (_settings.HasPendingLegacyWorldSpace)
-            {
-                Transform owner = MeshTransform;
-                // A live MonoBehaviour always owns a Transform.
-#line hidden
-                if (owner == null)
-                {
-                    _migrationStatus = DeformationDataMigrationStatus.PendingOwnerTransform;
-                    return false;
-                }
-#line default
+        private List<DeformationMigrationRunner.LatticeInterpolationCompatibilitySnapshot> PreservePublishedCubicInterpolationSemantics() =>
+            new DeformationMigrationRunner(CaptureMigrationState()).PreservePublishedCubicInterpolationSemantics();
 
-                if (_settings.ControlPointsLocal.Length != _settings.ControlPointCount)
-                {
-                    _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                    return false;
-                }
-
-                // 0.0.1 evaluated World control points against the owner's transform
-                // on every deformation. Validate now, but retain both raw points and
-                // marker so later transform changes keep those exact semantics.
-                if (!_settings.CanEvaluateLegacyWorldSpace(owner.worldToLocalMatrix))
-                {
-                    _migrationStatus = DeformationDataMigrationStatus.PendingOwnerTransform;
-                    return false;
-                }
-            }
-
-            return CommitReleaseVersion(DeformationDataVersion.V0_0_2);
-        }
-
-        private bool TryUpgradeV1_2_0ToV1_2_1()
-        {
-            // The structural helpers below use copy-on-write for the containing lists,
-            // so retaining the original references is a complete rollback snapshot.
-            var originalLayers = _layers;
-            var originalGroups = _groups;
-            int originalLayerVersion = _layerModelVersion;
-            int originalActiveLayer = _activeLayerIndex;
-            int originalActiveGroup = _activeGroupIndex;
-
-            try
-            {
-                bool hasGroups = HasNonNullGroups(_groups);
-                bool hasFlatLayers = HasNonNullLayers(_layers);
-
-                if (hasGroups && !hasFlatLayers)
-                {
-                    // A partial save already contains the newest meaningful shape. Do
-                    // not manufacture a duplicate layer from the facade _settings copy.
-                    _layerModelVersion = k_CurrentLayerModelVersion;
-                }
-                else
-                {
-                    if (_layerModelVersion < 2)
-                    {
-                        TryMigrateLegacyBaseToLayerStructure();
-                    }
-
-                    TryMigrateLayersToGroupStructure();
-                }
-
-                if (_layerModelVersion != k_CurrentLayerModelVersion || !HasNonNullGroups(_groups))
-                {
-                    throw new InvalidOperationException("Layer/group migration did not produce the v3 structure.");
-                }
-            }
-            catch (Exception)
-            {
-                _layers = originalLayers;
-                _groups = originalGroups;
-                _layerModelVersion = originalLayerVersion;
-                _activeLayerIndex = originalActiveLayer;
-                _activeGroupIndex = originalActiveGroup;
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-
-            return CommitReleaseVersion(DeformationDataVersion.V1_2_1);
-        }
-
-        private bool TryUpgradeV1_2_1ToV1_3_0()
-        {
-            // 1.2.1–1.4.0 could serialize authoritative groups together with a stale
-            // flat-layer facade and _layerModelVersion=2. The old runtime ignored that
-            // flat copy. Preserve it in a disabled recovery group so the payload remains
-            // inspectable without changing deformation or BlendShape output.
-            var originalLayers = _layers;
-            var originalGroups = _groups;
-            int originalLayerVersion = _layerModelVersion;
-            int originalActiveLayer = _activeLayerIndex;
-            int originalActiveGroup = _activeGroupIndex;
-            DeformationDataVersion originalVersion = _deformationDataVersion;
-            DeformationDataVersion originalSourceVersion = _deformationDataSourceVersion;
-            bool originalPublishedBlendShapeSemantics = _legacyPublishedBlendShapeSemantics;
-            List<GroupSelectionSnapshot> selectionSnapshots = null;
-
-            try
-            {
-                if (!HasNonNullGroups(_groups))
-                {
-                    throw new InvalidOperationException("The 1.2.1 group payload is missing.");
-                }
-                bool preservePublishedBlendShapeSemantics =
-                    ShouldPreserveHistoricalGroupBlendShapeSemantics();
-
-                var migratedGroups = new List<DeformerGroup>(_groups);
-                if (HasNonNullLayers(_layers))
-                {
-                    var migratedLayers = FilterLayersAndRemapActive(
-                        _layers,
-                        _activeLayerIndex,
-                        out int migratedActiveLayer);
-                    // HasNonNullLayers guarantees the filter retains at least one layer.
-#line hidden
-                    if (migratedLayers.Count == 0)
-                    {
-                        throw new InvalidOperationException("The legacy flat-layer payload could not be recovered.");
-                    }
-#line default
-
-                    var recoveryGroup = new DeformerGroup
-                    {
-                        Name = k_RecoveredLegacyFlatLayersGroupName,
-                        Enabled = false,
-                        ActiveLayerIndex = migratedActiveLayer,
-                        BlendShapeOutput = _blendShapeOutput,
-                        BlendShapeName = _blendShapeName ?? "",
-                        BlendShapeCurve = CloneCurve(_blendShapeCurve)
-                    };
-                    foreach (var layer in migratedLayers)
-                    {
-                        recoveryGroup.LayersList.Add(layer);
-                    }
-                    // ActiveLayerIndex clamps against the destination list, so restore
-                    // it after the layers have been copied.
-                    recoveryGroup.ActiveLayerIndex = migratedActiveLayer;
-                    migratedGroups.Add(recoveryGroup);
-                }
-
-                _groups = migratedGroups;
-                _layers = new List<LatticeLayer>();
-                // The recovery group owns the preserved flat selection from this point.
-                _activeLayerIndex = 0;
-                _layerModelVersion = k_CurrentLayerModelVersion;
-                // Existing groups are authoritative; keep the user's selected group.
-                _activeGroupIndex = originalActiveGroup;
-                if (preservePublishedBlendShapeSemantics)
-                {
-                    _legacyPublishedBlendShapeSemantics = true;
-                }
-                if (_activeGroupIndex < 0 || _activeGroupIndex >= _groups.Count ||
-                    _groups[_activeGroupIndex] == null)
-                {
-                    throw new InvalidOperationException("The active 1.2.1 group index is invalid.");
-                }
-
-                selectionSnapshots = CanonicalizePublishedRemoveLastSelections();
-
-                if (!CommitReleaseVersion(DeformationDataVersion.V1_3_0))
-                {
-                    throw new InvalidOperationException("Could not commit the 1.2.1→1.3.0 migration boundary.");
-                }
-
-                return true;
-            }
-            catch (Exception)
-            {
-                _layers = originalLayers;
-                _groups = originalGroups;
-                _layerModelVersion = originalLayerVersion;
-                _activeLayerIndex = originalActiveLayer;
-                _activeGroupIndex = originalActiveGroup;
-                _deformationDataVersion = originalVersion;
-                _deformationDataSourceVersion = originalSourceVersion;
-                _legacyPublishedBlendShapeSemantics = originalPublishedBlendShapeSemantics;
-                RestoreGroupSelections(selectionSnapshots);
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-        }
-
-        private bool TryNormalizePublishedGroupSelectionAndCommit(DeformationDataVersion next)
-        {
-            DeformationDataVersion originalVersion = _deformationDataVersion;
-            DeformationDataVersion originalSourceVersion = _deformationDataSourceVersion;
-            List<GroupSelectionSnapshot> selectionSnapshots = null;
-            try
-            {
-                selectionSnapshots = CanonicalizePublishedRemoveLastSelections();
-                if (!CommitReleaseVersion(next))
-                {
-                    RestoreGroupSelections(selectionSnapshots);
-                    return false;
-                }
-
-                return true;
-            }
-            // Canonicalization and commit are non-throwing for validated state.
-#line hidden
-            catch (Exception)
-            {
-                RestoreGroupSelections(selectionSnapshots);
-                _deformationDataVersion = originalVersion;
-                _deformationDataSourceVersion = originalSourceVersion;
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-        }
-
-        private bool TryUpgradeV1_4_0ToCurrent()
-        {
-            DeformationDataVersion originalVersion = _deformationDataVersion;
-            DeformationDataVersion originalSourceVersion = _deformationDataSourceVersion;
-            int originalLayerModelVersion = _layerModelVersion;
-            bool originalPublishedSemantics = _legacyPublishedBlendShapeSemantics;
-            bool originalAbsoluteEvaluation = _legacyAbsoluteLatticeEvaluation;
-            List<GroupSelectionSnapshot> selectionSnapshots = null;
-            List<LatticeInterpolationCompatibilitySnapshot> interpolationSnapshots = null;
-            try
-            {
-                NormalizeAuthoritativeGroupShapeVersion();
-                if (ShouldPreserveHistoricalGroupBlendShapeSemantics())
-                {
-                    _legacyPublishedBlendShapeSemantics = true;
-                }
-                _legacyAbsoluteLatticeEvaluation = HasMeaningfulSerializedLatticeData();
-                interpolationSnapshots = PreservePublishedCubicInterpolationSemantics();
-                selectionSnapshots = CanonicalizePublishedRemoveLastSelections();
-                if (!CommitReleaseVersion(DeformationDataVersion.CurrentDevelopment))
-                {
-                    throw new InvalidOperationException("Could not commit the 1.4.0→current migration boundary.");
-                }
-
-                return true;
-            }
-            catch (Exception)
-            {
-                RestoreGroupSelections(selectionSnapshots);
-                _deformationDataVersion = originalVersion;
-                _deformationDataSourceVersion = originalSourceVersion;
-                _layerModelVersion = originalLayerModelVersion;
-                _legacyPublishedBlendShapeSemantics = originalPublishedSemantics;
-                _legacyAbsoluteLatticeEvaluation = originalAbsoluteEvaluation;
-                RestoreLatticeInterpolationCompatibility(interpolationSnapshots);
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-#line default
-        }
-
-        private List<LatticeInterpolationCompatibilitySnapshot> PreservePublishedCubicInterpolationSemantics()
-        {
-            var snapshots = new List<LatticeInterpolationCompatibilitySnapshot>();
-            var visited = new HashSet<LatticeAsset>();
-
-            void Preserve(LatticeAsset asset)
-            {
-                if (asset == null || !visited.Add(asset) ||
-                    asset.Interpolation != LatticeInterpolationMode.CubicBernstein)
-                {
-                    return;
-                }
-
-                snapshots.Add(new LatticeInterpolationCompatibilitySnapshot(
-                    asset,
-                    asset.UsesLegacyTrilinearInterpolation));
-                asset.SetLegacyTrilinearInterpolation(true);
-            }
-
-            Preserve(_settings);
-            if (_layers != null)
-            {
-                foreach (var layer in _layers)
-                {
-                    if (layer != null && layer.Type == MeshDeformerLayerType.Lattice)
-                    {
-                        Preserve(layer.SerializedSettings);
-                    }
-                }
-            }
-
-            if (_groups != null)
-            {
-                foreach (var group in _groups)
-                {
-                    var layers = group?.SerializedLayers;
-                    if (layers == null) continue;
-                    foreach (var layer in layers)
-                    {
-                        if (layer != null && layer.Type == MeshDeformerLayerType.Lattice)
-                        {
-                            Preserve(layer.SerializedSettings);
-                        }
-                    }
-                }
-            }
-
-            return snapshots;
-        }
-
-        private static void RestoreLatticeInterpolationCompatibility(
-            List<LatticeInterpolationCompatibilitySnapshot> snapshots)
-        {
-            if (snapshots == null) return;
-            for (int index = snapshots.Count - 1; index >= 0; index--)
-            {
-                var snapshot = snapshots[index];
-                snapshot.Asset?.SetLegacyTrilinearInterpolation(
-                    snapshot.UsedLegacyTrilinearInterpolation);
-            }
-        }
+        private static void RestoreLatticeInterpolationCompatibility(List<DeformationMigrationRunner.LatticeInterpolationCompatibilitySnapshot> snapshots) =>
+            DeformationMigrationRunner.RestoreLatticeInterpolationCompatibility(snapshots);
 
         /// <summary>
         /// Releases 1.2.1 through 1.4.0 read ActiveLayerIndex only after removing a
@@ -3373,121 +2061,20 @@ namespace Net._32Ba.LatticeDeformationTool
         /// the new Count. That exact, tag-proven pattern is recoverable without guessing;
         /// every other out-of-range value remains invalid.
         /// </summary>
-        private List<GroupSelectionSnapshot> CanonicalizePublishedRemoveLastSelections()
-        {
-            var snapshots = new List<GroupSelectionSnapshot>();
-            if (!CanContainPublishedRemoveLastSelectionBug() || _groups == null)
-            {
-                return snapshots;
-            }
+        private List<DeformationMigrationRunner.GroupSelectionSnapshot> CanonicalizePublishedRemoveLastSelections() =>
+            new DeformationMigrationRunner(CaptureMigrationState()).CanonicalizePublishedRemoveLastSelections();
 
-            for (int groupIndex = 0; groupIndex < _groups.Count; groupIndex++)
-            {
-                var group = _groups[groupIndex];
-                var layers = group?.SerializedLayers;
-                if (layers == null || layers.Count == 0 ||
-                    group.SerializedActiveLayerIndex != layers.Count)
-                {
-                    continue;
-                }
+        private static void RestoreGroupSelections(List<DeformationMigrationRunner.GroupSelectionSnapshot> snapshots) =>
+            DeformationMigrationRunner.RestoreGroupSelections(snapshots);
 
-                snapshots.Add(new GroupSelectionSnapshot(group, group.SerializedActiveLayerIndex));
-            }
+        private bool CanContainPublishedRemoveLastSelectionBug() =>
+            DeformationMigrationPreflight.CanContainPublishedRemoveLastSelectionBug(ReadMigrationInput());
 
-            for (int index = 0; index < snapshots.Count; index++)
-            {
-                var snapshot = snapshots[index];
-                snapshot.Group.SetSerializedActiveLayerIndex(snapshot.ActiveLayerIndex - 1);
-            }
+        private bool ShouldPreserveHistoricalGroupBlendShapeSemantics() => new DeformationMigrationRunner(CaptureMigrationState()).ShouldPreserveHistoricalGroupBlendShapeSemantics();
 
-            return snapshots;
-        }
+        private bool HasEnabledPublishedBlendShapeMetadata() => new DeformationMigrationRunner(CaptureMigrationState()).HasEnabledPublishedBlendShapeMetadata();
 
-        private static void RestoreGroupSelections(List<GroupSelectionSnapshot> snapshots)
-        {
-            if (snapshots == null) return;
-            for (int index = snapshots.Count - 1; index >= 0; index--)
-            {
-                var snapshot = snapshots[index];
-                snapshot.Group?.SetSerializedActiveLayerIndex(snapshot.ActiveLayerIndex);
-            }
-        }
-
-        private bool CanContainPublishedRemoveLastSelectionBug()
-        {
-            if (_deformationDataVersion == DeformationDataVersion.Unversioned)
-            {
-                return HasNonNullGroups(_groups);
-            }
-
-            return _deformationDataVersion >= DeformationDataVersion.V1_2_1 &&
-                   _deformationDataVersion <= DeformationDataVersion.V1_4_0;
-        }
-
-        private bool ShouldPreserveHistoricalGroupBlendShapeSemantics()
-        {
-            DeformationDataVersion source = SourceDeformationDataVersion;
-            return source >= DeformationDataVersion.V1_2_1 &&
-                   source <= DeformationDataVersion.V1_4_0 &&
-                   HasEnabledPublishedBlendShapeMetadata();
-        }
-
-        private bool HasEnabledPublishedBlendShapeMetadata()
-        {
-            if (_groups != null)
-            {
-                foreach (var group in _groups)
-                {
-                    // Published Deform skipped disabled groups before inspecting any
-                    // output metadata. Such dormant fields must not lock unrelated,
-                    // enabled groups into component-wide compatibility semantics.
-                    if (group == null || !group.Enabled) continue;
-                    if (group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
-                    {
-                        return true;
-                    }
-
-                    var layers = group.SerializedLayers;
-                    if (layers == null) continue;
-                    foreach (var layer in layers)
-                    {
-                        if (layer != null && layer.Enabled && layer.Weight > 0f &&
-                            layer.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape)
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
-
-            // Once published groups existed, the old runtime never evaluated the
-            // component's stale flat-layer facade. Metadata found only in that backup
-            // must therefore not switch the authoritative groups into component-wide
-            // compatibility mode. The backup is retained in a disabled recovery group.
-            return false;
-        }
-
-        private bool CommitReleaseVersion(DeformationDataVersion next)
-        {
-            if ((int)next <= (int)_deformationDataVersion ||
-                (int)next > (int)DeformationDataVersion.CurrentDevelopment)
-            {
-                _migrationStatus = DeformationDataMigrationStatus.InvalidData;
-                return false;
-            }
-
-            if (_deformationDataSourceVersion == DeformationDataVersion.Unversioned)
-            {
-                _deformationDataSourceVersion = _deformationDataVersion;
-            }
-
-            _deformationDataVersion = next;
-            _migrationStatus = next == DeformationDataVersion.CurrentDevelopment
-                ? DeformationDataMigrationStatus.Ready
-                : DeformationDataMigrationStatus.InProgress;
-            MarkMigrationCommitted();
-            return true;
-        }
+        private bool CommitReleaseVersion(DeformationDataVersion next) => RunLegacyMigration(runner => runner.CommitReleaseVersion(next));
 
         private void MarkMigrationCommitted()
         {
@@ -3500,183 +2087,19 @@ namespace Net._32Ba.LatticeDeformationTool
 #endif
         }
 
-        private bool HasMeaningfulBaseSettings()
-        {
-            if (_settings == null)
-            {
-                return false;
-            }
+        private bool HasMeaningfulBaseSettings() => new DeformationMigrationRunner(CaptureMigrationState()).HasMeaningfulBaseSettings();
 
-            if (_settings.HasPendingLegacyWorldSpace || _settings.HasInvalidLegacyApplySpace ||
-                _hasInitializedFromSource || _serializedSourceMesh != null)
-            {
-                return true;
-            }
+        private bool HasMeaningfulSerializedLatticeData() => new DeformationMigrationRunner(CaptureMigrationState()).HasMeaningfulSerializedLatticeData();
 
-            // Unity may run the nested serialization callback while a brand-new
-            // component is being constructed, which creates a neutral point array.
-            // Neutral points without any source-initialization evidence are fresh, not
-            // historical deformation data.
-            return _settings.HasNonDefaultSerializedConfiguration ||
-                   (_settings.HasSerializedControlPointData && _settings.HasCustomizedControlPoints());
-        }
+        private static bool HasNonNullGroups(List<DeformerGroup> groups) => DeformationMigrationRunner.HasNonNullGroups(groups);
 
-        private bool HasMeaningfulSerializedLatticeData()
-        {
-            if (_groups != null)
-            {
-                foreach (var group in _groups)
-                {
-                    if (group == null) continue;
-                    var serializedLayers = group.SerializedLayers;
-                    if (serializedLayers == null) continue;
-                    foreach (var layer in serializedLayers)
-                    {
-                        if (layer != null && layer.Type == MeshDeformerLayerType.Lattice &&
-                            layer.SerializedSettings != null &&
-                            layer.SerializedSettings.HasSerializedControlPointData)
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
+        private static bool HasNonNullLayers(List<LatticeLayer> layers) => DeformationMigrationRunner.HasNonNullLayers(layers);
 
-            if (_layers != null)
-            {
-                foreach (var layer in _layers)
-                {
-                    if (layer != null && layer.Type == MeshDeformerLayerType.Lattice &&
-                        layer.SerializedSettings != null &&
-                        layer.SerializedSettings.HasSerializedControlPointData)
-                    {
-                        return true;
-                    }
-                }
-            }
+        private bool HasUnsupportedFutureLatticeAsset() =>
+            DeformationMigrationPreflight.HasUnsupportedFutureLatticeAsset(ReadMigrationInput());
 
-            return HasMeaningfulBaseSettings();
-        }
-
-        private static bool HasNonNullGroups(List<DeformerGroup> groups)
-        {
-            if (groups == null) return false;
-            for (int i = 0; i < groups.Count; i++)
-            {
-                if (groups[i] != null) return true;
-            }
-
-            return false;
-        }
-
-        private static bool HasNonNullLayers(List<LatticeLayer> layers)
-        {
-            if (layers == null) return false;
-            for (int i = 0; i < layers.Count; i++)
-            {
-                if (layers[i] != null) return true;
-            }
-
-            return false;
-        }
-
-        private bool HasUnsupportedFutureLatticeAsset()
-        {
-            if (_settings != null && _settings.HasUnsupportedFutureSerializationVersion)
-            {
-                return true;
-            }
-
-            if (_layers != null)
-            {
-                foreach (var layer in _layers)
-                {
-                    if (layer?.SerializedSettings != null &&
-                        layer.SerializedSettings.HasUnsupportedFutureSerializationVersion)
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            if (_groups != null)
-            {
-                foreach (var group in _groups)
-                {
-                    var layers = group?.SerializedLayers;
-                    if (layers == null) continue;
-                    foreach (var layer in layers)
-                    {
-                        if (layer?.SerializedSettings != null &&
-                            layer.SerializedSettings.HasUnsupportedFutureSerializationVersion)
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        private bool HasMalformedLatticeAsset()
-        {
-            if (HasMalformedSerializedSelection())
-            {
-                return true;
-            }
-
-            if (_blendShapeOutput != BlendShapeOutputMode.Disabled &&
-                _blendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape)
-            {
-                return true;
-            }
-
-            if (_settings != null && _settings.HasMalformedSerializedShape)
-            {
-                return true;
-            }
-
-            if (_layers != null)
-            {
-                foreach (var layer in _layers)
-                {
-                    if (layer != null &&
-                        (layer.HasMalformedSerializedMetadata ||
-                         (layer.SerializedSettings != null &&
-                          layer.SerializedSettings.HasMalformedSerializedShape)))
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            if (_groups != null)
-            {
-                foreach (var group in _groups)
-                {
-                    if (group != null && group.HasMalformedSerializedMetadata)
-                    {
-                        return true;
-                    }
-
-                    var layers = group?.SerializedLayers;
-                    if (layers == null) continue;
-                    foreach (var layer in layers)
-                    {
-                        if (layer != null &&
-                            (layer.HasMalformedSerializedMetadata ||
-                             (layer.SerializedSettings != null &&
-                              layer.SerializedSettings.HasMalformedSerializedShape)))
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
-
-            return false;
-        }
+        private bool HasMalformedLatticeAsset() =>
+            DeformationMigrationPreflight.HasMalformedLatticeAsset(ReadMigrationInput());
 
         /// <summary>
         /// Validates raw selection indices before any migration or model-normalization
@@ -3684,126 +2107,18 @@ namespace Net._32Ba.LatticeDeformationTool
         /// choosing another group/layer would make a corrupt payload appear to migrate
         /// successfully while changing which deformation the Inspector edits.
         /// </summary>
-        private bool HasMalformedSerializedSelection()
-        {
-            // Missing fields from old YAML retain these field-initializer lists. A
-            // runtime null therefore represents an explicit/corrupt payload, and the
-            // normalization paths below must not replace it with a guessed empty list.
-            if (_groups == null || _layers == null)
-            {
-                return true;
-            }
-
-            if (_groups.Count == 0)
-            {
-                if (_activeGroupIndex != 0)
-                {
-                    return true;
-                }
-            }
-            else
-            {
-                if (_activeGroupIndex < 0 || _activeGroupIndex >= _groups.Count)
-                {
-                    return true;
-                }
-
-                for (int groupIndex = 0; groupIndex < _groups.Count; groupIndex++)
-                {
-                    var group = _groups[groupIndex];
-                    // Group-schema releases never assigned semantics to a null inline
-                    // entry. Dropping it or replacing it with a default group would be
-                    // a guessed repair, even when that entry is not currently selected.
-                    if (group == null)
-                    {
-                        return true;
-                    }
-
-                    var layers = group.SerializedLayers;
-                    int activeLayer = group.SerializedActiveLayerIndex;
-                    if (layers == null)
-                    {
-                        return true;
-                    }
-
-                    if (layers.Count == 0)
-                    {
-                        if (activeLayer != 0)
-                        {
-                            return true;
-                        }
-                    }
-                    else
-                    {
-                        bool knownPublishedRemoveLastPattern =
-                            CanContainPublishedRemoveLastSelectionBug() &&
-                            activeLayer == layers.Count;
-                        if (activeLayer < 0 ||
-                            (activeLayer >= layers.Count && !knownPublishedRemoveLastPattern))
-                        {
-                            return true;
-                        }
-
-                        // As with groups, every inline layer slot must carry an actual
-                        // payload. EnsureGroupsCore must not silently manufacture a
-                        // neutral layer in place of corrupted serialized data.
-                        for (int layerIndex = 0; layerIndex < layers.Count; layerIndex++)
-                        {
-                            if (layers[layerIndex] == null)
-                            {
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (_layers.Count == 0)
-            {
-                // Published group initialization could leave the obsolete component
-                // facade index behind after moving its selected flat layer into a
-                // DeformerGroup. It has no target once the flat list is empty; preserve
-                // it through classification, then canonicalize it at the structural
-                // 1.2.1→1.3.0 boundary. Later/current payloads must already be canonical.
-                bool awaitingPublishedGroupNormalization = _groups.Count > 0 &&
-                    (_deformationDataVersion == DeformationDataVersion.Unversioned ||
-                     _deformationDataVersion == DeformationDataVersion.V1_2_0 ||
-                     _deformationDataVersion == DeformationDataVersion.V1_2_1);
-                if (awaitingPublishedGroupNormalization)
-                {
-                    return false;
-                }
-
-                // The single-settings schema used both the default zero and -1 as the
-                // base-lattice selection sentinel before a flat list existed.
-                return _activeLayerIndex < -1 || _activeLayerIndex > 0;
-            }
-
-            // A conceptual-v2 flat payload could historically contain null holes; the
-            // immutable staged migration contract deterministically filters those while
-            // remapping a non-null active layer. Once authoritative groups exist, the
-            // same null is corruption in the stale backup and must fail closed.
-            if (_groups != null && _groups.Count > 0)
-            {
-                for (int layerIndex = 0; layerIndex < _layers.Count; layerIndex++)
-                {
-                    if (_layers[layerIndex] == null)
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return _activeLayerIndex < 0 || _activeLayerIndex >= _layers.Count ||
-                   _layers[_activeLayerIndex] == null;
-        }
+        private bool HasMalformedSerializedSelection() =>
+            DeformationMigrationPreflight.HasMalformedSerializedSelection(ReadMigrationInput());
 
         /// <summary>
         /// Validates non-empty vertex-indexed payloads without allocating, resizing, or
         /// caching anything. This preflight runs before every release step so a brush or
         /// mask mismatch cannot be committed through later release markers first.
         /// </summary>
-        private bool HasIncompatibleSerializedVertexIndexedData()
+        private bool HasIncompatibleSerializedVertexIndexedData() =>
+            DeformationMigrationPreflight.HasIncompatibleVertexData(ReadMigrationInput(), ReadMigrationSourceVertexCount());
+
+        private int ReadMigrationSourceVertexCount()
         {
             Mesh validationMesh = null;
             if (_skinnedMeshRenderer != null)
@@ -3837,771 +2152,24 @@ namespace Net._32Ba.LatticeDeformationTool
                 validationMesh = _serializedSourceMesh != null ? _serializedSourceMesh : _sourceMesh;
             }
 
-            int expectedVertexCount = validationMesh != null ? validationMesh.vertexCount : -1;
-
-            bool IsIncompatible(LatticeLayer layer)
-            {
-                if (layer == null) return false;
-                if (layer.HasNonFiniteSerializedVertexData) return true;
-
-                int displacementCount = layer.SerializedBrushDisplacementCount;
-                int maskCount = layer.SerializedVertexMaskCount;
-                if (displacementCount == 0 && maskCount == 0)
-                {
-                    return false;
-                }
-
-                if (expectedVertexCount < 0)
-                {
-                    // Vertex identity cannot be established without the source mesh.
-                    // Preserve the payload and allow shape-only migration; it will be
-                    // validated as soon as a source becomes known.
-                    return false;
-                }
-
-                return (displacementCount != 0 && displacementCount != expectedVertexCount) ||
-                       (maskCount != 0 && maskCount != expectedVertexCount);
-            }
-
-            if (_layers != null)
-            {
-                foreach (var layer in _layers)
-                {
-                    if (IsIncompatible(layer)) return true;
-                }
-            }
-
-            if (_groups != null)
-            {
-                foreach (var group in _groups)
-                {
-                    var layers = group?.SerializedLayers;
-                    if (layers == null) continue;
-                    foreach (var layer in layers)
-                    {
-                        if (IsIncompatible(layer)) return true;
-                    }
-                }
-            }
-
-            return false;
+            return validationMesh != null ? validationMesh.vertexCount : -1;
         }
 
-        private void TryApplyLayerContribution(LatticeLayer layer, Vector3[] sourceVertices, Vector3[] deformedVertices)
-        {
-            if (layer == null)
-            {
-                return;
-            }
-
-            switch (layer.Type)
-            {
-                case MeshDeformerLayerType.Brush:
-                    TryApplyBrushLayerContribution(layer, sourceVertices, deformedVertices);
-                    break;
-                default:
-                    TryApplyLatticeLayerContribution(layer, sourceVertices, deformedVertices);
-                    break;
-            }
-        }
-
-        private static void TryApplyBrushLayerContribution(LatticeLayer layer, Vector3[] sourceVertices, Vector3[] deformedVertices)
-        {
-            if (layer == null || sourceVertices == null || deformedVertices == null)
-            {
-                return;
-            }
-
-            var displacements = layer.BrushDisplacements;
-            if (displacements == null || displacements.Length != sourceVertices.Length)
-            {
-                return;
-            }
-
-            float weight = layer.Weight;
-            var mask = layer.VertexMask;
-            bool hasMask = mask != null && mask.Length == sourceVertices.Length;
-            for (int vertex = 0; vertex < deformedVertices.Length; vertex++)
-            {
-                float maskValue = hasMask ? mask[vertex] : 1f;
-                deformedVertices[vertex] += displacements[vertex] * weight * maskValue;
-            }
-        }
-
-        private void TryApplyLatticeLayerContribution(LatticeLayer layer, Vector3[] sourceVertices, Vector3[] deformedVertices)
-        {
-            if (layer == null || sourceVertices == null || deformedVertices == null)
-            {
-                return;
-            }
-
-            var layerSettings = layer.Settings;
-            if (layerSettings == null || !EnsureCache(layerSettings, sourceVertices))
-            {
-                return;
-            }
-
-            var entries = _cache.Entries;
-            if (entries == null || entries.Length != sourceVertices.Length)
-            {
-                return;
-            }
-
-            int cpCount = layerSettings.ControlPointCount;
-            EnsureControlBuffer(cpCount);
-            float weight = layer.Weight;
-
-            if (_legacyAbsoluteLatticeEvaluation)
-            {
-                Matrix4x4 worldToLocal = Matrix4x4.identity;
-                if (layerSettings.HasPendingLegacyWorldSpace)
-                {
-                    Transform owner = MeshTransform;
-                    // MeshTransform falls back to this component's Transform.
-#line hidden
-                    if (owner == null)
-                    {
-                        return;
-                    }
-#line default
-
-                    worldToLocal = owner.worldToLocalMatrix;
-                }
-
-                if (!layerSettings.TryCopyLegacyEvaluationControlPoints(
-                        worldToLocal,
-                        _controlBuffer.AsSpan()))
-                {
-                    return;
-                }
-
-                var layerVertices = DeformWithJobs(entries, _controlBuffer, _latticeOutputBuffer);
-                for (int vertex = 0; vertex < deformedVertices.Length; vertex++)
-                {
-                    deformedVertices[vertex] +=
-                        (layerVertices[vertex] - sourceVertices[vertex]) * weight;
-                }
-            }
-            else
-            {
-                CollectControlPointOffsetsLocal(layerSettings, _controlBuffer.AsSpan());
-                var layerOffsets = DeformWithJobs(entries, _controlBuffer, _latticeOutputBuffer);
-                for (int vertex = 0; vertex < deformedVertices.Length; vertex++)
-                {
-                    deformedVertices[vertex] += layerOffsets[vertex] * weight;
-                }
-            }
-        }
-
-        private static bool TryBuildDeltas(
-            Vector3[] sourceVertices,
-            Vector3[] deformedVertices,
-            out Vector3[] deltas)
-        {
-            return TryBuildDeltas(sourceVertices, deformedVertices, out deltas, true);
-        }
-
-        private static bool TryBuildDeltas(
-            Vector3[] sourceVertices,
-            Vector3[] deformedVertices,
-            out Vector3[] deltas,
-            bool requireNonZero)
-        {
-            deltas = null;
-            if (sourceVertices == null || deformedVertices == null || sourceVertices.Length != deformedVertices.Length)
-            {
-                return false;
-            }
-
-            var result = new Vector3[sourceVertices.Length];
-            bool hasDelta = false;
-            for (int v = 0; v < sourceVertices.Length; v++)
-            {
-                result[v] = deformedVertices[v] - sourceVertices[v];
-                if (!hasDelta && result[v].sqrMagnitude > 1e-10f)
-                {
-                    hasDelta = true;
-                }
-            }
-
-            if (requireNonZero && !hasDelta)
-            {
-                return false;
-            }
-
-            deltas = result;
-            return true;
-        }
-
-        private static bool HaveStrictlyIncreasingWeights(List<float> weights)
-        {
-            if (weights == null || weights.Count == 0) return false;
-            float previous = float.NegativeInfinity;
-            for (int i = 0; i < weights.Count; i++)
-            {
-                float value = weights[i];
-                if (float.IsNaN(value) || float.IsInfinity(value) || value <= previous)
-                    return false;
-                previous = value;
-            }
-            return true;
-        }
-
-        private int ComputeBlendShapeOutputHash(List<GeneratedBlendShape> blendShapes)
-        {
-            int hash = 17;
-            foreach (var generated in blendShapes)
-            {
-                hash = hash * 31 + (generated.Name ?? "").GetHashCode();
-                hash = hash * 31 + HashCurveState(generated.Curve);
-                hash = hash * 31 + (int)generated.Composition;
-
-                var candidateWeights = generated.CandidateWeights;
-                hash = hash * 31 + (candidateWeights?.Length ?? 0);
-                if (candidateWeights != null)
-                {
-                    for (int weight = 0; weight < candidateWeights.Length; weight++)
-                        hash = hash * 31 + candidateWeights[weight].GetHashCode();
-                }
-
-                var candidates = generated.Candidates;
-                if (candidates == null)
-                {
-                    hash = hash * 31;
-                    continue;
-                }
-
-                hash = hash * 31 + candidates.Length;
-                foreach (var deltas in candidates)
-                {
-                    if (deltas == null)
-                    {
-                        hash = hash * 31;
-                        continue;
-                    }
-                    for (int v = 0; v < deltas.Length; v++)
-                        hash = hash * 31 + deltas[v].GetHashCode();
-                }
-            }
-            return hash;
-        }
-
-        // Retained for existing internal callers and compatibility regression coverage.
-        private void AddGeneratedBlendShapeFrames(
-            Mesh mesh,
-            string shapeName,
-            Vector3[] baseVertices,
-            Vector3[] deltas,
-            AnimationCurve curve)
-        {
-            AddGeneratedBlendShapeFrames(
-                mesh,
-                shapeName,
-                baseVertices,
-                new GeneratedBlendShape(shapeName, curve, deltas));
-        }
-
-        private void AddGeneratedBlendShapeFrames(
-            Mesh mesh,
-            string shapeName,
-            Vector3[] baseVertices,
-            GeneratedBlendShape generated)
-        {
-            var candidates = generated.Candidates;
-            if (mesh == null || string.IsNullOrEmpty(shapeName) || baseVertices == null ||
-                candidates == null || candidates.Length == 0)
-            {
-                return;
-            }
-
-            int vertexCount = mesh.vertexCount;
-            if (baseVertices.Length != vertexCount)
-            {
-                return;
-            }
-            for (int candidate = 0; candidate < candidates.Length; candidate++)
-            {
-                if (candidates[candidate] == null || candidates[candidate].Length != vertexCount)
-                    return;
-            }
-
-            var curve = generated.Curve ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
-
-            Vector3[][] candidateDeltaNormals = null;
-            Vector3[][] candidateDeltaTangents = null;
-            bool outputsCandidateWeightsDirectly = generated.CandidateWeights != null &&
-                generated.CandidateWeights.Length == candidates.Length;
-            bool recomputeComposedSurfaceDeltas = !_legacyPublishedBlendShapeSemantics &&
-                generated.Composition != BlendShapeCompositionMode.Single &&
-                (_recalculateNormals || _recalculateTangents);
-            if ((outputsCandidateWeightsDirectly || !recomputeComposedSurfaceDeltas) &&
-                !_legacyPublishedBlendShapeSemantics &&
-                (_recalculateNormals || _recalculateTangents))
-            {
-                candidateDeltaNormals = _recalculateNormals ? new Vector3[candidates.Length][] : null;
-                candidateDeltaTangents = _recalculateTangents ? new Vector3[candidates.Length][] : null;
-                for (int candidate = 0; candidate < candidates.Length; candidate++)
-                {
-                    CalculateGeneratedSurfaceDeltasWithNormalsMode(
-                        mesh,
-                        baseVertices,
-                        candidates[candidate],
-                        _normalsRecalculationMode,
-                        _recalculateNormals,
-                        _recalculateTangents,
-                        out var normals,
-                        out var tangents);
-                    if (candidateDeltaNormals != null) candidateDeltaNormals[candidate] = normals;
-                    if (candidateDeltaTangents != null) candidateDeltaTangents[candidate] = tangents;
-                }
-            }
-
-            if (outputsCandidateWeightsDirectly)
-            {
-                for (int candidate = 0; candidate < candidates.Length; candidate++)
-                {
-                    mesh.AddBlendShapeFrame(
-                        shapeName,
-                        generated.CandidateWeights[candidate],
-                        candidates[candidate],
-                        candidateDeltaNormals?[candidate],
-                        candidateDeltaTangents?[candidate]);
-                }
-                return;
-            }
-
-            const int sampleCount = 100;
-            for (int f = 0; f < sampleCount; f++)
-            {
-                float t = (f + 1f) / sampleCount;
-                float frameWeight = t * 100f;
-                float curveValue = curve.Evaluate(t);
-                if (generated.Composition != BlendShapeCompositionMode.Single)
-                {
-                    curveValue = Mathf.Clamp01(curveValue);
-                }
-
-                var frameDeltas = ComposeBlendShapeCandidates(
-                    candidates, generated.Composition, curveValue, vertexCount);
-                Vector3[] frameNormals;
-                Vector3[] frameTangents;
-                if (recomputeComposedSurfaceDeltas)
-                {
-                    CalculateGeneratedSurfaceDeltasWithNormalsMode(
-                        mesh,
-                        baseVertices,
-                        frameDeltas,
-                        _normalsRecalculationMode,
-                        _recalculateNormals,
-                        _recalculateTangents,
-                        out frameNormals,
-                        out frameTangents);
-                }
-                else
-                {
-                    frameNormals = candidateDeltaNormals != null
-                        ? ComposeBlendShapeCandidates(
-                            candidateDeltaNormals, generated.Composition, curveValue, vertexCount)
-                        : null;
-                    frameTangents = candidateDeltaTangents != null
-                        ? ComposeBlendShapeCandidates(
-                            candidateDeltaTangents, generated.Composition, curveValue, vertexCount)
-                        : null;
-                }
-
-                mesh.AddBlendShapeFrame(shapeName, frameWeight, frameDeltas, frameNormals, frameTangents);
-            }
-        }
-
-        private static Vector3[] ComposeBlendShapeCandidates(
-            Vector3[][] candidates,
-            BlendShapeCompositionMode composition,
-            float normalizedProgress,
-            int vertexCount)
-        {
-            var result = new Vector3[vertexCount];
-            if (candidates == null || candidates.Length == 0) return result;
-
-            if (composition == BlendShapeCompositionMode.Single || candidates.Length == 1)
-            {
-                float scale = normalizedProgress;
-                var candidate = candidates[0];
-                if (candidate == null || candidate.Length != vertexCount) return result;
-                for (int vertex = 0; vertex < vertexCount; vertex++)
-                    result[vertex] = candidate[vertex] * scale;
-                return result;
-            }
-
-            normalizedProgress = Mathf.Clamp01(normalizedProgress);
-            float stageProgress = normalizedProgress * candidates.Length;
-            if (composition == BlendShapeCompositionMode.Progressive)
-            {
-                int completedStages = Mathf.Min(Mathf.FloorToInt(stageProgress), candidates.Length);
-                for (int stage = 0; stage < completedStages; stage++)
-                {
-                    var candidate = candidates[stage];
-                    if (candidate == null || candidate.Length != vertexCount) continue;
-                    for (int vertex = 0; vertex < vertexCount; vertex++)
-                        result[vertex] += candidate[vertex];
-                }
-
-                if (completedStages < candidates.Length)
-                {
-                    float fraction = stageProgress - completedStages;
-                    var candidate = candidates[completedStages];
-                    if (candidate == null || candidate.Length != vertexCount) return result;
-                    for (int vertex = 0; vertex < vertexCount; vertex++)
-                        result[vertex] += candidate[vertex] * fraction;
-                }
-                return result;
-            }
-
-            if (stageProgress <= 1f)
-            {
-                var first = candidates[0];
-                if (first == null || first.Length != vertexCount) return result;
-                for (int vertex = 0; vertex < vertexCount; vertex++)
-                    result[vertex] = first[vertex] * stageProgress;
-                return result;
-            }
-
-            int lower = Mathf.Min(Mathf.FloorToInt(stageProgress) - 1, candidates.Length - 1);
-            int upper = Mathf.Min(lower + 1, candidates.Length - 1);
-            float blend = upper == lower ? 0f : stageProgress - Mathf.Floor(stageProgress);
-            if (candidates[lower] == null || candidates[upper] == null ||
-                candidates[lower].Length != vertexCount || candidates[upper].Length != vertexCount)
-            {
-                return result;
-            }
-            for (int vertex = 0; vertex < vertexCount; vertex++)
-                result[vertex] = Vector3.LerpUnclamped(candidates[lower][vertex], candidates[upper][vertex], blend);
-            return result;
-        }
-
-        // Kept with the original name and seven-argument signature for existing
-        // editor reflection callers and compatibility tests. The legacy mode is
-        // intentionally fixed here so old callers retain their exact behavior.
-        private static void CalculateGeneratedSurfaceDeltas(
-            Mesh template,
-            Vector3[] baseVertices,
-            Vector3[] deltas,
-            bool includeNormals,
-            bool includeTangents,
-            out Vector3[] deltaNormals,
-            out Vector3[] deltaTangents)
-        {
-            CalculateGeneratedSurfaceDeltasWithNormalsMode(
-                template,
-                baseVertices,
-                deltas,
-                NormalsRecalculationMode.LegacyUnityRecalculate,
-                includeNormals,
-                includeTangents,
-                out deltaNormals,
-                out deltaTangents);
-        }
-
-        private static void CalculateGeneratedSurfaceDeltasWithNormalsMode(
-            Mesh template,
-            Vector3[] baseVertices,
-            Vector3[] deltas,
-            NormalsRecalculationMode normalsMode,
-            bool includeNormals,
-            bool includeTangents,
-            out Vector3[] deltaNormals,
-            out Vector3[] deltaTangents)
-        {
-            deltaNormals = null;
-            deltaTangents = null;
-
-            if (template == null || baseVertices == null || deltas == null || baseVertices.Length != deltas.Length)
-            {
-                return;
-            }
-
-            Mesh baseMesh = null;
-            Mesh targetMesh = null;
-            try
-            {
-                baseMesh = UnityEngine.Object.Instantiate(template);
-                targetMesh = UnityEngine.Object.Instantiate(template);
-
-                int vertexCount = baseVertices.Length;
-                var targetVertices = new Vector3[vertexCount];
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    targetVertices[i] = baseVertices[i] + deltas[i];
-                }
-
-                baseMesh.vertices = baseVertices;
-                targetMesh.vertices = targetVertices;
-
-                if (includeNormals)
-                {
-                    RecalculateSurfaceNormals(baseMesh, template, normalsMode);
-                    RecalculateSurfaceNormals(targetMesh, template, normalsMode);
-
-                    var baseNormals = baseMesh.normals;
-                    var targetNormals = targetMesh.normals;
-                    if (baseNormals != null && targetNormals != null &&
-                        baseNormals.Length == vertexCount && targetNormals.Length == vertexCount)
-                    {
-                        deltaNormals = new Vector3[vertexCount];
-                        for (int i = 0; i < vertexCount; i++)
-                        {
-                            deltaNormals[i] = targetNormals[i] - baseNormals[i];
-                        }
-                    }
-                }
-
-                if (includeTangents)
-                {
-                    RecalculateSurfaceNormals(baseMesh, template, normalsMode);
-                    RecalculateSurfaceNormals(targetMesh, template, normalsMode);
-                    baseMesh.RecalculateTangents();
-                    targetMesh.RecalculateTangents();
-
-                    var baseTangents = baseMesh.tangents;
-                    var targetTangents = targetMesh.tangents;
-                    if (baseTangents != null && targetTangents != null &&
-                        baseTangents.Length == vertexCount && targetTangents.Length == vertexCount)
-                    {
-                        deltaTangents = new Vector3[vertexCount];
-                        for (int i = 0; i < vertexCount; i++)
-                        {
-                            deltaTangents[i] = new Vector3(
-                                targetTangents[i].x - baseTangents[i].x,
-                                targetTangents[i].y - baseTangents[i].y,
-                                targetTangents[i].z - baseTangents[i].z);
-                        }
-                    }
-                }
-            }
-            finally
-            {
-                DestroyTemporaryMesh(baseMesh);
-                DestroyTemporaryMesh(targetMesh);
-            }
-        }
-
-        private static void RecalculateSurfaceNormals(
-            Mesh mesh,
-            Mesh sourceMesh,
-            NormalsRecalculationMode normalsMode)
-        {
-            if (normalsMode == NormalsRecalculationMode.PreserveSourceSmoothing)
-            {
-                mesh.SetNormals(SeamAwareMeshNormalCalculator.Calculate(mesh, sourceMesh));
-            }
-            else
-            {
-                mesh.RecalculateNormals();
-            }
-        }
-
-        private static HashSet<string> CollectBlendShapeNames(Mesh mesh)
-        {
-            var names = new HashSet<string>(StringComparer.Ordinal);
-            if (mesh == null)
-            {
-                return names;
-            }
-
-            for (int i = 0; i < mesh.blendShapeCount; i++)
-            {
-                names.Add(mesh.GetBlendShapeName(i));
-            }
-
-            return names;
-        }
-
-        private static string MakeUniqueBlendShapeName(string requestedName, HashSet<string> usedNames)
-        {
-            usedNames ??= new HashSet<string>(StringComparer.Ordinal);
-
-            string baseName = string.IsNullOrWhiteSpace(requestedName) ? "BlendShape" : requestedName.Trim();
-            string name = baseName;
-            int suffix = 1;
-            while (usedNames.Contains(name))
-            {
-                name = $"{baseName} {suffix}";
-                suffix++;
-            }
-
-            usedNames.Add(name);
-            return name;
-        }
-
-        private static void DestroyTemporaryMesh(Mesh mesh)
-        {
-            if (mesh == null)
-            {
-                return;
-            }
-
-            // The release gate is EditMode-only; PlayMode destruction is a Unity branch.
-#line hidden
-            if (Application.isPlaying)
-            {
-                UnityEngine.Object.Destroy(mesh);
-            }
-            else
-            {
-                UnityEngine.Object.DestroyImmediate(mesh);
-            }
-#line default
-        }
-
-        private static void CopyBlendShapes(
-            Mesh source,
-            Mesh destination,
-            Vector3[][] bakedBlendShapeDeltas = null,
-            float[] bakedBlendShapeWeights = null)
-        {
-            int shapeCount = source.blendShapeCount;
-            int vertexCount = source.vertexCount;
-            for (int s = 0; s < shapeCount; s++)
-            {
-                string name = source.GetBlendShapeName(s);
-                int frameCount = source.GetBlendShapeFrameCount(s);
-                var baked = bakedBlendShapeDeltas != null && s < bakedBlendShapeDeltas.Length
-                    ? bakedBlendShapeDeltas[s]
-                    : null;
-                float bakedWeight = bakedBlendShapeWeights != null && s < bakedBlendShapeWeights.Length
-                    ? bakedBlendShapeWeights[s]
-                    : 0f;
-                bool hasBakedShape = baked != null && baked.Length == vertexCount;
-
-                if (hasBakedShape && frameCount > 0)
-                {
-                    float firstWeight = source.GetBlendShapeFrameWeight(s, 0);
-                    if (bakedWeight < firstWeight - 1e-5f)
-                    {
-                        destination.AddBlendShapeFrame(
-                            name,
-                            bakedWeight,
-                            new Vector3[vertexCount],
-                            new Vector3[vertexCount],
-                            new Vector3[vertexCount]);
-                    }
-                }
-
-                for (int f = 0; f < frameCount; f++)
-                {
-                    float weight = source.GetBlendShapeFrameWeight(s, f);
-                    var dv = new Vector3[vertexCount];
-                    var dn = new Vector3[vertexCount];
-                    var dt = new Vector3[vertexCount];
-                    source.GetBlendShapeFrameVertices(s, f, dv, dn, dt);
-                    if (hasBakedShape)
-                    {
-                        for (int v = 0; v < vertexCount; v++)
-                        {
-                            dv[v] -= baked[v];
-                        }
-                    }
-
-                    destination.AddBlendShapeFrame(name, weight, dv, dn, dt);
-                }
-            }
-        }
+        private static void DestroyTemporaryMesh(Mesh mesh) => DeformedMeshWriter.DestroyTemporaryMesh(mesh);
 
         private Vector3[] BuildCurrentSourceVertices(
             out Vector3[][] bakedBlendShapeDeltas,
             out float[] bakedBlendShapeWeights,
             out int bakedBlendShapeHash)
         {
-            bakedBlendShapeDeltas = null;
-            bakedBlendShapeWeights = null;
-            bakedBlendShapeHash = 0;
-
-            if (!CanReadSourceMeshData(_sourceMesh))
-            {
-                return null;
-            }
-
-            int sourceVertexCount = _sourceMesh.vertexCount;
-            if (sourceVertexCount <= 0)
-            {
-                return Array.Empty<Vector3>();
-            }
-
-            EnsureManagedDeformationBuffers(sourceVertexCount);
-            _sourceVertexScratch ??= new List<Vector3>(sourceVertexCount);
-            if (_sourceVertexScratch.Capacity < sourceVertexCount)
-            {
-                _sourceVertexScratch.Capacity = sourceVertexCount;
-            }
-
-            _sourceMesh.GetVertices(_sourceVertexScratch);
-            if (_sourceVertexScratch.Count != sourceVertexCount)
-            {
-                return null;
-            }
-
-            _sourceVertexScratch.CopyTo(_sourceVerticesBuffer, 0);
-            var vertices = _sourceVerticesBuffer;
-
-            if (_skinnedMeshRenderer == null || _sourceMesh.blendShapeCount == 0)
-            {
-                return vertices;
-            }
-
-            int shapeCount = _sourceMesh.blendShapeCount;
-            int vertexCount = _sourceMesh.vertexCount;
-            Vector3[][] deltas = null;
-            float[] weights = null;
-            bool hasBakedShape = false;
-            int hash = 17;
-
-            for (int s = 0; s < shapeCount; s++)
-            {
-                float weight = _skinnedMeshRenderer.GetBlendShapeWeight(s);
-                if (Mathf.Abs(weight) <= 1e-5f)
-                {
-                    continue;
-                }
-
-                var delta = EvaluateBlendShapeVertexDelta(_sourceMesh, s, weight);
-                deltas ??= new Vector3[shapeCount][];
-                weights ??= new float[shapeCount];
-                deltas[s] = delta;
-                weights[s] = weight;
-                hasBakedShape = true;
-                hash = HashCode.Combine(hash, s, weight);
-
-                for (int v = 0; v < vertexCount; v++)
-                {
-                    vertices[v] += delta[v];
-                }
-            }
-
-            if (!hasBakedShape)
-            {
-                return vertices;
-            }
-
-            bakedBlendShapeDeltas = deltas;
-            bakedBlendShapeWeights = weights;
-            bakedBlendShapeHash = hash;
-            return vertices;
+            _sourceVertexWorkspace ??= new SourceVertexWorkspace();
+            var weights = _sourceVertexWorkspace.CaptureWeights(_skinnedMeshRenderer,
+                _skinnedMeshRenderer != null && _sourceMesh != null ? _sourceMesh.blendShapeCount : 0);
+            return SourceVertexResolver.Resolve(_sourceMesh, weights, _sourceVertexWorkspace,
+                out bakedBlendShapeDeltas, out bakedBlendShapeWeights, out bakedBlendShapeHash);
         }
 
-        private static bool CanReadSourceMeshData(Mesh mesh)
-        {
-            if (mesh == null)
-            {
-                return false;
-            }
-
-#if UNITY_EDITOR
-            // The Editor retains imported mesh data and permits the managed Mesh
-            // getters even when the importer-facing isReadable flag is false.
-            return true;
-#else
-            return mesh.isReadable;
-#endif
-        }
+        private static bool CanReadSourceMeshData(Mesh mesh) => DeformerPlatformServices.CanReadMesh(mesh);
 
         private void EnsureManagedDeformationBuffers(int vertexCount)
         {
@@ -4610,93 +2178,8 @@ namespace Net._32Ba.LatticeDeformationTool
                 throw new ArgumentOutOfRangeException(nameof(vertexCount));
             }
 
-            EnsureVectorBuffer(ref _sourceVerticesBuffer, vertexCount);
-            EnsureVectorBuffer(ref _directDeltasBuffer, vertexCount);
-            EnsureVectorBuffer(ref _groupVerticesBuffer, vertexCount);
-            EnsureVectorBuffer(ref _layerVerticesBuffer, vertexCount);
-            EnsureVectorBuffer(ref _finalVerticesBuffer, vertexCount);
-            EnsureVectorBuffer(ref _latticeOutputBuffer, vertexCount);
-            _generatedBlendShapeBuffer ??= new List<GeneratedBlendShape>();
-        }
-
-        private static void EnsureVectorBuffer(ref Vector3[] buffer, int length)
-        {
-            if (buffer == null || buffer.Length != length)
-            {
-                buffer = length == 0 ? Array.Empty<Vector3>() : new Vector3[length];
-            }
-        }
-
-        private static Vector3[] EvaluateBlendShapeVertexDelta(Mesh mesh, int shapeIndex, float weight)
-        {
-            int frameCount = mesh.GetBlendShapeFrameCount(shapeIndex);
-            int vertexCount = mesh.vertexCount;
-            var lower = new Vector3[vertexCount];
-            var upper = new Vector3[vertexCount];
-            var unusedNormals = new Vector3[vertexCount];
-            var unusedTangents = new Vector3[vertexCount];
-
-            if (frameCount == 0)
-            {
-                return lower;
-            }
-
-            float firstWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, 0);
-            if (weight <= firstWeight || frameCount == 1)
-            {
-                mesh.GetBlendShapeFrameVertices(shapeIndex, 0, lower, unusedNormals, unusedTangents);
-                float scale = Mathf.Abs(firstWeight) > Mathf.Epsilon ? weight / firstWeight : 0f;
-                ScaleDeltas(lower, scale);
-                return lower;
-            }
-
-            for (int frame = 1; frame < frameCount; frame++)
-            {
-                float upperWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, frame);
-                if (weight <= upperWeight)
-                {
-                    float lowerWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, frame - 1);
-                    mesh.GetBlendShapeFrameVertices(shapeIndex, frame - 1, lower, unusedNormals, unusedTangents);
-                    mesh.GetBlendShapeFrameVertices(shapeIndex, frame, upper, unusedNormals, unusedTangents);
-
-                    float t = Mathf.Abs(upperWeight - lowerWeight) > Mathf.Epsilon
-                        ? Mathf.InverseLerp(lowerWeight, upperWeight, weight)
-                        : 0f;
-                    for (int i = 0; i < vertexCount; i++)
-                    {
-                        lower[i] = Vector3.LerpUnclamped(lower[i], upper[i], t);
-                    }
-
-                    return lower;
-                }
-            }
-
-            int lastFrame = frameCount - 1;
-            mesh.GetBlendShapeFrameVertices(shapeIndex, lastFrame, lower, unusedNormals, unusedTangents);
-            float lastWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, lastFrame);
-            float previousWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, lastFrame - 1);
-            float interval = lastWeight - previousWeight;
-            if (Mathf.Abs(interval) > Mathf.Epsilon)
-            {
-                // Unity extrapolates the last frame itself over the final frame interval;
-                // it does not continue the slope between the final two delta arrays.
-                float scale = 1f + (weight - lastWeight) / interval;
-                ScaleDeltas(lower, scale);
-            }
-            return lower;
-        }
-
-        private static void ScaleDeltas(Vector3[] deltas, float scale)
-        {
-            if (deltas == null)
-            {
-                return;
-            }
-
-            for (int i = 0; i < deltas.Length; i++)
-            {
-                deltas[i] *= scale;
-            }
+            _evaluationWorkspace ??= new EvaluationWorkspace();
+            _evaluationWorkspace.EnsureCapacity(vertexCount);
         }
 
         public void RestoreOriginalMesh()
@@ -4714,16 +2197,13 @@ namespace Net._32Ba.LatticeDeformationTool
             ReleaseRuntimeMesh();
         }
 
+        private void RestoreOwnedRuntimeMesh() => ReleaseRuntimeMesh();
+
         public void InvalidateCache()
         {
             NotifyDeformationDataChanged();
 
-            if (_cache == null)
-            {
-                _cache = new LatticeDeformerCache();
-            }
-
-            _cache.Clear();
+            _evaluationWorkspace?.Lattice.Cache.Clear();
             ReleaseDeformationNativeBuffers();
             _lastBlendShapeHash = 0;
             _blendShapeOutputDirty = true;
@@ -4750,6 +2230,16 @@ namespace Net._32Ba.LatticeDeformationTool
                 ? BuildCurrentSourceVertices(out _, out _, out _)
                 : null;
             var meshBounds = CalculateReferencedBounds(_sourceMesh, sourceVertices, _sourceMesh.bounds);
+            if (resetControlPoints)
+            {
+                int shapeCount = _skinnedMeshRenderer != null && _sourceMesh != null
+                    ? _sourceMesh.blendShapeCount
+                    : 0;
+                _initialBlendShapeWeights = new float[shapeCount];
+                for (int shape = 0; shape < shapeCount; shape++)
+                    _initialBlendShapeWeights[shape] = _skinnedMeshRenderer.GetBlendShapeWeight(shape);
+                _hasInitialBlendShapeWeightBaseline = true;
+            }
             foreach (var group in GetGroupStorage())
             {
                 if (group == null) continue;
@@ -4791,6 +2281,12 @@ namespace Net._32Ba.LatticeDeformationTool
 #endif
         }
 
+        internal List<DeformerGroup> SerializedGroupsForEditor => _groups;
+        internal int SerializedActiveGroupIndexForEditor => _activeGroupIndex;
+
+        internal float[] InitialBlendShapeWeightsForEditor =>
+            _initialBlendShapeWeights ?? Array.Empty<float>();
+
         private void EnsureSettings()
         {
             if (_settings == null)
@@ -4804,72 +2300,7 @@ namespace Net._32Ba.LatticeDeformationTool
         /// <summary>
         /// v2→v3 migration: moves flat _layers + component-level BlendShape settings into a single group.
         /// </summary>
-        private bool TryMigrateLayersToGroupStructure()
-        {
-            if (_layerModelVersion > k_CurrentLayerModelVersion ||
-                (int)_deformationDataVersion > (int)DeformationDataVersion.CurrentDevelopment)
-            {
-                return false;
-            }
-
-            var sourceLayers = _layers ?? new List<LatticeLayer>();
-            var migratedLayers = FilterLayersAndRemapActive(
-                sourceLayers,
-                _activeLayerIndex,
-                out int migratedActiveLayer);
-
-            bool hasGroups = HasNonNullGroups(_groups);
-            if (hasGroups && migratedLayers.Count == 0)
-            {
-                if (_layerModelVersion >= k_CurrentLayerModelVersion) return false;
-                _layerModelVersion = k_CurrentLayerModelVersion;
-                return false;
-            }
-
-            if (!hasGroups && migratedLayers.Count == 0)
-            {
-                if (_layerModelVersion >= k_CurrentLayerModelVersion) return false;
-                _layerModelVersion = k_CurrentLayerModelVersion;
-                return false;
-            }
-
-            // Wrap the flat payload. If groups already exist due to a partial save or
-            // Inspector-first access, append a recovery group instead of discarding
-            // either representation.
-            var group = new DeformerGroup();
-            group.Name = hasGroups ? "Recovered Layers" : "Group";
-            foreach (var layer in migratedLayers)
-            {
-                group.LayersList.Add(layer);
-            }
-            group.ActiveLayerIndex = migratedActiveLayer;
-            group.BlendShapeOutput = _blendShapeOutput;
-            group.BlendShapeName = _blendShapeName ?? "";
-            group.BlendShapeCurve = _blendShapeCurve ?? AnimationCurve.Linear(0f, 0f, 1f, 1f);
-
-            var migratedGroups = _groups == null
-                ? new List<DeformerGroup>()
-                : new List<DeformerGroup>(_groups);
-            migratedGroups.Add(group);
-            _groups = migratedGroups;
-            _activeGroupIndex = migratedGroups.Count - 1;
-            _layers = new List<LatticeLayer>();
-            // The selected flat layer now lives in the migrated group. Keep the raw
-            // facade index canonical so subsequent fail-closed preflights do not treat
-            // an otherwise successful migration as a dangling selection.
-            _activeLayerIndex = 0;
-            _layerModelVersion = k_CurrentLayerModelVersion;
-
-            InvalidateCache();
-
-#if UNITY_EDITOR
-            if (!Application.isPlaying)
-            {
-                MarkDirtyInEditor(this);
-            }
-#endif
-            return true;
-        }
+        private bool TryMigrateLayersToGroupStructure() => RunLegacyMigration(runner => runner.TryMigrateLayersToGroupStructure());
 
         private bool EnsureGroups()
         {
@@ -4889,38 +2320,8 @@ namespace Net._32Ba.LatticeDeformationTool
         }
 
         private static List<LatticeLayer> FilterLayersAndRemapActive(
-            List<LatticeLayer> source,
-            int sourceActive,
-            out int active)
-        {
-            var filtered = new List<LatticeLayer>();
-            LatticeLayer selected = sourceActive >= 0 && sourceActive < source.Count
-                ? source[sourceActive]
-                : null;
-            active = 0;
-
-            for (int i = 0; i < source.Count; i++)
-            {
-                var layer = source[i];
-                if (layer == null) continue;
-                if (ReferenceEquals(layer, selected)) active = filtered.Count;
-                filtered.Add(layer);
-            }
-
-            if (selected == null && filtered.Count > 0)
-            {
-                int nonNullBeforeOrAt = 0;
-                int limit = Mathf.Clamp(sourceActive, 0, source.Count - 1);
-                for (int i = 0; i <= limit; i++)
-                {
-                    if (source[i] != null) nonNullBeforeOrAt++;
-                }
-
-                active = Mathf.Clamp(nonNullBeforeOrAt - 1, 0, filtered.Count - 1);
-            }
-
-            return filtered;
-        }
+            List<LatticeLayer> source, int sourceActive, out int active) =>
+            DeformationMigrationRunner.FilterLayersAndRemapActive(source, sourceActive, out active);
 
         private void EnsureGroupsCore()
         {
@@ -4961,48 +2362,40 @@ namespace Net._32Ba.LatticeDeformationTool
                 EnsureAllBrushLayerDisplacementCapacity(_sourceMesh.vertexCount);
         }
 
+        private DeformerDataResolver.EvaluationScope BeginEvaluationDataRead()
+        {
+            _dataResolver ??= new DeformerDataResolver();
+            return _dataResolver.BeginEvaluation();
+        }
+
+        internal ResolvedDeformerData ReadResolvedData()
+        {
+            _dataResolver ??= new DeformerDataResolver();
+            var resolved = _dataResolver.Resolve(_dataSource, _groups, _activeGroupIndex, _profile,
+                _dataSource == DeformerDataSource.Profile && _profile != null ? GetCompatibilitySourceMesh() : null);
+            _profileGroups = _dataResolver.ProfileGroups;
+            return resolved;
+        }
+
         private List<DeformerGroup> GetGroupStorage()
         {
+            // Legacy mutable facade: its normalization remains explicit here.
+            // New evaluation/query code uses the resolver's read-only result.
             if (_groups == null) _groups = new List<DeformerGroup>();
-            if (_dataSource != DeformerDataSource.Profile || _profile == null)
-            {
-                return _groups;
-            }
+            var resolved = ReadResolvedData();
+            if (resolved.Status == DeformerDataResolutionStatus.Embedded) return _groups;
+            if (resolved.Status != DeformerDataResolutionStatus.Profile)
+                return _dataResolver.BlockedGroups;
 
-            if (EvaluateProfileCompatibility(_profile) == ProfileCompatibilityStatus.TopologyMismatch)
+            _groups.Clear();
+            if (_appliedProfileRevision != resolved.ProfileRevision)
             {
-                _profileGroups = null;
-                _profileFingerprint = null;
-                if (_blockedProfileGroups == null)
-                {
-                    _blockedProfileGroups = new List<DeformerGroup>
-                    {
-                        new DeformerGroup
-                        {
-                            Name = "Incompatible Profile",
-                            Enabled = false
-                        }
-                    };
-                }
-                return _blockedProfileGroups;
-            }
-
-            if (_groups.Count > 0)
-            {
-                _groups.Clear();
-            }
-
-            string fingerprint = _profile.GetContentFingerprint();
-            if (_profileGroups == null || !string.Equals(_profileFingerprint, fingerprint, StringComparison.Ordinal))
-            {
-                var payload = _profile.CreateIndependentPayload();
-                _profileGroups = payload.Groups;
-                _blockedProfileGroups = null;
-                _activeGroupIndex = payload.ActiveGroupIndex;
-                _profileFingerprint = fingerprint;
+                // Explicit Profile assignment sets its default selection. On load,
+                // preserve the component's already serialized, validated selection.
+                if (_appliedProfileRevision != 0) _activeGroupIndex = resolved.ActiveGroupIndex;
+                _appliedProfileRevision = resolved.ProfileRevision;
                 InvalidateCache();
             }
-
             return _profileGroups;
         }
 
@@ -5012,27 +2405,62 @@ namespace Net._32Ba.LatticeDeformationTool
             EnsureGroups();
         }
 
-        private void CacheSourceMesh()
+        private bool CanInspectStoredSourceMismatch() =>
+            _dataSource == DeformerDataSource.Embedded && _groups != null &&
+            _deformationDataVersion == DeformationDataVersion.CurrentDevelopment &&
+            _migrationReleaseIndex == DeformationReleaseManifest.Current &&
+            DeformationMigrationPreflight.ValidateSchema(ReadMigrationInput()) == DeformationDataMigrationStatus.Ready &&
+            !ReadSourceBinding().CanUse(GetCurrentAuthoringSource());
+
+        private DeformationSourceBinding ReadSourceBinding()
         {
-#if UNITY_EDITOR
-            if (_editorReadableSourceMeshOverride != null)
+            // Single-settings releases did not carry the current source metadata.
+            // Keep their frozen classification contract; current/group payloads with
+            // a lost source reference must still retain and validate count/hash.
+            bool legacyUnbound = _serializedSourceMesh == null &&
+                                 _deformationDataVersion != DeformationDataVersion.CurrentDevelopment &&
+                                 ((_layerModelVersion < 3 && (_groups == null || _groups.Count == 0) &&
+                                   _deformationDataVersion <= DeformationDataVersion.V1_2_0) ||
+                                  (_deformationDataSourceVersion >= DeformationDataVersion.V0_0_1 &&
+                                   _deformationDataSourceVersion <= DeformationDataVersion.V1_2_0));
+            return new DeformationSourceBinding(_serializedSourceMesh,
+                legacyUnbound ? 0 : _serializedSourceVertexCount,
+                legacyUnbound ? 0 : _serializedSourceTopologyHash);
+        }
+
+        private Mesh GetCurrentAuthoringSource()
+        {
+            var displayed = GetSharedSourceMesh();
+            return _runtimeMesh != null && ReferenceEquals(displayed, _runtimeMesh)
+                ? (_serializedSourceMesh != null ? _serializedSourceMesh : _sourceMesh)
+                : displayed;
+        }
+
+        private void CacheSourceMesh() => TryCacheSourceMesh(allowSourceRebind: false);
+
+        private bool TryCacheSourceMesh(bool allowSourceRebind)
+        {
+            if (_readableSourceMeshOverride != null)
             {
-                _sourceMesh = _editorReadableSourceMeshOverride;
-                return;
+                _sourceMesh = _readableSourceMeshOverride;
+                return true;
             }
-#endif
             Mesh nextSource = GetSharedSourceMesh();
 
             if (_runtimeMesh != null && ReferenceEquals(_runtimeMesh, nextSource))
             {
-                return;
+                return true;
             }
+
+            if (!allowSourceRebind && !ReadSourceBinding().CanUse(nextSource)) return false;
 
             bool meshChanged = !ReferenceEquals(_sourceMesh, nextSource);
 
             _sourceMesh = nextSource;
 
-            if (!ReferenceEquals(_serializedSourceMesh, nextSource))
+            // Reimport can replace a managed Mesh wrapper without changing the
+            // Unity asset identity. Refresh caches without reinitializing authoring.
+            if (allowSourceRebind || _serializedSourceMesh != nextSource)
             {
                 _serializedSourceMesh = nextSource;
                 _serializedSourceVertexCount = nextSource != null ? nextSource.vertexCount : 0;
@@ -5048,64 +2476,16 @@ namespace Net._32Ba.LatticeDeformationTool
 
             if (!meshChanged)
             {
-                return;
+                return true;
             }
 
             InvalidateCache();
             ReleaseRuntimeMesh();
             EnsureAllBrushLayerDisplacementCapacity(_sourceMesh != null ? _sourceMesh.vertexCount : 0);
+            return true;
         }
 
-        private static int CalculateSourceTopologyHash(Mesh mesh)
-        {
-            if (mesh == null) return 0;
-            try
-            {
-                unchecked
-                {
-                    int hash = 17;
-                    hash = hash * 31 + mesh.vertexCount;
-                    hash = hash * 31 + mesh.subMeshCount;
-#if UNITY_EDITOR
-                    // Mesh.AcquireReadOnlyMeshData and the managed index getters still
-                    // enforce the importer Read/Write flag. MeshUtility is the Editor
-                    // path which can inspect imported mesh data without changing that
-                    // flag, and also works for meshes produced by earlier NDMF passes.
-                    using Mesh.MeshDataArray meshDataArray = UnityEditor.MeshUtility.AcquireReadOnlyMeshData(mesh);
-#else
-                    if (!mesh.isReadable) return 0;
-                    using Mesh.MeshDataArray meshDataArray = Mesh.AcquireReadOnlyMeshData(mesh);
-#endif
-                    Mesh.MeshData data = meshDataArray[0];
-                    bool use16Bit = mesh.indexFormat == UnityEngine.Rendering.IndexFormat.UInt16;
-                    NativeArray<ushort> indices16 = use16Bit
-                        ? data.GetIndexData<ushort>()
-                        : default;
-                    NativeArray<uint> indices32 = !use16Bit
-                        ? data.GetIndexData<uint>()
-                        : default;
-                    for (int subMesh = 0; subMesh < mesh.subMeshCount; subMesh++)
-                    {
-                        UnityEngine.Rendering.SubMeshDescriptor descriptor = data.GetSubMesh(subMesh);
-                        hash = hash * 31 + (int)descriptor.topology;
-                        hash = hash * 31 + descriptor.indexCount;
-                        int end = descriptor.indexStart + descriptor.indexCount;
-                        for (int index = descriptor.indexStart; index < end; index++)
-                        {
-                            int value = use16Bit
-                                ? indices16[index] + descriptor.baseVertex
-                                : unchecked((int)indices32[index]) + descriptor.baseVertex;
-                            hash = hash * 31 + value;
-                        }
-                    }
-                    return hash;
-                }
-            }
-            catch
-            {
-                return 0;
-            }
-        }
+        private static int CalculateSourceTopologyHash(Mesh mesh) => SourceMeshTopology.Calculate(mesh);
 
         private Mesh GetSharedSourceMesh()
         {
@@ -5159,105 +2539,12 @@ namespace Net._32Ba.LatticeDeformationTool
             InitializeFromSource(true);
         }
 
-        private bool TryMigrateLegacyBaseToLayerStructure()
-        {
-            EnsureSettings();
-            // This handles v0→v2 (flat _settings → _layers). Skip if already at v2+.
-            if (_layerModelVersion >= 2)
-            {
-                return false;
-            }
-
-            var existingLayers = _layers ?? new List<LatticeLayer>();
-            var migratedLayers = new List<LatticeLayer>();
-            LatticeLayer selectedLayer = _activeLayerIndex >= 0 && _activeLayerIndex < existingLayers.Count
-                ? existingLayers[_activeLayerIndex]
-                : null;
-
-            bool includeLegacyBase = _settings != null &&
-                                     (_settings.HasCustomizedControlPoints() ||
-                                      !HasNonNullLayers(existingLayers) ||
-                                      _activeLayerIndex < 0);
-            int migratedActive = 0;
-            if (includeLegacyBase)
-            {
-                migratedLayers.Add(new LatticeLayer
-                {
-                    Name = k_PrimaryLayerName,
-                    Enabled = true,
-                    Weight = 1f,
-                    Settings = CloneSettings(_settings)
-                });
-
-                if (_activeLayerIndex < 0)
-                {
-                    migratedActive = 0;
-                }
-            }
-
-            for (int i = 0; i < existingLayers.Count; i++)
-            {
-                var existing = existingLayers[i];
-                if (existing == null)
-                {
-                    continue;
-                }
-
-                if (ReferenceEquals(existing, selectedLayer))
-                {
-                    migratedActive = migratedLayers.Count;
-                }
-                migratedLayers.Add(existing);
-            }
-
-            if (selectedLayer == null && _activeLayerIndex >= 0 && migratedLayers.Count > 0)
-            {
-                int nonNullBeforeOrAt = 0;
-                int limit = Mathf.Clamp(_activeLayerIndex, 0, Math.Max(0, existingLayers.Count - 1));
-                for (int i = 0; i <= limit && i < existingLayers.Count; i++)
-                {
-                    if (existingLayers[i] != null) nonNullBeforeOrAt++;
-                }
-
-                migratedActive = (includeLegacyBase ? 1 : 0) + nonNullBeforeOrAt - 1;
-            }
-
-            _layers = migratedLayers;
-            _activeLayerIndex = _layers.Count == 0
-                ? 0
-                : Mathf.Clamp(migratedActive, 0, _layers.Count - 1);
-            _layerModelVersion = 2; // v0→v2 done; TryMigrateLayersToGroupStructure handles v2→v3
-
-            InvalidateCache();
-
-#if UNITY_EDITOR
-            if (!Application.isPlaying)
-            {
-                MarkDirtyInEditor(this);
-            }
-#endif
-            return true;
-        }
+        private bool TryMigrateLegacyBaseToLayerStructure() => RunLegacyMigration(runner => runner.TryMigrateLegacyBaseToLayerStructure());
 
 #if UNITY_EDITOR
         [ExcludeFromCodeCoverage]
-        private static void MarkDirtyInEditor(UnityEngine.Object target)
-        {
-            UnityEditor.EditorUtility.SetDirty(target);
-            if (UnityEditor.PrefabUtility.IsPartOfPrefabInstance(target))
-            {
-                UnityEditor.PrefabUtility.RecordPrefabInstancePropertyModifications(target);
-            }
-
-            if (target is Component component)
-            {
-                var scene = component.gameObject.scene;
-                if (scene.IsValid() && scene.isLoaded)
-                {
-                    UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
-                }
-            }
-        }
+        private static void MarkDirtyInEditor(UnityEngine.Object target) =>
+            DeformerPlatformServices.RecordLegacyMigration?.Invoke(target);
 #endif
 
         private LatticeAsset GetPrimaryLayerSettings()
@@ -5356,45 +2643,9 @@ namespace Net._32Ba.LatticeDeformationTool
             return cloned;
         }
 
-        private static LatticeAsset CloneSettings(LatticeAsset source)
-        {
-            var cloned = new LatticeAsset();
-            if (source == null)
-            {
-                cloned.EnsureInitialized();
-                return cloned;
-            }
+        private static LatticeAsset CloneSettings(LatticeAsset source) => DeformationModelCopy.CloneSettings(source);
 
-            cloned.GridSize = source.GridSize;
-            cloned.LocalBounds = source.LocalBounds;
-            cloned.Interpolation = source.Interpolation;
-            cloned.EnsureInitialized();
-
-            int count = Mathf.Min(cloned.ControlPointCount, source.ControlPointCount);
-            for (int i = 0; i < count; i++)
-            {
-                cloned.SetControlPointLocal(i, source.GetControlPointLocal(i));
-            }
-
-            cloned.CopyLegacySerializationStateFrom(source);
-
-            return cloned;
-        }
-
-        private static AnimationCurve CloneCurve(AnimationCurve source)
-        {
-            if (source == null)
-            {
-                return AnimationCurve.Linear(0f, 0f, 1f, 1f);
-            }
-
-            var clone = new AnimationCurve(source.keys)
-            {
-                preWrapMode = source.preWrapMode,
-                postWrapMode = source.postWrapMode
-            };
-            return clone;
-        }
+        private static AnimationCurve CloneCurve(AnimationCurve source) => DeformationModelCopy.CloneCurve(source);
 
         private static int HashAssetState(LatticeAsset settings)
         {
@@ -5465,31 +2716,8 @@ namespace Net._32Ba.LatticeDeformationTool
             return hash;
         }
 
-        private static int HashCurveState(AnimationCurve curve)
-        {
-            if (curve == null)
-            {
-                return 0;
-            }
-
-            int hash = HashCode.Combine(curve.preWrapMode, curve.postWrapMode, curve.length);
-            var keys = curve.keys;
-            for (int i = 0; i < keys.Length; i++)
-            {
-                var key = keys[i];
-                hash = HashCode.Combine(
-                    hash,
-                    key.time,
-                    key.value,
-                    key.inTangent,
-                    key.outTangent,
-                    key.inWeight,
-                    key.outWeight,
-                    key.weightedMode);
-            }
-
-            return hash;
-        }
+        private static int HashCurveState(AnimationCurve curve) =>
+            DeformationEvaluationMath.HashCurveState(curve);
 
         private bool EnsureAllBrushLayerDisplacementCapacity(int vertexCount)
         {
@@ -5548,20 +2776,20 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private void AssignRuntimeMesh(Mesh mesh)
         {
-            if (_skinnedMeshRenderer != null)
-            {
-                _skinnedMeshRenderer.sharedMesh = mesh;
-            }
+            _runtimeMeshAssignment ??= new RuntimeMeshAssignment();
+            _runtimeMeshAssignment.Assign(mesh, _meshFilter, _skinnedMeshRenderer);
+        }
 
-            if (_meshFilter != null)
-            {
-                _meshFilter.sharedMesh = mesh;
-            }
+        private void ReleaseRuntimeMeshWithoutRestoration()
+        {
+            _runtimeMeshAssignment?.Clear(restore: false);
+            ReleaseRuntimeMesh();
         }
 
         [ExcludeFromCodeCoverage]
         private void ReleaseRuntimeMesh()
         {
+            _runtimeMeshAssignment?.Clear(restore: true);
             if (_runtimeMesh == null)
             {
                 return;
@@ -5582,368 +2810,26 @@ namespace Net._32Ba.LatticeDeformationTool
             _blendShapeOutputDirty = true;
         }
 
-        private void EnsureControlBuffer(int controlPointCount)
+
+        internal static void CollectControlPointsLocal(LatticeAsset settings, Span<Vector3> buffer) =>
+            LatticeEvaluator.CollectControlPointsLocal(settings, buffer);
+
+        internal static void CollectControlPointOffsetsLocal(LatticeAsset settings, Span<Vector3> buffer) =>
+            LatticeEvaluator.CollectControlPointOffsetsLocal(settings, buffer);
+
+        private void ReleaseDeformationNativeBuffers() => _evaluationWorkspace?.Lattice.Dispose();
+
+        // Never-active objects and loaded Prefab assets cannot rely on OnDestroy.
+        // Their synchronous evaluations borrow native scratch only for this call.
+        private readonly struct InactiveEvaluationScope : IDisposable
         {
-            if (controlPointCount <= 0)
+            private readonly LatticeDeformer _owner;
+            internal InactiveEvaluationScope(LatticeDeformer owner) => _owner = owner;
+            public void Dispose()
             {
-                _controlBuffer = Array.Empty<Vector3>();
-                return;
+                if (_owner != null && !_owner.isActiveAndEnabled)
+                    _owner.ReleaseDeformationNativeBuffers();
             }
-
-            if (_controlBuffer == null || _controlBuffer.Length != controlPointCount)
-            {
-                _controlBuffer = new Vector3[controlPointCount];
-            }
-        }
-
-        internal static void CollectControlPointsLocal(LatticeAsset settings, Span<Vector3> buffer)
-        {
-            if (settings == null || buffer.IsEmpty)
-            {
-                return;
-            }
-
-            var source = settings.ControlPointsLocal;
-            if (source.Length != buffer.Length)
-            {
-                throw new InvalidOperationException("Control point buffer length does not match the lattice asset data.");
-            }
-
-            source.CopyTo(buffer);
-        }
-
-        internal static void CollectControlPointOffsetsLocal(LatticeAsset settings, Span<Vector3> buffer)
-        {
-            if (settings == null || buffer.IsEmpty)
-            {
-                return;
-            }
-
-            var source = settings.ControlPointsLocal;
-            if (source.Length != buffer.Length)
-            {
-                throw new InvalidOperationException("Control point buffer length does not match the lattice asset data.");
-            }
-
-            var grid = settings.GridSize;
-            var bounds = settings.LocalBounds;
-            var boundsMin = bounds.min;
-            var boundsSize = bounds.size;
-            int index = 0;
-            for (int z = 0; z < grid.z; z++)
-            {
-                float wz = grid.z > 1 ? (float)z / (grid.z - 1) : 0f;
-                for (int y = 0; y < grid.y; y++)
-                {
-                    float wy = grid.y > 1 ? (float)y / (grid.y - 1) : 0f;
-                    for (int x = 0; x < grid.x; x++, index++)
-                    {
-                        float wx = grid.x > 1 ? (float)x / (grid.x - 1) : 0f;
-                        var neutral = boundsMin + Vector3.Scale(boundsSize, new Vector3(wx, wy, wz));
-                        buffer[index] = source[index] - neutral;
-                    }
-                }
-            }
-        }
-
-        // Compatibility/testing entry point. Production hot paths pass a reusable result
-        // buffer to the overload below and therefore avoid this allocation.
-        private Vector3[] DeformWithJobs(
-            LatticeCacheEntry[] entries,
-            Vector3[] controlPoints)
-        {
-            if (entries == null || entries.Length == 0)
-            {
-                throw new ArgumentException("Cache entries are required for deformation.", nameof(entries));
-            }
-            if (controlPoints == null || controlPoints.Length == 0)
-            {
-                throw new ArgumentException("Control points are required for deformation.", nameof(controlPoints));
-            }
-            return DeformWithJobs(entries, controlPoints, new Vector3[entries.Length]);
-        }
-
-        private Vector3[] DeformWithJobs(
-            LatticeCacheEntry[] entries,
-            Vector3[] controlPoints,
-            Vector3[] result)
-        {
-            if (entries == null || entries.Length == 0)
-            {
-                throw new ArgumentException("Cache entries are required for deformation.", nameof(entries));
-            }
-
-            if (controlPoints == null || controlPoints.Length == 0)
-            {
-                throw new ArgumentException("Control points are required for deformation.", nameof(controlPoints));
-            }
-
-            if (result == null || result.Length != entries.Length)
-            {
-                throw new ArgumentException(
-                    "The caller-owned result buffer must match the cache entry count.",
-                    nameof(result));
-            }
-
-            bool useBernstein = _cache != null &&
-                                _cache.Interpolation == LatticeInterpolationMode.CubicBernstein &&
-                                _cache.HasValidBernsteinWeights(entries.Length);
-            EnsureDeformationNativeBuffers(entries, controlPoints.Length, useBernstein);
-            _deformControlNative.CopyFromManaged(controlPoints);
-            if (useBernstein)
-            {
-                var bernsteinJob = new DeformBernsteinVerticesJob
-                {
-                    ControlPoints = _deformControlNative,
-                    Weights = _deformBernsteinWeightsNative,
-                    Grid = new int3(_cache.GridSize.x, _cache.GridSize.y, _cache.GridSize.z),
-                    Result = _deformOutputNative
-                };
-
-                bernsteinJob.Schedule(entries.Length, 64).Complete();
-            }
-            else
-            {
-                var job = new DeformVerticesJob
-                {
-                    ControlPoints = _deformControlNative,
-                    Entries = _deformEntriesNative,
-                    Result = _deformOutputNative
-                };
-
-                job.Schedule(entries.Length, 64).Complete();
-            }
-
-            _deformOutputNative.CopyToManaged(result);
-            return result;
-        }
-
-        private void EnsureDeformationNativeBuffers(
-            LatticeCacheEntry[] entries,
-            int controlPointCount,
-            bool useBernstein)
-        {
-            if (!_deformControlNative.IsCreated || _deformControlNative.Length != controlPointCount)
-            {
-                if (_deformControlNative.IsCreated) _deformControlNative.Dispose();
-                _deformControlNative = LatticeNativeArrayUtility.CreateFloat3Array(
-                    controlPointCount,
-                    Allocator.Persistent);
-            }
-
-            if (!_deformOutputNative.IsCreated || _deformOutputNative.Length != entries.Length)
-            {
-                if (_deformOutputNative.IsCreated) _deformOutputNative.Dispose();
-                _deformOutputNative = LatticeNativeArrayUtility.CreateFloat3Array(
-                    entries.Length,
-                    Allocator.Persistent);
-            }
-
-            if (!_deformEntriesNative.IsCreated ||
-                _deformEntriesNative.Length != entries.Length ||
-                !ReferenceEquals(_deformEntriesSource, entries))
-            {
-                if (_deformEntriesNative.IsCreated) _deformEntriesNative.Dispose();
-                _deformEntriesNative = LatticeNativeArrayUtility.CreateCopy(entries, Allocator.Persistent);
-                _deformEntriesSource = entries;
-            }
-
-            if (!useBernstein) return;
-
-            float[] weights = _cache.BernsteinWeights;
-            if (!_deformBernsteinWeightsNative.IsCreated ||
-                _deformBernsteinWeightsNative.Length != weights.Length ||
-                !ReferenceEquals(_deformBernsteinWeightsSource, weights))
-            {
-                if (_deformBernsteinWeightsNative.IsCreated) _deformBernsteinWeightsNative.Dispose();
-                _deformBernsteinWeightsNative = LatticeNativeArrayUtility.CreateCopy(
-                    weights,
-                    Allocator.Persistent);
-                _deformBernsteinWeightsSource = weights;
-            }
-        }
-
-        private void ReleaseDeformationNativeBuffers()
-        {
-            if (_deformControlNative.IsCreated) _deformControlNative.Dispose();
-            if (_deformEntriesNative.IsCreated) _deformEntriesNative.Dispose();
-            if (_deformOutputNative.IsCreated) _deformOutputNative.Dispose();
-            if (_deformBernsteinWeightsNative.IsCreated) _deformBernsteinWeightsNative.Dispose();
-            _deformEntriesSource = null;
-            _deformBernsteinWeightsSource = null;
-        }
-
-
-        private LatticeCacheEntry[] BuildCacheWithJobs(Vector3Int gridSize, Bounds bounds, Vector3[] restVertices)
-        {
-            if (restVertices == null || restVertices.Length == 0)
-            {
-                throw new ArgumentException("Rest vertices are required to build the cache.", nameof(restVertices));
-            }
-
-            using var restNative = LatticeNativeArrayUtility.CreateCopy(restVertices, Allocator.TempJob);
-            using var entriesNative = new NativeArray<LatticeCacheEntry>(restVertices.Length, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
-
-            var job = new BuildCacheEntriesJob
-            {
-                Grid = new int3(gridSize.x, gridSize.y, gridSize.z),
-                BoundsMin = new float3(bounds.min.x, bounds.min.y, bounds.min.z),
-                BoundsSize = new float3(bounds.size.x, bounds.size.y, bounds.size.z),
-                RestVertices = restNative,
-                Entries = entriesNative
-            };
-
-            job.Schedule(restVertices.Length, 64).Complete();
-
-            var entries = new LatticeCacheEntry[entriesNative.Length];
-            entriesNative.CopyToManaged(entries);
-            return entries;
-        }
-
-        private static float[] BuildBernsteinWeightsWithJobs(
-            Vector3Int gridSize,
-            LatticeCacheEntry[] entries)
-        {
-            if (entries == null || entries.Length == 0)
-            {
-                return Array.Empty<float>();
-            }
-
-            int stride = checked(gridSize.x + gridSize.y + gridSize.z);
-            int weightCount = checked(entries.Length * stride);
-
-            using var entriesNative = LatticeNativeArrayUtility.CreateCopy(entries, Allocator.TempJob);
-            using var weightsNative = new NativeArray<float>(
-                weightCount,
-                Allocator.TempJob,
-                NativeArrayOptions.UninitializedMemory);
-
-            var job = new BuildBernsteinWeightsJob
-            {
-                Entries = entriesNative,
-                Grid = new int3(gridSize.x, gridSize.y, gridSize.z),
-                Weights = weightsNative
-            };
-
-            job.Schedule(entries.Length, 64).Complete();
-
-            var weights = new float[weightCount];
-            weightsNative.CopyToManaged(weights);
-            return weights;
-        }
-
-
-        private bool EnsureCache(LatticeAsset settings, Vector3[] restVertices)
-        {
-            if (settings == null)
-            {
-                return false;
-            }
-
-            if (_cache == null)
-            {
-                _cache = new LatticeDeformerCache();
-            }
-
-            var mesh = _sourceMesh;
-            if (mesh == null)
-            {
-                return false;
-            }
-
-            int restVerticesHash = HashVertices(restVertices);
-            LatticeInterpolationMode effectiveInterpolation = GetEffectiveInterpolation(settings);
-            if (_cache.IsCompatibleWith(settings, mesh, restVerticesHash, effectiveInterpolation))
-            {
-                return true;
-            }
-
-            return RebuildCache(
-                settings,
-                mesh,
-                restVertices,
-                restVerticesHash,
-                effectiveInterpolation);
-        }
-
-        private bool RebuildCache(
-            LatticeAsset settings,
-            Mesh mesh,
-            Vector3[] restVertices,
-            int restVerticesHash)
-        {
-            return RebuildCache(
-                settings,
-                mesh,
-                restVertices,
-                restVerticesHash,
-                GetEffectiveInterpolation(settings));
-        }
-
-        private bool RebuildCache(
-            LatticeAsset settings,
-            Mesh mesh,
-            Vector3[] restVertices,
-            int restVerticesHash,
-            LatticeInterpolationMode effectiveInterpolation)
-        {
-            UnityEngine.Profiling.Profiler.BeginSample(
-                "LatticeDeformer.RebuildInterpolationCache");
-            try
-            {
-                if (settings == null || mesh == null || restVertices == null)
-                {
-                    return false;
-                }
-
-                var gridSize = settings.GridSize;
-                if (gridSize.x < 2 || gridSize.y < 2 || gridSize.z < 2)
-                {
-                    return false;
-                }
-
-                int vertexCount = mesh.vertexCount;
-                if (vertexCount <= 0)
-                {
-                    _cache.Clear();
-                    return false;
-                }
-
-                var bounds = settings.LocalBounds;
-                LatticeCacheEntry[] entries;
-
-                entries = BuildCacheWithJobs(gridSize, bounds, restVertices);
-                float[] bernsteinWeights = effectiveInterpolation == LatticeInterpolationMode.CubicBernstein
-                    ? BuildBernsteinWeightsWithJobs(gridSize, entries)
-                    : Array.Empty<float>();
-
-                _cache.Populate(
-                    gridSize,
-                    bounds,
-                    effectiveInterpolation,
-                    vertexCount,
-                    restVerticesHash,
-                    entries,
-                    restVertices,
-                    bernsteinWeights);
-                return true;
-            }
-            finally
-            {
-                UnityEngine.Profiling.Profiler.EndSample();
-            }
-        }
-
-        private static LatticeInterpolationMode GetEffectiveInterpolation(LatticeAsset settings)
-        {
-            if (settings != null &&
-                settings.Interpolation == LatticeInterpolationMode.CubicBernstein &&
-                settings.UsesLegacyTrilinearInterpolation)
-            {
-                return LatticeInterpolationMode.Trilinear;
-            }
-
-            return settings?.Interpolation ?? LatticeInterpolationMode.Trilinear;
         }
 
         private static Bounds CalculateReferencedBounds(Mesh mesh, Vector3[] vertices, Bounds fallback)
@@ -5994,461 +2880,9 @@ namespace Net._32Ba.LatticeDeformationTool
             return bounds;
         }
 
-        private static int HashVertices(Vector3[] vertices)
-        {
-            if (vertices == null || vertices.Length == 0)
-            {
-                return 0;
-            }
 
-            int hash = vertices.Length;
-            for (int i = 0; i < vertices.Length; i++)
-            {
-                var v = vertices[i];
-                hash = HashCode.Combine(hash, v.x, v.y, v.z);
-            }
 
-            return hash;
-        }
 
-        private static Vector3 CalculateNormalizedCoordinate(Bounds bounds, Vector3 point)
-        {
-            var size = bounds.size;
-            var min = bounds.min;
-
-            float nx = size.x > Mathf.Epsilon ? (point.x - min.x) / size.x : 0f;
-            float ny = size.y > Mathf.Epsilon ? (point.y - min.y) / size.y : 0f;
-            float nz = size.z > Mathf.Epsilon ? (point.z - min.z) / size.z : 0f;
-
-            return new Vector3(Mathf.Clamp01(nx), Mathf.Clamp01(ny), Mathf.Clamp01(nz));
-        }
-
-        private static LatticeCacheEntry BuildTrilinearEntry(Vector3Int gridSize, Vector3 barycentric)
-        {
-            var grid = new int3(gridSize.x, gridSize.y, gridSize.z);
-
-            float3 scaled = new float3(
-                math.clamp(barycentric.x * (grid.x - 1), 0f, grid.x - 1),
-                math.clamp(barycentric.y * (grid.y - 1), 0f, grid.y - 1),
-                math.clamp(barycentric.z * (grid.z - 1), 0f, grid.z - 1));
-
-            int ix = math.min((int)math.floor(scaled.x), grid.x - 2);
-            int iy = math.min((int)math.floor(scaled.y), grid.y - 2);
-            int iz = math.min((int)math.floor(scaled.z), grid.z - 2);
-
-            float tx = math.saturate(scaled.x - ix);
-            float ty = math.saturate(scaled.y - iy);
-            float tz = math.saturate(scaled.z - iz);
-
-            int nx = grid.x;
-            int ny = grid.y;
-
-            int Index(int x, int y, int z) => x + y * nx + z * nx * ny;
-
-            int c000 = Index(ix, iy, iz);
-            int c100 = Index(ix + 1, iy, iz);
-            int c010 = Index(ix, iy + 1, iz);
-            int c110 = Index(ix + 1, iy + 1, iz);
-            int c001 = Index(ix, iy, iz + 1);
-            int c101 = Index(ix + 1, iy, iz + 1);
-            int c011 = Index(ix, iy + 1, iz + 1);
-            int c111 = Index(ix + 1, iy + 1, iz + 1);
-
-            float tx1 = 1f - tx;
-            float ty1 = 1f - ty;
-            float tz1 = 1f - tz;
-
-            float w000 = tx1 * ty1 * tz1;
-            float w100 = tx * ty1 * tz1;
-            float w010 = tx1 * ty * tz1;
-            float w110 = tx * ty * tz1;
-            float w001 = tx1 * ty1 * tz;
-            float w101 = tx * ty1 * tz;
-            float w011 = tx1 * ty * tz;
-            float w111 = tx * ty * tz;
-
-            return new LatticeCacheEntry
-            {
-                Corner0 = c000,
-                Corner1 = c100,
-                Corner2 = c010,
-                Corner3 = c110,
-                Corner4 = c001,
-                Corner5 = c101,
-                Corner6 = c011,
-                Corner7 = c111,
-                Weights0 = new float4(w000, w100, w010, w110),
-                Weights1 = new float4(w001, w101, w011, w111),
-                Barycentric = new float3(tx, ty, tz),
-                NormalizedCoordinate = new float3(barycentric.x, barycentric.y, barycentric.z)
-            };
-        }
-
-        private static Bounds TransformBounds(Matrix4x4 matrix, Bounds bounds)
-        {
-            var center = matrix.MultiplyPoint3x4(bounds.center);
-            var extents = bounds.extents;
-
-            var axisX = matrix.MultiplyVector(new Vector3(extents.x, 0f, 0f));
-            var axisY = matrix.MultiplyVector(new Vector3(0f, extents.y, 0f));
-            var axisZ = matrix.MultiplyVector(new Vector3(0f, 0f, extents.z));
-
-            var halfSize = new Vector3(
-                Mathf.Abs(axisX.x) + Mathf.Abs(axisY.x) + Mathf.Abs(axisZ.x),
-                Mathf.Abs(axisX.y) + Mathf.Abs(axisY.y) + Mathf.Abs(axisZ.y),
-                Mathf.Abs(axisX.z) + Mathf.Abs(axisY.z) + Mathf.Abs(axisZ.z));
-
-            return new Bounds(center, halfSize * 2f);
-        }
-
-        [BurstCompile]
-        [ExcludeFromCodeCoverage]
-        private struct DeformVerticesJob : IJobParallelFor
-        {
-            [ReadOnly]
-            public NativeArray<LatticeCacheEntry> Entries;
-
-            [ReadOnly]
-            public NativeArray<float3> ControlPoints;
-
-            [WriteOnly]
-            public NativeArray<float3> Result;
-
-            public void Execute(int index)
-            {
-                var entry = Entries[index];
-                float4 w0 = entry.Weights0;
-                float4 w1 = entry.Weights1;
-
-                float3 value =
-                    w0.x * ControlPoints[entry.Corner0] +
-                    w0.y * ControlPoints[entry.Corner1] +
-                    w0.z * ControlPoints[entry.Corner2] +
-                    w0.w * ControlPoints[entry.Corner3] +
-                    w1.x * ControlPoints[entry.Corner4] +
-                    w1.y * ControlPoints[entry.Corner5] +
-                    w1.z * ControlPoints[entry.Corner6] +
-                    w1.w * ControlPoints[entry.Corner7];
-
-                Result[index] = value;
-            }
-        }
-
-        [BurstCompile]
-        [ExcludeFromCodeCoverage]
-        private struct DeformBernsteinVerticesJob : IJobParallelFor
-        {
-            [ReadOnly]
-            public NativeArray<float3> ControlPoints;
-
-            [ReadOnly]
-            public NativeArray<float> Weights;
-
-            public int3 Grid;
-
-            [WriteOnly]
-            public NativeArray<float3> Result;
-
-            public void Execute(int index)
-            {
-                int stride = Grid.x + Grid.y + Grid.z;
-                int weightBase = index * stride;
-                int yWeightBase = weightBase + Grid.x;
-                int zWeightBase = yWeightBase + Grid.y;
-                int xyStride = Grid.x * Grid.y;
-                float3 value = float3.zero;
-
-                for (int z = 0; z < Grid.z; z++)
-                {
-                    float wz = Weights[zWeightBase + z];
-                    int zOffset = z * xyStride;
-                    for (int y = 0; y < Grid.y; y++)
-                    {
-                        float wyz = Weights[yWeightBase + y] * wz;
-                        int rowOffset = zOffset + y * Grid.x;
-                        for (int x = 0; x < Grid.x; x++)
-                        {
-                            float weight = Weights[weightBase + x] * wyz;
-                            value += ControlPoints[rowOffset + x] * weight;
-                        }
-                    }
-                }
-
-                Result[index] = value;
-            }
-        }
-
-        [BurstCompile]
-        [ExcludeFromCodeCoverage]
-        private struct BuildBernsteinWeightsJob : IJobParallelFor
-        {
-            [ReadOnly]
-            public NativeArray<LatticeCacheEntry> Entries;
-
-            public int3 Grid;
-
-            // Each job index owns one disjoint, fixed-stride segment containing
-            // that vertex's X/Y/Z basis weights.
-            [NativeDisableParallelForRestriction]
-            public NativeArray<float> Weights;
-
-            public void Execute(int index)
-            {
-                int stride = Grid.x + Grid.y + Grid.z;
-                int weightBase = index * stride;
-                float3 coordinate = math.saturate(Entries[index].NormalizedCoordinate);
-
-                BuildAxisWeights(weightBase, Grid.x, coordinate.x);
-                BuildAxisWeights(weightBase + Grid.x, Grid.y, coordinate.y);
-                BuildAxisWeights(weightBase + Grid.x + Grid.y, Grid.z, coordinate.z);
-            }
-
-            private void BuildAxisWeights(int offset, int count, float coordinate)
-            {
-                Weights[offset] = 1f;
-                for (int degree = 1; degree < count; degree++)
-                {
-                    Weights[offset + degree] = 0f;
-                    for (int basis = degree; basis > 0; basis--)
-                    {
-                        Weights[offset + basis] =
-                            Weights[offset + basis - 1] * coordinate +
-                            Weights[offset + basis] * (1f - coordinate);
-                    }
-
-                    Weights[offset] *= 1f - coordinate;
-                }
-            }
-        }
-
-        [BurstCompile]
-        [ExcludeFromCodeCoverage]
-        private struct BuildCacheEntriesJob : IJobParallelFor
-        {
-            [ReadOnly]
-            public NativeArray<float3> RestVertices;
-
-            public int3 Grid;
-            public float3 BoundsMin;
-            public float3 BoundsSize;
-
-            [WriteOnly]
-            public NativeArray<LatticeCacheEntry> Entries;
-
-            public void Execute(int index)
-            {
-                float3 local = RestVertices[index];
-
-                const float epsilon = 1e-6f;
-                float3 invSize = new float3(
-                    math.abs(BoundsSize.x) > epsilon ? 1f / BoundsSize.x : 0f,
-                    math.abs(BoundsSize.y) > epsilon ? 1f / BoundsSize.y : 0f,
-                    math.abs(BoundsSize.z) > epsilon ? 1f / BoundsSize.z : 0f);
-
-                float3 barycentric = math.saturate((local - BoundsMin) * invSize);
-
-                Entries[index] = BuildEntry(Grid, barycentric);
-            }
-
-            private static LatticeCacheEntry BuildEntry(int3 grid, float3 barycentric)
-            {
-                int3 clampedGrid = new int3(math.max(2, grid.x), math.max(2, grid.y), math.max(2, grid.z));
-
-                float3 maxIndex = new float3(clampedGrid.x - 1, clampedGrid.y - 1, clampedGrid.z - 1);
-                float3 scaled = math.clamp(barycentric * maxIndex, 0f, maxIndex);
-
-                int ix = math.min((int)math.floor(scaled.x), clampedGrid.x - 2);
-                int iy = math.min((int)math.floor(scaled.y), clampedGrid.y - 2);
-                int iz = math.min((int)math.floor(scaled.z), clampedGrid.z - 2);
-
-                float tx = math.saturate(scaled.x - ix);
-                float ty = math.saturate(scaled.y - iy);
-                float tz = math.saturate(scaled.z - iz);
-
-                int nx = clampedGrid.x;
-                int ny = clampedGrid.y;
-
-                int Index(int x, int y, int z) => x + y * nx + z * nx * ny;
-
-                int c000 = Index(ix, iy, iz);
-                int c100 = Index(ix + 1, iy, iz);
-                int c010 = Index(ix, iy + 1, iz);
-                int c110 = Index(ix + 1, iy + 1, iz);
-                int c001 = Index(ix, iy, iz + 1);
-                int c101 = Index(ix + 1, iy, iz + 1);
-                int c011 = Index(ix, iy + 1, iz + 1);
-                int c111 = Index(ix + 1, iy + 1, iz + 1);
-
-                float tx1 = 1f - tx;
-                float ty1 = 1f - ty;
-                float tz1 = 1f - tz;
-
-                float w000 = tx1 * ty1 * tz1;
-                float w100 = tx * ty1 * tz1;
-                float w010 = tx1 * ty * tz1;
-                float w110 = tx * ty * tz1;
-                float w001 = tx1 * ty1 * tz;
-                float w101 = tx * ty1 * tz;
-                float w011 = tx1 * ty * tz;
-                float w111 = tx * ty * tz;
-
-                return new LatticeCacheEntry
-                {
-                    Corner0 = c000,
-                    Corner1 = c100,
-                    Corner2 = c010,
-                    Corner3 = c110,
-                    Corner4 = c001,
-                    Corner5 = c101,
-                    Corner6 = c011,
-                    Corner7 = c111,
-                    Weights0 = new float4(w000, w100, w010, w110),
-                    Weights1 = new float4(w001, w101, w011, w111),
-                    Barycentric = new float3(tx, ty, tz),
-                    NormalizedCoordinate = barycentric
-                };
-            }
-        }
     }
 
-    [Serializable]
-    internal sealed class LatticeDeformerCache
-    {
-        [SerializeField] private Vector3Int _gridSize;
-        [SerializeField] private Bounds _localBounds;
-        [SerializeField] private LatticeInterpolationMode _interpolation;
-        [SerializeField] private int _vertexCount;
-        [SerializeField] private int _restVerticesHash;
-        [SerializeField] private LatticeCacheEntry[] _entries = Array.Empty<LatticeCacheEntry>();
-        [SerializeField] private Vector3[] _restVertices = Array.Empty<Vector3>();
-        [SerializeField] private float[] _bernsteinWeights = Array.Empty<float>();
-
-        public LatticeCacheEntry[] Entries => _entries;
-        public Vector3Int GridSize => _gridSize;
-        public LatticeInterpolationMode Interpolation => _interpolation;
-        public float[] BernsteinWeights => _bernsteinWeights;
-
-        public bool IsCompatibleWith(LatticeAsset asset, Mesh mesh, int restVerticesHash)
-        {
-            return IsCompatibleWith(
-                asset,
-                mesh,
-                restVerticesHash,
-                asset?.Interpolation ?? LatticeInterpolationMode.Trilinear);
-        }
-
-        public bool IsCompatibleWith(
-            LatticeAsset asset,
-            Mesh mesh,
-            int restVerticesHash,
-            LatticeInterpolationMode effectiveInterpolation)
-        {
-            if (asset == null || mesh == null)
-            {
-                return false;
-            }
-
-            if (_entries == null || _entries.Length == 0)
-            {
-                return false;
-            }
-
-            if (_vertexCount != mesh.vertexCount)
-            {
-                return false;
-            }
-
-            if (_restVerticesHash != restVerticesHash)
-            {
-                return false;
-            }
-
-            if (_gridSize != asset.GridSize)
-            {
-                return false;
-            }
-
-            if (_interpolation != effectiveInterpolation)
-            {
-                return false;
-            }
-
-            if (_interpolation == LatticeInterpolationMode.CubicBernstein &&
-                !HasValidBernsteinWeights(mesh.vertexCount))
-            {
-                return false;
-            }
-
-            if (!ApproximatelyEquals(_localBounds, asset.LocalBounds))
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        public void Populate(
-            Vector3Int gridSize,
-            Bounds bounds,
-            LatticeInterpolationMode interpolation,
-            int vertexCount,
-            int restVerticesHash,
-            LatticeCacheEntry[] entries,
-            Vector3[] restVertices,
-            float[] bernsteinWeights = null)
-        {
-            _gridSize = gridSize;
-            _localBounds = bounds;
-            _interpolation = interpolation;
-            _vertexCount = vertexCount;
-            _restVerticesHash = restVerticesHash;
-            _entries = entries ?? Array.Empty<LatticeCacheEntry>();
-            _restVertices = restVertices ?? Array.Empty<Vector3>();
-            _bernsteinWeights = bernsteinWeights ?? Array.Empty<float>();
-        }
-
-        public bool HasValidBernsteinWeights(int vertexCount)
-        {
-            if (_bernsteinWeights == null || vertexCount < 0)
-            {
-                return false;
-            }
-
-            long stride = (long)_gridSize.x + _gridSize.y + _gridSize.z;
-            return stride > 0 && _bernsteinWeights.LongLength == stride * vertexCount;
-        }
-
-        public void Clear()
-        {
-            _entries = Array.Empty<LatticeCacheEntry>();
-            _restVertices = Array.Empty<Vector3>();
-            _bernsteinWeights = Array.Empty<float>();
-            _vertexCount = 0;
-            _restVerticesHash = 0;
-        }
-
-        private static bool ApproximatelyEquals(Bounds lhs, Bounds rhs)
-        {
-            const float epsilon = 1e-5f;
-            return (lhs.center - rhs.center).sqrMagnitude <= epsilon * epsilon &&
-                   (lhs.size - rhs.size).sqrMagnitude <= epsilon * epsilon;
-        }
-    }
-
-    [Serializable]
-    internal struct LatticeCacheEntry
-    {
-        public int Corner0;
-        public int Corner1;
-        public int Corner2;
-        public int Corner3;
-        public int Corner4;
-        public int Corner5;
-        public int Corner6;
-        public int Corner7;
-        public float4 Weights0;
-        public float4 Weights1;
-        public float3 Barycentric;
-        public float3 NormalizedCoordinate;
-    }
 }

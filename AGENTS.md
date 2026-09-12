@@ -9,17 +9,44 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 ## プロジェクト構造
 
 ```
-├── Editor/              # Unity エディタ拡張コード
-│   ├── Localization/    # 多言語対応（日本語/英語/韓国語/中国語）
-│   ├── WeightTransfer/  # ボーンウェイト再計算モジュール
-│   │   └── BurstSolver/ # Burst 対応の疎行列/線形ソルバ
-│   └── VRChat/          # VRChat 固有の機能
-├── Tests/Editor/        # EditMode テスト（レイヤースタック挙動など）
-│   └── Fixtures/HistoricalReleases/ # 公開14リリースで実保存した移行fixture
-├── Runtime/             # ランタイムコンポーネント（MonoBehaviour, ScriptableObject）
-├── Tools~/HistoricalFixtures/ # 隔離Unityプロジェクトで履歴fixtureを再生成するツール
-└── package.json         # VPM パッケージ定義
+├── Editor/
+│   ├── MeshDeformer/    # Authoring / Tools / UI / Validation / Build / Preview
+│   │   └── WeightTransfer/ # ボーンウェイト転写とBurst solver
+│   ├── Preview/         # Preview sessionとMeshの所有・終了処理
+│   ├── Legacy/          # 旧Brushの検出とEditor移行
+│   ├── Localization/    # 5言語のUIテキスト
+│   ├── Support/         # 診断と更新情報
+│   ├── VRChat/          # VRChat固有の連携
+│   ├── Plugins/         # 旧folder GUID保持用（実装は移動済み）
+│   └── WeightTransfer/  # 旧folder GUID保持用（実装は移動済み）
+├── Runtime/
+│   ├── MeshDeformer/    # 公開コンポーネント、保存入口、互換API
+│   ├── Model/           # モデルの読取り・コピー・互換規則
+│   ├── Evaluation/      # 共通評価、Mesh出力、cacheとbufferの所有
+│   ├── Migration/       # 公開release順の移行と原子的commit
+│   └── Legacy/          # 旧Brush保存データの互換処理
+├── Tests/Editor/
+│   └── Fixtures/
+│       ├── ArchitectureBaseline/ # 固定基準のAPI・保存path・出力
+│       ├── HistoricalReleases/  # 公開14リリースの実保存fixture
+│       └── LaterReleases/       # 後続公開28リリースの83ケース
+├── Tools~/              # 履歴fixture、性能計測、配布・結果検証
+├── Docs~/Architecture/  # 内部構成、互換性、検証手順、公開版一覧
+└── package.json         # VPM/UPMパッケージ定義
 ```
+
+### 2.0.0ベータのリファクタリング
+
+- `2.0.0-beta.1` の内部構成と互換性契約は `Docs~/Architecture/2.0.0-beta.1-progress.md`、再検証手順は同directoryの `validation.md` を参照する。
+- `Docs~/Architecture/` には上記2文書と移行テスト入力の `2026-09-07-published-releases.json` だけを保存する。個人名、利用者のプロジェクト名、絶対パス、端末情報、画面記録、実行ログ、作業日誌をコミットしない。ローカル検証の原本はリポジトリ外へ保存する。
+- 実装基準は公開済み `1.4.6-beta.1` に作業中のGuided UI・翻訳を統合した `c7f499c38e16f386fe6734e0f7937d50c502c529`。元の `1.4.5-rc.5` 作業ツリーと起動中のPlaygroundのpackage参照は保持し、`codex/refactor-2.0.0-beta` の隔離worktreeで作業する。
+- `Runtime/MeshDeformer/SerializedDeformerReader.cs` は初期化・移行・配列補正・Profile展開を行わず、壊れた保存内容もそのまま読むinternal API。返す参照は同期処理中だけ使う借用viewであり、非同期評価用の不変snapshotではない。ValidatorとInspectorのGroup/Layerコピーが利用する。
+- `Editor/MeshDeformer/Authoring/DeformerEditService.cs` はGroup/Layer追加・削除・並べ替え・複製・貼付を、1件のUndo、失敗時rollback、cache無効化、Prefab override記録へまとめる。Profile参照中の直接編集は拒否する。再評価とUI更新は呼出し側が担当し、raw readerから実行しない。
+- public `LatticeDeformer.InsertGroup` / `MoveGroup` を追加し、Inspectorのprivate field reflectionを除去した。既存APIの互換入口、保存フィールド、schema version、既存GUID、履歴fixtureと期待値は維持する。各ツールの編集寿命は `DeformerEditSession`、数値評価は `Runtime/Evaluation`、移行は `Runtime/Migration`、Previewの所有は `Editor/Preview` へ接続済み。
+- `DeformerAuthoringBoundaryTests` はraw読取り、Profile不変、失敗時rollback、Undo/Redo、Inspector callback、Prefab Apply/save-reloadを検証する。その検証だけで描画や実マウス操作の合格を主張しない。GraphicsE2Eの実XMLと利用者のScene View確認を区別して記録する。
+- `DeformerStore` はUnityのserialized propertyを変更するadapter。Layer削除後のnumeric selectionとclampは旧Inspectorの契約を保持し、public `RemoveLayer` が持つ選択規則と混同しない。Inspectorの構造操作は `PerformEditOperation` → service → store/API →再評価と表示更新へ統一した。
+- `DeformerEditService.ExecuteBatch` は対象集合を先に固定・検証し、全対象を1つのUndoへ記録する。途中の拒否・例外は全対象をrollbackしてcacheを破棄する。Profileやfuture component/layer-model/lattice versionはUndoを作る前に拒否し、複数選択のLayer設定UIは `LayerSettingsEdit.ExecuteBatch` へ接続する。3ツールの複数frame dragは別の `DeformerEditSession` がUndo snapshotと対象identityを所有する。
+- `Tests/Editor/Fixtures/ArchitectureBaseline/` は固定基準の実行結果。`ArchitectureContractSnapshot.Export` と `LayerOperationBaselineFixture.Export` を隔離した基準版Unityで実行して生成し、新実装から期待値を上書きしない。公開API・保存field/path・enum・GUIDの維持と、6種類の旧Inspector操作を独立の互換性テストで照合する。fixtureのcommit値は生成元の由来であり、履歴整理後のcommitへ機械的に置換しない。
 
 ### 統合 EditorTool アーキテクチャ
 
@@ -73,7 +100,7 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
   - 参照メッシュ（Renderer）を ObjectField で指定。SkinnedMeshRenderer / MeshRenderer に対応
   - 貫通頂点は赤色のドットで Scene ビューにハイライト表示
   - 表示結果は変形状態・参照メッシュ・関連 Transform をキーとしてキャッシュする
-  - 初回検出は全頂点の総当たりで、参照 SkinnedMeshRenderer の現在ポーズをベイクして扱わない制約は残る
+  - 対象頂点を評価し、参照側の最近傍三角形探索は共通BVHで枝刈りする。参照 SkinnedMeshRenderer は現在ポーズをBakeして扱い、通常のBrush貫通表示はReferenceNormalの片側判定を使う。頂点サンプルに基づくため全mesh交差の網羅判定とは扱わない
 
 **クリアランスヒートマップ:**
 - `ClearanceHeatmap.cs` (`Editor/MeshDeformer/Utilities/`): `ClearanceQuery` 結果を貫通・警告・目標未満・安全へ分類し、最小clearance、最大貫通深度、違反頂点数、評価頂点数を集計する。しきい値はworld-space meterで保持し、Inspectorではmm表示する
@@ -84,6 +111,7 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
 - `ClearanceScanSet.cs` (`Runtime/MeshDeformer/`): 明示的なCondition順を保持する再利用可能asset。AnimationClip/sample time/relative animation root、対象・参照BlendShape、relative Transform pose override、Condition固有の警告/目標距離を保存する
 - `ClearanceScanRunner.cs` (`Editor/MeshDeformer/Utilities/`): 1 Editor updateにつき1 Conditionを評価し、進捗・Cancelを提供する。各Conditionの統計・頂点clearance・NDMF proxy利用有無と、頂点ごとのworst Conditionを決定的に集計する。評価meshはscan開始時のoriginal mesh identityと位置非依存のtopology hashを維持し（NDMF proxyはtopology一致を必須とする）、proxyへ対象Renderer/Bone poseとBlendShape weightを同期する
 - Scan開始時にAvatar root配下と外部Preview proxyのTransform/active state、Renderer enabled/shared mesh、SkinnedMeshRendererの全BlendShape weight、Animator設定をsnapshotし、完了・Cancel・Condition例外時に復元する。Condition間でUndoを伴う利用者編集を検出した場合はscanを中止してその編集を保持する。無効Conditionは個別errorとして記録し次へ進む。結果Conditionは明示操作でSceneへ再適用でき、Restoreでscan前状態へ戻す
+- Condition評価のためのproxy pose/BlendShape同期は評価内だけに限定し、成功・例外時とも評価終了時にproxy状態を復元する。Applyでoriginalへ適用したConditionは保持し、NDMFの次frameでShadowBoneが追従する際にproxyのlocal offsetを二重加算しない
 **Fit Correction:**
 - `FitCorrectionGenerator.cs` (`Editor/MeshDeformer/Utilities/`): クリアランス評価から不足量を参照面のworld-space法線方向へ補正し、元Meshや既存Layerを変更せず専用Brushレイヤーとして追加する
 - 対象範囲は貫通のみ・警告距離以下・目標距離未満から選択し、最大移動量もworld-spaceで制限する。生成後は改善数と未解決数を再評価して表示する
@@ -232,6 +260,8 @@ VRChat アバターの対称ワークフロー向けのレイヤー操作機能�
 - 公開YAMLにはexact release markerがないため、同形のsingle-settings schema (`0.0.1` Local〜`1.2.0`) は最古識別可能な `V0_0_1`、group schema (`1.2.1`〜`1.4.0`) は `V1_2_1` と分類し、そこから全boundaryを順に実行する。exact tag provenanceはfixture manifestだけが保持する
 - 既知制約: `0.0.1` の World-space marker (`_applySpace`) は `0.0.2` で削除された。`0.0.2` 以降で既に保存されmarkerを失ったassetはLocal/Worldを自動判別できないため、推測移行せずバックアップからの復元または明示的な手動判断を必要とする
 - `Tests/Editor/Fixtures/HistoricalReleases/` は上記14タグそれぞれのtag時点のRuntimeをUnity 2022.3.22f1で実行し、inactive/disabled Prefab、source mesh、旧 `Deform(false)` の期待snapshot、tagのpeeled SHA・package version・Unity/generator/runner hashを含むmanifestを保存する。生成物の`.meta` GUIDは`sha256-v1:tag/relative-asset-path`、Prefab local fileIDは`sha256-v1:tag/relative-prefab/class/ordinal`で決定的に正規化し、同一入力の再生成は全corpusがbyte-identicalでなければならない。このcorpusと `HistoricalReleaseFixtureTests.cs` の全検証を移行変更の必須release gateとする
+- 後続公開28件（`1.4.1`〜`1.4.6-beta.1`、公開RC/betaを含む）は `Tests/Editor/Fixtures/LaterReleases/` に独立保存する。Embeddedのchannel保持/再構築56件とProfile 27件の計83ケースについて、実tag Runtimeの保存値と全Mesh channelを `LaterReleaseFixtureTests` でdirect/stepwise/save-reload照合する。旧14件の期待値を更新して代用しない
+- 後続corpusの生成は `Tools~/HistoricalFixtures/LaterReleases/` を使用し、4helperのhash・公開tag SHA・決定的GUID/fileIDを検証する。別の隔離projectで全28件を再生成し、526fileすべてのbyte一致を要求する。helperは既存のLF規約を守り、参照propertyのlive `m_FileID` を保存せず、永続GUID/local fileIDまたは同じowner内のcomponent型で照合する。`1.4.1` はunversioned group schema、他27件は値15を共有しており、exact releaseはpayloadから推測しない
 
 ## 開発ガイドライン
 
@@ -291,7 +321,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 1. Unity 2022.3 以降で VCC プロジェクトを開く
 2. パッケージを `Packages/` フォルダに配置または VPM 経由でインストール
-3. NDMF 1.9.0 以降が必要
+3. NDMF 1.14.8 以降が必要
 
 ### CI
 
@@ -333,12 +363,97 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - generator/runnerまたはfixture schemaを変更した場合、代表tagを同じ入力で独立に2回生成して全ファイルのbyte-identicalを確認してから全14タグを正式再生成する。manifestに記録した決定的GUID/fileID schemeとgenerator/runner SHAがrepo実体に一致することも検証する
 - generatorまたは期待schemaを変更した場合は14タグすべてを再生成し、`HistoricalReleaseFixtureTests.cs` と全EditModeテストを通す。fixture、`.meta`、manifestの一部だけを手編集・再生成してはならない
 
+## 2.0評価の比較基準と境界
+
+- `Runtime/Model/` は既存の `LatticeLayer` / `DeformerGroup` とenumを同一namespace・assembly・保存fieldのまま配置する。`LatticeDeformer.cs` と既存metaはコンポーネントの互換入口として維持し、ファイル移動をschema変更として扱わない
+- `DeformationOutputBaselineFixture.cs` は固定commitの隔離Unityでのみ期待出力を生成する。候補実装でfixtureを更新して差を吸収しない
+- `DeformationOutputCompatibilityTests.cs` は13条件について全Mesh channel、BlendShape全frame、source/upstream不変を比較する。基準と検証hashは `Tests/Editor/Fixtures/ArchitectureBaseline/` のfixtureを参照する
+- 既存14タグcorpusは維持し、後続公開28件の83ケースは `Tests/Editor/Fixtures/LaterReleases/` に独立追加する。`Tools~/HistoricalFixtures/LaterReleases/` が各tagのRuntimeで生成し、manifestの4 helper hashと決定的GUID/fileIDを検証する。helperまたは期待schemaの変更時は28件すべてを独立に2回生成し、526fileのbyte-identicalと旧/新corpusの全テストを確認する。履歴fixtureを候補実装の出力で更新しない
+- `Runtime/Evaluation/` の `DeformationEvaluator` が通常Deformと上流PreviewのGroup/Layer合成を共有する。入力は検証済みの同期借用view、managed workspaceはコンポーネント所有とし、非同期処理へ渡さない
+- `GeneratedBlendShapeOutput` の候補は中間頂点bufferから独立させ、上流frameを評価しても保持済み候補を書き換えない。旧評価wrapperは削除済みで、通常処理は専用評価型へ直接接続する。履歴移行テスト用に残すprivate移行入口とは区別する
+- `LatticeEvaluator` が補間cache・managed scratch・NativeArray・Burst Jobsを所有し、`BrushEvaluator` がmaskを含むBrush加算を扱う。owner行列と旧絶対評価規則は `EvaluationSemantics` へ明示し、数値評価からコンポーネント・Renderer・Transformを参照しない。Disable/Destroy/Invalidateと確保途中の例外は同じNative解放処理を通す
+- `DeformedMeshWriter` が既存/生成BlendShapeとsurface channelを書込み、`BlendShapeComposer` は所有者の `MeshOutputWorkspace` に100フレームを順次合成する。Meshへのコピー後だけbufferを再利用し、候補配列・sourceは変更しない。`DeformationPipeline` が上流Previewの評価と出力cloneを管理し、失敗時は自身のcloneを破棄する。Preview最終法線の旧再計算規則も維持する
+- `SourceMeshAccess` はR/W無効Meshの全channelコピーをleaseとして所有し、`SourceVertexResolver` は取得済みweight値から元頂点とBlendShapeを評価する。通常評価の最終frame外挿と表示範囲計算の最終frame固定は `SourceBlendShapeExtrapolation` で区別する。`DeformerPlatformAdapter` がassembly load時にMeshUtility読取りと旧移行の保存記録を登録し、RuntimeからUnityEditor/NDMF assemblyを直接参照しない
+- `DeformerDataResolver` はEmbeddedの同期借用viewと、ownerごとの独立したProfile評価コピーを返す。queryで保存Group・選択・Profile・dirty stateを変更しない。Profileのidentity、内容、source互換性を検証し、不正な配列・null slot・future payloadは適用前に拒否する。Profile利用中のactive GroupはProfileのGroup数で検証し、Prefab再読込みでコンポーネントの保存済み選択を保持する
+- Profile互換性の再利用は `Deform` / `CreatePreviewMeshFromInput` の同期評価scope内だけに限定する。scopeを成功・早期return・例外時に閉じ、次回は同じMesh instanceの内容変更、Profileの直接編集、Undo/Redoも再検出する。Repaint/frameをまたぐ互換性の無条件cacheへ拡張しない
+- `Runtime/Migration/DeformationMigrationPreflight` は旧/現行のraw保存形状を同期借用し、version・nested asset・selection・Brush/Maskの順に検査する。source頂点数とProfileのGroup数はコンポーネント境界で取得して渡し、検査からRenderer・Mesh・Profile asset・UnityEditorへ触れない。旧選択の既知例外を検査中に補正せず、正規化とversion更新は対応release stepへ残す。読み取りlistの走査はindexを使い、interface enumeratorのboxingを追加しない
+- `DeformationMigrationRunner` が既存release step、構造変換、旧互換規則、rollbackを所有する。`DeformationMigrationState` は作業用scalarとcopy-on-writeのlistを保持し、owner行列・source countは値として受け取る。`TryAdvanceOneRelease` はpreflight後に1境界だけを処理し、失敗時はscalar/listに加え共有nested assetの補間flagとGroup選択も戻す。既存enumの `CurrentDevelopment=15` を再利用・再定義しない
+- コンポーネントへの反映とUnityへの記録もrelease境界の成功条件に含める。記録に失敗したらraw保存fieldを復元し、Editor adapterが捕捉したPrefab override一覧も復元する。値の復元だけでPrefabの記録済みversion/Group数が戻るとは仮定しない。既存のprivate段階移行入口は互換テスト用の委譲として維持し、通常処理からはrunner内のstepを使う
+- `DeformationModelCopy` がLattice設定とcurveの既存コピー規則を共有する。通常のcurrent評価では移行state/snapshotを確保せず、移行前検査だけを行う
+- `DeformationReleaseManifest` は棚卸し済み42公開リリースと `2.0.0-beta.1` の順序をappend-onlyで管理する。新しい `_migrationReleaseIndex` は0が未分類、1〜43が完了済み境界であり、既存 `_layerModelVersion=3` / `CurrentDevelopment=15` の意味を変えない。1〜14は旧enumと対応し、15は1.4.1（旧enum14）、16は1.4.2-rc.1（旧enum15）、43が2.0 beta。exact tagを識別できない旧enum15は16から開始し、fixture manifestのprovenanceを保存データの推測に使わない
+- `PublishedDeformationMigrationRunner` が通常の移行入口となり、既存の変換は旧runnerへ委譲する。1.4.0→1.4.1と16以降の境界は明示的no-opだが、境界ごとに記録成功後だけ進捗を確定する。負の進捗、未来の進捗、破損payloadを変更せず拒否し、Editorの共通診断は `MDV023` を5言語で返す
+- 進捗番号はschema識別そのものではない。Prefab Variantが更新済みの親から進捗を継承し、自身のoverrideに古いschemaを残す場合は、純粋なpreflightを通ったraw markerから進捗を再開する。既知のstale-current構造の復旧もraw fieldとPrefab overrideを含む同じ原子的commitに入れる。未知の破損や範囲外の選択をこの処理で補正しない
+- `PublishedDeformationMigrationTests` は全42境界の失敗・再試行、途中保存、Prefab Variantの継承/Apply/Revert、Undo、拒否時の不変を確認する。`ReleaseJournalFixtureTests` は旧/後続corpusのLatticeDeformer 102ケースで新しい全release入口のdirect/stepwise/save-reloadを照合する。既存の旧enum段階テストとfixture期待値は変更しない
+- `Tools~/ArchitectureBaseline/` は隔離Unityでの同期評価Profiler、プロセス上限監視、比較とソース照合を提供する。較正に成功した `GC.Alloc` のsize metadataだけを割当量として扱い、frame読取りにsample名の大量文字列化を使わない。入力、依存、計測方法を揃えた基準と比較し、結果原本はリポジトリ外で管理する
+- `Editor/Preview/DeformerPreviewSession` はNDMF nodeごとの変更revision、同一Meshへの更新、Interactive通知とUndo購読を所有する。`MeshDeformerPreviewFilter` はplacement・入力検証とNDMF callbackの接続を維持し、既存のprivate node入口は互換テストから利用できる
+- Preview session は `AssemblyReloadEvents.beforeAssemblyReload` でも同じ `Dispose` を実行し、通常終了時にはこの購読も解除する。NDMFの遅延終了だけに依存すると、domain終了後にHideAndDontSave Meshが残る。実reloadの検証はTest Runner内の通常Dispose検証と分け、再読み込み前のinstance IDの消滅、借用Meshの復元、source不変、実graphの再生成を確認する。
+- `PreviewMeshLease` は生成Meshだけを所有し、各proxyで置き換えた上流Meshを借用する。終了時はproxyが自身の一意な出力Meshをまだ参照している場合だけ復元し、別世代・後段の割当てを上書きしない。元Renderer、上流Mesh、既存のproxy generation/token登録を変更・破棄しない。遅れて届いたproxyにも独立した復元先を保持し、終了・二重終了・破棄済みproxyを同じ処理で扱う
+- NDMF Bakeは対象componentの破棄中だけ `SuppressMeshRestoration()` のscopeを使用する。scopeはownerごとに入れ子と二重Disposeを処理し、例外・native component破棄後にも閉じられる。既存public `SuppressRestoreOnDisable` の意味とAPIは互換用に維持するが、通常のBuildはglobal値を書き換えない
+- `PreviewOwnershipTests` と `MeshRestorationScopeTests` は終了時復元、世代交代、外部割当て、遅延proxy、破棄順、評価拒否と再試行、二重終了後のUndo、owner限定の復元抑止を確認する。実Scene View/NDMFの検証には起動済みの正常な `Plugin-dev-playground` を使用し、元のシーン・package参照を保全して一時Sceneで比較する。`Mayo` など別projectを代用しない
+- `DeformerEditSession` はBrush/Vertex/Latticeの複数frame編集で完全なUndo snapshot、対象Group/Layer/sourceのidentity確認、Prefab記録と終了を共有する。開始前にraw payloadを純粋に検査し、Layout/Repaintはidentity確認、実書込み前は元Meshのtopologyとpayloadを再検証する。Profile・破損・未来版・対象変更を補正して編集しない
+- UnityのPrefab overrideのRedoには、開始時の `RegisterCompleteObjectUndo` に加えて各frameの書込み前の `RecordObject` と書込み後のPrefab記録が必要。ミラー・比例編集を含む一連の変更後に記録し、別操作を取り込むUndoの一括collapseを終了時に行わない。MouseUpはHandlesが消費する前のraw eventを保持して終了を判断する
+- Escapeは自身のUndo group（またはUnityがEscape KeyDown用に作った直後の1境界）だけを取り消す。別のUndo操作が割り込んだ場合はそれを戻さず、既存の変形を独立したUndoとして残して終了する。Undo/Redo通知ではsessionを破棄して復元済みpayloadを書き戻さず、assembly reload前にも終了する
+- `DeformerEditSessionTests` はframeをまたぐUndo/Redo、Prefab VariantのApply/save-reload、拒否時のpayload/dirty不変、取消と他のUndo保持を確認する。`AuthoringGestureEndToEndTests` は実Scene Viewへmouse/key eventを送り、Brush・Vertex/Latticeのnative handle・Escape・Layer切替を実NDMFの最終proxyで照合する。private編集methodを直接呼んだ検査をScene View入力の証拠と混同しない。pose/proxy snapshotの共通化とProfilerは引き続きP4/P5の対象とする
+- `SkinnedPoseSnapshot` は各handlerのBakeMesh結果、local頂点、同じ取得時点のTransformを所有する。Brushのworld表示とraycastは同じcaptureを使い、VertexとLatticeも独立したownerを持つ。失敗時は古いposeを公開せず、Deactivate/cache reset/assembly reloadで所有Meshだけを破棄する。旧 `SkinnedVertexHelper` の静的capture APIは互換入口として残すが通常のツールからは使わない
+- Brush/Vertexのpose参照はproxy登録revisionと破棄済みrendererを検出して再解決する。NDMFの登録revisionだけを最終proxyの生存保証としない。`ToolPoseSnapshotTests` は内部の複数owner検証と、実NDMF graphのpose・BlendShape・proxy世代交代の検証を区別する。Latticeのdrag中の固定座標とpending proxy切替は既存の規則を維持する
+
+- `BlendShapeTestSession` はInspectorのテスト表示が借用するRuntime Meshの割当て、元の全ウェイト配列、対象RendererのMesh/weight Prefab差分を所有する。複数Inspectorでも同じRendererのsessionは1件に限定し、終了・Disable/Destroy・assembly reloadで復元する。Runtime Meshの破棄はコンポーネントに残し、外部Mesh割当てや別propertyの編集を戻さない。元Meshのshape順が変わった場合だけ名前でウェイトを対応させ、配列indexの旧Prefab差分を再利用しない。更新時は割当て所有を先に確認し、Groupの参照には保存payloadを修復しない `ReadResolvedData` を使う
+
+- クリアランスの編集状態は `Authoring/ClearanceAuthoringSession` が所有する。Heatmap/Fitの別対象cache、Scan update購読、Condition再適用のScene snapshot、Undoでの無効化とassembly reload時の復元を同じownerで閉じる。`UI/ClearanceInspectorSection` は設定欄と明示操作、`UI/ClearanceSceneDrawer` は借用結果の描画だけを担当する。補正Layer生成はfresh評価後に `DeformerEditService` へ渡し、Profile・破損payloadは書込み前に拒否する。既存Editorのinternal評価入口は互換テスト用の委譲に限定し、通常のClearance処理から呼び戻さない
+
+- ProfileのInspectorは `UI/ProfileInspectorSection`、互換性query・保存準備・明示操作は `Authoring/ProfileAuthoringService` が担当する。sourceの現在の参照と保存済みtopologyを検査し、保存用copyを準備してから対象ProfileだけをUndo可能に更新・保存する。`SaveAssets`で無関係なdirty assetを一括保存しない。新規作成は未使用の`Assets/`内pathだけへ行い、失敗時は自身が作成したassetだけを解放する。source切替と内蔵への複製は `DeformerEditService` の共通commitへ接続し、通常のLayer操作がProfileを編集しない制約は維持する。null inline Groupを持つ破損テストでは、UnityのJSON化がnullを実体化し得るため、検査自体で修復しないraw readerによる比較を使う
+
+- Inspector の再計算設定は `UI/MeshRebuildInspectorSection`、診断表示は `UI/ValidationInspectorSection` と `Validation/InspectorValidationState` が担当する。表示だけで mixed selection や未知の enum 値を書き戻さず、明示入力時だけ SerializedProperty を変更する。Weight Transfer の計算と設定の保存 path は維持する。
+
+- Guided UI は `UI/GuidedInspectorSection` が表示とツール起動を担当し、`GuidedInspectorState` は raw reader から表示値だけを取得する。Profile が欠落している Profile mode も編集開始しない。`Authoring/GuidedAuthoringService` が既存 Layer の再利用・選択・追加を判断し、変更が必要な場合だけ共通 `DeformerEditService` で Undo / Prefab / cache 更新を記録する。開始前の raw payload・source identity・topology 照合はドラッグと共通の `DeformerAuthoringSource` を通し、拒否時は配列修復、ツール起動、Preview 更新を行わない。null inline Group の検査では JSON による実体化を避け、raw list と slot を直接比較する。
+- サポート情報は `Editor/Support/` の収集・形式 codec・NDMF 調査 adapter・ファイル出力・menu に分離する。既存 `MeshDeformerSupportReport` は形式 v1 の互換 facade として残す。収集は component の保存データを初期化せず、codec は component/Editor/NDMF を参照しない。PNG と decode JSON は同じ原子的ファイル置換を使い、途中失敗で既存ファイルを壊さない。`SupportCodecV1` fixture は変更前の実装 blob `4fcb1f3962534ceb208e68af92fe8a3814861cfa` から取得したもので、候補 codec の出力で期待値を作り直さない。
+
+- `DeformerStackInspectorSection` が Group/Layer の入れ子一覧、行の binding、context menu と選択表示を所有する。詳細設定・BlendShape・import は Inspector の別の描画 callback として接続する。表示再構築は `SetSelectionWithoutNotify` を使用し、不正な保存選択を補正しない。Profile asset が欠落した Profile mode も編集禁止を維持する。IMGUIの設定欄はpanel座標の表示範囲で判別し、一覧のdrag待機を開始しない。native popupがMouseUpを消費し、Unity draggerがeventのtargetをListViewへ変えるため、event型だけで判別しない。
+- `BlendShapeInspectorSection` がGroup/Layerの出力設定、読み込みmenu、`BlendShapeTestSession` の表示を所有する。`BlendShapeImportMenu` は開いた時点のowner・source/topology・Group/Layer選択と参照・shape名/frame構成を保持し、選択時に再検査する。Profile・破損・source drift・非finite deltaはUndo開始前に拒否する。payloadは `Runtime/Model/BlendShapeLayerImport` で検証済み保存sourceから独立生成し、`DeformerEditService` で追加する。inactive Prefabは実行用source cacheがなくても保存参照から読み込める。public import APIも同じfactoryへ委譲し、既存の署名・frame metadata・出力規則を維持する。
+- `DeformerStackStructure` は Group/Layer の identity・型・選択だけを独立配列へ保存し、同じ件数の切替・入替え・Undo/Redoも再検出する。保持した object は identity 比較だけに使い、過去の mutable payload を表示値として読まない。通常の照合は Brush/Mask 全頂点の検査を繰り返さず、構造再構築と変更時に検証する。
+- 行・メニュー・選択の callback は一覧の世代と storage identity を確認してから適用する。行の名前・enabled・weight は標準の SerializedProperty binding を保ち、その handler より先の TrickleDown で古い入力を拒否する。Unity のテキスト/slider Undo grouping、Prefab override 表示と property menu を独自実装で置換しない。選択は `DeformerStackSelection` から共通 `DeformerEditService` へ接続する。構造操作・行変更・内部 Clipboard copy は source/topology の純粋な検査を通し、拒否した選択表示は保存値へ戻す。破棄時は行の callback と binding を解除する。
+- Animated ListView は drag 開始時に一時的な空選択を通知する。その通知を保存へ書かず、選択・並べ替えの反映と一覧再構築は pointer-up の dispatch 後にまとめる。入力中の外部 storage 変更と PointerCancel は保留操作を破棄し、保存済みの表示へ戻す。入れ子 ListView の pointer capture 中の終了は、実際に capture した一覧で受け取る。
+- 名前・enabled・weightの入力欄はreleaseを自身でcaptureするため、並べ替えのpointer-down待機へ入れない。animated draggerによるevent targetの変更に備え、`IsDetailInput` はpanel座標と入力欄のboundsも照合する。releaseが一覧へ届かなくても、その後のProfileコピーや構造変更の表示更新を止めないことを `FieldInput_WithCapturedRelease_DoesNotBlockRowRefresh` で検査する。
+- `DeformerStackInspectorTests` は read-only 再構築、同件数の切替、古い行入力、Editor panel 上の property event、Undo/Redo、Prefab Variant の Apply/save-reloadを検証する。property event の検証は panel への attach 後に Editor update を待ち、標準 binding の存在も確認する。未接続の field へ値を入れただけで拒否成功と判定しない。基準 Layer 操作の期待 snapshot は変更せず、fixture helper は旧 Inspector と新 section の Clipboard 保存場所を reflection で識別する。
+
+- `LayerSettingsInspectorSection` は選択LayerのGrid、reset、Brush clear、左右操作、alignmentを表示する。`PendingLatticeGrid` の未適用値はInspectorごとにowner/Group/Layerの参照で保持し、同じ番号の別Groupや置換後のLayerへ流用しない。保存Gridやsettings参照が変わった場合は破棄する。`LayerSettingsEdit` は保存source/topologyと対象参照を再検証し、複数対象を共通編集serviceで一括commitする。Profile・破損・古いメニュー対象・Grid count overflowはUndo開始前に拒否し、inactive Prefabも保存sourceから編集する。
+- Unity 2022.3のanimated ListViewがPointerDownのtargetを入れ子ListViewへ変えた場合、scroll contentにある標準選択callbackが呼ばれない。実際のpanel hitからLayer行だけを選択し、既存のpointer-up後のqueueで保存へ反映する。名前・enabled・weightとIMGUIの設定入力にはこの補完を適用しない。入力テストでは選択APIを直接呼ばず、表示された行へのretargeted PointerDown/Upも検証する。
+
+- `BrushVertexVisualization` / `SelectedVertexVisualization` はhandlerから受けた配列・座標・選択だけを描画し、Layerの選択変更、Mesh評価、proxy解決、保存を行わない。`SceneVertexDots` が共通material/textureとGL batchを所有し、各表示のdepth testを設定し直し、reload前に解放する。旧版から独立取得した色・texture・6枚のRenderTexture画像と、所有・例外回復・入力不変を `ToolVertexVisualizationTests` で照合する。GraphicsE2Eに属する画像試験とnative Scene View入力を区別する。
+- 起動中Editorの検証では、候補packageを読み込む前に元packageでcleanな検証Sceneへ切り替える。Scene切替や表示領域・前面状態の検査が失敗した場合は、後続のpackage変更やTest Runnerを実行しない。Unity Test Runnerがdirtyな利用者Sceneを自動保存する経路があるため、開始前にscene pathとdirty状態を再確認する。
+- マウス不要の作業を先に進める明示指示がある場合、cleanな検証Sceneとコンパイル完了を条件として、入力・前面描画に依存しない試験を同じEditorで実行できる。`RetrieveTestList` のleaf名から対象一覧を固定し、`Filter.testNames` へ渡す。広いnamespaceやassemblyに一致するfilterが子の除外を保証すると仮定しない。結果XMLのleaf名が対象一覧と完全一致することを確認し、見送ったnative入力・実NDMF描画・Cage repaintの試験を合格数へ含めない。
+- `DeformationSourceBinding` は保存sourceのUnity identityとcountを検査し、実行用cacheと保存の正本を区別する。参照欠落・別Meshへの差替え時は、OnEnable・getter・単一release移行から保存情報やBrushを初期化しない。既存single-settings由来の未完了移行は旧分類契約を維持し、current/groupの参照消失と混同しない。Unityのnull placeholderはmanaged nullと異なり、同じassetの再importはmanaged wrapperだけが変わるため、保存bindingの比較に`ReferenceEquals`を使わない。
+- source不一致で評価を拒否しても、構造が有効なEmbedded Groupの既存読取りviewは調査用に保持する。明示Resetだけがcurrentのbindingと変形を再設定する。Disable/Destroyは自分のRuntime Meshがまだ割り当てられている場合だけsourceへ戻し、外部割当てを上書きしない。`SourceBindingPreservationTests` は欠落・修復・移行進捗・Reset/Undo・Prefab Variant・同assetの再import後の変位保持を検証する。
+- `RuntimeMeshAssignment` はRuntime出力を割り当てた実際のMeshFilter/SkinnedMeshRendererと、その時点の借用Meshを保持する。serialized target参照の切替・消失後も元の割当先を復元し、再割当時は以前の対象を先に解放する。source cache更新後の復元に新sourceを使わない。外部割当ては保持し、明示的な復元抑止scopeでは借用参照だけを解放する。`RuntimeMeshAssignmentTests` が両Renderer種別の切替・参照消失・Reset・終了を確認する。
+- `VertexTransformOperation` は頂点のMove/Rotate/Scaleと比例補間の計算、`VertexTransformGeometry` は同期操作中だけの借用pose/行列、`VertexTransformApplication` は既存displacement APIへの適用を担当する。handlerは入力・session・cache準備・Undo記録とpreview更新を保持する。Moveはrest-space逆変換後のdeltaへ影響率を掛け、Rotate/Scaleは操作を補間してから逆変換する。snapshotを新しくBakeせず、world poseがある場合はlocal頂点より優先する。
+- `BrushInfluenceQuery` は通常・mirrorの候補列挙、接続面、裏面、world距離/表面距離、falloffだけを評価し、変位・Mask・cacheを変更しない。各modeは既存の書込みとSmooth snapshotを保持する。通常側のgeodesic sparse traversalを維持し、mirror側へsurface/backface設定を新たに適用しない。`BrushInfluenceContractTests` は固定した分離前48ケースと独立した数値境界を照合する。
+
 ## 依存関係
 
-- `nadena.dev.ndmf` >= 1.9.0 (VPM)
-- `com.unity.mathematics` 1.2.6
-- `com.unity.burst` 1.8.12
-- `com.unity.collections` 1.2.4
+- `BrushDisplacementApplication` のMaskも準備済みLayer/queryへ適用する。mirror側Normal/Smooth/Maskは対応mapがある頂点だけを処理し、Moveは従来どおりmap制限しない。mirror queryはEuclidean・裏面filterなしを維持する。Smooth snapshotは通常適用後、mirror適用前にhandlerが取り直す。
+
+- `BrushDisplacementApplication` はNormal/Move/Smoothの準備済みqueryと借用配列へ適用する。handlerはtarget検証、Undo、rest-space converter取得、Smooth snapshot、preview更新を所有する。maskの既定1、1e-6境界、Moveの10倍係数、Smoothのsnapshot読取りを維持する。通常modeから分離し、mirror固有の経路は別に残る。
+
+- 頂点選択矩形は `SelectedVertexVisualization.DrawSelectionRectangle` が描画し、handlerは `VertexPickingQuery.Rectangle` で作ったRectを渡す。描画側はHandles.BeginGUI/EndGUIのscopeを所有し、入力や選択状態を読み書きしない。
+
+- `VertexPickingQuery` は借用したlocal/world頂点・法線・行列・camera位置とprojection関数から最近傍/矩形内のindexを返す。world pose優先、距離のstrict境界、同距離の先頭優先、camera/normal欠落時の裏面判定fallbackを維持する。handlerは入力、選択変更、再描画を保持する。
+
+- `LatticeDragGeometry` は1同期drag更新で借用したpose・行列・boundsから保存pointとmirror deltaへ変換する。manual scale除算、center offset、bounds対応、root offset、skinning逆変換の順序を維持する。旧mirror delta経路はmanual scaleで割らない。session/Undo・設定書込み・対称mode適用・内部制御点relax・preview更新はhandlerが担当する。
+
+- `LatticeControlSelection` は制御点indexの選択集合を所有し、置換/toggle、countによる範囲除去、外周への絞り込みを行う。handlerが従来どおりstatic instanceを保持し、描画・入力・再描画・Undoは所有しない。列挙はHashSetのstruct enumeratorを返し、選択順や共有範囲を変更しない。
+
+- `LatticeMirrorPlaneVisualization` は明示的なbounds/行列/軸からミラー面を描き、4頂点のscratchだけを所有する。軸はUnityの成分順X=0/Y=1/Z=2。`LatticeCageGeometry.MirrorPointAxis` はbounds中心で点を反転する。handlerの選択・設定・Undoへ描画側からアクセスしない。
+
+- `LatticeCageGeometry` はラティス表示/編集のbounds間point・delta変換、bounds再写像、参照頂点boundsを担当する。ハンドラは入力とpose取得を保持する。Geometryはindex scratchだけを所有し、Mesh/Layer/Transform/selectionを変更しない。ゼロ幅軸の旧挙動と参照頂点がない場合の全頂点fallbackを維持する。
+
+- 非アクティブ/無効な `LatticeDeformer` の `Deform` / `CreatePreviewMeshFromInput` は同期評価の終了時にnative scratchを解放する。never-active Objectやinactive PrefabはOnDestroyだけを解放根拠にしない。アクティブcomponentはcacheを再利用し、OnDisableで解放する。`InactiveEvaluationLifetimeTests` が反復評価とactive/disabled切替を検証する。
+
+- Profileのtopology SHA-256は `CompatibilityHashStream` の4 KiB bufferで逐次生成する。既存BinaryWriterのlittle-endian順序とfloat bit列を保持し、保存hash契約を変更しない。Unity MonoのWrite(Single)が作る一時配列を避けるためSingleToInt32BitsをWrite(Int32)へ渡す。buffer境界・特殊float・複数submesh/baseVertexは独立した旧形式期待値と照合する。
+
+- `nadena.dev.ndmf` >= 1.14.8 (VPM)
+- `com.unity.mathematics` 1.3.3
+- `com.unity.burst` 1.8.29
+- `com.unity.collections` 2.6.8
 
 ## Codex へのルール
 
@@ -353,3 +468,17 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - その他、今後の開発で知っておくべき情報
 
 更新時は既存のフォーマットに従い、簡潔かつ正確に記述してください。
+
+- 配布物は Tools~/Release/package_release.py で固定commitから作成し、ZIP/UnityPackageの共通対象・GUID・内容を再読込みして照合する。Tests/Tools~/Docs~/Architectureは配布しない。~ directory内の非import対象はZIPだけに含む従来契約をreportへ明示する。内容検査の成功をUnity importや通常更新の合格とは扱わない。release workflowのpublishは既定falseで、公開は最終確認と明示承認後にだけ実行する。
+
+- CIの必須Category検証は `Tools~/Assert-TestResults.ps1` でNUnit suiteからの継承も含めてcase単位に数える。`Tools~/Test-AssertTestResults.ps1` は継承・重複・欠落・Skippedを検査する。Category付きテストを増減した際は `.github/workflows/test.yml` の期待件数を実XMLで照合する。
+
+- CIはdefault/next-releaseの2構成を別jobで実行する。warmup終了後に `Tools~/CI/feature_configuration.py` でStandaloneの機能defineだけを切り替え、結果XMLで指定構成のコンパイルを検証する。Library cacheとartifactは構成ごとに分ける。利用者の稼働中projectへこの設定ツールを使わない。
+
+- GameCIのwarmupはroot所有のProjectSettings.assetを生成するため、CI runnerへその1ファイルの所有権を戻してからfeature defineを更新する。配布時のGit archiveは呼出し単位で改行変換を固定し、Windowsのcore.autocrlf設定を配布内容へ持ち込まない。
+
+- 2026-09-11の公開前確認でAvatar Optimizerの最新安定版が1.9.19になったため、CIの併用検証を同版へ更新した。製品のpackage.json依存宣言にはAAOを追加しない。VRChat対応Unityおよび他の検証依存は2026-09-10の構成を維持する。
+
+- AuthoringGestureEndToEndTestsは固定サイズの独立Scene ViewをShowで開き、既存dockの幅とOverlay配置へ入力経路を依存させない。batchでreparentエラーになるShowAuxWindowは使わない。SupportReportFilesはOSのrename権限とは別にread-only属性を検査し、読み取り専用の既存reportを置換しない。
+
+- publish=trueでは `Tools~/Release/verify_release_ci.py` が同じcommitの最新push/manual Test runと配布物・両EditMode jobの成功を要求する。PR merge試験は公開commitの証拠に使わず、必要ならtest.ymlの手動実行を使う。dry-run生成と公開承認の条件は従来どおり。

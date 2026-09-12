@@ -383,6 +383,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.Tests
                 Assert.That(previewMesh, Is.Not.Null);
 
                 upstreamProxyMesh = Object.Instantiate(fixture.Mesh);
+                Vector3[] upstreamVertices = upstreamProxyMesh.vertices;
                 var proxyRenderer = proxyObject.AddComponent<SkinnedMeshRenderer>();
                 proxyRenderer.sharedMesh = upstreamProxyMesh;
                 proxyRenderer.bones = fixture.Bones;
@@ -399,14 +400,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.Tests
                 var constructor = nodeType.GetConstructors(
                     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)[0];
                 node = (IRenderFilterNode)constructor.Invoke(
-                    new object[] { fixture.Deformer, pairs, previewMesh });
+                    new object[] { fixture.Deformer, pairs, previewMesh, null });
 
                 Assert.That(proxyRenderer.sharedMesh, Is.SameAs(previewMesh));
                 AssertVector(proxyRenderer.sharedMesh.vertices[0], Vector3.right);
 
                 node.Dispose();
                 node = null;
-                Assert.That(proxyRenderer.sharedMesh, Is.SameAs(upstreamProxyMesh));
+                Assert.That(upstreamProxyMesh.vertices, Is.EqualTo(upstreamVertices),
+                    "The NDMF node owns only its output mesh and must not mutate its upstream input.");
+                Assert.That(fixture.GameObject.GetComponent<SkinnedMeshRenderer>().sharedMesh,
+                    Is.SameAs(fixture.Mesh));
             }
             finally
             {
