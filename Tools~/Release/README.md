@@ -42,3 +42,5 @@ publish=trueのときは、tag作成・Release・VPM更新より先にverify_rel
 PRのCIは一時的なmerge commitを試すため、この公開確認には使わない。masterへのpush、またはtest.ymlのworkflow_dispatchで公開対象commitを直接検証する。両構成を導入する以前の単一job成功も受け入れない。CI照会はGitHub CLIのread操作のみで、publish=falseの配布物生成にはCI照会を要求しない。
 
 このチェックは実操作確認や利用者の公開承認を代替しない。workflowを追加しただけでリモートCIが成功したとは扱わない。
+
+Unity 6000.0.67f1のTest jobは、承認済みUUM-85059の限定例外を含み得る。公開判断ではjobの成功だけでraw全成功と解釈せず、artifactの`validation.json`とXMLを参照する。例外の版・4テスト・理由・件数・解除条件は`Docs~/Architecture/validation.md`に定義し、未知failure/skipは引き続き公開gateを失敗させる。

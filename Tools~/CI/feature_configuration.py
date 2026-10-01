@@ -30,9 +30,12 @@ def configure(text, mode):
     return text[:match.start(1)] + body + text[match.end(1):]
 
 
-def verify_results(path, mode):
+def verify_results(path, mode, unity_version=None, editor_log=None):
     root = ET.parse(path).getroot()
-    if root.tag != 'test-run' or root.get('result') != 'Passed':
+    if unity_version:
+        from verify_test_results import verify_run
+        verify_run(path, unity_version=unity_version, editor_log=editor_log)
+    elif root.tag != 'test-run' or root.get('result') != 'Passed':
         raise ValueError('Expected a successful Unity test run.')
     cases = list(root.iter('test-case'))
     expected = [c for c in cases if c.get('fullname') == MARKERS[mode]]
@@ -46,12 +49,14 @@ def verify_results(path, mode):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--mode', required=True, choices=MARKERS)
+    parser.add_argument('--unity-version')
+    parser.add_argument('--editor-log', type=Path)
     target = parser.add_mutually_exclusive_group(required=True)
     target.add_argument('--settings', type=Path)
     target.add_argument('--results', type=Path)
     args = parser.parse_args()
     if args.results:
-        verify_results(args.results, args.mode)
+        verify_results(args.results, args.mode, args.unity_version, args.editor_log)
     else:
         original = args.settings.read_bytes()
         updated = configure(original.decode('utf-8'), args.mode).encode('utf-8')

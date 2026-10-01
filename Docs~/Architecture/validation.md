@@ -41,6 +41,31 @@ Unity 6の試験は本packageの先行互換性検証として実施し、利用
 - 過去のEditorで保存したfixtureのmanifestや期待値は維持し、両Editorで同じ入力を読み込む。
 - 公開gateは配布物検査と4組すべての同一commit CI成功を要求する。旧2 job名の結果で代用しない。
 
+## UUM-85059の承認済み限定例外
+
+[Unity Issue UUM-85059](https://issuetracker.unity.com/issues/6324/assert-error-is-thrown-when-the-editor-language-is-set-to-one-of-the-experimental-ones)はEditorのCJK font atlas拡張で発生する内部assert。
+[6000.0.69f1](https://unity.com/releases/editor/whats-new/6000.0.69f1)の公式修正と、製品なしの同一最小再現（67f1失敗、69f1成功）で原因を確認した。
+対象Editorは2022.3.22f1 / 6000.0.67f1のままとし、承認された例外は**6000.0.67f1の次の4テストだけ**に限定する。OSによる条件分岐は設けない（公式にはWindows/macOSでも再現）。
+
+| Test fixture | Test method |
+| --- | --- |
+| AuthoringGestureEndToEndTests | BrushEscape_AfterAnotherUndoOperationPreservesBothEdits |
+| BrushToolOverlayTests | AllToolLanguagesAndModes_DrawWithoutChangingPayload |
+| GuidedAuthoringTests | GuidedPaint_AllLanguagesPreserveNullPayloadWithoutInitializingIt |
+| PeripheralInspectorTests | RebuildInspector_PaintPreservesMixedValuesAndUnknownEnumWithoutUndoOrDirtyChanges |
+
+- テストは省略しない。元のassert、描画、実行順、NUnit XML、Editorログを保持し、`LogAssert.Expect`による抑止や成功への書換えは行わない。
+- `Tools~/CI/verify_test_results.py`を唯一の分類規則とし、PowerShell入口と機能構成markerの検証から共用する。Python 3が必要。
+- 許容件数は0〜4件、同一fullnameは1件だけ。成功したテストは例外数に含めない。4件すべての存在、完全runの最低1,760件、既存Categoryの正確な件数も要求する。
+- 例外には版引数とEditorログの実版一致、通常のTest Runner終了code 2、対象XMLへの保存記録、完全一致の失敗message、case出力のassert、同数のnative assertそれぞれの`AddObjectToAsset` / `AddTextureToAsset` / `SetupNewAtlasTexture` stackが必要。同じassert文字列でも別のAssetDatabase障害は認めない。
+- 未知failure、全Skipped/Ignore、Inconclusive、重複、root/leaf集計不一致、suite setup/teardown失敗、crash、ログ欠損、4件超過は拒否する。2022、69f1、将来版、版指定なしでは例外を認めない。
+- CIで67f1のrunner stepだけ`continue-on-error`を用いるが、その直後の必須gateはrunner outcomeとXML/ログを照合し、未知失敗や未完了runを拒否する。raw artifactと`validation.json`を保存する。GitHub上のjob成功はこの承認条件の成立を示し、rawテストの全成功を意味しない。
+- `validation.json`は`passed`または`accepted_with_known_issue`、raw成功/失敗/skip数、既知issue件数とfullnameを明記する。特にInteractionE2Eの対象8件中1件がこの例外になる場合、8件全成功とは報告しない。中断したテストの後続assertによる保証は得られていない。
+- 解除条件: 指定Editorを公式修正版へ変更する場合は例外が自動的に無効になる。同じ67f1で問題が解消した場合は両構成で当該4件と全gateを再確認し、allowlistを削除する。別の失敗や版へ自動拡大しない。Unity6のVRChat SDK制作正式対応や無条件の製品対応保証を意味しない。
+
+ローカルでは`Assert-TestResults.ps1`に`-UnityVersion`と`-EditorLogPath`を渡す。`-ReportPath`で分類結果を別JSONへ保存する。
+失敗ログがあっても終了codeを一律無視せず、Unity終了code 0/2と通常終了の記録を確認してからgateへ渡す。
+
 ## Unity上の操作
 
 専用の検証プロジェクトを使い、対象package、コンパイル完了、正常なScene Viewを確認してから操作する。

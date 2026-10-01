@@ -488,3 +488,6 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - 同じEditorPrefsを使うローカルEditorの試験は直列に実行する。package/Library/projectだけの分離では言語やツール設定の競合を防げない。Unity内部assertはignoreせず、必要なら本packageとVPM依存なしの最小projectで再現を切り分ける。
 
 - 描画coroutineのnative log失敗ではTest Frameworkがiteratorのfinallyへ戻らない場合がある。Peripheral Inspector試験はwindow callback・一時設定・SerializedObject・fixtureをTearDownでも解放し、失敗した描画が後続の移行試験へ破棄済みtargetエラーを漏らさないようにする。元の描画失敗は引き続き失敗として記録する。
+
+- 承認済みUUM-85059例外は `Tools~/CI/verify_test_results.py` の6000.0.67f1・確認済み4fullname・完全一致failure message・font atlas native stackに限定する。テスト自体は実行しraw XMLの失敗を保持する。`Assert-TestResults.ps1`とfeature configuration検証は同じpolicyを使う。全skip/inconclusive、未知failure、重複、件数不一致、欠損ログ、crashは拒否し、最低1,760件とCategory件数を維持する。
+- CIの67f1 runnerのcontinue-on-errorは必須の後続gateと組でのみ使う。実Editor version、通常終了、XML保存先、runner outcomeを照合し、validation.jsonにaccepted_with_known_issueと件数/対象を残す。全成功と表現しない。適用範囲、既知4件、解除条件はDocs~/Architecture/validation.mdを参照し、無断で対象版やテストを広げない。
