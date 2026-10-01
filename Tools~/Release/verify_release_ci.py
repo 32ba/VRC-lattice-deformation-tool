@@ -4,7 +4,11 @@ import json
 import re
 import subprocess
 
-REQUIRED_JOBS = {'Package archives', 'EditMode Tests (default)', 'EditMode Tests (next-release)'}
+REQUIRED_JOBS = {'Package archives'} | {
+    f'EditMode Tests ({version}, {configuration})'
+    for version in ('2022.3.22f1', '6000.0.67f1')
+    for configuration in ('default', 'next-release')
+}
 
 
 def select_run(runs, commit):

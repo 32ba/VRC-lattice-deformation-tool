@@ -37,7 +37,7 @@ baselineには `before.json`、`before-files.json`、`OldProject`、evidenceに�
 
 ## 公開対象commitのCI確認
 
-publish=trueのときは、tag作成・Release・VPM更新より先にverify_release_ci.pyを実行する。対象の完全SHAに対するtest.ymlの最新push/manual runが成功し、Package archives、EditMode Tests (default)、EditMode Tests (next-release)がすべて完了・成功している必要がある。missing/skipped/duplicate job、進行中・失敗・取消を拒否し、古い成功runへfallbackしない。
+publish=trueのときは、tag作成・Release・VPM更新より先にverify_release_ci.pyを実行する。対象の完全SHAに対するtest.ymlの最新push/manual runが成功し、Package archives、およびEditMode Tests (2022.3.22f1, default)、EditMode Tests (2022.3.22f1, next-release)、EditMode Tests (6000.0.67f1, default)、EditMode Tests (6000.0.67f1, next-release)がすべて完了・成功している必要がある。missing/skipped/duplicate job、進行中・失敗・取消を拒否し、古い成功runへfallbackしない。
 
 PRのCIは一時的なmerge commitを試すため、この公開確認には使わない。masterへのpush、またはtest.ymlのworkflow_dispatchで公開対象commitを直接検証する。両構成を導入する以前の単一job成功も受け入れない。CI照会はGitHub CLIのread操作のみで、publish=falseの配布物生成にはCI照会を要求しない。
 

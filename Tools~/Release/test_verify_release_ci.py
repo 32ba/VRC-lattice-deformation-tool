@@ -13,10 +13,26 @@ def run(identifier=1, **changes):
 
 
 class ReleaseCiTests(unittest.TestCase):
-    def test_accepts_both_modes_and_archives(self):
+    def test_accepts_both_editors_and_modes_and_archives(self):
         for event in ('push', 'workflow_dispatch'):
             candidate = select_run([run(event=event)], SHA)
             verify_jobs(candidate, SHA)
+
+    def test_rejects_previous_single_editor_job_names(self):
+        candidate = run(jobs=[dict(name=name, status='completed', conclusion='success')
+                              for name in ('Package archives', 'EditMode Tests (default)',
+                                           'EditMode Tests (next-release)')])
+        with self.assertRaises(ValueError):
+            verify_jobs(candidate, SHA)
+
+    def test_requires_all_four_editor_configuration_pairs(self):
+        self.assertEqual(REQUIRED_JOBS, {
+            'Package archives',
+            'EditMode Tests (2022.3.22f1, default)',
+            'EditMode Tests (2022.3.22f1, next-release)',
+            'EditMode Tests (6000.0.67f1, default)',
+            'EditMode Tests (6000.0.67f1, next-release)',
+        })
 
     def test_rejects_wrong_commit_and_pr_merge_evidence(self):
         for candidate in (run(headSha='b' * 40), run(event='pull_request')):
