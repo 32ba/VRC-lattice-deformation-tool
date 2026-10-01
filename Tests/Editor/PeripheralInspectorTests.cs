@@ -16,6 +16,34 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class PeripheralInspectorTests
     {
+        private RebuildTestWindow _paintWindow;
+        private Action _restorePaintOptions;
+        private readonly List<IDisposable> _paintResources = new();
+
+        // Unity Test Framework can stop an IEnumerator after an unexpected native
+        // log without reaching its finally block. Always detach the paint callback
+        // before releasing its SerializedObjects, even when this UI test fails.
+        [TearDown]
+        public void CleanupPainting()
+        {
+            if (_paintWindow != null)
+            {
+                _paintWindow.Draw = null;
+                _paintWindow.Close();
+                _paintWindow = null;
+            }
+            _restorePaintOptions?.Invoke();
+            _restorePaintOptions = null;
+            for (int i = _paintResources.Count - 1; i >= 0; i--) _paintResources[i].Dispose();
+            _paintResources.Clear();
+        }
+
+        private T OwnPaintingResource<T>(T resource) where T : IDisposable
+        {
+            _paintResources.Add(resource);
+            return resource;
+        }
+
         private static string FixturePath(string name) => Path.Combine(
             UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(LatticeDeformer).Assembly).resolvedPath,
             "Tests/Editor/Fixtures/SupportCodecV1", name);
@@ -138,19 +166,21 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [UnityTest]
         public IEnumerator RebuildInspector_PaintPreservesMixedValuesAndUnknownEnumWithoutUndoOrDirtyChanges()
         {
-            using var a = new Fixture(); using var b = new Fixture();
-            using var first = new SerializedObject(a.Target); using var second = new SerializedObject(b.Target);
+            var a = OwnPaintingResource(new Fixture()); var b = OwnPaintingResource(new Fixture());
+            var first = OwnPaintingResource(new SerializedObject(a.Target)); var second = OwnPaintingResource(new SerializedObject(b.Target));
             foreach (string name in new[] { "_recalculateNormals", "_recalculateTangents", "_recalculateBounds" })
             { first.FindProperty(name).boolValue = true; second.FindProperty(name).boolValue = false; }
             first.FindProperty("_normalsRecalculationMode").intValue = 999;
             first.ApplyModifiedPropertiesWithoutUndo(); second.ApplyModifiedPropertiesWithoutUndo();
             string beforeA = EditorJsonUtility.ToJson(a.Target), beforeB = EditorJsonUtility.ToJson(b.Target);
             int dirtyA = EditorUtility.GetDirtyCount(a.Target), dirtyB = EditorUtility.GetDirtyCount(b.Target);
-            using var both = new SerializedObject(new Object[] { a.Target, b.Target });
+            var both = OwnPaintingResource(new SerializedObject(new Object[] { a.Target, b.Target }));
             var section = new MeshRebuildInspectorSection(both);
             var expanded = typeof(MeshRebuildInspectorSection).GetField("s_showOptions", BindingFlags.Static | BindingFlags.NonPublic);
-            bool previous = (bool)expanded.GetValue(null); expanded.SetValue(null, true);
-            var window = ScriptableObject.CreateInstance<RebuildTestWindow>();
+            bool previous = (bool)expanded.GetValue(null);
+            _restorePaintOptions = () => expanded.SetValue(null, previous);
+            expanded.SetValue(null, true);
+            var window = _paintWindow = ScriptableObject.CreateInstance<RebuildTestWindow>();
             Exception failure = null; int paints = 0;
             window.Draw = () =>
             {
@@ -176,7 +206,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(EditorUtility.GetDirtyCount(a.Target), Is.EqualTo(dirtyA));
                 Assert.That(EditorUtility.GetDirtyCount(b.Target), Is.EqualTo(dirtyB));
             }
-            finally { window.Draw = null; window.Close(); expanded.SetValue(null, previous); }
+            finally { CleanupPainting(); }
         }
 
         private sealed class RebuildTestWindow : EditorWindow

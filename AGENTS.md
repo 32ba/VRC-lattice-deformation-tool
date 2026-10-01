@@ -486,3 +486,5 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - Unity 6のSerializedObject bindingは旧 `IBindable.binding` に入らない。Inspector回帰試験は `BindingExtensions.s_SerializedBindingId` に対応する `GetBinding` を確認し、未接続のfieldによる見かけの入力拒否を合格にしない。2022では従来slotを確認する。
 - Scene View入力試験の固定寸法は `minSize` と `Show()` 後の `position` で指定し、実際の寸法が成立してから入力を開始する。LinuxではShow時に以前の狭いwindow寸法が復元されることがある。座標・Undo/Redo・proxyのassertを弱めて代用しない。
 - 同じEditorPrefsを使うローカルEditorの試験は直列に実行する。package/Library/projectだけの分離では言語やツール設定の競合を防げない。Unity内部assertはignoreせず、必要なら本packageとVPM依存なしの最小projectで再現を切り分ける。
+
+- 描画coroutineのnative log失敗ではTest Frameworkがiteratorのfinallyへ戻らない場合がある。Peripheral Inspector試験はwindow callback・一時設定・SerializedObject・fixtureをTearDownでも解放し、失敗した描画が後続の移行試験へ破棄済みtargetエラーを漏らさないようにする。元の描画失敗は引き続き失敗として記録する。
