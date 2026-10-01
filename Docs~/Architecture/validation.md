@@ -5,7 +5,9 @@
 
 ## 自動テスト
 
-`.github/workflows/test.yml`はUnity 2022.3.22f1で`default`と`next-release`の2構成を実行する。
+`.github/workflows/test.yml`はUnity 2022.3.22f1と6000.0.67f1のそれぞれで`default`と`next-release`を実行する（4組）。
+Editorごとに新しい隔離プロジェクトを作り、Library cache・結果artifactもEditorと構成の組で分離する。
+Test Frameworkは2022で1.4.6、Unity 6で1.6.0を指定する。Unity組込みpackageの解決差（uGUI等）は各projectのpackages-lock.jsonで記録する。
 依存バージョンと必須Categoryの期待件数はworkflowを正本とし、結果XMLで構成専用markerとCategoryの実行を照合する。
 
 2.0.0-beta.1公開時には両構成とも1,759件成功、失敗・スキップ0を確認した。
@@ -24,6 +26,20 @@
 再生成が必要な場合は各公開tagのRuntimeを使い、独立した2回の生成結果を照合する。
 後続28版の526ファイル・83ケースは、helper hash、GUID、Prefab fileID、内容hashも検査する。
 手順は`Tools~/HistoricalFixtures/`と`Tools~/HistoricalFixtures/LaterReleases/README.md`を参照する。
+
+## Unity 6の検証範囲
+
+VRChatの[制作向けUnity指定](https://creators.vrchat.com/sdk/upgrade/current-unity-version/)は2022.3.22f1。
+[2026.3.3 Open Beta](https://docs.vrchat.com/docs/vrchat-202633-open-beta)の6000.0.67f1採用はclient側であり、SDKプロジェクトのUnity 6移行許可ではない。
+Unity 6の試験は本packageの先行互換性検証として実施し、利用者の既存プロジェクトを開いて更新しない。
+
+- 両Editorともworkflowの固定依存を導入し、warmupを完了してから構成defineを設定する。
+- `-nographics`を使った試験ではGraphicsE2EやScene View入力の合格を主張しない。描画deviceをログで確認し、失敗・Skipped・Inconclusive・0件を分けて記録する。
+- 同一ユーザー設定を共有するEditorは直列実行する。独立projectでもEditorPrefsの言語・ツール設定は共有され得る。
+- Unity内部のフォントatlas追加assertが起きた場合は、VPM依存や本packageのないprojectで標準Editor labelによるCJK描画を確認する。製品なしの再現を分離して記録し、元のUI試験をignore/skipやログ抑止で合格にしない。
+- Linuxの仮想display上のScene View event試験は、実OSマウス操作・利用者Avatar・Windows/macOSの検証を代替しない。
+- 過去のEditorで保存したfixtureのmanifestや期待値は維持し、両Editorで同じ入力を読み込む。
+- 公開gateは配布物検査と4組すべての同一commit CI成功を要求する。旧2 job名の結果で代用しない。
 
 ## Unity上の操作
 

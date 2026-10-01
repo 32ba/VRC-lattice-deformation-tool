@@ -266,6 +266,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             yield return null;
             ToolManager.SetActiveTool<MeshDeformerTool>();
             PreviewSession.Current.ForceRebuild();
+            yield return WaitFor(() => _view.position.width >= 1000 && _view.position.height >= 700,
+                "The owned Scene View did not reach the required input viewport size.");
             _view.Focus();
             _view.Repaint();
             yield return WaitFor(() => TryReadProxy(out _), "NDMF did not publish a genuine final proxy.");
@@ -295,8 +297,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             _createdView = true;
             _pivot = _view.pivot; _rotation = _view.rotation; _size = _view.size;
             _orthographic = _view.orthographic; _in2DMode = _view.in2DMode;
-            _view.position = new Rect(30, 30, 1000, 700);
+            _view.minSize = new Vector2(1000, 700);
             _view.Show();
+            // Show can restore a saved native window rectangle on Linux. Set the
+            // size afterwards and keep the overlay clear of the projected path.
+            _view.position = new Rect(30, 30, 1000, 700);
             _view.in2DMode = false; _view.pivot = Vector3.zero; _view.rotation = Quaternion.identity;
             _view.size = 2.2f; _view.orthographic = true;
             Undo.IncrementCurrentGroup();

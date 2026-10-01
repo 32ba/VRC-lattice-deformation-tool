@@ -325,7 +325,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 ### CI
 
-- `.github/workflows/test.yml` が pull request と master への push で EditMode テストを実行する。GameCI の `unity-test-runner` が Unity 2022.3.22f1 で `ci-project/` を組み立て、`net.32ba.lattice-deformation-tool.tests.editor` と `...tests.editor.vrchat` を走らせる
+- `.github/workflows/test.yml` が pull request と master への push で EditMode テストを実行する。GameCI の `unity-test-runner` が Unity 2022.3.22f1 / 6000.0.67f1 の隔離jobで `ci-project/` を組み立て、`net.32ba.lattice-deformation-tool.tests.editor` と `...tests.editor.vrchat` を走らせる
 - `ci-project/` には vrc-get で VRChat SDK（`com.vrchat.avatars`）、NDMF、Avatar Optimizer（`com.anatawa12.avatar-optimizer`）を VPM から導入し、実際の VCC プロジェクトを再現する。バージョンは workflow 内で固定。VRChat SDK がないと NDMF がプラグインを VRChat アバター専用とみなして bake pass を Incompatible でスキップするため、`MeshDeformerValidatorTests` が失敗する。AAO がないとユーザー環境と plugin set が乖離し、`RealPreviewPipelineEndToEndTests` も AAO 不在で Ignore になる
 - Scripting Define は追加しない。`LATTICE_VRCSDK3_AVATAR` は asmdef の versionDefines 由来なのでクリーン構成のまま有効になる
 - VRChat SDK の `EnvConfig` は初回起動時に API Compatibility Level と Scripting Define Symbols を書き換えてスクリプト再コンパイルを要求する。バッチモードのテスト実行中は assembly reload がロックされているためこの要求は保留のままとなり、`EditorApplication.isCompiling` が実行中ずっと true になって Prefab Mode の退出やシーン切り替えが Unity に拒否される。workflow はこれを避けるため、本番のテスト実行前に軽量なテスト1本だけの warm-up 実行を挟んで ProjectSettings を settled にしている
@@ -473,7 +473,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - CIの必須Category検証は `Tools~/Assert-TestResults.ps1` でNUnit suiteからの継承も含めてcase単位に数える。`Tools~/Test-AssertTestResults.ps1` は継承・重複・欠落・Skippedを検査する。Category付きテストを増減した際は `.github/workflows/test.yml` の期待件数を実XMLで照合する。
 
-- CIはdefault/next-releaseの2構成を別jobで実行する。warmup終了後に `Tools~/CI/feature_configuration.py` でStandaloneの機能defineだけを切り替え、結果XMLで指定構成のコンパイルを検証する。Library cacheとartifactは構成ごとに分ける。利用者の稼働中projectへこの設定ツールを使わない。
+- CIはUnity 2022.3.22f1 / 6000.0.67f1 × default/next-releaseの4組を別jobで実行する。warmup終了後に `Tools~/CI/feature_configuration.py` でStandaloneの機能defineだけを切り替え、結果XMLで指定構成のコンパイルを検証する。Library cacheとartifactはEditorと構成の組ごとに分ける。Test Frameworkは2022で1.4.6、Unity 6で1.6.0を明示し、組込みpackageの解決差はpackages-lock.jsonへ記録する。Unity 6はpackageの先行互換性検証であり、VRChat SDK制作対応とは区別する。既存利用者projectをUnity 6で開いて移行しない。利用者の稼働中projectへこの設定ツールを使わない。
 
 - GameCIのwarmupはroot所有のProjectSettings.assetを生成するため、CI runnerへその1ファイルの所有権を戻してからfeature defineを更新する。配布時のGit archiveは呼出し単位で改行変換を固定し、Windowsのcore.autocrlf設定を配布内容へ持ち込まない。
 
@@ -481,4 +481,8 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - AuthoringGestureEndToEndTestsは固定サイズの独立Scene ViewをShowで開き、既存dockの幅とOverlay配置へ入力経路を依存させない。batchでreparentエラーになるShowAuxWindowは使わない。SupportReportFilesはOSのrename権限とは別にread-only属性を検査し、読み取り専用の既存reportを置換しない。
 
-- publish=trueでは `Tools~/Release/verify_release_ci.py` が同じcommitの最新push/manual Test runと配布物・両EditMode jobの成功を要求する。PR merge試験は公開commitの証拠に使わず、必要ならtest.ymlの手動実行を使う。dry-run生成と公開承認の条件は従来どおり。
+- publish=trueでは `Tools~/Release/verify_release_ci.py` が同じcommitの最新push/manual Test runと配布物・両Editorの両構成（4 EditMode job）の成功を要求する。PR merge試験は公開commitの証拠に使わず、必要ならtest.ymlの手動実行を使う。dry-run生成と公開承認の条件は従来どおり。
+
+- Unity 6のSerializedObject bindingは旧 `IBindable.binding` に入らない。Inspector回帰試験は `BindingExtensions.s_SerializedBindingId` に対応する `GetBinding` を確認し、未接続のfieldによる見かけの入力拒否を合格にしない。2022では従来slotを確認する。
+- Scene View入力試験の固定寸法は `minSize` と `Show()` 後の `position` で指定し、実際の寸法が成立してから入力を開始する。LinuxではShow時に以前の狭いwindow寸法が復元されることがある。座標・Undo/Redo・proxyのassertを弱めて代用しない。
+- 同じEditorPrefsを使うローカルEditorの試験は直列に実行する。package/Library/projectだけの分離では言語やツール設定の競合を防げない。Unity内部assertはignoreせず、必要なら本packageとVPM依存なしの最小projectで再現を切り分ける。
