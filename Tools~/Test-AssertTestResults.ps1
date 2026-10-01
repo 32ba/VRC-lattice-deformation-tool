@@ -18,9 +18,9 @@ try {
     & $verifier -TestResultsPath $path -RequiredCategory GraphicsE2E -RequiredCategoryCount 2
     foreach ($scenario in @('missing', 'skipped')) {
         $changed = if ($scenario -eq 'missing') {
-            $document.Replace('<test-case fullname="Inherited" result="Passed"/>', '')
+            $document.Replace('<test-case fullname="Inherited" result="Passed"/>', '').Replace('total="2" passed="2"', 'total="1" passed="1"')
         } else {
-            $document.Replace('fullname="Inherited" result="Passed"', 'fullname="Inherited" result="Skipped"')
+            $document.Replace('fullname="Inherited" result="Passed"', 'fullname="Inherited" result="Skipped"').Replace('passed="2"', 'passed="1"').Replace('skipped="0"', 'skipped="1"')
         }
         Set-Content -LiteralPath $path -Value $changed
         $rejected = $false
