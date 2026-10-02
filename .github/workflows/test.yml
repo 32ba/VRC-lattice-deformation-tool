@@ -275,6 +275,15 @@ jobs:
           python3 Tools~/CI/verify_test_environment.py
           --editor-log test-artifacts/editmode.log
 
+      - name: Prepare validation report directory
+        if: always()
+        run: |
+          # GameCI's container creates this directory as root. Its raw files
+          # remain untouched; the runner only needs to create validation.json.
+          if [[ -d test-artifacts ]]; then
+            sudo chown "$(id -u):$(id -g)" test-artifacts
+          fi
+
       - name: Verify complete run and approved Unity issue
         if: always()
         shell: pwsh
