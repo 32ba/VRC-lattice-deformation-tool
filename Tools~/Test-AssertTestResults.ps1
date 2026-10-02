@@ -33,6 +33,10 @@ try {
         if (-not $rejected) { throw "Verifier accepted $scenario inherited category case." }
     }
     Write-Host 'Category inheritance, duplicate category, missing case and skipped case checks passed.'
+    # The negative cases deliberately leave Python's native exit code nonzero.
+    # GitHub Actions forwards LASTEXITCODE even after their expected exceptions
+    # were caught. Reset it only after every self-test assertion has succeeded.
+    $global:LASTEXITCODE = 0
 } finally {
     # Only the single file and empty temporary directory created above are removed.
     if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path }
