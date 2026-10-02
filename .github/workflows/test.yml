@@ -201,6 +201,11 @@ jobs:
 
           vrc-get info project --project ci-project
 
+      - name: Configure isolated SDK test environment
+        run: |
+          mkdir -p ci-project/Assets/Editor
+          cp Tools~/CI/OfflineSdkConfig.cs ci-project/Assets/Editor/OfflineSdkConfig.cs
+
       - name: Cache Library
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -229,7 +234,7 @@ jobs:
           projectPath: ci-project
           testMode: editmode
           artifactsPath: warmup-artifacts
-          customParameters: '-assemblyNames net.32ba.lattice-deformation-tool.tests.editor -testFilter Net._32Ba.LatticeDeformationTool.Editor.Tests.LatticeDeformationFeatureFlagsTests'
+          customParameters: '-latticeOfflineSdkConfig -assemblyNames net.32ba.lattice-deformation-tool.tests.editor -testFilter Net._32Ba.LatticeDeformationTool.Editor.Tests.LatticeDeformationFeatureFlagsTests'
 
       # The warmup has exited and produced ProjectSettings.asset. Change only the
       # Standalone feature flag before the next Editor launch.
@@ -260,9 +265,15 @@ jobs:
           # Restrict the run to the two package test assemblies; the .coverage one stays
           # define-constrained out. unity-test-runner expands customParameters unquoted, so the
           # semicolon-separated list must not carry quotes of its own.
-          customParameters: '-assemblyNames net.32ba.lattice-deformation-tool.tests.editor;net.32ba.lattice-deformation-tool.tests.editor.vrchat'
+          customParameters: '-latticeOfflineSdkConfig -assemblyNames net.32ba.lattice-deformation-tool.tests.editor;net.32ba.lattice-deformation-tool.tests.editor.vrchat'
           # githubToken is intentionally omitted: publishing a check run needs a writable
           # GITHUB_TOKEN, which pull requests from forks do not get.
+
+      - name: Verify SDK test environment readiness
+        if: always()
+        run: >-
+          python3 Tools~/CI/verify_test_environment.py
+          --editor-log test-artifacts/editmode.log
 
       - name: Verify complete run and approved Unity issue
         if: always()

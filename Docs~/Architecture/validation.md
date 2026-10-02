@@ -45,13 +45,21 @@ Unity 6の試験は本packageの先行互換性検証として実施し、利用
 
 ## Preview機能とローカライズ描画の分離
 
-AAO/MAの実graph E2Eは、専用のSceneViewでカメラ描画・操作中のケージ保持・proxy更新・Undo/Redoを検証する。そのViewの`Mesh Deformer`操作パネルだけを`overlayCanvas.Remove`で外し、破棄時には専用Viewを閉じて元のViewへfocusを戻す。借用中の他ViewやそのOverlay、言語設定は変更しない。ITransientOverlayはUnityが再表示するため、単にdisplayed=falseとする方法に依存しない。
+AAO/MAの実graph E2Eは、専用のSceneViewでカメラ描画・操作中のケージ保持・proxy更新・Undo/Redoを検証する。そのViewの`Mesh Deformer`操作パネルだけを`overlayCanvas.Remove`で外し、破棄時には専用Viewを閉じて元のViewへfocusを戻す。借用中の他ViewやそのOverlay、言語設定は変更しない。選択による遅延Inspector描画も混入するため、EditorTrackerは動かしたままInspectorの表示styleだけを保存して一時停止し、元の選択へ戻してからstyleを復元する。ITransientOverlayはUnityが再表示するため、単にdisplayed=falseとする方法に依存しない。
 
 Cage通知は全SceneViewから届く。GUI hotControlはView単位なので、操作対象の`SceneView.currentDrawingSceneView`だけをmonitorへ取り込む。対象Viewの最低frame数・全mutation stage・cage shape・proxy identity・geometryのassertは維持する。別Viewの非操作frameを対象Viewの入力喪失と誤判定しない。
 
 操作パネルの描画は既存`BrushToolOverlayTests.AllToolLanguagesAndModes_DrawWithoutChangingPayload`が3ツール・5言語・各modeを検証し、`LocalizedToolOverlay`カテゴリ1件をCI必須gateとする。67f1の既知font assertをこのUI試験から隠さず、元の失敗として記録する。graph E2Eの成功をローカライズUI成功の代用にしない。
 
 `PreviewIsolation`カテゴリ1件は、専用Viewだけがパネルを持たないこと、他ViewのOverlay identityと使用言語の維持、終了時のView破棄、後で開くViewにOverlayが登録され続けることを確認する。これらの2カテゴリを最低1,766件に加えて必須検証する。
+
+## SDKのテスト用config
+
+CIの生成projectだけに`Tools~/CI/OfflineSdkConfig.cs`をコピーし、warmup/本実行へ`-latticeOfflineSdkConfig`を明示する。SDKの初期化後にEditor専用の公開API `ConfigManager.AssignTestRemoteConfig(null)`でSDK自身のローカル既定configへ切り替える。credential、ログイン、HTTP responseの偽装、ログ抑制は行わない。通常Editor・利用者project・製品packageには組み込まない。
+
+このEditMode suiteはSDK componentを使うgeometry/preview/移行を対象とし、live VRChat config serviceやuploadの試験ではない。起動時の無関係なconfig HTTP requestが60秒後に任意のケースを落とすことを避ける。`verify_test_environment.py`は明示flagと初期化完了markerを必須にし、bootstrap欠落・初期化失敗を拒否する。live serviceを検証する場合はこの設定を使わず独立した試験を設ける。
+
+AAO/MA fixture破棄前に実PreviewSessionをForceRebuildし、古いgraph contextを先に解放する。生成Avatarの破棄後に古いMA queryが参照する順序を避け、次のカメラ描画は同じ実plugin構成からgraphを再生成する。待機条件や元のgeometry assertは変えない。
 
 ## UUM-85059の承認済み限定例外
 

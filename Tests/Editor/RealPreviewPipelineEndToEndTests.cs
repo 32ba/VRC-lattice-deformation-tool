@@ -12,6 +12,7 @@ using UnityEditor.EditorTools;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.TestTools.Utils;
+using UnityEngine.UIElements;
 using Object = UnityEngine.Object;
 
 namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
@@ -70,6 +71,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
             _restoreInterruptedInteraction = () =>
             {
+                var testSession = PreviewSession.Current;
                 holdInteraction = false;
                 LatticeToolHandler.CageFrameRendered -= monitor.Observe;
                 SceneView.beforeSceneGui -= OwnInteractionControl;
@@ -88,6 +90,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 if (!previewWasEnabled)
                     EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
 
+                // Dispose graph contexts before destroying the observed avatar;
+                // a queued invalidation must not query a dead fixture next frame.
+                testSession?.ForceRebuild();
                 LatticePreviewUtility.ClearProxy(sourceRenderer);
                 Object.DestroyImmediate(root);
                 Object.DestroyImmediate(source);
@@ -549,6 +554,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
             _restoreInterruptedInteraction = () =>
             {
+                var testSession = PreviewSession.Current;
                 LatticeToolHandler.CageFrameRendered -= monitor.Observe;
                 if (previousTool != null)
                     ToolManager.SetActiveTool(previousTool);
@@ -559,6 +565,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 NDMFPreview.DisablePreviewDepth = previousDisableDepth;
                 if (!previewWasEnabled && PreviewSession.Current != null && previousDisableDepth == 0)
                     EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
+                testSession?.ForceRebuild();
                 if (fixture != null)
                 {
                     LatticePreviewUtility.ClearProxy(fixture.Renderer);
@@ -645,6 +652,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             SceneView reopened = null;
             PreviewViewport viewport = null;
             var language = LatticeLocalization.CurrentLanguage;
+            var inspectorDisplays = PreviewViewport.InspectorWindows()
+                .ToDictionary(window => window, window => window.rootVisualElement.style.display);
             _restoreInterruptedInteraction = () =>
             {
                 viewport?.Dispose();
@@ -661,6 +670,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 viewport = new PreviewViewport();
                 yield return null;
                 Assert.That(viewport.View, Is.Not.SameAs(borrowed));
+                foreach (var inspector in inspectorDisplays.Keys)
+                    Assert.That(inspector.rootVisualElement.style.display.value, Is.EqualTo(DisplayStyle.None));
                 Assert.That(viewport.View.TryGetOverlay("Mesh Deformer", out _), Is.False);
                 Assert.That(borrowed.TryGetOverlay("Mesh Deformer", out var unchanged), Is.True);
                 Assert.That(unchanged, Is.SameAs(original));
@@ -669,6 +680,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 viewport.Dispose();
                 yield return null;
                 Assert.That(ownedView == null, Is.True);
+                foreach (var (inspector, display) in inspectorDisplays)
+                    Assert.That(inspector.rootVisualElement.style.display, Is.EqualTo(display));
                 Assert.That(borrowed.TryGetOverlay("Mesh Deformer", out unchanged), Is.True);
                 Assert.That(unchanged, Is.SameAs(original));
                 reopened = ScriptableObject.CreateInstance<SceneView>();
@@ -687,12 +700,26 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         private sealed class PreviewViewport : IDisposable
         {
             private readonly SceneView _previous = SceneView.lastActiveSceneView;
+            private readonly List<(VisualElement Root, StyleEnum<DisplayStyle> Display)> _inspectors = new();
+
+            internal static EditorWindow[] InspectorWindows() => Resources.FindObjectsOfTypeAll<EditorWindow>()
+                .Where(window => window.GetType().FullName == "UnityEditor.InspectorWindow" ||
+                                 window.GetType().FullName == "UnityEditor.PropertyEditor").ToArray();
             internal SceneView View { get; private set; }
 
             internal PreviewViewport()
             {
                 try
                 {
+                    // Selection is required by component tools, but rebuilding a
+                    // visible Inspector can also measure localized IMGUI text.
+                    // Keep its tracker active while suspending only presentation.
+                    foreach (var inspector in InspectorWindows())
+                    {
+                        var root = inspector.rootVisualElement;
+                        _inspectors.Add((root, root.style.display));
+                        root.style.display = DisplayStyle.None;
+                    }
                     View = ScriptableObject.CreateInstance<SceneView>();
                     View.position = new Rect(100, 100, 960, 720);
                     View.Show();
@@ -712,6 +739,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 if (View != null) View.Close();
                 View = null;
+                ActiveEditorTracker.sharedTracker.ForceRebuild();
+                foreach (var (root, display) in _inspectors) root.style.display = display;
+                _inspectors.Clear();
                 if (_previous != null) _previous.Focus();
             }
         }

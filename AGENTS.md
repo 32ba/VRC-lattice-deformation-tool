@@ -495,3 +495,5 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - 製品のwindow/overlay識別は型または固定Overlay idで行い、翻訳表示名で検索しない。EditorWindowLifecycleカテゴリ5件を両Editorで必須にする。titleContentによる改名とGetWindow<T>の型検索を区別し、IconContent共有cacheのGUIContentへtooltipを書き込まず複製する。Editor再起動やlayout復元の診断で使う内部WindowLayout APIは製品へ持ち込まない。
 
 - 実AAO/MA Preview E2Eは専用SceneViewから操作パネルだけを外し、対象ViewのCage通知だけを監視する。カメラ・geometry・操作中の更新assertは維持する。言語は変更しない。`PreviewIsolation`1件と既存5言語描画の`LocalizedToolOverlay`1件を必須gateとし、UI側の既知native font失敗を隠さない。
+
+- CI生成projectのSDKは明示flag付きのEditorテスト用configで初期化し、`verify_test_environment.py`でready markerを必須確認する。live backend試験ではなくgeometry/preview試験であることを区別する。Inspectorは表示styleだけを復元可能に隔離し、AAO/MA graph contextはfixture破棄前に解放する。通常利用者projectへSDK test configを入れない。
