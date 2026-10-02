@@ -14,6 +14,35 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class BrushToolOverlayTests
     {
+        private OverlayWindow _window;
+        private GameObject _root;
+        private Mesh _mesh;
+        private Action _restoreOptions;
+
+        // An unexpected native log can stop a UnityTest iterator without running
+        // its finally block. Detach the callback before restoring shared state so
+        // this window cannot repaint during a later test.
+        [TearDown]
+        public void CleanupPainting()
+        {
+            if (_window != null)
+            {
+                _window.Draw = null;
+                _window.Close();
+                _window = null;
+            }
+            _restoreOptions?.Invoke();
+            _restoreOptions = null;
+            if (_root != null)
+            {
+                var owner = _root.GetComponent<LatticeDeformer>();
+                if (owner != null) { owner.InvalidateCache(); owner.RestoreOriginalMesh(); }
+                Object.DestroyImmediate(_root);
+                _root = null;
+            }
+            if (_mesh != null) { Object.DestroyImmediate(_mesh); _mesh = null; }
+        }
+
         private sealed class OverlayWindow : EditorWindow
         {
             internal Action Draw;
@@ -41,15 +70,23 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 values[i] = fields[i].GetValue(null);
                 fields[i].SetValue(null, true);
             }
-            var root = new GameObject("Brush overlay read-only fixture");
+            _restoreOptions = () =>
+            {
+                for (int i = 0; i < fields.Length; i++) fields[i].SetValue(null, values[i]);
+                BrushToolHandler.CurrentBrushMode = oldMode;
+                VertexSelectionHandler.CurrentTransformMode = oldTransform;
+                LatticeToolHandler.CurrentMirrorBehavior = oldMirror;
+                LatticeLocalization.CurrentLanguage = oldLanguage;
+            };
+            var root = _root = new GameObject("Brush overlay read-only fixture");
             root.SetActive(false);
-            var mesh = new Mesh { vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+            var mesh = _mesh = new Mesh { vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
                 triangles = new[] { 0, 1, 2 } };
             root.AddComponent<MeshFilter>().sharedMesh = mesh;
             root.AddComponent<MeshRenderer>();
             var owner = root.AddComponent<LatticeDeformer>();
             owner.Reset(); owner.AddLayer("Brush", MeshDeformerLayerType.Brush);
-            var window = ScriptableObject.CreateInstance<OverlayWindow>();
+            var window = _window = ScriptableObject.CreateInstance<OverlayWindow>();
             try
             {
                 window.position = new Rect(0, 0, 420, 900);
@@ -88,17 +125,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     }
                 }
             }
-            finally
-            {
-                window.Draw = null; window.Close();
-                for (int i = 0; i < fields.Length; i++) fields[i].SetValue(null, values[i]);
-                BrushToolHandler.CurrentBrushMode = oldMode;
-                VertexSelectionHandler.CurrentTransformMode = oldTransform;
-                LatticeToolHandler.CurrentMirrorBehavior = oldMirror;
-                LatticeLocalization.CurrentLanguage = oldLanguage;
-                owner.InvalidateCache(); owner.RestoreOriginalMesh();
-                Object.DestroyImmediate(root); Object.DestroyImmediate(mesh);
-            }
+            finally { CleanupPainting(); }
         }
     }
 }
