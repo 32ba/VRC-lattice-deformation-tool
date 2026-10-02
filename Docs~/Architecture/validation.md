@@ -136,3 +136,7 @@ UnityPackage導入とVPM通常更新をそれぞれ別の隔離プロジェク�
 
 公開前は対象commit自身のCI成功を確認する。
 公開後はtag、prerelease属性、取得した配布物、VPMのmetadata・URL・hashを照合する。
+
+### 実Preview fixtureの終了条件
+
+AAO/MAのfixture終了時は入力と購読を復元し、sessionのgraph contextを解放する。その後UnityTearDownでAvatarを非active化し、NDMFの公開`GetAvatarRoots()`が対象を含まなくなるまでEditor更新を進める。共有queryのinvalidationをflushしてからGameObjectとMeshを破棄する。これはNDMFの全非同期処理の完了を保証するAPIではなく、実際に破棄済みAvatarを返していた共有queryの参照解除を確認する条件である。180 frame以内に解除されなければテストを失敗させる。機能assert、言語設定、明示的な多言語UI試験は変更しない。

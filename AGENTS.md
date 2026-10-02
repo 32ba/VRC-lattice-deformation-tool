@@ -497,3 +497,5 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - 実AAO/MA Preview E2Eは専用SceneViewから操作パネルだけを外し、対象ViewのCage通知だけを監視する。カメラ・geometry・操作中の更新assertは維持する。言語は変更しない。`PreviewIsolation`1件と既存5言語描画の`LocalizedToolOverlay`1件を必須gateとし、UI側の既知native font失敗を隠さない。
 
 - CI生成projectのSDKは明示flag付きのEditorテスト用configで初期化し、`verify_test_environment.py`でready markerを必須確認する。live backend試験ではなくgeometry/preview試験であることを区別する。Inspectorは表示styleだけを復元可能に隔離し、AAO/MA graph contextはfixture破棄前に解放する。通常利用者projectへSDK test configを入れない。
+
+- AAO/MA fixtureはUnityTearDownで非active化し、NDMFの公開GetAvatarRootsから消え、共有queryのinvalidationをflushした後に破棄する。sessionのForceRebuildだけでは共有avatar cacheの参照が残る。180 frameの期限は監視解除の失敗をassertする上限であり、固定sleepやretryによる成功扱いにしない。

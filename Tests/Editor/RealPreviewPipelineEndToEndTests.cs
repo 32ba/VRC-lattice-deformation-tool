@@ -25,6 +25,45 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     {
         private const string EnablePreviewMenu = "Tools/NDM Framework/Enable Previews";
         private Action _restoreInterruptedInteraction;
+        private Action _destroyRetiredFixture;
+        private GameObject _retiringAvatar;
+
+        [UnityTearDown]
+        public IEnumerator DestroyFixtureAfterPreviewInvalidation()
+        {
+            RestoreInterruptedInteraction();
+            try
+            {
+                if (_retiringAvatar != null)
+                {
+                    // Keep the object alive while NDMF invalidates its shared
+                    // avatar list and dependent MA queries. Rebuilding a session
+                    // alone does not flush these shared query caches.
+                    _retiringAvatar.SetActive(false);
+                    bool removed = false;
+                    for (int frame = 0; frame < 180; frame++)
+                    {
+                        ComputeContext.FlushInvalidates();
+                        var context = new ComputeContext("Lattice E2E fixture retirement");
+                        try { removed = !context.GetAvatarRoots().Contains(_retiringAvatar); }
+                        finally { context.Invalidate(); }
+                        if (removed) break;
+                        EditorApplication.QueuePlayerLoopUpdate();
+                        yield return null;
+                    }
+                    Assert.That(removed, Is.True,
+                        "NDMF must stop observing the inactive avatar before the fixture is destroyed.");
+                    ComputeContext.FlushInvalidates();
+                }
+            }
+            finally
+            {
+                var destroy = _destroyRetiredFixture;
+                _destroyRetiredFixture = null;
+                _retiringAvatar = null;
+                destroy?.Invoke();
+            }
+        }
 
         // Native log failures can stop a UnityTest iterator without disposing it.
         // Release the control and subscriptions even when its finally is not run.
@@ -93,10 +132,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 // Dispose graph contexts before destroying the observed avatar;
                 // a queued invalidation must not query a dead fixture next frame.
                 testSession?.ForceRebuild();
-                LatticePreviewUtility.ClearProxy(sourceRenderer);
-                Object.DestroyImmediate(root);
-                Object.DestroyImmediate(source);
-                viewport?.Dispose();
+                _retiringAvatar = root;
+                _destroyRetiredFixture = () =>
+                {
+                    LatticePreviewUtility.ClearProxy(sourceRenderer);
+                    Object.DestroyImmediate(root);
+                    Object.DestroyImmediate(source);
+                    viewport?.Dispose();
+                };
             };
 
             try
@@ -566,12 +609,16 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 if (!previewWasEnabled && PreviewSession.Current != null && previousDisableDepth == 0)
                     EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
                 testSession?.ForceRebuild();
-                if (fixture != null)
+                _retiringAvatar = fixture?.AvatarRoot;
+                _destroyRetiredFixture = () =>
                 {
-                    LatticePreviewUtility.ClearProxy(fixture.Renderer);
-                    fixture.Dispose();
-                }
-                viewport?.Dispose();
+                    if (fixture != null)
+                    {
+                        LatticePreviewUtility.ClearProxy(fixture.Renderer);
+                        fixture.Dispose();
+                    }
+                    viewport?.Dispose();
+                };
             };
 
             try
