@@ -40,6 +40,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         private Vector3 _handlePivot;
         private Vector2 _pickPoint, _handlePoint;
         private PivotRotation _pivotRotation;
+        private Camera.CameraCallback _initialRenderCallback;
 
         [UnityTest]
         [Category("InteractionE2E")]
@@ -257,6 +258,24 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             CaptureEditorState();
             CreateFixture();
             ConfigureBrush();
+            // A shown window is not yet a rendered Scene View. Complete the
+            // source camera's first render (including cold shader work) before
+            // starting the asynchronous preview graph and its readiness budget.
+            NDMFPreview.DisablePreviewDepth = 1;
+            yield return WaitFor(() => _view.position.width >= 1000 && _view.position.height >= 700,
+                "The owned Scene View did not reach the required input viewport size.");
+            _view.Focus();
+            bool rendered = false;
+            _initialRenderCallback = camera =>
+            {
+                if (_view != null && camera == _view.camera) rendered = true;
+            };
+            Camera.onPostRender += _initialRenderCallback;
+            try
+            {
+                yield return WaitFor(() => rendered, "The owned Scene View did not complete its source render.");
+            }
+            finally { RemoveInitialRenderCallback(); }
             NDMFPreview.DisablePreviewDepth = 0;
             if (!_previewEnabled) Assert.That(EditorApplication.ExecuteMenuItem(PreviewMenu), Is.True);
             yield return WaitFor(() => PreviewSession.Current != null, "NDMF did not start.");
@@ -266,9 +285,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             yield return null;
             ToolManager.SetActiveTool<MeshDeformerTool>();
             PreviewSession.Current.ForceRebuild();
-            yield return WaitFor(() => _view.position.width >= 1000 && _view.position.height >= 700,
-                "The owned Scene View did not reach the required input viewport size.");
-            _view.Focus();
             _view.Repaint();
             yield return WaitFor(() => TryReadProxy(out _), "NDMF did not publish a genuine final proxy.");
 
@@ -437,6 +453,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 Assert.That(EditorApplication.timeSinceStartup - start, Is.LessThan(5d), message);
                 _view?.Repaint();
+                EditorApplication.QueuePlayerLoopUpdate();
                 yield return null;
             }
         }
@@ -447,6 +464,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [UnityTearDown]
         public IEnumerator TearDown()
         {
+            RemoveInitialRenderCallback();
             if (_selection == null) yield break;
             SceneView.beforeSceneGui -= ProjectInput;
             Tools.current = Tool.Move;
@@ -474,6 +492,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 if (_createdView) _view.Close(); else _view.Repaint();
             }
             _selection = null;
+        }
+
+        private void RemoveInitialRenderCallback()
+        {
+            if (_initialRenderCallback == null) return;
+            Camera.onPostRender -= _initialRenderCallback;
+            _initialRenderCallback = null;
         }
     }
 }
