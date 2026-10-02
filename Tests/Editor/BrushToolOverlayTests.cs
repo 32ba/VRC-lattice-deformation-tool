@@ -55,6 +55,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [UnityTest]
+        [Category("LocalizedToolOverlay")]
         public IEnumerator AllToolLanguagesAndModes_DrawWithoutChangingPayload()
         {
             var oldLanguage = LatticeLocalization.CurrentLanguage;
