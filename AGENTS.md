@@ -501,3 +501,5 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - AAO/MA fixtureはUnityTearDownで非active化し、NDMFの公開GetAvatarRootsから消え、共有queryのinvalidationをflushした後に破棄する。sessionのForceRebuildだけでは共有avatar cacheの参照が残る。180 frameの期限は監視解除の失敗をassertする上限であり、固定sleepやretryによる成功扱いにしない。
 
 - Prefab Stage自動移行の非UI試験もInspectorPresentationScopeで表示だけを隔離する。選択に伴うCJK font atlas生成と移行結果を混同しない。移行、dirty/save、再open時の冪等性assertは保持し、native失敗でもTearDownでStage・一時asset・window表示を復元する。
+
+- CIはwarmupと本試験のraw XML件数・非成功case名をGitHub noticeへ出し、両artifactを保存する。診断にはログ本文・failure message・環境変数・認証情報を出さない。診断stepは合否を変更せず、既存の必須gateが判定する。

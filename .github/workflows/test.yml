@@ -408,10 +408,42 @@ jobs:
           -RequiredCategory LocalizedToolOverlay
           -RequiredCategoryCount 1
 
+      - name: Summarize raw test outcomes
+        if: always()
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          def annotate(text):
+              escaped = text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print('::notice::' + escaped)
+          for folder in ('warmup-artifacts', 'test-artifacts'):
+              path = Path(folder) / 'editmode-results.xml'
+              if not path.exists():
+                  annotate(folder + ': result XML was not produced')
+                  continue
+              try:
+                  root = ET.parse(path).getroot()
+              except ET.ParseError:
+                  annotate(folder + ': result XML is malformed')
+                  continue
+              annotate(folder + ': ' + json.dumps({key: root.get(key) for key in
+                       ('total', 'passed', 'failed', 'skipped', 'inconclusive')}))
+              for case in root.iter('test-case'):
+                  if case.get('result') != 'Passed':
+                      # Only case identifiers and outcomes; never log contents,
+                      # failure messages, environment variables or credentials.
+                      annotate(folder + ': ' + case.get('result', 'Unknown') + ': ' +
+                               case.get('fullname', case.get('name', 'Unnamed')))
+          PYTHON
+
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: editmode-test-results-${{ matrix.unityVersion }}-${{ matrix.configuration }}
-          path: test-artifacts/
+          path: |
+            test-artifacts/
+            warmup-artifacts/
           if-no-files-found: warn
