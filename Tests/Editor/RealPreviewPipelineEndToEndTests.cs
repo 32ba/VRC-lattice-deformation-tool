@@ -40,6 +40,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     // avatar list and dependent MA queries. Rebuilding a session
                     // alone does not flush these shared query caches.
                     _retiringAvatar.SetActive(false);
+                    // Direct fixture mutations must notify reactive queries too;
+                    // headless runs cannot rely on Inspector/focus polling.
+                    ChangeNotifier.NotifyObjectUpdate(_retiringAvatar);
                     bool removed = false;
                     for (int frame = 0; frame < 180; frame++)
                     {
