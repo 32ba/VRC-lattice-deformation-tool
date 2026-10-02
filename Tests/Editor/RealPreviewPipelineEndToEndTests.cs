@@ -699,7 +699,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             SceneView reopened = null;
             PreviewViewport viewport = null;
             var language = LatticeLocalization.CurrentLanguage;
-            var inspectorDisplays = PreviewViewport.InspectorWindows()
+            var inspectorDisplays = InspectorPresentationScope.InspectorWindows()
                 .ToDictionary(window => window, window => window.rootVisualElement.style.display);
             _restoreInterruptedInteraction = () =>
             {
@@ -747,26 +747,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         private sealed class PreviewViewport : IDisposable
         {
             private readonly SceneView _previous = SceneView.lastActiveSceneView;
-            private readonly List<(VisualElement Root, StyleEnum<DisplayStyle> Display)> _inspectors = new();
+            private readonly InspectorPresentationScope _inspectors = new();
 
-            internal static EditorWindow[] InspectorWindows() => Resources.FindObjectsOfTypeAll<EditorWindow>()
-                .Where(window => window.GetType().FullName == "UnityEditor.InspectorWindow" ||
-                                 window.GetType().FullName == "UnityEditor.PropertyEditor").ToArray();
             internal SceneView View { get; private set; }
 
             internal PreviewViewport()
             {
                 try
                 {
-                    // Selection is required by component tools, but rebuilding a
-                    // visible Inspector can also measure localized IMGUI text.
-                    // Keep its tracker active while suspending only presentation.
-                    foreach (var inspector in InspectorWindows())
-                    {
-                        var root = inspector.rootVisualElement;
-                        _inspectors.Add((root, root.style.display));
-                        root.style.display = DisplayStyle.None;
-                    }
                     View = ScriptableObject.CreateInstance<SceneView>();
                     View.position = new Rect(100, 100, 960, 720);
                     View.Show();
@@ -786,9 +774,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 if (View != null) View.Close();
                 View = null;
-                ActiveEditorTracker.sharedTracker.ForceRebuild();
-                foreach (var (root, display) in _inspectors) root.style.display = display;
-                _inspectors.Clear();
+                _inspectors.Dispose();
                 if (_previous != null) _previous.Focus();
             }
         }

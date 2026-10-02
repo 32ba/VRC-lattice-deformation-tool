@@ -499,3 +499,5 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - CI生成projectのSDKは明示flag付きのEditorテスト用configで初期化し、`verify_test_environment.py`でready markerを必須確認する。live backend試験ではなくgeometry/preview試験であることを区別する。Inspectorは表示styleだけを復元可能に隔離し、AAO/MA graph contextはfixture破棄前に解放する。通常利用者projectへSDK test configを入れない。
 
 - AAO/MA fixtureはUnityTearDownで非active化し、NDMFの公開GetAvatarRootsから消え、共有queryのinvalidationをflushした後に破棄する。sessionのForceRebuildだけでは共有avatar cacheの参照が残る。180 frameの期限は監視解除の失敗をassertする上限であり、固定sleepやretryによる成功扱いにしない。
+
+- Prefab Stage自動移行の非UI試験もInspectorPresentationScopeで表示だけを隔離する。選択に伴うCJK font atlas生成と移行結果を混同しない。移行、dirty/save、再open時の冪等性assertは保持し、native失敗でもTearDownでStage・一時asset・window表示を復元する。
