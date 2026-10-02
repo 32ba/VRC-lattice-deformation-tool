@@ -37,6 +37,8 @@ Unity 6の試験は本packageの先行互換性検証として実施し、利用
 - `-nographics`を使った試験ではGraphicsE2EやScene View入力の合格を主張しない。描画deviceをログで確認し、失敗・Skipped・Inconclusive・0件を分けて記録する。
 - 同一ユーザー設定を共有するEditorは直列実行する。独立projectでもEditorPrefsの言語・ツール設定は共有され得る。
 - Unity内部のフォントatlas追加assertが起きた場合は、VPM依存や本packageのないprojectで標準Editor labelによるCJK描画を確認する。製品なしの再現を分離して記録し、元のUI試験をignore/skipやログ抑止で合格にしない。
+- 実Previewの描画coroutineがnative logで中断した場合も、AAOの入力control・SceneView購読・Cage通知・選択・ツール・生成objectと、MA fixture/設定をTearDownで復元する。iteratorのfinallyだけに依存しない。元の描画失敗は失敗のまま保存する。
+- Previewのフレーク調査は依存lock・言語・保存layoutを固定し、クリーン起動と同一セッションの順序変更を反復して比較する。前段失敗による状態漏れとnative font cacheの初回描画失敗を分け、固定sleepや無条件retryで通過扱いにしない。
 - Linuxの仮想display上のScene View event試験は、実OSマウス操作・利用者Avatar・Windows/macOSの検証を代替しない。
 - 過去のEditorで保存したfixtureのmanifestや期待値は維持し、両Editorで同じ入力を読み込む。
 - 公開gateは配布物検査と4組すべての同一commit CI成功を要求する。旧2 job名の結果で代用しない。
