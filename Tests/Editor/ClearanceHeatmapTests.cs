@@ -53,10 +53,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(ClearanceQueryCache.StateHashCount, Is.EqualTo(stateHashes));
 
                 target.transform.localPosition = Vector3.forward * 0.02f;
-                typeof(LatticeDeformerEditor).GetField(
+                typeof(ClearanceAuthoringSession).GetField(
                         "_lastClearanceEvaluationTime",
                         BindingFlags.Instance | BindingFlags.NonPublic)
-                    .SetValue(editor, double.NegativeInfinity);
+                    .SetValue(((LatticeDeformerEditor)editor).ClearanceSession, double.NegativeInfinity);
                 editor.GetClearanceEvaluation(
                     deformer, reference, ClearanceQueryMode.ReferenceNormal, 0.005f, 0.01f, 0.02f);
                 Assert.That(ClearanceHeatmapEvaluator.EvaluationCount, Is.EqualTo(2));
@@ -165,10 +165,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 var proxyRaw = ClearanceHeatmapEvaluator.Evaluate(
                     proxy, reference, ClearanceSignMode.ReferenceNormal);
-                typeof(LatticeDeformerEditor).GetField(
+                typeof(ClearanceAuthoringSession).GetField(
                         "_clearanceRawEvaluation",
                         BindingFlags.Instance | BindingFlags.NonPublic)
-                    .SetValue(editor, proxyRaw);
+                    .SetValue(((LatticeDeformerEditor)editor).ClearanceSession, proxyRaw);
 
                 var fitRaw = editor.GetFitCorrectionRawEvaluation(
                     deformer, reference, ClearanceQueryMode.ReferenceNormal, 0.1f);
@@ -221,10 +221,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(throttled, Is.SameAs(first));
                 Assert.That(ClearanceHeatmapEvaluator.EvaluationCount, Is.EqualTo(evaluationCount));
                 Assert.That(ClearanceQueryCache.BakeCount, Is.EqualTo(bakeCount));
-                Assert.That((bool)typeof(LatticeDeformerEditor).GetField(
+                Assert.That((bool)typeof(ClearanceAuthoringSession).GetField(
                         "_fitCorrectionRawIsThrottledStale",
                         BindingFlags.Instance | BindingFlags.NonPublic)
-                    .GetValue(editor), Is.True);
+                    .GetValue(((LatticeDeformerEditor)editor).ClearanceSession), Is.True);
             }
             finally
             {
@@ -712,21 +712,21 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             UnityEditor.Editor editor = UnityEditor.Editor.CreateEditor(
                 deformer,
                 typeof(LatticeDeformerEditor));
-            var cacheField = typeof(LatticeDeformerEditor).GetField(
+            var cacheField = typeof(ClearanceAuthoringSession).GetField(
                 "_clearanceRawEvaluation",
                 BindingFlags.Instance | BindingFlags.NonPublic);
             try
             {
                 Assert.That(cacheField, Is.Not.Null);
-                cacheField.SetValue(editor, CreateRawEvaluation(0.01f));
-                Assert.That(cacheField.GetValue(editor), Is.Not.Null);
+                cacheField.SetValue(((LatticeDeformerEditor)editor).ClearanceSession, CreateRawEvaluation(0.01f));
+                Assert.That(cacheField.GetValue(((LatticeDeformerEditor)editor).ClearanceSession), Is.Not.Null);
 
                 Undo.RegisterCompleteObjectUndo(deformer, "Clearance cache invalidation");
                 deformer.ShowClearanceHeatmap = true;
                 Undo.FlushUndoRecordObjects();
                 Undo.PerformUndo();
 
-                Assert.That(cacheField.GetValue(editor), Is.Null);
+                Assert.That(cacheField.GetValue(((LatticeDeformerEditor)editor).ClearanceSession), Is.Null);
             }
             finally
             {

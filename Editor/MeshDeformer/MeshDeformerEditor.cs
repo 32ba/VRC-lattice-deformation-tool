@@ -2,13 +2,10 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
-using System.Reflection;
 using nadena.dev.ndmf.preview;
 using UnityEditor;
 using UnityEditor.EditorTools;
 using UnityEngine;
-using Unity.Profiling;
 using UnityEditor.UIElements;
 using UnityEngine.UIElements;
 using Net._32Ba.LatticeDeformationTool;
@@ -19,192 +16,57 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     [ExcludeFromCodeCoverage]
     public sealed class LatticeDeformerEditor : UnityEditor.Editor
     {
-        private SerializedProperty _settingsProp;
         private SerializedProperty _groupsProp;
         private SerializedProperty _activeGroupIndexProp;
-        private SerializedProperty _dataSourceProp;
-        private SerializedProperty _profileProp;
+        private ProfileInspectorSection _profileInspector;
+        private ValidationInspectorSection _validationInspector;
+        private SupportInspectorSection _supportInspector;
+        private MeshRebuildInspectorSection _rebuildInspector;
         // These are resolved per-frame from the active group
         private SerializedProperty _layersProp;
         private SerializedProperty _activeLayerIndexProp;
-        private SerializedProperty _blendShapeOutputProp;
-        private SerializedProperty _blendShapeNameProp;
-        private SerializedProperty _blendShapeCurveProp;
         private SerializedProperty _skinnedRendererProp;
         private SerializedProperty _meshFilterProp;
-        private SerializedProperty _recalcNormalsProp;
-        private SerializedProperty _normalsModeProp;
-        private SerializedProperty _recalcTangentsProp;
-        private SerializedProperty _recalcBoundsProp;
-        private SerializedProperty _recalcBoneWeightsProp;
-        private SerializedProperty _showClearanceHeatmapProp;
-        private SerializedProperty _clearanceReferenceRendererProp;
-        private SerializedProperty _clearanceQueryModeProp;
-        private SerializedProperty _clearanceHeatmapDisplayModeProp;
-        private SerializedProperty _clearanceWarningDistanceProp;
-        private SerializedProperty _clearanceTargetDistanceProp;
-        private SerializedProperty _clearanceDisplayStrideProp;
-        private SerializedProperty _clearanceUpdateIntervalProp;
-        private SerializedProperty _clearanceScanSetProp;
-        private SerializedProperty _clearanceScanAvatarRootProp;
-        private SerializedProperty _fitCorrectionScopeProp;
-        private SerializedProperty _fitCorrectionMaximumMoveProp;
-        private SerializedProperty _fitCorrectionUseVertexMaskProp;
-        private SerializedProperty _fitCorrectionPinOpenBoundariesProp;
-        private SerializedProperty _fitCorrectionIsolateComponentsProp;
-        private SerializedProperty _fitCorrectionSmoothSurfaceProp;
-        private SerializedProperty _fitCorrectionSmoothingIterationsProp;
-        private SerializedProperty _fitCorrectionSmoothingStrengthProp;
-        private SerializedProperty _fitCorrectionPreserveClearanceProp;
-        private SerializedProperty _fitCorrectionUseSymmetryProp;
-        private SerializedProperty _fitCorrectionSymmetryAxisProp;
-        private SerializedProperty _fitCorrectionSymmetryToleranceProp;
-        private SerializedProperty _fitCorrectionPreviewProp;
-        private bool _blendShapeTestMode = false;
-        private float _blendShapeTestWeight = 0f;
-        private Mesh _preTestMesh = null;
-        private string[] _preTestBlendShapeNames = Array.Empty<string>();
-        private float[] _preTestBlendShapeWeights = Array.Empty<float>();
-        private bool _preTestMeshWasOverridden = false;
-        private bool _preTestWeightsWereOverridden = false;
-        private SerializedProperty _weightTransferSettingsProp;
-        private SerializedProperty _alignModeProp;
-        private SerializedProperty _clampMulXYProp;
-        private SerializedProperty _clampMinXYProp;
-        private SerializedProperty _clampMulZProp;
-        private SerializedProperty _clampMinZProp;
-        private SerializedProperty _allowCenterOffsetProp;
-        private SerializedProperty _alignAutoInitializedProp;
-        private SerializedProperty _manualOffsetProp;
-        private SerializedProperty _manualScaleProp;
-        private Vector3 _uniformScaleBuffer = Vector3.one;
-        private static bool s_linkManualScale = true;
-        private static GUIContent s_linkOn;
-        private static GUIContent s_linkOff;
-        private static readonly GUIContent[] s_xyzLabels = { new GUIContent("X"), new GUIContent("Y"), new GUIContent("Z") };
+        private ClearanceInspectorSection _clearanceInspector;
+        private BlendShapeInspectorSection _blendShapeInspector;
+        private LayerSettingsInspectorSection _layerSettingsInspector;
+        internal LayerSettingsInspectorSection LayerSettingsInspector => _layerSettingsInspector;
+        private const string DetailedInspectorSessionKeyPrefix =
+            "Net32Ba.LatticeDeformationTool.DetailedInspector.";
 
-        private static bool s_showOptions = false;
-        private static bool s_showLayerStack = true;
-        private static bool s_showAlignSettings = false;
-        private static bool s_showWeightTransferSettings = false;
-        private static bool s_showBlendShapeOutput = false;
-        private static bool s_showLayerSettings = false;
-        private static bool s_showClearanceHeatmapSettings = false;
-        private static readonly Dictionary<long, Vector3Int> s_pendingGridSizes = new();
-        private static string s_copiedLayerJson = null;
-        private static MeshDeformerLayerType s_copiedLayerType;
-        private static string s_copiedGroupJson = null;
-
-        // UI Toolkit layer list
-        private ListView _layerListView;
-        private readonly List<int> _layerIndices = new();
-        private int _cachedLayerCount = -1;
-        private int _cachedActiveIndex = -1;
-        private ClearanceHeatmapRawEvaluation _clearanceRawEvaluation;
-        private double _lastClearanceEvaluationTime = double.NegativeInfinity;
-        private int _lastClearanceTargetId;
-        private int _lastClearanceReferenceId;
-        private bool _lastClearanceUsedPreviewProxy;
-        private int _lastClearanceLightweightStateHash;
-        private ClearanceSignMode _lastClearanceSignMode;
-        private bool _lastClearanceHadTargetState;
-        private bool _lastClearanceHadReferenceState;
-        private ClearanceHeatmapEvaluation _cachedClearanceEvaluation;
-        private ClearanceHeatmapRawEvaluation _classifiedClearanceRawEvaluation;
-        private float _classifiedWarningDistance;
-        private float _classifiedTargetDistance;
-        private ClearanceScanOperation _clearanceScanOperation;
-        private ClearanceScanResult _clearanceScanResult;
-        private ClearanceScanPreviewState _clearanceScanPreviewState;
-        private ClearanceHeatmapRawEvaluation _fitCorrectionRawEvaluation;
-        private int _lastFitCorrectionLightweightStateHash;
-        private int _lastFitCorrectionTargetId;
-        private int _lastFitCorrectionReferenceId;
-        private ClearanceSignMode _lastFitCorrectionSignMode;
-        private double _lastFitCorrectionEvaluationTime = double.NegativeInfinity;
-        private bool _fitCorrectionRawIsThrottledStale;
-        private readonly FitCorrectionPlan _throttledStaleFitCorrectionPlan =
-            new FitCorrectionPlan(FitCorrectionStatus.StaleEvaluation);
-        private FitCorrectionReport _lastFitCorrectionReport;
-        private FitCorrectionPlan _fitCorrectionPreviewPlan;
-        private FitCorrectionPlan _cachedFitCorrectionPlan;
-        private int _cachedFitCorrectionPlanKey;
-        private bool _hasCachedFitCorrectionPlan;
-        private IReadOnlyList<MeshDeformerDiagnostic> _cachedValidationDiagnostics;
-        private int _cachedValidationStateHash;
-        private bool _hasCachedValidationState;
-        private const int HeatmapDrawPointBudget = 4096;
-        private static readonly ProfilerMarker s_heatmapDrawMarker =
-            new ProfilerMarker("ClearanceHeatmap.Draw");
+        private VisualElement _guidedInspectorContainer;
+        private VisualElement _detailedInspectorContainer;
+        private GuidedInspectorSection _guidedInspector;
+        internal GuidedInspectorSection GuidedInspector => _guidedInspector;
 
         private void OnEnable()
         {
-            EnsureLinkIcons();
-            _settingsProp = serializedObject.FindProperty("_settings");
             _groupsProp = serializedObject.FindProperty("_groups");
             _activeGroupIndexProp = serializedObject.FindProperty("_activeGroupIndex");
-            _dataSourceProp = serializedObject.FindProperty("_dataSource");
-            _profileProp = serializedObject.FindProperty("_profile");
+            _blendShapeInspector = new BlendShapeInspectorSection(this, NotifyPropertyChanges, OnBlendShapeImported);
+            _layerSettingsInspector = new LayerSettingsInspectorSection(this, NotifyPropertyChanges, _blendShapeInspector.DrawLayer);
+            _stackInspector = new DeformerStackInspectorSection(this, _blendShapeInspector.DrawGroup,
+                DrawActiveLayerSettings, _blendShapeInspector.DrawImport, OnStackStructureChanged);
+            _profileInspector = new ProfileInspectorSection(this, RebuildGroupList);
+            _guidedInspector = new GuidedInspectorSection(this, AutoAssignLocalRendererReferences,
+                OpenDetailedInspector, OnGuidedEditingStarted, NotifyPropertyChanges);
+            _rebuildInspector = new MeshRebuildInspectorSection(serializedObject);
+            _supportInspector = new SupportInspectorSection(this);
+            _validationInspector = new ValidationInspectorSection(this, NotifyPropertyChanges);
             _skinnedRendererProp = serializedObject.FindProperty("_skinnedMeshRenderer");
             _meshFilterProp = serializedObject.FindProperty("_meshFilter");
-            _recalcNormalsProp = serializedObject.FindProperty("_recalculateNormals");
-            _normalsModeProp = serializedObject.FindProperty("_normalsRecalculationMode");
-            _recalcTangentsProp = serializedObject.FindProperty("_recalculateTangents");
-            _recalcBoundsProp = serializedObject.FindProperty("_recalculateBounds");
-            _recalcBoneWeightsProp = serializedObject.FindProperty("_recalculateBoneWeights");
-            _showClearanceHeatmapProp = serializedObject.FindProperty("_showClearanceHeatmap");
-            _clearanceReferenceRendererProp = serializedObject.FindProperty("_clearanceReferenceRenderer");
-            _clearanceQueryModeProp = serializedObject.FindProperty("_clearanceQueryMode");
-            _clearanceHeatmapDisplayModeProp = serializedObject.FindProperty("_clearanceHeatmapDisplayMode");
-            _clearanceWarningDistanceProp = serializedObject.FindProperty("_clearanceWarningDistance");
-            _clearanceTargetDistanceProp = serializedObject.FindProperty("_clearanceTargetDistance");
-            _clearanceDisplayStrideProp = serializedObject.FindProperty("_clearanceDisplayStride");
-            _clearanceUpdateIntervalProp = serializedObject.FindProperty("_clearanceUpdateInterval");
-            _clearanceScanSetProp = serializedObject.FindProperty("_clearanceScanSet");
-            _clearanceScanAvatarRootProp = serializedObject.FindProperty("_clearanceScanAvatarRoot");
-            _fitCorrectionScopeProp = serializedObject.FindProperty("_fitCorrectionScope");
-            _fitCorrectionMaximumMoveProp = serializedObject.FindProperty("_fitCorrectionMaximumMove");
-            _fitCorrectionUseVertexMaskProp = serializedObject.FindProperty("_fitCorrectionUseVertexMask");
-            _fitCorrectionPinOpenBoundariesProp = serializedObject.FindProperty("_fitCorrectionPinOpenBoundaries");
-            _fitCorrectionIsolateComponentsProp = serializedObject.FindProperty("_fitCorrectionIsolateComponents");
-            _fitCorrectionSmoothSurfaceProp = serializedObject.FindProperty("_fitCorrectionSmoothSurface");
-            _fitCorrectionSmoothingIterationsProp = serializedObject.FindProperty("_fitCorrectionSmoothingIterations");
-            _fitCorrectionSmoothingStrengthProp = serializedObject.FindProperty("_fitCorrectionSmoothingStrength");
-            _fitCorrectionPreserveClearanceProp = serializedObject.FindProperty("_fitCorrectionPreserveClearance");
-            _fitCorrectionUseSymmetryProp = serializedObject.FindProperty("_fitCorrectionUseSymmetry");
-            _fitCorrectionSymmetryAxisProp = serializedObject.FindProperty("_fitCorrectionSymmetryAxis");
-            _fitCorrectionSymmetryToleranceProp = serializedObject.FindProperty("_fitCorrectionSymmetryTolerance");
-            _fitCorrectionPreviewProp = serializedObject.FindProperty("_fitCorrectionPreview");
-            _weightTransferSettingsProp = serializedObject.FindProperty("_weightTransferSettings");
+            _clearanceInspector = new ClearanceInspectorSection(this, OnClearanceLayersChanged);
+            _clearanceInspector.Session.Changed += OnClearanceStateChanged;
             ResolveActiveGroupProperties();
-            _alignModeProp = serializedObject.FindProperty("_alignMode");
-            _clampMulXYProp = serializedObject.FindProperty("_centerClampMulXY");
-            _clampMinXYProp = serializedObject.FindProperty("_centerClampMinXY");
-            _clampMulZProp = serializedObject.FindProperty("_centerClampMulZ");
-            _clampMinZProp = serializedObject.FindProperty("_centerClampMinZ");
-            _allowCenterOffsetProp = serializedObject.FindProperty("_allowCenterOffsetWhenBoundsSkipped");
-            _alignAutoInitializedProp = serializedObject.FindProperty("_alignAutoInitialized");
-            _manualOffsetProp = serializedObject.FindProperty("_manualOffsetProxy");
-            _manualScaleProp = serializedObject.FindProperty("_manualScaleProxy");
-
             AutoAssignLocalRendererReferences();
-            InitializePendingGridSizes();
             LatticeLocalization.LanguageChanged += OnLanguageChanged;
             ReleaseChecker.OnUpdateCheckCompleted += Repaint;
-            if (LatticeDeformationFeatureFlags.ClearanceTools)
-            {
-                SceneView.duringSceneGui += DrawClearanceHeatmapInScene;
-            }
-            Undo.undoRedoPerformed += OnClearanceStateChanged;
         }
 
         private void ResolveActiveGroupProperties()
         {
             _layersProp = null;
             _activeLayerIndexProp = null;
-            _blendShapeOutputProp = null;
-            _blendShapeNameProp = null;
-            _blendShapeCurveProp = null;
 
             if (_groupsProp == null || _activeGroupIndexProp == null) return;
             int groupIndex = _activeGroupIndexProp.intValue;
@@ -215,32 +77,26 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             _layersProp = groupProp.FindPropertyRelative("_layers");
             _activeLayerIndexProp = groupProp.FindPropertyRelative("_activeLayerIndex");
-            _blendShapeOutputProp = groupProp.FindPropertyRelative("_blendShapeOutput");
-            _blendShapeNameProp = groupProp.FindPropertyRelative("_blendShapeName");
-            _blendShapeCurveProp = groupProp.FindPropertyRelative("_blendShapeCurve");
         }
 
         private void OnDisable()
         {
             LatticeLocalization.LanguageChanged -= OnLanguageChanged;
             ReleaseChecker.OnUpdateCheckCompleted -= Repaint;
-            if (LatticeDeformationFeatureFlags.ClearanceTools)
-            {
-                SceneView.duringSceneGui -= DrawClearanceHeatmapInScene;
-            }
-            Undo.undoRedoPerformed -= OnClearanceStateChanged;
-            EditorApplication.update -= AdvanceClearanceScan;
-            _clearanceScanOperation?.Cancel();
-            _clearanceScanOperation?.Dispose();
-            _clearanceScanOperation = null;
-            _clearanceScanPreviewState?.Dispose();
-            _clearanceScanPreviewState = null;
-            ExitBlendShapeTestMode();
+            _clearanceInspector?.Dispose();
+            _clearanceInspector = null;
+            _blendShapeInspector?.Dispose();
+            _blendShapeInspector = null;
+            _stackInspector?.Dispose();
+            _stackInspector = null;
+            _profileInspector = null;
+            _guidedInspector = null;
+            _rebuildInspector = null;
+            _supportInspector = null;
+            _validationInspector = null;
 
-            foreach (var deformer in EnumerateTargets())
-            {
-                RemovePendingGridSizesFor(deformer);
-            }
+            _layerSettingsInspector?.Dispose();
+            _layerSettingsInspector = null;
         }
 
         private void OnLanguageChanged()
@@ -253,20 +109,29 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             var root = new VisualElement();
 
+            _guidedInspectorContainer = new VisualElement();
+            _guidedInspectorContainer.Add(new IMGUIContainer(DrawGuidedInspector));
+            root.Add(_guidedInspectorContainer);
+
+            _detailedInspectorContainer = new VisualElement();
+            _detailedInspectorContainer.Add(new IMGUIContainer(DrawDetailedInspectorNavigation));
+
             // Top: Language + Mesh Source (IMGUI)
-            root.Add(new IMGUIContainer(DrawTopSection));
+            _detailedInspectorContainer.Add(new IMGUIContainer(DrawTopSection));
 
             // Groups > Layers nested structure (UI Toolkit)
             if (targets.Length == 1)
             {
-                _groupsContainer = new VisualElement();
-                _groupsContainer.style.marginTop = 4;
+                _groupsContainer = _stackInspector.Root;
                 RebuildGroupList();
-                root.Add(_groupsContainer);
+                _detailedInspectorContainer.Add(_groupsContainer);
             }
 
             // Build Options + Open Editor (IMGUI)
-            root.Add(new IMGUIContainer(DrawBottomSection));
+            _detailedInspectorContainer.Add(new IMGUIContainer(DrawBottomSection));
+            root.Add(_detailedInspectorContainer);
+
+            ApplyInspectorDepthVisibility();
 
             // Track serialized changes
             root.TrackSerializedObjectValue(serializedObject, _ =>
@@ -279,390 +144,96 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return root;
         }
 
-        private VisualElement _groupsContainer;
-        private ListView _groupListView;
-        private readonly List<int> _groupIndices = new();
-        private int _cachedGroupCount = -1;
-
-        private void RebuildGroupList()
+        private bool DetailedInspectorEnabled
         {
-            if (_groupsContainer == null) return;
-            serializedObject.Update();
-            _groupsContainer.Clear();
-
-            if (targets.Length == 1 && target is LatticeDeformer deformer &&
-                deformer.DataSource == DeformerDataSource.Profile && deformer.Profile != null)
-            {
-                var profileLabel = new Label(LatticeLocalization.Tr(LocKey.ProfileReadOnlyInfo));
-                profileLabel.style.whiteSpace = WhiteSpace.Normal;
-                profileLabel.style.marginLeft = 3;
-                profileLabel.style.marginRight = 3;
-                _groupsContainer.Add(profileLabel);
-                return;
-            }
-
-            if (_groupsProp == null) return;
-            int groupCount = _groupsProp.arraySize;
-            _cachedGroupCount = groupCount;
-
-            // Groups label
-            var groupsLabel = new Label(LatticeLocalization.Tr(LocKey.DeformationGroups));
-            groupsLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-            groupsLabel.style.marginLeft = 3;
-            groupsLabel.style.marginBottom = 2;
-            _groupsContainer.Add(groupsLabel);
-
-            // Group ListView
-            _groupListView = new ListView
-            {
-                reorderable = true,
-                reorderMode = ListViewReorderMode.Animated,
-                showBorder = true,
-                showAlternatingRowBackgrounds = AlternatingRowBackground.ContentOnly,
-                virtualizationMethod = CollectionVirtualizationMethod.DynamicHeight,
-                selectionType = SelectionType.Single,
-            };
-            _groupListView.makeItem = MakeGroupItem;
-            _groupListView.bindItem = BindGroupItem;
-            _groupListView.itemIndexChanged += OnGroupReordered;
-            _groupListView.selectionChanged += _ => OnGroupSelectionChanged();
-
-            _groupIndices.Clear();
-            for (int i = 0; i < groupCount; i++)
-                _groupIndices.Add(i);
-            _groupListView.itemsSource = _groupIndices;
-
-            int activeGroupIdx = _activeGroupIndexProp != null ? _activeGroupIndexProp.intValue : 0;
-            _groupListView.selectedIndex = Mathf.Clamp(activeGroupIdx, 0, Mathf.Max(0, groupCount - 1));
-
-            _groupsContainer.Add(_groupListView);
-
-            // Group footer: [+] [-]
-            var groupFooter = new VisualElement();
-            groupFooter.style.flexDirection = FlexDirection.Row;
-            groupFooter.style.justifyContent = Justify.FlexEnd;
-            groupFooter.style.marginTop = -2;
-            groupFooter.style.marginRight = 2;
-            groupFooter.style.marginBottom = 4;
-
-            var addGroupBtn = new Button(() =>
-            {
-                if (target is LatticeDeformer d)
-                {
-                    Undo.RecordObject(d, "Add Group");
-                    d.AddGroup();
-                    EditorUtility.SetDirty(d);
-                    serializedObject.Update();
-                    ResolveActiveGroupProperties();
-                    RebuildGroupList();
-                    NotifyPropertyChanges();
-                }
-            }) { text = "+" };
-            addGroupBtn.style.width = 25;
-            addGroupBtn.style.height = 16;
-            addGroupBtn.style.fontSize = 14;
-            addGroupBtn.style.unityTextAlign = TextAnchor.MiddleCenter;
-            addGroupBtn.style.paddingTop = 0;
-            addGroupBtn.style.paddingBottom = 0;
-            groupFooter.Add(addGroupBtn);
-
-            var removeGroupBtn = new Button(() =>
-            {
-                if (target is LatticeDeformer d && d.GroupCount > 1)
-                {
-                    Undo.RecordObject(d, "Remove Group");
-                    d.RemoveGroup(d.ActiveGroupIndex);
-                    EditorUtility.SetDirty(d);
-                    serializedObject.Update();
-                    ResolveActiveGroupProperties();
-                    RebuildGroupList();
-                    NotifyPropertyChanges();
-                }
-            }) { text = "\u2212" };
-            removeGroupBtn.style.width = 25;
-            removeGroupBtn.style.height = 16;
-            removeGroupBtn.style.fontSize = 14;
-            removeGroupBtn.style.unityTextAlign = TextAnchor.MiddleCenter;
-            removeGroupBtn.style.paddingTop = 0;
-            removeGroupBtn.style.paddingBottom = 0;
-            groupFooter.Add(removeGroupBtn);
-
-            _groupsContainer.Add(groupFooter);
+            get => SessionState.GetBool(GetDetailedInspectorSessionKey(), false);
+            set => SessionState.SetBool(GetDetailedInspectorSessionKey(), value);
         }
 
-        private VisualElement MakeGroupItem()
+        private string GetDetailedInspectorSessionKey()
         {
-            var root = new VisualElement();
-            root.style.paddingTop = 2;
-            root.style.paddingBottom = 2;
-            root.style.paddingLeft = 4;
-            root.style.paddingRight = 4;
-
-            // Right-click context menu for group
-            root.AddManipulator(new ContextualMenuManipulator(evt =>
-            {
-                if (root.userData is not int groupIndex) return;
-                var d = target as LatticeDeformer;
-                if (d == null) return;
-
-                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.DuplicateGroup), _ =>
-                {
-                    Undo.RecordObject(d, LatticeLocalization.Tr(LocKey.DuplicateGroup));
-                    DuplicateGroup(d, groupIndex);
-                    EditorUtility.SetDirty(d);
-                    serializedObject.Update();
-                    ResolveActiveGroupProperties();
-                    RebuildGroupList();
-                    NotifyPropertyChanges();
-                });
-                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.CopyGroup), _ =>
-                {
-                    CopyGroup(d, groupIndex);
-                });
-                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.PasteGroup), _ =>
-                {
-                    Undo.RecordObject(d, LatticeLocalization.Tr(LocKey.PasteGroup));
-                    PasteGroup(d);
-                    EditorUtility.SetDirty(d);
-                    serializedObject.Update();
-                    ResolveActiveGroupProperties();
-                    RebuildGroupList();
-                    NotifyPropertyChanges();
-                }, string.IsNullOrEmpty(s_copiedGroupJson) ? DropdownMenuAction.Status.Disabled : DropdownMenuAction.Status.Normal);
-                evt.menu.AppendSeparator();
-                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.DeleteGroup), _ =>
-                {
-                    if (d.GroupCount <= 1) return;
-                    Undo.RecordObject(d, LatticeLocalization.Tr(LocKey.DeleteGroup));
-                    d.RemoveGroup(groupIndex);
-                    EditorUtility.SetDirty(d);
-                    serializedObject.Update();
-                    ResolveActiveGroupProperties();
-                    RebuildGroupList();
-                    NotifyPropertyChanges();
-                }, d.GroupCount <= 1 ? DropdownMenuAction.Status.Disabled : DropdownMenuAction.Status.Normal);
-            }));
-
-            // Row 1: Group name
-            var nameField = new TextField();
-            nameField.name = "group-name";
-            nameField.style.flexGrow = 1;
-            nameField.style.flexShrink = 1;
-            nameField.style.minWidth = 0;
-            nameField.style.overflow = Overflow.Hidden;
-            root.Add(nameField);
-
-            // BlendShape output settings (per group)
-            var blendShapeContainer = new VisualElement();
-            blendShapeContainer.name = "blendshape-container";
-            blendShapeContainer.style.marginTop = 2;
-            root.Add(blendShapeContainer);
-
-            // Nested layer list container (populated in bind for active group)
-            var layerContainer = new VisualElement();
-            layerContainer.name = "layer-container";
-            layerContainer.style.marginTop = 4;
-            root.Add(layerContainer);
-
-            return root;
+            int instanceId = target != null ? target.GetInstanceID() : 0;
+            return DetailedInspectorSessionKeyPrefix + instanceId;
         }
 
-        private void BindGroupItem(VisualElement element, int index)
+        private void ApplyInspectorDepthVisibility()
         {
-            serializedObject.Update();
-            if (_groupsProp == null || index < 0 || index >= _groupsProp.arraySize) return;
-
-            element.userData = index; // for right-click menu
-
-            var groupProp = _groupsProp.GetArrayElementAtIndex(index);
-            var groupNameProp = groupProp.FindPropertyRelative("_name");
-            int activeGroupIdx = _activeGroupIndexProp != null ? _activeGroupIndexProp.intValue : 0;
-            bool isActive = index == activeGroupIdx;
-
-            // Name field
-            var nameField = element.Q<TextField>("group-name");
-            if (nameField != null)
+            bool detailed = DetailedInspectorEnabled;
+            if (_guidedInspectorContainer != null)
             {
-                nameField.SetValueWithoutNotify(groupNameProp != null ? groupNameProp.stringValue : "Group");
-                // Unregister previous callback
-                if (nameField.userData is EventCallback<ChangeEvent<string>> oldCb)
-                    nameField.UnregisterValueChangedCallback(oldCb);
-                EventCallback<ChangeEvent<string>> nameCb = evt =>
-                {
-                    if (groupNameProp != null)
-                    {
-                        serializedObject.Update();
-                        groupNameProp.stringValue = evt.newValue;
-                        serializedObject.ApplyModifiedProperties();
-                    }
-                };
-                nameField.RegisterValueChangedCallback(nameCb);
-                nameField.userData = nameCb;
+                _guidedInspectorContainer.style.display = detailed ? DisplayStyle.None : DisplayStyle.Flex;
             }
-
-            // Active group highlight
-            element.style.borderLeftWidth = isActive ? 2 : 0;
-            element.style.borderLeftColor = new Color(0.3f, 0.6f, 1f, 0.8f);
-
-            // BlendShape output settings (per group)
-            var bsContainer = element.Q("blendshape-container");
-            if (bsContainer != null)
+            if (_detailedInspectorContainer != null)
             {
-                bsContainer.Clear();
-                int capturedGroupIndex = index;
-                bsContainer.Add(new IMGUIContainer(() =>
-                {
-                    DrawGroupBlendShapeSection(capturedGroupIndex);
-                }));
-            }
-
-            // Layer container
-            var layerContainer = element.Q("layer-container");
-            if (layerContainer == null) return;
-            layerContainer.Clear();
-
-            if (isActive)
-            {
-                // Layers label
-                var layersLabel = new Label(LatticeLocalization.Tr(LocKey.Layers));
-                layersLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-                layersLabel.style.marginLeft = 2;
-                layersLabel.style.marginBottom = 2;
-                layerContainer.Add(layersLabel);
-
-                // Layer ListView for active group
-                _layerListView = new ListView
-                {
-                    reorderable = true,
-                    reorderMode = ListViewReorderMode.Animated,
-                    showBorder = true,
-                    showAlternatingRowBackgrounds = AlternatingRowBackground.ContentOnly,
-                    virtualizationMethod = CollectionVirtualizationMethod.DynamicHeight,
-                    selectionType = SelectionType.Single,
-                };
-                _layerListView.makeItem = MakeLayerItem;
-                _layerListView.bindItem = BindLayerItem;
-                _layerListView.itemIndexChanged += OnLayerReordered;
-                _layerListView.selectionChanged += _ => OnLayerSelectionChanged();
-
-                ResolveActiveGroupProperties();
-                RebuildLayerListInternal();
-                layerContainer.Add(_layerListView);
-
-                // Layer footer: [+] [-]
-                var layerFooter = new VisualElement();
-                layerFooter.style.flexDirection = FlexDirection.Row;
-                layerFooter.style.justifyContent = Justify.FlexEnd;
-                layerFooter.style.marginTop = -2;
-                layerFooter.style.marginRight = 2;
-                layerFooter.style.marginBottom = 2;
-
-                var addLayerBtn = new Button(() =>
-                {
-                    var menu = new GenericMenu();
-                    menu.AddItem(new GUIContent(LatticeLocalization.Tr(LocKey.AddLatticeLayer)), false, () =>
-                    {
-                        AddLayerViaList(MeshDeformerLayerType.Lattice);
-                        RebuildGroupList();
-                    });
-                    menu.AddItem(new GUIContent(LatticeLocalization.Tr(LocKey.AddBrushLayer)), false, () =>
-                    {
-                        AddLayerViaList(MeshDeformerLayerType.Brush);
-                        RebuildGroupList();
-                    });
-                    menu.ShowAsContext();
-                }) { text = "+" };
-                addLayerBtn.style.width = 25;
-                addLayerBtn.style.height = 16;
-                addLayerBtn.style.fontSize = 14;
-                addLayerBtn.style.unityTextAlign = TextAnchor.MiddleCenter;
-                addLayerBtn.style.paddingTop = 0;
-                addLayerBtn.style.paddingBottom = 0;
-                layerFooter.Add(addLayerBtn);
-
-                var removeLayerBtn = new Button(() =>
-                {
-                    ResolveActiveGroupProperties();
-                    if (target is LatticeDeformer d && _layersProp != null && _layersProp.arraySize > 0)
-                    {
-                        DeleteLayer(d, _activeLayerIndexProp.intValue);
-                        RebuildGroupList();
-                    }
-                }) { text = "\u2212" };
-                removeLayerBtn.style.width = 25;
-                removeLayerBtn.style.height = 16;
-                removeLayerBtn.style.fontSize = 14;
-                removeLayerBtn.style.unityTextAlign = TextAnchor.MiddleCenter;
-                removeLayerBtn.style.paddingTop = 0;
-                removeLayerBtn.style.paddingBottom = 0;
-                layerFooter.Add(removeLayerBtn);
-
-                layerContainer.Add(layerFooter);
-                layerContainer.Add(new IMGUIContainer(DrawLayerOperationsImgui));
-            }
-            else
-            {
-                // Inactive: show layer count
-                var groupLayersProp = groupProp.FindPropertyRelative("_layers");
-                int layerCount = groupLayersProp != null ? groupLayersProp.arraySize : 0;
-                var summary = new Label($"{layerCount} layer(s)");
-                summary.style.color = new Color(0.6f, 0.6f, 0.6f);
-                summary.style.marginLeft = 4;
-                summary.style.marginTop = 2;
-                layerContainer.Add(summary);
+                _detailedInspectorContainer.style.display = detailed ? DisplayStyle.Flex : DisplayStyle.None;
             }
         }
 
-        private void OnGroupReordered(int oldIndex, int newIndex)
+        private void DrawDetailedInspectorNavigation()
         {
-            if (target is not LatticeDeformer d) return;
-            Undo.RecordObject(d, "Reorder Group");
-
-            serializedObject.Update();
-            _groupsProp.MoveArrayElement(oldIndex, newIndex);
-            // Adjust active group index
-            int active = _activeGroupIndexProp.intValue;
-            if (active == oldIndex)
-                _activeGroupIndexProp.intValue = newIndex;
-            else if (oldIndex < active && newIndex >= active)
-                _activeGroupIndexProp.intValue = active - 1;
-            else if (oldIndex > active && newIndex <= active)
-                _activeGroupIndexProp.intValue = active + 1;
-            serializedObject.ApplyModifiedProperties();
-            ResolveActiveGroupProperties();
-            NotifyPropertyChanges();
+            if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ReturnToGuidedInspector)))
+            {
+                DetailedInspectorEnabled = false;
+                ApplyInspectorDepthVisibility();
+            }
         }
 
-        private void OnGroupSelectionChanged()
-        {
-            if (_groupListView == null || _activeGroupIndexProp == null) return;
-            int selected = _groupListView.selectedIndex;
-            if (selected < 0 || selected >= _groupsProp.arraySize) return;
-            if (_activeGroupIndexProp.intValue == selected) return;
+        private void DrawGuidedInspector() => _guidedInspector?.Draw();
 
-            serializedObject.Update();
-            _activeGroupIndexProp.intValue = selected;
-            serializedObject.ApplyModifiedProperties();
+        private void OpenDetailedInspector()
+        {
+            DetailedInspectorEnabled = true;
+            ApplyInspectorDepthVisibility();
+        }
+
+        private void OnGuidedEditingStarted()
+        {
             ResolveActiveGroupProperties();
             RebuildGroupList();
-            NotifyPropertyChanges();
+            NotifyPropertyChanges(true);
         }
 
-        private void RebuildLayerListInternal()
+        // Historical tests use this internal entry; normal UI calls the authoring service.
+        internal static int EnsureGuidedLayer(LatticeDeformer deformer, MeshDeformerLayerType requiredType)
+            => GuidedAuthoringService.EnsureLayer(deformer, requiredType, LatticeLocalization.Tr(LocKey.MeshDeformer));
+
+        private VisualElement _groupsContainer; // Existing Inspector test seam; the section owns this element.
+        private void OnStackStructureChanged()
         {
-            if (_layerListView == null || _layersProp == null) return;
-
-            _cachedLayerCount = _layersProp.arraySize;
-            _cachedActiveIndex = _activeLayerIndexProp?.intValue ?? 0;
-
-            _layerIndices.Clear();
-            for (int i = 0; i < _layersProp.arraySize; i++)
-                _layerIndices.Add(i);
-
-            _layerListView.itemsSource = _layerIndices;
-            _layerListView.selectedIndex = _cachedActiveIndex;
-            _layerListView.Rebuild();
+            ResolveActiveGroupProperties();
+            NotifyPropertyChanges(true);
         }
+        private void OnBlendShapeImported()
+        {
+            OnStackStructureChanged();
+            RebuildGroupList();
+        }
+        private DeformerStackInspectorSection _stackInspector;
+        internal DeformerStackInspectorSection StackInspector => _stackInspector;
+        private void RebuildGroupList() => _stackInspector?.RebuildGroupList();
+        private void CheckAndRebuildLayers() => _stackInspector?.CheckAndRebuildLayers();
+        private void OnGroupReordered(int from, int to) => _stackInspector?.OnGroupReordered(from, to);
+        private void OnLayerReordered(int from, int to)
+        {
+            if (target is LatticeDeformer d) _stackInspector?.MoveLayer(d, from, to);
+        }
+        private void MoveLayer(LatticeDeformer d, int from, int to) => _stackInspector?.MoveLayer(d, from, to);
+        private void DeleteLayer(LatticeDeformer d, int index) => _stackInspector?.DeleteLayer(d, index);
+        private void CopyLayer(LatticeDeformer d, int index) => _stackInspector?.CopyLayer(d, index);
+        private void PasteLayer(LatticeDeformer d) => _stackInspector?.PasteLayer(d);
+        private void DuplicateGroup(LatticeDeformer d, int index) => _stackInspector?.DuplicateGroup(d, index);
+        private void CopyGroup(LatticeDeformer d, int index) => _stackInspector?.CopyGroup(d, index);
+        private void PasteGroup(LatticeDeformer d) => _stackInspector?.PasteGroup(d);
+
+        // Historical Inspector tests use these private entry points.
+        private void EnterBlendShapeTestMode(LatticeDeformer deformer, SkinnedMeshRenderer renderer)
+            => _blendShapeInspector?.EnterTestMode(deformer, renderer);
+        private void ExitBlendShapeTestMode() => _blendShapeInspector?.ExitTestMode();
+        internal BlendShapeInspectorSection BlendShapeInspector => _blendShapeInspector;
+
+        private void DrawActiveLayerSettings() => _layerSettingsInspector?.Draw();
+
+        private bool ProfileReadOnly => _stackInspector?.ProfileReadOnly == true;
 
         private void DrawTopSection()
         {
@@ -703,197 +274,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             serializedObject.ApplyModifiedProperties();
         }
 
-        private void DrawProfileSection()
-        {
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.DeformerProfile), EditorStyles.boldLabel);
-            var dataSourceOptions = new[]
-            {
-                LatticeLocalization.Content(LocKey.EmbeddedData),
-                LatticeLocalization.Content(LocKey.ProfileData)
-            };
-            if (targets.Length != 1 || target is not LatticeDeformer deformer)
-            {
-                using (new EditorGUI.DisabledScope(true))
-                {
-                    EditorGUILayout.Popup(
-                        LatticeLocalization.Content(LocKey.DataSource),
-                        _dataSourceProp.enumValueIndex,
-                        dataSourceOptions);
-                    EditorGUILayout.ObjectField(
-                        LatticeLocalization.Content(LocKey.DeformerProfile),
-                        _profileProp.objectReferenceValue,
-                        typeof(MeshDeformerProfile),
-                        false);
-                }
-                return;
-            }
-
-            EditorGUI.BeginChangeCheck();
-            var selectedSource = (DeformerDataSource)EditorGUILayout.Popup(
-                LatticeLocalization.Content(LocKey.DataSource),
-                (int)deformer.DataSource,
-                dataSourceOptions);
-            var selectedProfile = (MeshDeformerProfile)EditorGUILayout.ObjectField(
-                LatticeLocalization.Content(LocKey.DeformerProfile),
-                deformer.Profile,
-                typeof(MeshDeformerProfile),
-                false);
-            bool changed = EditorGUI.EndChangeCheck();
-
-            if (changed)
-            {
-                Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.DeformerProfile));
-                bool applied = true;
-                if (selectedSource == DeformerDataSource.Profile && selectedProfile != null)
-                {
-                    applied = deformer.UseProfile(selectedProfile);
-                }
-                else
-                {
-                    deformer.DataSource = selectedSource;
-                    deformer.Profile = selectedProfile;
-                }
-
-                if (!applied)
-                {
-                    EditorGUILayout.HelpBox(
-                        LatticeLocalization.Tr(LocKey.ProfileTopologyMismatchBlocked),
-                        MessageType.Error);
-                }
-                else
-                {
-                    deformer.InvalidateCache();
-                    deformer.Deform(LatticePreviewUtility.ShouldAssignRuntimeMesh());
-                    LatticePrefabUtility.MarkModified(deformer);
-                    serializedObject.Update();
-                    RebuildGroupList();
-                }
-            }
-
-            DrawProfileCompatibility(deformer);
-
-            using (new GUILayout.HorizontalScope())
-            {
-                if (GUILayout.Button(LatticeLocalization.Content(LocKey.CreateProfile)))
-                {
-                    CreateProfileAsset(deformer);
-                }
-
-                using (new EditorGUI.DisabledScope(deformer.Profile == null))
-                {
-                    if (GUILayout.Button(LatticeLocalization.Content(LocKey.SaveToProfile)))
-                    {
-                        Undo.RecordObject(deformer.Profile, LatticeLocalization.Tr(LocKey.SaveToProfile));
-                        if (deformer.SaveToProfile(deformer.Profile))
-                        {
-                            SetProfileSourceIdentity(deformer, deformer.Profile);
-                            EditorUtility.SetDirty(deformer.Profile);
-                            AssetDatabase.SaveAssets();
-                        }
-                    }
-
-                    if (GUILayout.Button(LatticeLocalization.Content(LocKey.CopyProfileToInstance)))
-                    {
-                        Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.CopyProfileToInstance));
-                        deformer.CopyProfileToEmbedded();
-                        LatticePrefabUtility.MarkModified(deformer);
-                        serializedObject.Update();
-                        RebuildGroupList();
-                    }
-                }
-            }
-
-            if (deformer.DataSource == DeformerDataSource.Profile && deformer.Profile == null)
-            {
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.ProfileRequired), MessageType.Warning);
-            }
-        }
-
-        private void CreateProfileAsset(LatticeDeformer deformer)
-        {
-            string path = EditorUtility.SaveFilePanelInProject(
-                LatticeLocalization.Tr(LocKey.CreateProfile),
-                "MeshDeformerProfile",
-                "asset",
-                LatticeLocalization.Tr(LocKey.CreateProfile));
-            if (string.IsNullOrEmpty(path)) return;
-
-            var profile = CreateInstance<MeshDeformerProfile>();
-            if (!deformer.SaveToProfile(profile))
-            {
-                DestroyImmediate(profile);
-                return;
-            }
-            SetProfileSourceIdentity(deformer, profile);
-            AssetDatabase.CreateAsset(profile, path);
-            AssetDatabase.SaveAssets();
-
-            Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.CreateProfile));
-            deformer.UseProfile(profile);
-            LatticePrefabUtility.MarkModified(deformer);
-            serializedObject.Update();
-            RebuildGroupList();
-        }
-
-        private static void DrawProfileCompatibility(LatticeDeformer deformer)
-        {
-            if (deformer.Profile == null) return;
-
-            var status = EvaluateProfileCompatibility(deformer, deformer.Profile);
-            string key;
-            MessageType messageType;
-            switch (status)
-            {
-                case ProfileCompatibilityStatus.ExactMatch:
-                    key = LocKey.ProfileExactMatch;
-                    messageType = MessageType.Info;
-                    break;
-                case ProfileCompatibilityStatus.CompatibleSourceDiffers:
-                    key = LocKey.ProfileCompatibleSourceDiffers;
-                    messageType = MessageType.Info;
-                    break;
-                case ProfileCompatibilityStatus.TopologyMismatch:
-                    key = LocKey.ProfileTopologyMismatchBlocked;
-                    messageType = MessageType.Error;
-                    break;
-                default:
-                    key = LocKey.ProfileInsufficientMetadata;
-                    messageType = MessageType.Warning;
-                    break;
-            }
-
-            EditorGUILayout.HelpBox(LatticeLocalization.Tr(key), messageType);
-        }
-
-        private static ProfileCompatibilityStatus EvaluateProfileCompatibility(
-            LatticeDeformer deformer,
-            MeshDeformerProfile profile)
-        {
-            var status = deformer.EvaluateProfileCompatibility(profile);
-            if (TryGetSourceAssetIdentity(deformer.SourceMesh, out string guid, out long localId))
-            {
-                status = deformer.EvaluateProfileCompatibility(profile, guid, localId);
-            }
-            return status;
-        }
-
-        private static void SetProfileSourceIdentity(LatticeDeformer deformer, MeshDeformerProfile profile)
-        {
-            if (profile != null &&
-                TryGetSourceAssetIdentity(deformer.SourceMesh, out string guid, out long localId))
-            {
-                profile.SetSourceAssetIdentity(guid, localId);
-            }
-        }
-
-        private static bool TryGetSourceAssetIdentity(Mesh mesh, out string guid, out long localId)
-        {
-            guid = "";
-            localId = 0;
-            return mesh != null &&
-                   AssetDatabase.TryGetGUIDAndLocalFileIdentifier(mesh, out guid, out localId) &&
-                   !string.IsNullOrEmpty(guid);
-        }
+        private void DrawProfileSection() => _profileInspector?.Draw();
 
         private void DrawBottomSection()
         {
@@ -902,7 +283,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             serializedObject.Update();
             ResolveActiveGroupProperties();
 
-            DrawBuildOptions();
+            _rebuildInspector.Draw();
             if (LatticeDeformationFeatureFlags.ClearanceTools)
             {
                 DrawClearanceHeatmapSettings();
@@ -916,7 +297,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (LatticeDeformationFeatureFlags.ValidationDiagnostics)
             {
-                DrawValidationDiagnostics();
+                _validationInspector.Draw();
             }
 
             EditorGUILayout.Space();
@@ -929,624 +310,84 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     ? LatticeLocalization.Tr(LocKey.OpenBrushEditor)
                     : LatticeLocalization.Tr(LocKey.OpenLatticeEditor)))
                 {
+                    MeshDeformerTool.UseDetailedOverlay();
                     ToolManager.SetActiveTool<MeshDeformerTool>();
                     LatticePreviewUtility.RequestSceneRepaint();
                 }
             }
+
+            _supportInspector.Draw();
         }
 
-        private void DrawValidationDiagnostics()
-        {
-            if (targets.Length != 1 || target is not LatticeDeformer deformer) return;
-            var diagnostics = GetCachedValidationDiagnostics(deformer);
-            if (diagnostics.Count == 0) return;
-
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.Validation), EditorStyles.boldLabel);
-            foreach (var diagnostic in diagnostics)
-            {
-                var messageType = diagnostic.Severity switch
-                {
-                    MeshDeformerDiagnosticSeverity.Error => MessageType.Error,
-                    MeshDeformerDiagnosticSeverity.Warning => MessageType.Warning,
-                    _ => MessageType.Info
-                };
-                EditorGUILayout.HelpBox(diagnostic.FormatForLog(), messageType);
-                if (diagnostic.Fix != null &&
-                    GUILayout.Button($"{LatticeLocalization.Tr(LocKey.ValidationFix)}: {diagnostic.FixLabel}"))
-                {
-                    diagnostic.Fix();
-                    serializedObject.Update();
-                    NotifyPropertyChanges();
-                    GUIUtility.ExitGUI();
-                }
-            }
-        }
-
-        internal IReadOnlyList<MeshDeformerDiagnostic> GetCachedValidationDiagnostics(
-            LatticeDeformer deformer)
-        {
-            int validationStateHash = ComputeValidationStateHash(deformer);
-            if (!_hasCachedValidationState ||
-                validationStateHash != _cachedValidationStateHash ||
-                _cachedValidationDiagnostics == null)
-            {
-                _cachedValidationDiagnostics = MeshDeformerValidator.Validate(deformer);
-                _cachedValidationStateHash = validationStateHash;
-                _hasCachedValidationState = true;
-            }
-            return _cachedValidationDiagnostics;
-        }
-
+        internal IReadOnlyList<MeshDeformerDiagnostic> GetCachedValidationDiagnostics(LatticeDeformer deformer)
+            => _validationInspector.State.Read(deformer);
         internal static int ComputeValidationStateHash(LatticeDeformer deformer)
-        {
-            if (deformer == null) return 0;
-            unchecked
-            {
-                int hash = 17;
-                hash = hash * 31 + deformer.GetInstanceID();
-                hash = hash * 31 + EditorUtility.GetDirtyCount(deformer);
-                hash = hash * 31 + MeshDeformerValidator.ComputeInspectorStructureHash(deformer);
-                hash = hash * 31 + deformer.enabled.GetHashCode();
-                Mesh source = deformer.SourceMesh;
-                hash = hash * 31 + (source != null ? source.GetInstanceID() : 0);
-                hash = hash * 31 + (source != null ? EditorUtility.GetDirtyCount(source) : 0);
-                MeshDeformerProfile profile = deformer.Profile;
-                hash = hash * 31 + (profile != null ? profile.GetInstanceID() : 0);
-                hash = hash * 31 + (profile != null ? EditorUtility.GetDirtyCount(profile) : 0);
-                MeshCompatibilityMetadata compatibility = profile?.Compatibility;
-                if (compatibility != null)
-                {
-                    hash = hash * 31 + compatibility.VertexCount;
-                    hash = hash * 31 + compatibility.IndexCount.GetHashCode();
-                    hash = hash * 31 + compatibility.TriangleCount.GetHashCode();
-                    hash = hash * 31 + compatibility.SubMeshCount;
-                    hash = hash * 31 + compatibility.BindPoseCount;
-                    hash = hash * 31 + StringComparer.Ordinal.GetHashCode(
-                        compatibility.BlendShapeSignature);
-                    hash = hash * 31 + StringComparer.Ordinal.GetHashCode(
-                        compatibility.TopologyHash);
-                    hash = hash * 31 + StringComparer.Ordinal.GetHashCode(
-                        compatibility.SourceAssetGuid);
-                    hash = hash * 31 + compatibility.SourceAssetLocalId.GetHashCode();
-                }
-                hash = hash * 31 + SkinnedVertexHelper.StoreMovesInRestSpace.GetHashCode();
-                Renderer targetRenderer = deformer.TargetRenderer;
-                if (ClearanceQueryCache.TryGetRendererLightweightStateHash(targetRenderer, out int targetHash))
-                    hash = hash * 31 + targetHash;
-                Renderer reference = deformer.ClearanceReferenceRenderer;
-                if (ClearanceQueryCache.TryGetRendererLightweightStateHash(reference, out int referenceHash))
-                    hash = hash * 31 + referenceHash;
-                return hash;
-            }
-        }
+            => InspectorValidationState.ComputeValidationStateHash(deformer);
 
         private void NotifyPropertyChanges()
+        {
+            NotifyPropertyChanges(false);
+        }
+
+        private void NotifyPropertyChanges(bool dataAlreadyInvalidated)
         {
             InvalidateClearanceEvaluation();
             bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
             foreach (var instance in EnumerateTargets())
             {
-                instance.InvalidateCache();
+                if (!dataAlreadyInvalidated) instance.InvalidateCache();
                 instance.Deform(assignRuntimeMesh);
-                LatticePrefabUtility.MarkModified(instance);
+                if (!dataAlreadyInvalidated) LatticePrefabUtility.MarkModified(instance);
             }
 
             if (targets.Length == 1 && target is LatticeDeformer activeDeformer)
             {
                 SyncActiveToolToLayer(activeDeformer);
-                ReapplyBlendShapeTestWeight(activeDeformer);
+                _blendShapeInspector?.Refresh(activeDeformer);
             }
 
             LatticePreviewUtility.RequestSceneRepaint();
         }
 
-        private void DrawClearanceHeatmapSettings()
+        private void DrawClearanceHeatmapSettings() => _clearanceInspector.Draw();
+
+        internal ClearanceAuthoringSession ClearanceSession => _clearanceInspector.Session;
+
+        private void OnClearanceLayersChanged()
         {
-            if (_showClearanceHeatmapProp == null) return;
-
-            EditorGUILayout.Space();
-            s_showClearanceHeatmapSettings = EditorGUILayout.BeginFoldoutHeaderGroup(
-                s_showClearanceHeatmapSettings,
-                LatticeLocalization.Tr(LocKey.ClearanceHeatmap));
-            if (s_showClearanceHeatmapSettings)
-            {
-                EditorGUILayout.PropertyField(
-                    _showClearanceHeatmapProp,
-                    LatticeLocalization.Content(LocKey.ShowClearanceHeatmap));
-                EditorGUILayout.PropertyField(
-                    _clearanceReferenceRendererProp,
-                    LatticeLocalization.Content(LocKey.ClearanceReferenceRenderer));
-                _clearanceQueryModeProp.enumValueIndex = EditorGUILayout.Popup(
-                    LatticeLocalization.Content(LocKey.ClearanceQueryMode),
-                    _clearanceQueryModeProp.enumValueIndex,
-                    new[]
-                    {
-                        LatticeLocalization.Content(LocKey.ClearanceReferenceNormal),
-                        LatticeLocalization.Content(LocKey.ClearanceClosedMesh)
-                    });
-                _clearanceHeatmapDisplayModeProp.enumValueIndex = EditorGUILayout.Popup(
-                    LatticeLocalization.Content(LocKey.ClearanceDisplayMode),
-                    _clearanceHeatmapDisplayModeProp.enumValueIndex,
-                    new[]
-                    {
-                        LatticeLocalization.Content(LocKey.ClearancePenetrationOnly),
-                        LatticeLocalization.Content(LocKey.ClearanceIncludeWarning),
-                        LatticeLocalization.Content(LocKey.ClearanceFullDistribution)
-                    });
-
-                DrawMillimeterField(
-                    _clearanceWarningDistanceProp,
-                    LocKey.ClearanceWarningThresholdMm,
-                    0f);
-                DrawMillimeterField(
-                    _clearanceTargetDistanceProp,
-                    LocKey.ClearanceTargetDistanceMm,
-                    _clearanceWarningDistanceProp.floatValue);
-                _clearanceDisplayStrideProp.intValue = EditorGUILayout.IntSlider(
-                    LatticeLocalization.Content(LocKey.ClearanceDisplayStride),
-                    Mathf.Clamp(_clearanceDisplayStrideProp.intValue, 1, 64),
-                    1,
-                    64);
-                float currentUpdateInterval = IsFinite(_clearanceUpdateIntervalProp.floatValue)
-                    ? _clearanceUpdateIntervalProp.floatValue
-                    : 0.1f;
-                _clearanceUpdateIntervalProp.floatValue = EditorGUILayout.Slider(
-                    LatticeLocalization.Content(LocKey.ClearanceUpdateInterval),
-                    Mathf.Clamp(currentUpdateInterval, 0.02f, 2f),
-                    0.02f,
-                    2f);
-
-                if (targets.Length == 1 && target is LatticeDeformer deformer &&
-                    _showClearanceHeatmapProp.boolValue)
-                {
-                    Renderer reference = _clearanceReferenceRendererProp.objectReferenceValue as Renderer;
-                    var evaluation = GetClearanceEvaluation(
-                        deformer,
-                        reference,
-                        (ClearanceQueryMode)_clearanceQueryModeProp.enumValueIndex,
-                        _clearanceWarningDistanceProp.floatValue,
-                        _clearanceTargetDistanceProp.floatValue,
-                        _clearanceUpdateIntervalProp.floatValue);
-                    DrawClearanceStatistics(evaluation);
-                    DrawClearanceScanControls(
-                        deformer,
-                        reference,
-                        (ClearanceQueryMode)_clearanceQueryModeProp.enumValueIndex,
-                        _clearanceWarningDistanceProp.floatValue,
-                        _clearanceTargetDistanceProp.floatValue);
-                    DrawClearanceReportControls(
-                        deformer,
-                        reference,
-                        (ClearanceQueryMode)_clearanceQueryModeProp.enumValueIndex,
-                        _clearanceWarningDistanceProp.floatValue,
-                        _clearanceTargetDistanceProp.floatValue,
-                        evaluation);
-                    DrawFitCorrectionControls(
-                        deformer,
-                        reference,
-                        (ClearanceQueryMode)_clearanceQueryModeProp.enumValueIndex,
-                        _clearanceWarningDistanceProp.floatValue,
-                        _clearanceTargetDistanceProp.floatValue);
-                }
-            }
-            EditorGUILayout.EndFoldoutHeaderGroup();
+            serializedObject.Update();
+            ResolveActiveGroupProperties();
+            RebuildLayerList();
         }
 
-        private static void DrawMillimeterField(
-            SerializedProperty property,
-            string labelKey,
-            float minimumMeters)
+        private void OnClearanceStateChanged()
         {
-            float currentMeters = IsFinite(property.floatValue)
-                ? property.floatValue
-                : minimumMeters;
-            float millimeters = currentMeters * 1000f;
-            float next = EditorGUILayout.FloatField(
-                LatticeLocalization.Content(labelKey),
-                millimeters);
-            property.floatValue = IsFinite(next)
-                ? Mathf.Max(minimumMeters, next / 1000f)
-                : minimumMeters;
-        }
-
-        private static bool IsFinite(float value)
-        {
-            return !float.IsNaN(value) && !float.IsInfinity(value);
-        }
-
-        private void DrawClearanceStatistics(ClearanceHeatmapEvaluation evaluation)
-        {
-            if (evaluation == null || evaluation.Status != ClearanceEvaluationStatus.Valid)
-            {
-                string message = evaluation?.Status == ClearanceEvaluationStatus.InvalidReference
-                    ? LatticeLocalization.Tr(LocKey.ClearanceInvalidReference)
-                    : LatticeLocalization.Tr(LocKey.ClearanceInvalidTarget);
-                EditorGUILayout.HelpBox(message, MessageType.Warning);
-                return;
-            }
-
-            EditorGUILayout.LabelField(
-                LatticeLocalization.Tr(LocKey.ClearanceEvaluationTarget),
-                LatticeLocalization.Tr(_lastClearanceUsedPreviewProxy
-                    ? LocKey.ClearanceTargetPreview
-                    : LocKey.ClearanceTargetRendered));
-            EditorGUILayout.LabelField(
-                LatticeLocalization.Tr(LocKey.ClearanceMinimum),
-                (evaluation.Statistics.MinimumClearance * 1000f).ToString("0.###") + " mm");
-            EditorGUILayout.LabelField(
-                LatticeLocalization.Tr(LocKey.ClearanceMaximumPenetration),
-                (evaluation.Statistics.MaximumPenetrationDepth * 1000f).ToString("0.###") + " mm");
-            EditorGUILayout.LabelField(
-                LatticeLocalization.Tr(LocKey.ClearanceViolationVertices),
-                evaluation.Statistics.ViolationVertexCount.ToString());
-            EditorGUILayout.LabelField(
-                LatticeLocalization.Tr(LocKey.ClearanceEvaluatedVertices),
-                evaluation.Statistics.EvaluatedVertexCount.ToString());
-            EditorGUILayout.LabelField(
-                LatticeLocalization.Tr(LocKey.ClearanceActualQueryMode),
-                evaluation.SignMode == ClearanceSignMode.ClosedMesh
-                    ? LatticeLocalization.Tr(LocKey.ClearanceClosedMesh)
-                    : LatticeLocalization.Tr(LocKey.ClearanceReferenceNormal));
-
-            if (_clearanceQueryModeProp.enumValueIndex == (int)ClearanceQueryMode.ClosedMesh &&
-                evaluation.SignMode != ClearanceSignMode.ClosedMesh)
-            {
-                EditorGUILayout.HelpBox(
-                    LatticeLocalization.Tr(LocKey.ClearanceSignFallback),
-                    MessageType.Warning);
-            }
-
-            double age = EditorApplication.timeSinceStartup - _lastClearanceEvaluationTime;
-            EditorGUILayout.LabelField(
-                LatticeLocalization.Tr(LocKey.ClearanceResultAge),
-                age.ToString("0.00") + " s");
-        }
-
-        private void DrawClearanceScanControls(
-            LatticeDeformer deformer,
-            Renderer reference,
-            ClearanceQueryMode queryMode,
-            float warningDistance,
-            float targetDistance)
-        {
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField(
-                LatticeLocalization.Tr(LocKey.ClearanceScan),
-                EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(
-                _clearanceScanSetProp,
-                LatticeLocalization.Content(LocKey.ClearanceScanSet));
-            EditorGUILayout.PropertyField(
-                _clearanceScanAvatarRootProp,
-                LatticeLocalization.Content(LocKey.ClearanceScanAvatarRoot));
-
-            if (_clearanceScanOperation != null)
-            {
-                Rect progressRect = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
-                string progressText = string.Format(
-                    LatticeLocalization.Tr(LocKey.ClearanceScanProgressFormat),
-                    _clearanceScanOperation.NextConditionIndex,
-                    (_clearanceScanSetProp.objectReferenceValue as ClearanceScanSet)?.Conditions.Count ?? 0,
-                    _clearanceScanOperation.CurrentConditionName);
-                EditorGUI.ProgressBar(progressRect, _clearanceScanOperation.Progress, progressText);
-                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearanceScanCancel)))
-                {
-                    _clearanceScanOperation.Cancel();
-                    FinishClearanceScan();
-                }
-            }
-            else
-            {
-                using (new EditorGUI.DisabledScope(
-                           _clearanceScanSetProp.objectReferenceValue == null || reference == null))
-                {
-                    if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearanceScanRun)))
-                    {
-                        serializedObject.ApplyModifiedProperties();
-                        _clearanceScanPreviewState?.Dispose();
-                        _clearanceScanPreviewState = null;
-                        _clearanceScanOperation = new ClearanceScanOperation(
-                            deformer.ClearanceScanSet,
-                            deformer,
-                            reference,
-                            deformer.ClearanceScanAvatarRoot,
-                            queryMode,
-                            warningDistance,
-                            targetDistance);
-                        EditorApplication.update -= AdvanceClearanceScan;
-                        EditorApplication.update += AdvanceClearanceScan;
-                    }
-                }
-            }
-
-            DrawClearanceScanResult(
-                deformer,
-                reference,
-                queryMode,
-                warningDistance,
-                targetDistance);
-        }
-
-        private void AdvanceClearanceScan()
-        {
-            if (_clearanceScanOperation == null)
-            {
-                EditorApplication.update -= AdvanceClearanceScan;
-                return;
-            }
-            _clearanceScanOperation.Step();
-            if (_clearanceScanOperation.IsCompleted) FinishClearanceScan();
+            _validationInspector?.State.Invalidate();
             Repaint();
             SceneView.RepaintAll();
         }
 
-        private void FinishClearanceScan()
+        private void InvalidateClearanceEvaluation()
         {
-            EditorApplication.update -= AdvanceClearanceScan;
-            if (_clearanceScanOperation == null) return;
-            _clearanceScanResult = _clearanceScanOperation.Result;
-            _clearanceScanOperation.Dispose();
-            _clearanceScanOperation = null;
-            InvalidateClearanceEvaluation();
-            Repaint();
-            SceneView.RepaintAll();
+            _clearanceInspector?.Session.Invalidate();
+            _validationInspector?.State.Invalidate();
         }
 
-        private void DrawClearanceScanResult(
+        internal ClearanceHeatmapEvaluation GetClearanceEvaluation(
             LatticeDeformer deformer,
             Renderer reference,
             ClearanceQueryMode queryMode,
             float warningDistance,
-            float targetDistance)
-        {
-            if (_clearanceScanResult == null) return;
-            EditorGUILayout.HelpBox(
-                string.Format(
-                    LatticeLocalization.Tr(LocKey.ClearanceScanSummaryFormat),
-                    _clearanceScanResult.SuccessfulConditionCount,
-                    _clearanceScanResult.Conditions.Count,
-                    _clearanceScanResult.WorstConditionIndex),
-                _clearanceScanResult.WasCancelled ? MessageType.Warning : MessageType.Info);
-
-            for (int index = 0; index < _clearanceScanResult.Conditions.Count; index++)
-            {
-                ClearanceScanConditionResult condition = _clearanceScanResult.Conditions[index];
-                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
-                {
-                    string label = condition.IsSuccess
-                        ? string.Format(
-                            LatticeLocalization.Tr(LocKey.ClearanceScanConditionSuccessFormat),
-                            condition.ConditionName,
-                            condition.Statistics.MinimumClearance * 1000f,
-                            condition.Statistics.ViolationVertexCount,
-                            condition.UsedNdmfPreviewProxy ? "NDMF Proxy" : "Original")
-                        : string.Format(
-                            LatticeLocalization.Tr(LocKey.ClearanceScanConditionErrorFormat),
-                            condition.ConditionName,
-                            condition.ErrorMessage);
-                    EditorGUILayout.LabelField(label, EditorStyles.wordWrappedLabel);
-                    if (!condition.IsSuccess) continue;
-                    if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearanceScanApplyCondition)))
-                    {
-                        _clearanceScanPreviewState?.Dispose();
-                        ClearanceScanPreviewState.TryApply(
-                            _clearanceScanResult.ScanSet,
-                            condition.ConditionIndex,
-                            deformer,
-                            reference,
-                            deformer.ClearanceScanAvatarRoot,
-                            queryMode,
-                            warningDistance,
-                            targetDistance,
-                            out _clearanceScanPreviewState,
-                            out _);
-                        InvalidateClearanceEvaluation();
-                        SceneView.RepaintAll();
-                    }
-                }
-            }
-
-            if (_clearanceScanPreviewState != null &&
-                GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearanceScanRestoreScene)))
-            {
-                _clearanceScanPreviewState.Dispose();
-                _clearanceScanPreviewState = null;
-                InvalidateClearanceEvaluation();
-                SceneView.RepaintAll();
-            }
-        }
-
-        private void DrawFitCorrectionControls(
-            LatticeDeformer deformer,
-            Renderer reference,
-            ClearanceQueryMode queryMode,
-            float warningDistance,
-            float targetDistance)
-        {
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField(
-                LatticeLocalization.Tr(LocKey.FitCorrection),
-                EditorStyles.boldLabel);
-            _fitCorrectionScopeProp.enumValueIndex = EditorGUILayout.Popup(
-                LatticeLocalization.Content(LocKey.FitCorrectionScope),
-                _fitCorrectionScopeProp.enumValueIndex,
-                new[]
-                {
-                    LatticeLocalization.Content(LocKey.FitCorrectionPenetrationOnly),
-                    LatticeLocalization.Content(LocKey.FitCorrectionWarningThreshold),
-                    LatticeLocalization.Content(LocKey.FitCorrectionTargetClearance)
-                });
-            DrawMillimeterField(
-                _fitCorrectionMaximumMoveProp,
-                LocKey.FitCorrectionMaximumMoveMm,
-                0f);
-            EditorGUILayout.LabelField(
-                LatticeLocalization.Tr(LocKey.FitCorrectionConstraints),
-                EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(
-                _fitCorrectionUseVertexMaskProp,
-                LatticeLocalization.Content(LocKey.FitCorrectionUseVertexMask));
-            EditorGUILayout.PropertyField(
-                _fitCorrectionPinOpenBoundariesProp,
-                LatticeLocalization.Content(LocKey.FitCorrectionPinOpenBoundaries));
-            EditorGUILayout.PropertyField(
-                _fitCorrectionIsolateComponentsProp,
-                LatticeLocalization.Content(LocKey.FitCorrectionIsolateComponents));
-            EditorGUILayout.PropertyField(
-                _fitCorrectionSmoothSurfaceProp,
-                LatticeLocalization.Content(LocKey.FitCorrectionSmoothSurface));
-            if (_fitCorrectionSmoothSurfaceProp.boolValue)
-            {
-                using (new EditorGUI.IndentLevelScope())
-                {
-                    _fitCorrectionSmoothingIterationsProp.intValue = EditorGUILayout.IntSlider(
-                        LatticeLocalization.Content(LocKey.FitCorrectionSmoothingIterations),
-                        _fitCorrectionSmoothingIterationsProp.intValue,
-                        1,
-                        10);
-                    _fitCorrectionSmoothingStrengthProp.floatValue = EditorGUILayout.Slider(
-                        LatticeLocalization.Content(LocKey.FitCorrectionSmoothingStrength),
-                        _fitCorrectionSmoothingStrengthProp.floatValue,
-                        0f,
-                        1f);
-                }
-            }
-            EditorGUILayout.PropertyField(
-                _fitCorrectionPreserveClearanceProp,
-                LatticeLocalization.Content(LocKey.FitCorrectionPreserveClearance));
-            EditorGUILayout.PropertyField(
-                _fitCorrectionUseSymmetryProp,
-                LatticeLocalization.Content(LocKey.FitCorrectionUseSymmetry));
-            if (_fitCorrectionUseSymmetryProp.boolValue)
-            {
-                using (new EditorGUI.IndentLevelScope())
-                {
-                    _fitCorrectionSymmetryAxisProp.intValue = EditorGUILayout.Popup(
-                        LatticeLocalization.Content(LocKey.FitCorrectionSymmetryAxis),
-                        _fitCorrectionSymmetryAxisProp.intValue,
-                        new[] { new GUIContent("X"), new GUIContent("Y"), new GUIContent("Z") });
-                    DrawMillimeterField(
-                        _fitCorrectionSymmetryToleranceProp,
-                        LocKey.FitCorrectionSymmetryToleranceMm,
-                        0.001f);
-                }
-            }
-            EditorGUILayout.PropertyField(
-                _fitCorrectionPreviewProp,
-                LatticeLocalization.Content(LocKey.FitCorrectionPreview));
-
-            FitCorrectionConstraintOptions constraints = GetFitCorrectionConstraints();
-
-            ClearanceHeatmapRawEvaluation rawEvaluation = GetFitCorrectionRawEvaluation(
-                deformer,
-                reference,
-                queryMode,
-                _clearanceUpdateIntervalProp.floatValue);
-
-            FitCorrectionScope scope = (FitCorrectionScope)_fitCorrectionScopeProp.enumValueIndex;
-            var plan = _fitCorrectionRawIsThrottledStale
-                ? _throttledStaleFitCorrectionPlan
-                : GetCachedFitCorrectionPlan(
-                    deformer,
-                    rawEvaluation,
-                    reference,
-                    queryMode,
-                    scope,
-                    warningDistance,
-                    targetDistance,
-                    _fitCorrectionMaximumMoveProp.floatValue,
-                    constraints);
-            _fitCorrectionPreviewPlan = _fitCorrectionPreviewProp.boolValue && plan.CanGenerate
-                ? plan
-                : null;
-            DrawFitCorrectionPlan(plan);
-
-            using (new EditorGUI.DisabledScope(!plan.CanGenerate))
-            {
-                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.CreateFitCorrectionLayer)))
-                {
-                    CreateFitCorrectionLayer(
-                        deformer,
-                        reference,
-                        queryMode,
-                        (FitCorrectionScope)_fitCorrectionScopeProp.enumValueIndex,
-                        warningDistance,
-                        targetDistance,
-                        _fitCorrectionMaximumMoveProp.floatValue,
-                        constraints);
-                }
-            }
-
-            if (_lastFitCorrectionReport != null &&
-                _lastFitCorrectionReport.Status == FitCorrectionStatus.Success)
-            {
-                EditorGUILayout.HelpBox(
-                    string.Format(
-                        LatticeLocalization.Tr(LocKey.FitCorrectionResultFormat),
-                        _lastFitCorrectionReport.ImprovedVertexCount,
-                        _lastFitCorrectionReport.UnresolvedVertexCount),
-                    MessageType.Info);
-            }
-        }
+            float targetDistance,
+            float updateInterval)
+            => ClearanceSession.GetClearanceEvaluation(deformer, reference, queryMode, warningDistance, targetDistance, updateInterval);
 
         internal ClearanceHeatmapRawEvaluation GetFitCorrectionRawEvaluation(
             LatticeDeformer deformer,
             Renderer reference,
             ClearanceQueryMode queryMode,
             float updateInterval)
-        {
-            Renderer targetRenderer = deformer != null ? deformer.TargetRenderer : null;
-            int targetId = targetRenderer != null ? targetRenderer.GetInstanceID() : 0;
-            int referenceId = reference != null ? reference.GetInstanceID() : 0;
-            ClearanceSignMode signMode = queryMode == ClearanceQueryMode.ClosedMesh
-                ? ClearanceSignMode.ClosedMesh
-                : ClearanceSignMode.ReferenceNormal;
-            ClearanceQueryCache.TryGetRendererLightweightStateHash(targetRenderer, out int targetState);
-            ClearanceQueryCache.TryGetRendererLightweightStateHash(reference, out int referenceState);
-            int lightweightStateHash = HashCode.Combine(targetState, referenceState);
-            double now = EditorApplication.timeSinceStartup;
-            bool identityChanged = targetId != _lastFitCorrectionTargetId ||
-                                   referenceId != _lastFitCorrectionReferenceId;
-            bool signModeChanged = signMode != _lastFitCorrectionSignMode;
-            bool stateChanged = lightweightStateHash != _lastFitCorrectionLightweightStateHash;
-            bool intervalElapsed = now - _lastFitCorrectionEvaluationTime >=
-                                   Mathf.Clamp(updateInterval, 0.02f, 2f);
-
-            if (_clearanceRawEvaluation != null &&
-                ReferenceEquals(_clearanceRawEvaluation.TargetRenderer, targetRenderer) &&
-                ReferenceEquals(_clearanceRawEvaluation.ReferenceRenderer, reference) &&
-                signMode == _lastClearanceSignMode &&
-                lightweightStateHash == _lastClearanceLightweightStateHash)
-            {
-                _fitCorrectionRawEvaluation = _clearanceRawEvaluation;
-                _lastFitCorrectionEvaluationTime = _lastClearanceEvaluationTime;
-                _fitCorrectionRawIsThrottledStale = false;
-            }
-            else if (_fitCorrectionRawEvaluation == null || identityChanged || signModeChanged ||
-                     (stateChanged && intervalElapsed))
-            {
-                _fitCorrectionRawEvaluation = ClearanceHeatmapEvaluator.Evaluate(
-                    targetRenderer,
-                    reference,
-                    signMode);
-                _lastFitCorrectionEvaluationTime = now;
-                _fitCorrectionRawIsThrottledStale = false;
-            }
-            else
-            {
-                _fitCorrectionRawIsThrottledStale = stateChanged;
-            }
-
-            if (!_fitCorrectionRawIsThrottledStale)
-            {
-                _lastFitCorrectionTargetId = targetId;
-                _lastFitCorrectionReferenceId = referenceId;
-                _lastFitCorrectionSignMode = signMode;
-                _lastFitCorrectionLightweightStateHash = lightweightStateHash;
-            }
-            return _fitCorrectionRawEvaluation;
-        }
+            => ClearanceSession.GetFitCorrectionRawEvaluation(deformer, reference, queryMode, updateInterval);
 
         internal FitCorrectionPlan GetCachedFitCorrectionPlan(
             LatticeDeformer deformer,
@@ -1558,36 +399,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             float targetDistance,
             float maximumMove,
             FitCorrectionConstraintOptions constraints)
-        {
-            int planKey = ComputeFitCorrectionPlanKey(
-                deformer,
-                rawEvaluation,
-                reference,
-                queryMode,
-                scope,
-                warningDistance,
-                targetDistance,
-                maximumMove,
-                constraints);
-            if (!_hasCachedFitCorrectionPlan ||
-                planKey != _cachedFitCorrectionPlanKey ||
-                _cachedFitCorrectionPlan == null)
-            {
-                _cachedFitCorrectionPlan = FitCorrectionGenerator.Analyze(
-                    deformer,
-                    rawEvaluation,
-                    reference,
-                    queryMode,
-                    scope,
-                    warningDistance,
-                    targetDistance,
-                    maximumMove,
-                    constraints);
-                _cachedFitCorrectionPlanKey = planKey;
-                _hasCachedFitCorrectionPlan = true;
-            }
-            return _cachedFitCorrectionPlan;
-        }
+            => ClearanceSession.GetCachedFitCorrectionPlan(deformer, rawEvaluation, reference, queryMode, scope, warningDistance, targetDistance, maximumMove, constraints);
 
         internal static int ComputeFitCorrectionPlanKey(
             LatticeDeformer deformer,
@@ -1599,701 +411,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             float targetDistance,
             float maximumMove,
             FitCorrectionConstraintOptions constraints)
-        {
-            unchecked
-            {
-                int hash = 17;
-                hash = hash * 31 + (deformer != null ? deformer.GetInstanceID() : 0);
-                hash = hash * 31 + (deformer != null ? EditorUtility.GetDirtyCount(deformer) : 0);
-                Renderer currentTarget = deformer != null ? deformer.TargetRenderer : null;
-                ClearanceQueryCache.TryGetRendererLightweightStateHash(
-                    currentTarget,
-                    out int currentTargetState);
-                ClearanceQueryCache.TryGetRendererLightweightStateHash(
-                    reference,
-                    out int currentReferenceState);
-                hash = hash * 31 + currentTargetState;
-                hash = hash * 31 + currentReferenceState;
-                Mesh source = deformer != null ? deformer.SourceMesh : null;
-                hash = hash * 31 + (source != null ? source.GetInstanceID() : 0);
-                hash = hash * 31 + (source != null ? EditorUtility.GetDirtyCount(source) : 0);
-                hash = hash * 31 + (rawEvaluation != null ? rawEvaluation.TargetStateHash : 0);
-                hash = hash * 31 + (rawEvaluation != null ? rawEvaluation.ReferenceStateHash : 0);
-                hash = hash * 31 + (reference != null ? reference.GetInstanceID() : 0);
-                hash = hash * 31 + (int)queryMode;
-                hash = hash * 31 + (int)scope;
-                hash = hash * 31 + warningDistance.GetHashCode();
-                hash = hash * 31 + targetDistance.GetHashCode();
-                hash = hash * 31 + maximumMove.GetHashCode();
-                hash = hash * 31 + constraints.UseVertexMask.GetHashCode();
-                hash = hash * 31 + constraints.PinOpenBoundaries.GetHashCode();
-                hash = hash * 31 + constraints.IsolateConnectedComponents.GetHashCode();
-                hash = hash * 31 + constraints.SmoothSurface.GetHashCode();
-                hash = hash * 31 + constraints.SmoothingIterations;
-                hash = hash * 31 + constraints.SmoothingStrength.GetHashCode();
-                hash = hash * 31 + constraints.PreserveSolvedClearance.GetHashCode();
-                hash = hash * 31 + constraints.UseSymmetry.GetHashCode();
-                hash = hash * 31 + constraints.SymmetryAxis;
-                hash = hash * 31 + constraints.SymmetryTolerance.GetHashCode();
-                if (constraints.UseVertexMask && deformer != null)
-                {
-                    IReadOnlyList<LatticeLayer> layers = deformer.Layers;
-                    int activeLayerIndex = deformer.ActiveLayerIndex;
-                    LatticeLayer activeLayer = activeLayerIndex >= 0 &&
-                                               activeLayerIndex < layers.Count
-                        ? layers[activeLayerIndex]
-                        : null;
-                    hash = hash * 31 + (activeLayer != null ? activeLayer.GetHashCode() : 0);
-                    float[] mask = activeLayer?.VertexMask;
-                    int maskLength = mask?.Length ?? 0;
-                    hash = hash * 31 + maskLength;
-                    for (int i = 0; i < maskLength; i++)
-                        hash = hash * 31 + mask[i].GetHashCode();
-                }
-                return hash;
-            }
-        }
-
-        private static void DrawFitCorrectionPlan(FitCorrectionPlan plan)
-        {
-            if (plan == null) return;
-            if (plan.Status != FitCorrectionStatus.Ready)
-            {
-                string key = plan.Status switch
-                {
-                    FitCorrectionStatus.PosedSkinnedMeshUnsupported => LocKey.FitCorrectionPosedSkinnedBlocked,
-                    FitCorrectionStatus.StaleEvaluation => LocKey.FitCorrectionStale,
-                    FitCorrectionStatus.TopologyMismatch => LocKey.FitCorrectionTopologyMismatch,
-                    FitCorrectionStatus.NoCandidates => LocKey.FitCorrectionNoCandidates,
-                    FitCorrectionStatus.InvalidReference => LocKey.ClearanceInvalidReference,
-                    _ => LocKey.ClearanceInvalidTarget
-                };
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr(key), MessageType.Warning);
-                return;
-            }
-
-            EditorGUILayout.LabelField(
-                LatticeLocalization.Tr(LocKey.FitCorrectionCandidateVertices),
-                plan.CandidateVertexCount.ToString());
-            EditorGUILayout.LabelField(
-                LatticeLocalization.Tr(LocKey.FitCorrectionMaximumPlannedMove),
-                (plan.MaximumAppliedMove * 1000f).ToString("0.###") + " mm");
-            EditorGUILayout.LabelField(
-                LatticeLocalization.Tr(LocKey.FitCorrectionUnresolvedEstimate),
-                plan.UnresolvedVertexCount.ToString());
-        }
-
-        private void CreateFitCorrectionLayer(
-            LatticeDeformer deformer,
-            Renderer reference,
-            ClearanceQueryMode queryMode,
-            FitCorrectionScope scope,
-            float warningDistance,
-            float targetDistance,
-            float maximumMove,
-            FitCorrectionConstraintOptions constraints)
-        {
-            Renderer targetRenderer = deformer.TargetRenderer;
-            var freshEvaluation = ClearanceHeatmapEvaluator.Evaluate(
-                targetRenderer,
-                reference,
-                queryMode == ClearanceQueryMode.ClosedMesh
-                    ? ClearanceSignMode.ClosedMesh
-                    : ClearanceSignMode.ReferenceNormal);
-            var freshPlan = FitCorrectionGenerator.Analyze(
-                deformer,
-                freshEvaluation,
-                reference,
-                queryMode,
-                scope,
-                warningDistance,
-                targetDistance,
-                maximumMove,
-                constraints);
-            if (!freshPlan.CanGenerate)
-            {
-                _lastFitCorrectionReport = new FitCorrectionReport(freshPlan.Status);
-                return;
-            }
-
-            Undo.RegisterCompleteObjectUndo(
-                deformer,
-                LatticeLocalization.Tr(LocKey.CreateFitCorrectionLayer));
-            _lastFitCorrectionReport = FitCorrectionGenerator.Generate(
-                deformer,
-                freshPlan,
-                reference,
-                queryMode,
-                scope,
-                warningDistance,
-                targetDistance,
-                maximumMove);
-            if (_lastFitCorrectionReport.Status != FitCorrectionStatus.Success) return;
-
-            deformer.InvalidateCache();
-            deformer.Deform(LatticePreviewUtility.ShouldAssignRuntimeMesh());
-            EditorUtility.SetDirty(deformer);
-            LatticePrefabUtility.MarkModified(deformer);
-            serializedObject.Update();
-            ResolveActiveGroupProperties();
-            InitializePendingGridSizes();
-            RebuildLayerList();
-            InvalidateClearanceEvaluation();
-            LatticePreviewUtility.RequestSceneRepaint();
-            SceneView.RepaintAll();
-        }
-
-        private FitCorrectionConstraintOptions GetFitCorrectionConstraints()
-        {
-            return new FitCorrectionConstraintOptions(
-                _fitCorrectionUseVertexMaskProp.boolValue,
-                _fitCorrectionPinOpenBoundariesProp.boolValue,
-                _fitCorrectionIsolateComponentsProp.boolValue,
-                _fitCorrectionSmoothSurfaceProp.boolValue,
-                _fitCorrectionSmoothingIterationsProp.intValue,
-                _fitCorrectionSmoothingStrengthProp.floatValue,
-                _fitCorrectionPreserveClearanceProp.boolValue,
-                _fitCorrectionUseSymmetryProp.boolValue,
-                _fitCorrectionSymmetryAxisProp.intValue,
-                _fitCorrectionSymmetryToleranceProp.floatValue);
-        }
-
-        private void DrawClearanceReportControls(
-            LatticeDeformer deformer,
-            Renderer reference,
-            ClearanceQueryMode queryMode,
-            float warningDistance,
-            float targetDistance,
-            ClearanceHeatmapEvaluation currentEvaluation)
-        {
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField(
-                LatticeLocalization.Tr(LocKey.ClearanceReport),
-                EditorStyles.boldLabel);
-            using (new EditorGUI.DisabledScope(
-                       currentEvaluation == null ||
-                       currentEvaluation.Status != ClearanceEvaluationStatus.Valid))
-            {
-                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearanceReportExportCurrent)))
-                {
-                    Renderer evaluatedRenderer = ResolveClearanceTargetRenderer(
-                        deformer,
-                        out bool usedPreviewProxy);
-                    ExportClearanceReport(ClearanceQaReportBuilder.FromCurrentEvaluation(
-                        deformer,
-                        reference,
-                        evaluatedRenderer,
-                        currentEvaluation,
-                        queryMode,
-                        warningDistance,
-                        targetDistance,
-                        usedPreviewProxy));
-                }
-            }
-            using (new EditorGUI.DisabledScope(
-                       _clearanceScanResult == null ||
-                       _clearanceScanResult.Conditions.Count == 0))
-            {
-                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearanceReportExportScan)))
-                {
-                    ExportClearanceReport(ClearanceQaReportBuilder.FromScanResult(
-                        deformer,
-                        reference,
-                        _clearanceScanResult));
-                }
-            }
-        }
-
-        private static void ExportClearanceReport(ClearanceQaReport report)
-        {
-            string jsonPath = EditorUtility.SaveFilePanel(
-                LatticeLocalization.Tr(LocKey.ClearanceReport),
-                "",
-                "clearance-qa-report",
-                "json");
-            if (string.IsNullOrEmpty(jsonPath)) return;
-            string markdownPath = Path.ChangeExtension(jsonPath, ".md");
-            bool written = ClearanceQaReportWriter.TryWritePair(
-                jsonPath,
-                markdownPath,
-                ClearanceQaReportBuilder.ToJson(report),
-                ClearanceQaReportBuilder.ToMarkdown(report),
-                out string error);
-            EditorUtility.DisplayDialog(
-                LatticeLocalization.Tr(LocKey.ClearanceReport),
-                written
-                    ? LatticeLocalization.Tr(LocKey.ClearanceReportExportSuccess)
-                    : string.Format(
-                        LatticeLocalization.Tr(LocKey.ClearanceReportExportFailure),
-                        error),
-                "OK");
-        }
-
-        private void DrawClearanceHeatmapInScene(SceneView sceneView)
-        {
-            if (Event.current == null || Event.current.type != EventType.Repaint) return;
-            if (targets == null || targets.Length != 1 || target is not LatticeDeformer deformer) return;
-            if (!deformer.ShowClearanceHeatmap) return;
-
-            var evaluation = GetClearanceEvaluation(
-                deformer,
-                deformer.ClearanceReferenceRenderer,
-                deformer.ClearanceQueryMode,
-                deformer.ClearanceWarningDistance,
-                deformer.ClearanceTargetDistance,
-                deformer.ClearanceUpdateInterval);
-            if (evaluation == null || evaluation.Status != ClearanceEvaluationStatus.Valid) return;
-
-            int stride = CalculateAdaptiveHeatmapStride(
-                evaluation.WorldPositions.Length,
-                deformer.ClearanceDisplayStride,
-                HeatmapDrawPointBudget);
-            using (s_heatmapDrawMarker.Auto())
-            {
-                for (int i = 0; i < evaluation.WorldPositions.Length; i += stride)
-                {
-                    ClearanceClassification classification = evaluation.Classifications[i];
-                    if (!ClearanceHeatmapEvaluator.ShouldDisplay(
-                            classification,
-                            deformer.ClearanceHeatmapDisplayMode))
-                    {
-                        continue;
-                    }
-
-                    Vector3 position = evaluation.WorldPositions[i];
-                    Handles.color = ClearanceHeatmapEvaluator.ColorFor(classification);
-                    float size = HandleUtility.GetHandleSize(position) * 0.012f;
-                    Handles.DotHandleCap(0, position, Quaternion.identity, size, EventType.Repaint);
-                }
-            }
-
-            DrawFitCorrectionPreview();
-        }
+            => ClearanceAuthoringSession.ComputeFitCorrectionPlanKey(deformer, rawEvaluation, reference, queryMode, scope, warningDistance, targetDistance, maximumMove, constraints);
 
         internal static int CalculateAdaptiveHeatmapStride(
             int vertexCount,
             int requestedStride,
-            int pointBudget = HeatmapDrawPointBudget)
-        {
-            requestedStride = Mathf.Max(1, requestedStride);
-            pointBudget = Mathf.Max(1, pointBudget);
-            int budgetStride = vertexCount > pointBudget
-                ? Mathf.CeilToInt(vertexCount / (float)pointBudget)
-                : 1;
-            return Mathf.Max(requestedStride, budgetStride);
-        }
+            int pointBudget = 4096)
+            => ClearanceSceneDrawer.CalculateAdaptiveHeatmapStride(vertexCount, requestedStride, pointBudget);
 
-        private void DrawFitCorrectionPreview()
-        {
-            FitCorrectionPlan plan = _fitCorrectionPreviewPlan;
-            if (plan == null || !plan.CanGenerate || plan.BeforeEvaluation == null) return;
-            int count = Mathf.Min(
-                plan.BeforeEvaluation.WorldPositions.Length,
-                plan.CorrectedWorldPositions.Length);
-            Handles.color = new Color(0.1f, 0.9f, 1f, 0.9f);
-            for (int vertex = 0; vertex < count; vertex++)
-            {
-                Vector3 from = plan.BeforeEvaluation.WorldPositions[vertex];
-                Vector3 to = plan.CorrectedWorldPositions[vertex];
-                if ((to - from).sqrMagnitude <= 1e-16f) continue;
-                Handles.DrawLine(from, to, 2f);
-                float size = HandleUtility.GetHandleSize(to) * 0.01f;
-                Handles.DotHandleCap(0, to, Quaternion.identity, size, EventType.Repaint);
-            }
-        }
-
-        internal ClearanceHeatmapEvaluation GetClearanceEvaluation(
-            LatticeDeformer deformer,
-            Renderer reference,
-            ClearanceQueryMode queryMode,
-            float warningDistance,
-            float targetDistance,
-            float updateInterval)
-        {
-            Renderer targetRenderer = ResolveClearanceTargetRenderer(deformer, out bool usedPreviewProxy);
-            int targetId = targetRenderer != null ? targetRenderer.GetInstanceID() : 0;
-            int referenceId = reference != null ? reference.GetInstanceID() : 0;
-            double now = EditorApplication.timeSinceStartup;
-            bool identityChanged = targetId != _lastClearanceTargetId ||
-                                   referenceId != _lastClearanceReferenceId ||
-                                   usedPreviewProxy != _lastClearanceUsedPreviewProxy;
-            bool hasTargetState = ClearanceQueryCache.TryGetRendererLightweightStateHash(
-                targetRenderer,
-                out int targetState);
-            bool hasReferenceState = ClearanceQueryCache.TryGetRendererLightweightStateHash(
-                reference,
-                out int referenceState);
-            int lightweightStateHash = HashCode.Combine(targetState, referenceState);
-            ClearanceSignMode signMode = queryMode == ClearanceQueryMode.ClosedMesh
-                ? ClearanceSignMode.ClosedMesh
-                : ClearanceSignMode.ReferenceNormal;
-            bool stateChanged = hasTargetState != _lastClearanceHadTargetState ||
-                                hasReferenceState != _lastClearanceHadReferenceState ||
-                                ((hasTargetState || hasReferenceState) &&
-                                 lightweightStateHash != _lastClearanceLightweightStateHash);
-            bool signModeChanged = signMode != _lastClearanceSignMode;
-            bool intervalElapsed = now - _lastClearanceEvaluationTime >=
-                                   Mathf.Clamp(updateInterval, 0.02f, 2f);
-            bool fallbackExpired = (!hasTargetState || !hasReferenceState) &&
-                                   intervalElapsed;
-            if (_clearanceRawEvaluation == null || identityChanged || signModeChanged ||
-                (stateChanged && intervalElapsed) || fallbackExpired)
-            {
-                _clearanceRawEvaluation = ClearanceHeatmapEvaluator.Evaluate(
-                    targetRenderer,
-                    reference,
-                    signMode);
-                _lastClearanceEvaluationTime = now;
-                _lastClearanceTargetId = targetId;
-                _lastClearanceReferenceId = referenceId;
-                _lastClearanceUsedPreviewProxy = usedPreviewProxy;
-                _lastClearanceLightweightStateHash = lightweightStateHash;
-                _lastClearanceSignMode = signMode;
-                _lastClearanceHadTargetState = hasTargetState;
-                _lastClearanceHadReferenceState = hasReferenceState;
-                _hasCachedFitCorrectionPlan = false;
-            }
-
-            if (_cachedClearanceEvaluation == null ||
-                !ReferenceEquals(_classifiedClearanceRawEvaluation, _clearanceRawEvaluation) ||
-                _classifiedWarningDistance != warningDistance ||
-                _classifiedTargetDistance != targetDistance)
-            {
-                _cachedClearanceEvaluation = ClearanceHeatmapEvaluator.Classify(
-                    _clearanceRawEvaluation,
-                    warningDistance,
-                    targetDistance);
-                _classifiedClearanceRawEvaluation = _clearanceRawEvaluation;
-                _classifiedWarningDistance = warningDistance;
-                _classifiedTargetDistance = targetDistance;
-            }
-            return _cachedClearanceEvaluation;
-        }
-
-        private static Renderer ResolveClearanceTargetRenderer(
-            LatticeDeformer deformer,
-            out bool usedPreviewProxy)
-        {
-            Renderer original = deformer != null ? deformer.TargetRenderer : null;
-            Renderer previewProxy = null;
-            if (original != null &&
-                NDMFPreviewProxyUtility.TryGetProxyRenderer(original, out Renderer proxy) &&
-                proxy != null)
-            {
-                previewProxy = proxy;
-            }
-
-            return ResolveClearanceTargetRenderer(deformer, previewProxy, out usedPreviewProxy);
-        }
-
-        internal static Renderer ResolveClearanceTargetRenderer(
-            LatticeDeformer deformer,
-            Renderer previewProxy,
-            out bool usedPreviewProxy)
-        {
-            Renderer original = deformer != null ? deformer.TargetRenderer : null;
-            usedPreviewProxy = original != null && previewProxy != null;
-            return usedPreviewProxy ? previewProxy : original;
-        }
-
-        private void OnClearanceStateChanged()
-        {
-            InvalidateClearanceEvaluation();
-            Repaint();
-            SceneView.RepaintAll();
-        }
-
-        private void InvalidateClearanceEvaluation()
-        {
-            _clearanceRawEvaluation = null;
-            _lastClearanceEvaluationTime = double.NegativeInfinity;
-            _lastClearanceTargetId = 0;
-            _lastClearanceReferenceId = 0;
-            _lastClearanceUsedPreviewProxy = false;
-            _lastClearanceLightweightStateHash = 0;
-            _lastClearanceSignMode = default;
-            _lastClearanceHadTargetState = false;
-            _lastClearanceHadReferenceState = false;
-            _cachedClearanceEvaluation = null;
-            _classifiedClearanceRawEvaluation = null;
-            _fitCorrectionRawEvaluation = null;
-            _lastFitCorrectionLightweightStateHash = 0;
-            _lastFitCorrectionTargetId = 0;
-            _lastFitCorrectionReferenceId = 0;
-            _lastFitCorrectionSignMode = default;
-            _lastFitCorrectionEvaluationTime = double.NegativeInfinity;
-            _fitCorrectionRawIsThrottledStale = false;
-            _fitCorrectionPreviewPlan = null;
-            _cachedFitCorrectionPlan = null;
-            _hasCachedFitCorrectionPlan = false;
-            _cachedValidationDiagnostics = null;
-            _hasCachedValidationState = false;
-        }
-
-        private void ReapplyBlendShapeTestWeight(LatticeDeformer deformer)
-        {
-            if (!_blendShapeTestMode) return;
-            if (deformer.BlendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape) return;
-
-            var smr = deformer.GetComponent<SkinnedMeshRenderer>();
-            if (smr == null) return;
-
-            // Re-assign runtime mesh after Deform() rebuild
-            var runtimeMesh = deformer.RuntimeMesh;
-            if (runtimeMesh != null && smr.sharedMesh != runtimeMesh)
-            {
-                smr.sharedMesh = runtimeMesh;
-            }
-
-            ApplyBlendShapeTestWeight(deformer, smr);
-        }
-
-        private void CheckAndRebuildLayers()
-        {
-            serializedObject.Update();
-            ResolveActiveGroupProperties();
-
-            // Check if group count changed
-            int groupCount = _groupsProp != null ? _groupsProp.arraySize : 0;
-            if (groupCount != _cachedGroupCount)
-            {
-                RebuildGroupList();
-                return;
-            }
-
-            // Check if active group's layer count/index changed
-            if (_layersProp == null || _activeLayerIndexProp == null || _layerListView == null) return;
-            int count = _layersProp.arraySize;
-            int active = _activeLayerIndexProp.intValue;
-            if (count != _cachedLayerCount || active != _cachedActiveIndex)
-            {
-                RebuildGroupList();
-            }
-        }
+        internal static Renderer ResolveClearanceTargetRenderer(LatticeDeformer deformer,
+            Renderer previewProxy, out bool usedPreviewProxy) =>
+            ClearanceAuthoringSession.ResolveClearanceTargetRenderer(deformer, previewProxy, out usedPreviewProxy);
 
         private void RebuildLayerList()
         {
             RebuildGroupList();
-        }
-
-        private VisualElement MakeLayerItem()
-        {
-            var root = new VisualElement();
-            root.style.paddingTop = 3;
-            root.style.paddingBottom = 3;
-            root.style.paddingLeft = 4;
-            root.style.paddingRight = 4;
-
-            // Right-click context menu for layer (stop propagation to prevent group menu)
-            root.AddManipulator(new ContextualMenuManipulator(evt =>
-            {
-                if (root.userData is not int layerIndex) return;
-                var d = target as LatticeDeformer;
-                if (d == null) return;
-
-                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.DuplicateLayer), _ =>
-                {
-                    PerformSingleLayerOperation(d, LatticeLocalization.Tr(LocKey.DuplicateLayer), inst =>
-                        inst.DuplicateLayer(layerIndex) >= 0);
-                    RebuildGroupList();
-                });
-                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.CopyLayer), _ =>
-                {
-                    CopyLayer(d, layerIndex);
-                });
-                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.PasteLayer), _ =>
-                {
-                    PasteLayer(d);
-                    RebuildGroupList();
-                }, string.IsNullOrEmpty(s_copiedLayerJson) ? DropdownMenuAction.Status.Disabled : DropdownMenuAction.Status.Normal);
-                evt.menu.AppendSeparator();
-                evt.menu.AppendAction(LatticeLocalization.Tr(LocKey.DeleteLayer), _ =>
-                {
-                    DeleteLayer(d, layerIndex);
-                    RebuildGroupList();
-                }, d.Layers.Count <= 1 ? DropdownMenuAction.Status.Disabled : DropdownMenuAction.Status.Normal);
-
-                evt.StopPropagation();
-            }));
-
-            // Row 1: [Enabled] [Name] [Type]
-            var row1 = new VisualElement();
-            row1.style.flexDirection = FlexDirection.Row;
-            row1.style.alignItems = Align.Center;
-            row1.style.overflow = Overflow.Hidden;
-
-            var enabledToggle = new Toggle { name = "layer-enabled" };
-            enabledToggle.style.width = 18;
-            enabledToggle.style.marginRight = 2;
-            row1.Add(enabledToggle);
-
-            var nameField = new TextField { name = "layer-name" };
-            nameField.style.flexGrow = 1;
-            nameField.style.flexShrink = 1;
-            nameField.style.minWidth = 0;
-            nameField.style.marginRight = 4;
-            nameField.style.overflow = Overflow.Hidden;
-            row1.Add(nameField);
-
-            var typeLabel = new Label { name = "layer-type" };
-            typeLabel.style.width = 16;
-            typeLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
-            typeLabel.style.unityTextAlign = TextAnchor.MiddleRight;
-            row1.Add(typeLabel);
-
-            root.Add(row1);
-
-            // Row 2: Weight slider
-            var weightSlider = new Slider(0f, 1f) { name = "layer-weight", showInputField = true };
-            weightSlider.style.marginTop = 1;
-            root.Add(weightSlider);
-
-            // Settings foldout (shown only for active layer)
-            var foldout = new Foldout { name = "layer-settings" };
-            foldout.style.marginTop = 2;
-            foldout.style.display = DisplayStyle.None;
-            foldout.Add(new IMGUIContainer { name = "layer-settings-imgui" });
-            root.Add(foldout);
-
-            return root;
-        }
-
-        private void BindLayerItem(VisualElement element, int index)
-        {
-            serializedObject.Update();
-            ResolveActiveGroupProperties();
-            if (_layersProp == null || index < 0 || index >= _layersProp.arraySize) return;
-
-            element.userData = index; // for right-click menu
-
-            var layerProp = _layersProp.GetArrayElementAtIndex(index);
-            var enabledProp = layerProp.FindPropertyRelative("_enabled");
-            var nameProp = layerProp.FindPropertyRelative("_name");
-            var weightProp = layerProp.FindPropertyRelative("_weight");
-            var typeProp = layerProp.FindPropertyRelative("_type");
-
-            bool isBrush = typeProp != null && typeProp.enumValueIndex == (int)MeshDeformerLayerType.Brush;
-            bool isActive = _activeLayerIndexProp.intValue == index;
-
-            // Row 1
-            var enabledToggle = element.Q<Toggle>("layer-enabled");
-            enabledToggle.Unbind();
-            enabledToggle.BindProperty(enabledProp);
-
-            var nameField = element.Q<TextField>("layer-name");
-            nameField.Unbind();
-            nameField.BindProperty(nameProp);
-
-            element.Q<Label>("layer-type").text = isBrush ? "B" : "L";
-
-            // Row 2
-            var weightSlider = element.Q<Slider>("layer-weight");
-            weightSlider.Unbind();
-            weightSlider.BindProperty(weightProp);
-
-            // Settings foldout
-            var foldout = element.Q<Foldout>("layer-settings");
-
-            // Clean up previous foldout callback
-            if (foldout.userData is EventCallback<ChangeEvent<bool>> oldCb)
-            {
-                foldout.UnregisterValueChangedCallback(oldCb);
-                foldout.userData = null;
-            }
-
-            foldout.style.display = isActive ? DisplayStyle.Flex : DisplayStyle.None;
-
-            var imgui = element.Q<IMGUIContainer>("layer-settings-imgui");
-
-            if (isActive)
-            {
-                foldout.text = LatticeLocalization.Tr(LocKey.Settings);
-                foldout.SetValueWithoutNotify(s_showLayerSettings);
-
-                EventCallback<ChangeEvent<bool>> cb = evt =>
-                {
-                    s_showLayerSettings = evt.newValue;
-                    evt.StopPropagation();
-                    _layerListView?.schedule.Execute(() => _layerListView?.RefreshItems());
-                };
-                foldout.RegisterValueChangedCallback(cb);
-                foldout.userData = cb;
-
-                imgui.onGUIHandler = () =>
-                {
-                    if (target is not LatticeDeformer deformer || deformer == null) return;
-                    serializedObject.Update();
-
-                    if (isBrush)
-                    {
-                        DrawBrushLayerSettings(deformer);
-                    }
-                    else
-                    {
-                        var settingsProp = GetActiveSettingsProperty(deformer);
-                        DrawResetLatticeBoxControls();
-                        DrawGridSizeControls(deformer);
-                        DrawSettingsExcludingGrid(settingsProp, allowStructureEdits: true);
-                        DrawAlignmentSettings();
-                    }
-
-                    if (LatticeDeformationFeatureFlags.AdvancedBlendShapes)
-                    {
-                        DrawActiveLayerBlendShapeSection();
-                    }
-
-                    if (serializedObject.ApplyModifiedProperties())
-                        NotifyPropertyChanges();
-                };
-            }
-            else
-            {
-                imgui.onGUIHandler = null;
-            }
-        }
-
-        private void OnLayerSelectionChanged()
-        {
-            if (_layerListView == null || _activeLayerIndexProp == null) return;
-            int selected = _layerListView.selectedIndex;
-            if (selected < 0 || selected >= _layersProp.arraySize) return;
-            if (_activeLayerIndexProp.intValue == selected) return;
-
-            serializedObject.Update();
-            _activeLayerIndexProp.intValue = selected;
-            serializedObject.ApplyModifiedProperties();
-            _cachedActiveIndex = selected;
-            _layerListView.RefreshItems();
-            NotifyPropertyChanges();
-        }
-
-        private void OnLayerReordered(int oldIndex, int newIndex)
-        {
-            if (target is not LatticeDeformer deformer) return;
-
-            serializedObject.Update();
-            _layersProp.MoveArrayElement(oldIndex, newIndex);
-            UpdateActiveLayerIndexAfterReorder(oldIndex, newIndex);
-            serializedObject.ApplyModifiedProperties();
-            serializedObject.Update();
-            InitializePendingGridSizes();
-
-            RebuildLayerList();
-            NotifyPropertyChanges();
-        }
-
-        private void DrawLayerOperationsImgui()
-        {
-            if (targets.Length != 1) return;
-            var deformer = target as LatticeDeformer;
-            if (deformer == null) return;
-
-            serializedObject.Update();
-            ResolveActiveGroupProperties();
-
-            DrawImportBlendShapeUI(deformer);
-
-            serializedObject.ApplyModifiedProperties();
         }
 
         private void AutoAssignLocalRendererReferences()
@@ -2406,105 +538,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private void DrawResetLatticeBoxControls()
-        {
-            bool canReset = false;
-
-            foreach (var deformer in EnumerateTargets())
-            {
-                if (!HasResettableBounds(deformer))
-                {
-                    continue;
-                }
-
-                canReset = true;
-                break;
-            }
-
-            using (new EditorGUI.DisabledScope(!canReset))
-            {
-                string resetLabel = LatticeLocalization.Tr(LocKey.ResetActiveLayer);
-
-                if (GUILayout.Button(resetLabel))
-                {
-                    bool anyReset = false;
-
-                    foreach (var deformer in EnumerateTargets())
-                    {
-                        if (ResetLatticeBox(deformer))
-                        {
-                            anyReset = true;
-                        }
-                    }
-
-                    if (anyReset)
-                    {
-                        serializedObject.Update();
-                        LatticePreviewUtility.RequestSceneRepaint();
-                        SceneView.RepaintAll();
-                    }
-                }
-            }
-        }
-
-        private static bool HasResettableBounds(LatticeDeformer deformer)
-        {
-            if (deformer == null)
-            {
-                return false;
-            }
-
-            if (deformer.EditingSettings == null)
-            {
-                return false;
-            }
-
-            if (deformer.ActiveLayerType == MeshDeformerLayerType.Brush)
-            {
-                return false;
-            }
-
-            if (deformer.SourceMesh != null)
-            {
-                return true;
-            }
-
-            return deformer.GetComponent<SkinnedMeshRenderer>() != null || deformer.GetComponent<MeshFilter>() != null;
-        }
-
-        private static bool ResetLatticeBox(LatticeDeformer deformer)
-        {
-            if (!HasResettableBounds(deformer))
-            {
-                return false;
-            }
-
-            var settings = deformer.EditingSettings;
-            if (settings == null)
-            {
-                return false;
-            }
-
-            Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ResetLatticeCage));
-
-            deformer.Deform(false);
-            if (deformer.SourceMesh == null)
-            {
-                return false;
-            }
-
-            settings.LocalBounds = deformer.SourceMesh.bounds;
-            settings.ResetControlPoints();
-
-            deformer.InvalidateCache();
-            bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-            deformer.Deform(assignRuntimeMesh);
-
-            LatticePrefabUtility.MarkModified(deformer);
-
-            return true;
-        }
-
         private void DrawLanguageSelector()
         {
             int current = (int)LatticeLocalization.CurrentLanguage;
@@ -2528,387 +561,23 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             LatticeDeformerPreviewFilter.ForcePreviewState(enabled);
         }
 
-        private SerializedProperty GetActiveSettingsProperty(LatticeDeformer deformer)
-        {
-            if (deformer == null)
-            {
-                return _settingsProp;
-            }
+        private MeshDeformerLayerType GetSerializedActiveLayerType() =>
+            LayerSettingsEdit.TryReadActive(target as LatticeDeformer, out _, out var layer) ? layer.Type : MeshDeformerLayerType.Lattice;
 
-            if (_settingsProp == null)
-            {
-                return null;
-            }
-
-            int activeLayerIndex = _activeLayerIndexProp != null
-                ? Mathf.Clamp(_activeLayerIndexProp.intValue, -1, (_layersProp != null ? _layersProp.arraySize - 1 : -1))
-                : -1;
-
-            if (activeLayerIndex < 0 || _layersProp == null || activeLayerIndex >= _layersProp.arraySize)
-            {
-                return _settingsProp;
-            }
-
-            var layerProp = _layersProp.GetArrayElementAtIndex(activeLayerIndex);
-            if (layerProp == null)
-            {
-                return _settingsProp;
-            }
-
-            var layerSettingsProp = layerProp.FindPropertyRelative("_settings");
-            return layerSettingsProp ?? _settingsProp;
-        }
-
-        private MeshDeformerLayerType GetSerializedActiveLayerType()
-        {
-            if (_layersProp == null || _activeLayerIndexProp == null || _layersProp.arraySize == 0)
-            {
-                return MeshDeformerLayerType.Lattice;
-            }
-
-            int activeLayerIndex = Mathf.Clamp(_activeLayerIndexProp.intValue, 0, _layersProp.arraySize - 1);
-            var layerProp = _layersProp.GetArrayElementAtIndex(activeLayerIndex);
-            var typeProp = layerProp?.FindPropertyRelative("_type");
-            if (typeProp == null)
-            {
-                return MeshDeformerLayerType.Lattice;
-            }
-
-            return (MeshDeformerLayerType)Mathf.Clamp(typeProp.enumValueIndex, 0, 1);
-        }
-
-        private static void DrawBrushLayerSettings(LatticeDeformer deformer)
-        {
-            EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.BrushLayerInfo), MessageType.Info);
-
-            int vertexCount = deformer != null && deformer.SourceMesh != null ? deformer.SourceMesh.vertexCount : 0;
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.VertexCount), vertexCount.ToString());
-
-            if (deformer == null)
-            {
-                return;
-            }
-
-            EditorGUI.BeginDisabledGroup(deformer.ActiveLayerType != MeshDeformerLayerType.Brush);
-            if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearActiveLayerDisplacements)))
-            {
-                Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ClearActiveLayerDisplacements));
-                deformer.ClearDisplacements();
-                deformer.InvalidateCache();
-                deformer.Deform(LatticePreviewUtility.ShouldAssignRuntimeMesh());
-                LatticePrefabUtility.MarkModified(deformer);
-                LatticePreviewUtility.RequestSceneRepaint();
-                SceneView.RepaintAll();
-            }
-            EditorGUI.EndDisabledGroup();
-        }
-
-        private void DrawActiveLayerBlendShapeSection()
-        {
-            if (_layersProp == null || _activeLayerIndexProp == null || _layersProp.arraySize == 0)
-            {
-                return;
-            }
-
-            int activeLayerIndex = Mathf.Clamp(_activeLayerIndexProp.intValue, 0, _layersProp.arraySize - 1);
-            var layerProp = _layersProp.GetArrayElementAtIndex(activeLayerIndex);
-            if (layerProp == null)
-            {
-                return;
-            }
-
-            var outputProp = layerProp.FindPropertyRelative("_blendShapeOutput");
-            var nameProp = layerProp.FindPropertyRelative("_blendShapeName");
-            var curveProp = layerProp.FindPropertyRelative("_blendShapeCurve");
-            if (outputProp == null)
-            {
-                return;
-            }
-
-            EditorGUILayout.Space(4f);
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.BlendShapeOutput), EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(outputProp, LatticeLocalization.Content(LocKey.BlendShapeOutput));
-
-            if (outputProp.intValue == (int)BlendShapeOutputMode.OutputAsBlendShape)
-            {
-                if (nameProp != null)
-                {
-                    EditorGUILayout.PropertyField(nameProp, LatticeLocalization.Content(LocKey.BlendShapeName));
-                }
-
-                if (curveProp != null)
-                {
-                    EditorGUILayout.PropertyField(curveProp, LatticeLocalization.Content(LocKey.Curve));
-                }
-            }
-        }
-
-        private void DrawBuildOptions()
-        {
-            s_showOptions = EditorGUILayout.BeginFoldoutHeaderGroup(s_showOptions, LatticeLocalization.Tr(LocKey.MeshRebuildOptions));
-            if (s_showOptions)
-            {
-                EditorGUI.indentLevel++;
-
-                // Compact horizontal toggles
-                using (new EditorGUILayout.HorizontalScope())
-                {
-                    if (_recalcNormalsProp != null)
-                        _recalcNormalsProp.boolValue = GUILayout.Toggle(_recalcNormalsProp.boolValue, LatticeLocalization.Tr(LocKey.Normals));
-                    if (_recalcTangentsProp != null)
-                        _recalcTangentsProp.boolValue = GUILayout.Toggle(_recalcTangentsProp.boolValue, LatticeLocalization.Tr(LocKey.Tangents));
-                    if (_recalcBoundsProp != null)
-                        _recalcBoundsProp.boolValue = GUILayout.Toggle(_recalcBoundsProp.boolValue, LatticeLocalization.Tr(LocKey.Bounds));
-                }
-
-                if (_recalcNormalsProp != null && _recalcNormalsProp.boolValue && _normalsModeProp != null)
-                {
-                    // Unknown serialized enum values must retain the legacy behavior.
-                    int normalsMode = Mathf.Clamp(_normalsModeProp.enumValueIndex, 0, 1);
-                    _normalsModeProp.enumValueIndex = EditorGUILayout.Popup(
-                        LatticeLocalization.Content(LocKey.NormalsMode),
-                        normalsMode,
-                        new[]
-                        {
-                            LatticeLocalization.Content(LocKey.NormalsLegacyUnityRecalculate),
-                            LatticeLocalization.Content(LocKey.NormalsPreserveSourceSmoothing)
-                        });
-                }
-
-                // Bone weight recalculation (only for SkinnedMeshRenderer)
-                bool hasSkinnedRenderer = _skinnedRendererProp != null &&
-                    !_skinnedRendererProp.hasMultipleDifferentValues &&
-                    _skinnedRendererProp.objectReferenceValue != null;
-
-                using (new EditorGUI.DisabledScope(!hasSkinnedRenderer))
-                {
-                    EditorGUILayout.PropertyField(_recalcBoneWeightsProp, LatticeLocalization.Content(LocKey.RecalculateBoneWeights));
-                }
-
-                if (!hasSkinnedRenderer && _recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue)
-                {
-                    EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.BoneWeightRequiresSMR), MessageType.Info);
-                }
-
-                // Weight transfer settings (shown only when bone weight recalculation is enabled)
-                if (_recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue && hasSkinnedRenderer)
-                {
-                    s_showWeightTransferSettings = EditorGUILayout.Foldout(s_showWeightTransferSettings, LatticeLocalization.Tr(LocKey.WeightTransferSettings), true);
-                    if (s_showWeightTransferSettings && _weightTransferSettingsProp != null)
-                    {
-                        EditorGUI.indentLevel++;
-                        DrawWeightTransferSettings();
-                        EditorGUI.indentLevel--;
-                    }
-                }
-
-                EditorGUILayout.Space();
-                bool previewEnabled = LatticeDeformerPreviewFilter.PreviewToggleEnabled;
-                string previewLabel = previewEnabled
-                    ? LatticeLocalization.Tr(LocKey.NDMFDisableMeshPreview)
-                    : LatticeLocalization.Tr(LocKey.NDMFEnableMeshPreview);
-                if (GUILayout.Button(previewLabel))
-                {
-                    TogglePreviewForTargets(!previewEnabled);
-                }
-
-                EditorGUI.indentLevel--;
-            }
-            EditorGUILayout.EndFoldoutHeaderGroup();
-        }
-
-        private void MoveLayer(LatticeDeformer deformer, int fromIndex, int toIndex)
+        private void PerformEditOperation(Func<bool> operation)
         {
             serializedObject.ApplyModifiedProperties();
-            Undo.RecordObject(deformer, "Reorder Layer");
-            _layersProp.MoveArrayElement(fromIndex, toIndex);
-            UpdateActiveLayerIndexAfterReorder(fromIndex, toIndex);
-            serializedObject.ApplyModifiedProperties();
+            bool changed = operation();
             serializedObject.Update();
-            InitializePendingGridSizes();
-        }
-
-        private void DeleteLayer(LatticeDeformer deformer, int index)
-        {
-            if (_layersProp.arraySize <= 0) return;
-            serializedObject.ApplyModifiedProperties();
-            Undo.RecordObject(deformer, "Delete Layer");
-            _layersProp.DeleteArrayElementAtIndex(index);
-            ClampActiveLayerIndexProperty();
-            serializedObject.ApplyModifiedProperties();
-            serializedObject.Update();
-            InitializePendingGridSizes();
-
-            deformer.InvalidateCache();
-            deformer.Deform(LatticePreviewUtility.ShouldAssignRuntimeMesh());
-            LatticePrefabUtility.MarkModified(deformer);
-            LatticePreviewUtility.RequestSceneRepaint();
-            SceneView.RepaintAll();
-        }
-
-        private void ShowLROperationsMenu(LatticeDeformer deformer)
-        {
-            var menu = new GenericMenu();
-            menu.AddItem(new GUIContent(LatticeLocalization.Tr(LocKey.SplitL)), false, () =>
-                PerformSingleLayerOperation(deformer, LatticeLocalization.Tr(LocKey.SplitLayerLeft), i => { i.SplitLayerByAxis(i.ActiveLayerIndex, 0, false); return true; }));
-            menu.AddItem(new GUIContent(LatticeLocalization.Tr(LocKey.SplitR)), false, () =>
-                PerformSingleLayerOperation(deformer, LatticeLocalization.Tr(LocKey.SplitLayerRight), i => { i.SplitLayerByAxis(i.ActiveLayerIndex, 0, true); return true; }));
-            menu.AddSeparator("");
-            menu.AddItem(new GUIContent(LatticeLocalization.Tr(LocKey.FlipX)), false, () =>
-                PerformSingleLayerOperation(deformer, LatticeLocalization.Tr(LocKey.FlipLayerX), i => { i.FlipLayerByAxis(i.ActiveLayerIndex, 0); return true; }));
-            menu.AddItem(new GUIContent(LatticeLocalization.Tr(LocKey.FlipY)), false, () =>
-                PerformSingleLayerOperation(deformer, LatticeLocalization.Tr(LocKey.FlipLayerY), i => { i.FlipLayerByAxis(i.ActiveLayerIndex, 1); return true; }));
-            menu.AddItem(new GUIContent(LatticeLocalization.Tr(LocKey.FlipZ)), false, () =>
-                PerformSingleLayerOperation(deformer, LatticeLocalization.Tr(LocKey.FlipLayerZ), i => { i.FlipLayerByAxis(i.ActiveLayerIndex, 2); return true; }));
-            menu.ShowAsContext();
-        }
-
-        private void AddLayerViaList(MeshDeformerLayerType layerType)
-        {
-            if (target is not LatticeDeformer deformer)
-            {
-                return;
-            }
-
-            string undoLabel = layerType == MeshDeformerLayerType.Brush
-                ? LatticeLocalization.Tr(LocKey.AddBrushLayer)
-                : LatticeLocalization.Tr(LocKey.AddLatticeLayer);
-
-            PerformSingleLayerOperation(deformer, undoLabel, instance =>
-            {
-                instance.AddLayer(layerType: layerType);
-                return true;
-            });
-        }
-
-        private void ClampActiveLayerIndexProperty()
-        {
-            if (_layersProp == null || _activeLayerIndexProp == null)
-            {
-                return;
-            }
-
-            int maxIndex = Mathf.Max(0, _layersProp.arraySize - 1);
-            _activeLayerIndexProp.intValue = Mathf.Clamp(_activeLayerIndexProp.intValue, 0, maxIndex);
-        }
-
-        private void UpdateActiveLayerIndexAfterReorder(int oldIndex, int newIndex)
-        {
-            if (_activeLayerIndexProp == null || _layersProp == null || _layersProp.arraySize == 0)
-            {
-                return;
-            }
-
-            int active = Mathf.Clamp(_activeLayerIndexProp.intValue, 0, _layersProp.arraySize - 1);
-            if (active == oldIndex)
-            {
-                active = newIndex;
-            }
-            else if (oldIndex < active && newIndex >= active)
-            {
-                active--;
-            }
-            else if (oldIndex > active && newIndex <= active)
-            {
-                active++;
-            }
-
-            _activeLayerIndexProp.intValue = Mathf.Clamp(active, 0, _layersProp.arraySize - 1);
+            if (!changed) return;
+            ResolveActiveGroupProperties();
+            RebuildGroupList();
+            NotifyPropertyChanges(true);
         }
 
         private void PerformSingleLayerOperation(LatticeDeformer deformer, string undoLabel, System.Func<LatticeDeformer, bool> op)
         {
-            if (deformer == null || op == null)
-            {
-                return;
-            }
-
-            serializedObject.ApplyModifiedProperties();
-
-            Undo.RecordObject(deformer, undoLabel);
-            bool changed = op(deformer);
-            if (!changed)
-            {
-                serializedObject.Update();
-                return;
-            }
-
-            EditorUtility.SetDirty(deformer);
-            LatticePrefabUtility.MarkModified(deformer);
-
-            serializedObject.Update();
-            InitializePendingGridSizes();
-
-            bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-            deformer.InvalidateCache();
-            deformer.Deform(assignRuntimeMesh);
-            SyncActiveToolToLayer(deformer);
-            LatticePreviewUtility.RequestSceneRepaint();
-            SceneView.RepaintAll();
-        }
-
-        private void CopyLayer(LatticeDeformer deformer, int layerIndex)
-        {
-            var layers = deformer.Layers;
-            if (layerIndex < 0 || layerIndex >= layers.Count) return;
-            var layer = layers[layerIndex];
-            if (layer == null) return;
-            s_copiedLayerJson = JsonUtility.ToJson(layer);
-            s_copiedLayerType = layer.Type;
-        }
-
-        private void PasteLayer(LatticeDeformer deformer)
-        {
-            if (string.IsNullOrEmpty(s_copiedLayerJson)) return;
-
-            var newLayer = new LatticeLayer();
-            JsonUtility.FromJsonOverwrite(s_copiedLayerJson, newLayer);
-
-            PerformSingleLayerOperation(deformer, LatticeLocalization.Tr(LocKey.PasteLayer), instance =>
-            {
-                return instance.InsertLayer(newLayer) >= 0;
-            });
-        }
-
-        private void DuplicateGroup(LatticeDeformer deformer, int groupIndex)
-        {
-            var groups = deformer.Groups;
-            if (groupIndex < 0 || groupIndex >= groups.Count) return;
-            var srcGroup = groups[groupIndex];
-            string json = JsonUtility.ToJson(srcGroup);
-            var newGroup = new DeformerGroup();
-            JsonUtility.FromJsonOverwrite(json, newGroup);
-            newGroup.Name = srcGroup.Name + " Copy";
-
-            // Use reflection to access _groups list directly for insert
-            var groupsField = typeof(LatticeDeformer).GetField("_groups", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (groupsField?.GetValue(deformer) is List<DeformerGroup> groupsList)
-            {
-                int insertAt = Mathf.Clamp(groupIndex + 1, 0, groupsList.Count);
-                groupsList.Insert(insertAt, newGroup);
-                deformer.ActiveGroupIndex = insertAt;
-            }
-        }
-
-        private void CopyGroup(LatticeDeformer deformer, int groupIndex)
-        {
-            var groups = deformer.Groups;
-            if (groupIndex < 0 || groupIndex >= groups.Count) return;
-            s_copiedGroupJson = JsonUtility.ToJson(groups[groupIndex]);
-        }
-
-        private void PasteGroup(LatticeDeformer deformer)
-        {
-            if (string.IsNullOrEmpty(s_copiedGroupJson)) return;
-            var newGroup = new DeformerGroup();
-            JsonUtility.FromJsonOverwrite(s_copiedGroupJson, newGroup);
-
-            var groupsField = typeof(LatticeDeformer).GetField("_groups", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (groupsField?.GetValue(deformer) is List<DeformerGroup> groupsList)
-            {
-                groupsList.Add(newGroup);
-                deformer.ActiveGroupIndex = groupsList.Count - 1;
-            }
+            PerformEditOperation(() => DeformerEditService.Execute(deformer, undoLabel, op));
         }
 
         private static void SyncActiveToolToLayer(LatticeDeformer deformer)
@@ -2920,667 +589,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private void DrawSettingsExcludingGrid(SerializedProperty settingsProp, bool allowStructureEdits)
-        {
-            if (settingsProp == null)
-            {
-                return;
-            }
-
-            var iterator = settingsProp.Copy();
-            var end = iterator.GetEndProperty();
-
-            bool enterChildren = iterator.NextVisible(true);
-            while (enterChildren && !SerializedProperty.EqualContents(iterator, end))
-            {
-                bool isTopLevel = iterator.depth == settingsProp.depth + 1;
-                bool isStructureField = iterator.name == "_localBounds" || iterator.name == "_interpolation";
-                if (isTopLevel &&
-                    iterator.name != "_gridSize" &&
-                    iterator.name != "_controlPointsLocal" &&
-                    (allowStructureEdits || !isStructureField))
-                {
-                    EditorGUILayout.PropertyField(iterator, includeChildren: true);
-                }
-
-                enterChildren = iterator.NextVisible(false);
-            }
-        }
-
-        private void InitializePendingGridSizes()
-        {
-            foreach (var deformer in EnumerateTargets())
-            {
-                var settings = deformer.EditingSettings;
-                if (settings == null)
-                {
-                    continue;
-                }
-
-                s_pendingGridSizes[GetPendingGridKey(deformer)] = settings.GridSize;
-            }
-        }
-
-        private static void ApplyGridSizeChange(LatticeDeformer deformer, Vector3Int newSize)
-        {
-            if (deformer == null)
-            {
-                return;
-            }
-
-            var settings = deformer.EditingSettings;
-            if (settings == null)
-            {
-                return;
-            }
-
-            newSize.x = Mathf.Max(2, newSize.x);
-            newSize.y = Mathf.Max(2, newSize.y);
-            newSize.z = Mathf.Max(2, newSize.z);
-
-            Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ChangeLatticeDivisions));
-            settings.ResizeGrid(newSize);
-            deformer.InvalidateCache();
-
-            bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-            deformer.Deform(assignRuntimeMesh);
-
-            LatticePrefabUtility.MarkModified(deformer);
-
-            LatticePreviewUtility.RequestSceneRepaint();
-            SceneView.RepaintAll();
-        }
-
-        private void DrawGridSizeControls(LatticeDeformer deformer)
-        {
-            if (deformer == null)
-            {
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.NoLatticeDeformerSelected), MessageType.Info);
-                return;
-            }
-
-            var settings = deformer.EditingSettings;
-            if (settings == null)
-            {
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.NoLatticeAssetAssigned), MessageType.Warning);
-                return;
-            }
-
-            long pendingKey = GetPendingGridKey(deformer);
-            if (!s_pendingGridSizes.TryGetValue(pendingKey, out var pending))
-            {
-                pending = settings.GridSize;
-                s_pendingGridSizes[pendingKey] = pending;
-            }
-
-            EditorGUILayout.LabelField(LatticeLocalization.Content(LocKey.CurrentGridDivisions), new GUIContent(settings.GridSize.ToString()));
-            EditorGUI.BeginChangeCheck();
-            pending = EditorGUILayout.Vector3IntField(LatticeLocalization.Tr(LocKey.PendingGridDivisions), pending);
-            if (EditorGUI.EndChangeCheck())
-            {
-                pending.x = Mathf.Max(2, pending.x);
-                pending.y = Mathf.Max(2, pending.y);
-                pending.z = Mathf.Max(2, pending.z);
-                s_pendingGridSizes[pendingKey] = pending;
-            }
-
-            bool hasPendingChange = s_pendingGridSizes[pendingKey] != settings.GridSize;
-
-            using (new EditorGUILayout.HorizontalScope())
-            {
-                using (new EditorGUI.DisabledScope(!hasPendingChange))
-                {
-                    if (GUILayout.Button(LatticeLocalization.Tr(LocKey.Apply), GUILayout.Width(80f)))
-                    {
-                        foreach (var selected in EnumerateTargets())
-                        {
-                            long selectedKey = GetPendingGridKey(selected);
-                            if (!s_pendingGridSizes.TryGetValue(selectedKey, out var pendingSize))
-                            {
-                                pendingSize = selected.EditingSettings?.GridSize ?? pending;
-                            }
-
-                            ApplyGridSizeChange(selected, pendingSize);
-                            s_pendingGridSizes[selectedKey] = selected.EditingSettings?.GridSize ?? pendingSize;
-                        }
-                    }
-
-                    if (GUILayout.Button(LatticeLocalization.Tr(LocKey.Revert), GUILayout.Width(80f)))
-                    {
-                        foreach (var selected in EnumerateTargets())
-                        {
-                            if (selected.EditingSettings != null)
-                            {
-                                s_pendingGridSizes[GetPendingGridKey(selected)] = selected.EditingSettings.GridSize;
-                            }
-                        }
-                    }
-                }
-            }
-
-            EditorGUILayout.Space();
-        }
-
-        private static long GetPendingGridKey(LatticeDeformer deformer)
-        {
-            if (deformer == null)
-            {
-                return 0L;
-            }
-
-            int instanceId = deformer.GetInstanceID();
-            int layerIndex = Mathf.Max(0, deformer.ActiveLayerIndex);
-            return ((long)instanceId << 32) ^ (uint)layerIndex;
-        }
-
-        private static void RemovePendingGridSizesFor(LatticeDeformer deformer)
-        {
-            if (deformer == null || s_pendingGridSizes.Count == 0)
-            {
-                return;
-            }
-
-            int instanceId = deformer.GetInstanceID();
-            var toRemove = new List<long>();
-            foreach (var key in s_pendingGridSizes.Keys)
-            {
-                int keyInstance = unchecked((int)(key >> 32));
-                if (keyInstance == instanceId)
-                {
-                    toRemove.Add(key);
-                }
-            }
-
-            for (int i = 0; i < toRemove.Count; i++)
-            {
-                s_pendingGridSizes.Remove(toRemove[i]);
-            }
-        }
-
-        private void DrawWeightTransferSettings()
-        {
-            if (_weightTransferSettingsProp == null)
-            {
-                return;
-            }
-
-            // Stage 1 settings
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.Stage1InitialTransfer), EditorStyles.boldLabel);
-
-            var maxDistProp = _weightTransferSettingsProp.FindPropertyRelative("maxTransferDistance");
-            if (maxDistProp != null)
-            {
-                EditorGUILayout.PropertyField(
-                    maxDistProp,
-                    LatticeLocalization.Content(
-                        LocKey.MaxTransferDistance,
-                        "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."));
-            }
-
-            var normalThresholdProp = _weightTransferSettingsProp.FindPropertyRelative("normalAngleThreshold");
-            if (normalThresholdProp != null)
-            {
-                EditorGUILayout.PropertyField(
-                    normalThresholdProp,
-                    LatticeLocalization.Content(
-                        LocKey.NormalAngleThreshold,
-                        "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."));
-            }
-
-            EditorGUILayout.Space(4);
-
-            // Stage 2 settings
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.Stage2WeightInpainting), EditorStyles.boldLabel);
-
-            var enableInpaintingProp = _weightTransferSettingsProp.FindPropertyRelative("enableInpainting");
-            if (enableInpaintingProp != null)
-            {
-                EditorGUILayout.PropertyField(enableInpaintingProp, LatticeLocalization.Content(LocKey.EnableInpainting));
-
-                if (enableInpaintingProp.boolValue)
-                {
-                    EditorGUI.indentLevel++;
-
-                    var maxIterProp = _weightTransferSettingsProp.FindPropertyRelative("maxIterations");
-                    if (maxIterProp != null)
-                    {
-                        EditorGUILayout.PropertyField(maxIterProp, LatticeLocalization.Content(LocKey.MaxIterations));
-                    }
-
-                    var toleranceProp = _weightTransferSettingsProp.FindPropertyRelative("tolerance");
-                    if (toleranceProp != null)
-                    {
-                        EditorGUILayout.PropertyField(toleranceProp, LatticeLocalization.Content(LocKey.Tolerance));
-                    }
-
-                    EditorGUI.indentLevel--;
-                }
-            }
-        }
-
-        private void DrawAlignmentSettings()
-        {
-            s_showAlignSettings = EditorGUILayout.Foldout(s_showAlignSettings, LatticeLocalization.Tr(LocKey.LatticeCageAlignment), true);
-            if (!s_showAlignSettings)
-            {
-                return;
-            }
-
-            EditorGUI.indentLevel++;
-
-            EditorGUILayout.HelpBox(
-                LatticeLocalization.Tr(LocKey.AlignmentCageInfo),
-                MessageType.Info);
-
-            if (_manualOffsetProp != null)
-            {
-                EditorGUILayout.PropertyField(_manualOffsetProp,
-                    new GUIContent(LatticeLocalization.Tr(LocKey.Offset),
-                        LatticeLocalization.Tr(LocKey.OffsetTooltip)));
-            }
-
-            if (_manualScaleProp != null)
-            {
-                DrawLinkedScaleField(_manualScaleProp, ref s_linkManualScale, LatticeLocalization.Tr(LocKey.Scale));
-            }
-
-            bool debugAlign = LatticePreviewUtility.DebugAlignLogs;
-            bool nextDebug = EditorGUILayout.ToggleLeft(
-                new GUIContent(LatticeLocalization.Tr(LocKey.DebugLogAlignment)),
-                debugAlign);
-            if (nextDebug != debugAlign)
-            {
-                LatticePreviewUtility.DebugAlignLogs = nextDebug;
-                LatticePreviewUtility.LogAlign("Toggle", $"DebugAlignLogs set to {nextDebug}");
-            }
-
-            EditorGUI.indentLevel--;
-        }
-
-        private static void DrawLinkedScaleField(SerializedProperty prop, ref bool link, string label)
-        {
-            if (prop == null || prop.propertyType != SerializedPropertyType.Vector3)
-            {
-                return;
-            }
-
-            EnsureLinkIcons();
-
-            var value = prop.vector3Value;
-            var rect = EditorGUILayout.GetControlRect();
-            var labelContent = new GUIContent(label);
-
-            EditorGUI.BeginProperty(rect, labelContent, prop);
-            rect = EditorGUI.PrefixLabel(rect, labelContent);
-
-            const float linkWidth = 20f;
-            var linkRect = new Rect(rect.x, rect.y, linkWidth, rect.height);
-            var fieldsRect = new Rect(linkRect.xMax + 2f, rect.y, rect.width - linkWidth - 2f, rect.height);
-
-            if (GUI.Button(linkRect, link ? s_linkOn : s_linkOff, GUIStyle.none))
-            {
-                link = !link;
-            }
-
-            float[] vals = { value.x, value.y, value.z };
-            EditorGUI.BeginChangeCheck();
-            EditorGUI.MultiFloatField(fieldsRect, s_xyzLabels, vals);
-            if (EditorGUI.EndChangeCheck())
-            {
-                if (link)
-                {
-                    vals[1] = vals[2] = vals[0];
-                }
-
-                value = new Vector3(
-                    Mathf.Max(0.0001f, vals[0]),
-                    Mathf.Max(0.0001f, vals[1]),
-                    Mathf.Max(0.0001f, vals[2]));
-                prop.vector3Value = value;
-            }
-
-            EditorGUI.EndProperty();
-        }
-
-        private static Bounds DivBoundsByScale(Bounds b, Vector3 scale)
-        {
-            var center = new Vector3(
-                scale.x != 0f ? b.center.x / scale.x : b.center.x,
-                scale.y != 0f ? b.center.y / scale.y : b.center.y,
-                scale.z != 0f ? b.center.z / scale.z : b.center.z);
-
-            var size = new Vector3(
-                scale.x != 0f ? b.size.x / Mathf.Abs(scale.x) : b.size.x,
-                scale.y != 0f ? b.size.y / Mathf.Abs(scale.y) : b.size.y,
-                scale.z != 0f ? b.size.z / Mathf.Abs(scale.z) : b.size.z);
-
-            return new Bounds(center, size);
-        }
-
-        private void DrawGroupBlendShapeSection(int groupIndex)
-        {
-            // This runs from an IMGUIContainer inside a list item, which can repaint
-            // once more after the inspected object was destroyed.
-            if (target == null) return;
-
-            serializedObject.Update();
-            if (_groupsProp == null || groupIndex < 0 || groupIndex >= _groupsProp.arraySize) return;
-
-            var groupProp = _groupsProp.GetArrayElementAtIndex(groupIndex);
-            var outputProp = groupProp.FindPropertyRelative("_blendShapeOutput");
-            var nameProp = groupProp.FindPropertyRelative("_blendShapeName");
-            var curveProp = groupProp.FindPropertyRelative("_blendShapeCurve");
-            var compositionProp = groupProp.FindPropertyRelative("_blendShapeComposition");
-            if (outputProp == null) return;
-
-            EditorGUI.BeginChangeCheck();
-            EditorGUILayout.PropertyField(outputProp, new GUIContent(LatticeLocalization.Tr(LocKey.BlendShapeOutput)));
-            bool modeJustChanged = EditorGUI.EndChangeCheck();
-
-            if (outputProp.intValue == (int)BlendShapeOutputMode.OutputAsBlendShape)
-            {
-                if (modeJustChanged && nameProp != null && string.IsNullOrWhiteSpace(nameProp.stringValue))
-                {
-                    var deformer = target as LatticeDeformer;
-                    if (deformer != null)
-                        nameProp.stringValue = deformer.gameObject.name;
-                }
-
-                if (nameProp != null)
-                    EditorGUILayout.PropertyField(nameProp, new GUIContent(LatticeLocalization.Tr(LocKey.BlendShapeName)));
-
-                if (curveProp != null)
-                    EditorGUILayout.PropertyField(curveProp, new GUIContent(LatticeLocalization.Tr(LocKey.Curve)));
-
-                if (LatticeDeformationFeatureFlags.AdvancedBlendShapes && compositionProp != null)
-                {
-                    var compositionOptions = new[]
-                    {
-                        LatticeLocalization.Content(LocKey.BlendShapeCompositionSingle),
-                        LatticeLocalization.Content(LocKey.BlendShapeCompositionProgressive),
-                        LatticeLocalization.Content(LocKey.BlendShapeCompositionCrossfade)
-                    };
-                    compositionProp.enumValueIndex = EditorGUILayout.Popup(
-                        LatticeLocalization.Content(LocKey.BlendShapeComposition),
-                        compositionProp.enumValueIndex,
-                        compositionOptions);
-                }
-
-                // Test mode only for active group
-                int activeGroupIdx = _activeGroupIndexProp != null ? _activeGroupIndexProp.intValue : 0;
-                if (groupIndex == activeGroupIdx)
-                    DrawBlendShapeTestMode();
-            }
-
-            if (serializedObject.ApplyModifiedProperties())
-                NotifyPropertyChanges();
-        }
-
-        // Keep for backward compat — no longer called from DrawBottomSection
-        private void DrawBlendShapeOutputSection()
-        {
-        }
-
-        private void DrawBlendShapeTestMode()
-        {
-            var deformer = target as LatticeDeformer;
-            if (deformer == null) return;
-
-            var smr = deformer.GetComponent<SkinnedMeshRenderer>();
-            if (smr == null) return;
-
-            EditorGUILayout.Space(2);
-
-            if (!_blendShapeTestMode)
-            {
-                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.EnterTestMode)))
-                {
-                    EnterBlendShapeTestMode(deformer, smr);
-                }
-            }
-            else
-            {
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.BlendShapeTestMode), MessageType.Info);
-
-                EditorGUI.BeginChangeCheck();
-                _blendShapeTestWeight = EditorGUILayout.Slider(
-                    new GUIContent(LatticeLocalization.Tr(LocKey.TestWeight)),
-                    _blendShapeTestWeight, 0f, 100f);
-                if (EditorGUI.EndChangeCheck())
-                {
-                    ApplyBlendShapeTestWeight(deformer, smr);
-                }
-
-                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ExitTestMode)))
-                {
-                    ExitBlendShapeTestMode();
-                }
-            }
-        }
-
-        private void EnterBlendShapeTestMode(LatticeDeformer deformer, SkinnedMeshRenderer smr)
-        {
-            _preTestMesh = smr.sharedMesh;
-            CapturePreTestBlendShapeWeights(smr, _preTestMesh);
-
-            // Record which properties were already overridden before test mode
-            if (PrefabUtility.IsPartOfPrefabInstance(smr))
-            {
-                var so = new SerializedObject(smr);
-                var meshProp = so.FindProperty("m_Mesh");
-                var weightsProp = so.FindProperty("m_BlendShapeWeights");
-                _preTestMeshWasOverridden = meshProp != null && meshProp.prefabOverride;
-                _preTestWeightsWereOverridden = weightsProp != null && weightsProp.prefabOverride;
-            }
-
-            _blendShapeTestMode = true;
-            _blendShapeTestWeight = 0f;
-
-            // Force Deform with assignment so the BlendShape is on the SMR
-            deformer.InvalidateCache();
-            deformer.Deform(true);
-            SceneView.RepaintAll();
-        }
-
-        private void ExitBlendShapeTestMode()
-        {
-            if (!_blendShapeTestMode) return;
-            _blendShapeTestMode = false;
-            _blendShapeTestWeight = 0f;
-
-            if (target is LatticeDeformer deformer)
-            {
-                var smr = deformer.GetComponent<SkinnedMeshRenderer>();
-                if (smr != null)
-                {
-                    // Restore only what test mode changed: sharedMesh
-                    if (_preTestMesh != null)
-                    {
-                        smr.sharedMesh = _preTestMesh;
-                        RestorePreTestBlendShapeWeights(smr, _preTestMesh);
-                    }
-
-                    // Revert only the prefab overrides that test mode created
-                    if (PrefabUtility.IsPartOfPrefabInstance(smr))
-                    {
-                        var so = new SerializedObject(smr);
-                        if (!_preTestMeshWasOverridden)
-                        {
-                            var meshProp = so.FindProperty("m_Mesh");
-                            if (meshProp != null && meshProp.prefabOverride)
-                                PrefabUtility.RevertPropertyOverride(meshProp, InteractionMode.AutomatedAction);
-                        }
-                        if (!_preTestWeightsWereOverridden)
-                        {
-                            var weightsProp = so.FindProperty("m_BlendShapeWeights");
-                            if (weightsProp != null && weightsProp.prefabOverride)
-                                PrefabUtility.RevertPropertyOverride(weightsProp, InteractionMode.AutomatedAction);
-                        }
-                    }
-                }
-            }
-
-            _preTestMesh = null;
-            _preTestBlendShapeNames = Array.Empty<string>();
-            _preTestBlendShapeWeights = Array.Empty<float>();
-            _preTestMeshWasOverridden = false;
-            _preTestWeightsWereOverridden = false;
-            SceneView.RepaintAll();
-        }
-
-        private void CapturePreTestBlendShapeWeights(SkinnedMeshRenderer smr, Mesh mesh)
-        {
-            if (smr == null || mesh == null || mesh.blendShapeCount == 0)
-            {
-                _preTestBlendShapeNames = Array.Empty<string>();
-                _preTestBlendShapeWeights = Array.Empty<float>();
-                return;
-            }
-
-            int count = mesh.blendShapeCount;
-            _preTestBlendShapeNames = new string[count];
-            _preTestBlendShapeWeights = new float[count];
-            for (int i = 0; i < count; i++)
-            {
-                _preTestBlendShapeNames[i] = mesh.GetBlendShapeName(i);
-                _preTestBlendShapeWeights[i] = smr.GetBlendShapeWeight(i);
-            }
-        }
-
-        private void RestorePreTestBlendShapeWeights(SkinnedMeshRenderer smr, Mesh mesh)
-        {
-            if (smr == null || mesh == null ||
-                _preTestBlendShapeNames == null || _preTestBlendShapeWeights == null)
-            {
-                return;
-            }
-
-            int count = Mathf.Min(_preTestBlendShapeNames.Length, _preTestBlendShapeWeights.Length);
-            for (int i = 0; i < count; i++)
-            {
-                string shapeName = _preTestBlendShapeNames[i];
-                if (string.IsNullOrEmpty(shapeName))
-                {
-                    continue;
-                }
-
-                int shapeIndex = mesh.GetBlendShapeIndex(shapeName);
-                if (shapeIndex >= 0)
-                {
-                    smr.SetBlendShapeWeight(shapeIndex, _preTestBlendShapeWeights[i]);
-                }
-            }
-        }
-
-        private void ApplyBlendShapeTestWeight(LatticeDeformer deformer, SkinnedMeshRenderer smr)
-        {
-            var runtimeMesh = deformer.RuntimeMesh;
-            if (runtimeMesh == null) return;
-
-            string shapeName = deformer.EffectiveBlendShapeName;
-            int shapeIndex = runtimeMesh.GetBlendShapeIndex(shapeName);
-            if (shapeIndex < 0) return;
-
-            smr.SetBlendShapeWeight(shapeIndex, _blendShapeTestWeight);
-            SceneView.RepaintAll();
-        }
-
-        private void DrawImportBlendShapeUI(LatticeDeformer deformer)
-        {
-            if (deformer == null)
-            {
-                return;
-            }
-
-            var blendShapeNames = deformer.GetSourceBlendShapeNames();
-            if (blendShapeNames == null || blendShapeNames.Length == 0)
-            {
-                return;
-            }
-
-            EditorGUILayout.Space(4);
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.PrefixLabel(LatticeLocalization.Tr(LocKey.ImportBlendShape));
-
-            if (EditorGUILayout.DropdownButton(new GUIContent(LatticeLocalization.Tr(LocKey.Select)), FocusType.Keyboard))
-            {
-                var menu = new GenericMenu();
-                for (int i = 0; i < blendShapeNames.Length; i++)
-                {
-                    int index = i;
-                    string shapeName = blendShapeNames[i];
-                    if (LatticeDeformationFeatureFlags.AdvancedBlendShapes)
-                    {
-                        menu.AddItem(
-                            new GUIContent(
-                                LatticeLocalization.Tr(LocKey.ImportBlendShapeSingleFrame) + "/" + shapeName),
-                            false,
-                            () => ImportBlendShape(deformer, index, false));
-                        menu.AddItem(
-                            new GUIContent(
-                                LatticeLocalization.Tr(LocKey.ImportBlendShapeAllFrames) + "/" + shapeName),
-                            false,
-                            () => ImportBlendShape(deformer, index, true));
-                    }
-                    else
-                    {
-                        menu.AddItem(
-                            new GUIContent(shapeName),
-                            false,
-                            () => ImportBlendShape(deformer, index, false));
-                    }
-                }
-                menu.ShowAsContext();
-            }
-
-            EditorGUILayout.EndHorizontal();
-        }
-
-        private void ImportBlendShape(LatticeDeformer deformer, int blendShapeIndex, bool allFrames)
-        {
-            Undo.RecordObject(deformer, "Import BlendShape");
-            int importedIndex = allFrames
-                ? deformer.ImportBlendShapeAllFramesAsGroup(blendShapeIndex)
-                : deformer.ImportBlendShapeAsLayer(blendShapeIndex);
-            if (importedIndex < 0) return;
-
-            EditorUtility.SetDirty(deformer);
-            LatticePrefabUtility.MarkModified(deformer);
-
-            serializedObject.Update();
-            InitializePendingGridSizes();
-
-            bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-            deformer.InvalidateCache();
-            deformer.Deform(assignRuntimeMesh);
-            LatticePreviewUtility.RequestSceneRepaint();
-            SceneView.RepaintAll();
-        }
-
-        private static void EnsureLinkIcons()
-        {
-            if (s_linkOn == null)
-            {
-                s_linkOn = EditorGUIUtility.IconContent("Linked");
-                if (s_linkOn == null || s_linkOn.image == null)
-                {
-                    s_linkOn = new GUIContent("≡", "Link axes");
-                }
-            }
-
-            if (s_linkOff == null)
-            {
-                s_linkOff = EditorGUIUtility.IconContent("Unlinked");
-                if (s_linkOff == null || s_linkOff.image == null)
-                {
-                    s_linkOff = new GUIContent("≠", "Unlink axes");
-                }
-            }
-        }
     }
 }
 #endif
-
-
-
-

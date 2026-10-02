@@ -6,7 +6,6 @@ using System.Reflection;
 using UnityEditor;
 using Unity.Profiling;
 using UnityEngine;
-using UnityEngine.Rendering;
 using Net._32Ba.LatticeDeformationTool;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
@@ -119,11 +118,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static Renderer s_penetrationReference = null;
         private static int s_penetrationSettingsRevision;
 
-        // Overlay foldout states
-        private static bool s_showMirrorSection = false;
-        private static bool s_showAdvancedSection = false;
-        private static bool s_showVisualizationSection = false;
-
         private LatticeDeformer _activeDeformer;
         private LatticeLayer _cachedActiveBrushLayer;
 
@@ -156,6 +150,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly SkinnedVertexHelper.RestSpaceDeltaConverterCache _restSpaceConverterCache =
             new SkinnedVertexHelper.RestSpaceDeltaConverterCache();
         private Mesh _raycastMesh;
+        private readonly SkinnedPoseSnapshot _poseSnapshot = new SkinnedPoseSnapshot("Brush Posed Surface");
         private Matrix4x4 _raycastMatrix;
         private bool _hasBakedRaycastMesh;
         private Renderer _cachedBrushSourceRenderer;
@@ -180,7 +175,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static readonly ProfilerMarker s_restSpaceMarker = new ProfilerMarker("Brush.RestSpaceConverter");
         private static readonly ProfilerMarker s_visualizationMarker = new ProfilerMarker("Brush.Visualization");
         private static readonly ProfilerMarker s_deformMarker = new ProfilerMarker("Brush.Deform");
-        internal const int MaxAffectedVertexDots = 4096;
+        internal const int MaxAffectedVertexDots = BrushVertexVisualization.MaxAffectedVertexDots;
         private HashSet<int> _penetratingVertices;
         private Vector3[] _penetrationDeformedVertices;
         private Vector3[] _smoothDisplacements;
@@ -191,8 +186,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private PenetrationDetectionCacheKey _penetrationCacheKey;
         private bool _hasPenetrationCacheKey;
         private bool _isStrokeActive;
-        private int _strokeInitialStateHash;
-        private LatticeDeformer _strokeDeformer;
+        private DeformerEditSession _editSession;
 
         private delegate bool IntersectRayMeshDelegate(
             Ray ray,
@@ -211,21 +205,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         static BrushToolHandler()
         {
             LatticeLocalization.LanguageChanged += OnLanguageChanged;
-            AssemblyReloadEvents.beforeAssemblyReload += ReleaseStaticResources;
-        }
-
-        internal static void ReleaseStaticResources()
-        {
-            if (s_brushDotMaterial != null)
-            {
-                UnityEngine.Object.DestroyImmediate(s_brushDotMaterial);
-                s_brushDotMaterial = null;
-            }
-            if (s_brushCircleTex != null)
-            {
-                UnityEngine.Object.DestroyImmediate(s_brushCircleTex);
-                s_brushCircleTex = null;
-            }
         }
 
         private static void OnLanguageChanged()
@@ -448,27 +427,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void BeginStroke(LatticeDeformer deformer)
         {
             EndStroke();
-            _isStrokeActive = deformer != null;
-            _strokeDeformer = deformer;
-            _strokeInitialStateHash = deformer != null ? deformer.ComputeLayeredStateHash() : 0;
+            _editSession = DeformerEditSession.TryBegin(deformer, MeshDeformerLayerType.Brush, GetUndoLabel());
+            _isStrokeActive = _editSession != null;
         }
 
         private void EndStroke()
         {
-            if (_isStrokeActive && _strokeDeformer != null &&
-                _strokeDeformer.ComputeLayeredStateHash() != _strokeInitialStateHash)
-            {
-                LatticePrefabUtility.MarkModified(_strokeDeformer);
-            }
-
+            _editSession?.Dispose();
             ResetStrokeState();
         }
 
         private void ResetStrokeState()
         {
             _isStrokeActive = false;
-            _strokeInitialStateHash = 0;
-            _strokeDeformer = null;
+            _editSession?.Abandon();
+            _editSession = null;
         }
 
         internal void OnToolGUI(EditorWindow window, LatticeDeformer deformer)
@@ -483,6 +456,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
                 var evt = Event.current;
                 if (evt == null) return;
+
+                if (_isStrokeActive && !_editSession.MatchesTarget(deformer)) EndStroke();
+                if (_isStrokeActive && evt.type == EventType.KeyDown && evt.keyCode == KeyCode.Escape)
+                {
+                    _editSession.TryCancel();
+                    ResetStrokeState();
+                    ClearConnectedVerticesCache();
+                    ClearGeodesicDistanceCache();
+                    evt.Use();
+                    return;
+                }
 
                 // Layout only registers control ownership. Baking a posed mesh and
                 // raycasting here duplicates the following Repaint event in the same
@@ -694,6 +678,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 // Handle brush painting on left mouse drag
                 if (evt.type == EventType.MouseDrag && evt.button == 0 && !evt.alt && _isStrokeActive)
                 {
+                    if (!_editSession.TryPrepareWrite(deformer)) { EndStroke(); return; }
                     // Keep topology-limited and geodesic falloff centered on the
                     // current stroke position. The cache keys above make this a no-op
                     // while the nearest vertex and geometry remain unchanged.
@@ -713,7 +698,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     UpdateGeodesicDistanceCache(hit.point);
 
                     BeginStroke(deformer);
-                    Undo.RecordObject(deformer, GetUndoLabel());
+                    if (!_isStrokeActive) return;
                     deformer.EnsureDisplacementCapacity();
 
                     ApplyBrush(deformer, meshTransform, localHitPoint, hit.point, localHitNormal, evt);
@@ -752,8 +737,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             float worldRadius = s_brushRadius;
             float strength = s_brushStrength * 0.01f;
             float direction = s_invertBrush ? -1f : 1f;
-            bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-
             bool modified = false;
             _hasLastMoveBrushLocalDelta = false;
 
@@ -783,9 +766,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     ApplyMirror(deformer, localHitPoint, worldHitPoint, worldRadius, strength, direction);
                 }
 
+                _editSession?.RecordChange();
                 using (s_deformMarker.Auto())
-                    deformer.Deform(assignToRenderer);
-                LatticePreviewUtility.RequestSceneRepaint();
+                    LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
             }
 
             _lastMousePosition = evt.mousePosition;
@@ -797,10 +780,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     deformer, out _, out var displacements, out var vertexMask)) return false;
             Transform meshTransform = deformer.MeshTransform;
             Matrix4x4 localToWorld = meshTransform.localToWorldMatrix;
-            Vector3 worldCenter = worldHitPoint;
-            float radiusSq = worldRadius * worldRadius;
-            bool modified = false;
-            int vertexCount = _meshVertices.Length;
 
             // Pre-compute camera forward in local space for backface culling
             Vector3 localCameraForward = Vector3.forward;
@@ -817,57 +796,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
-            bool useGeodesicCandidates = s_useSurfaceDistance && _hasGeodesicDistanceCache;
-            int iterationCount = useGeodesicCandidates ? _geodesicWorkspace.VisitedCount : vertexCount;
-            for (int iteration = 0; iteration < iterationCount; iteration++)
-            {
-                int i = useGeodesicCandidates ? _geodesicWorkspace.GetVisitedVertex(iteration) : iteration;
-                if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
-                {
-                    continue;
-                }
-
-                if (s_backfaceCulling && _meshNormals != null && i < _meshNormals.Length)
-                {
-                    if (Vector3.Dot(_meshNormals[i], localCameraForward) > 0f)
-                    {
-                        continue;
-                    }
-                }
-
-                float falloff;
-                if (useGeodesicCandidates)
-                {
-                    if (!_geodesicWorkspace.TryGetDistance(i, out float geodesicDist))
-                    {
-                        continue; // Not reachable via surface
-                    }
-                    float t = geodesicDist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
-                else
-                {
-                    var vertex = _meshVertices[i] + displacements[i];
-                    float distSq = WorldDistanceSquared(i, vertex, worldCenter, localToWorld);
-                    if (distSq > radiusSq) continue;
-
-                    float dist = Mathf.Sqrt(distSq);
-                    float t = dist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
-
-                var normal = _meshNormals[i].normalized;
-                if (normal.sqrMagnitude < 0.001f) normal = Vector3.up;
-
-                var delta = normal * (strength * falloff * direction);
-                float maskValue = GetMaskValue(vertexMask, i);
-                if (maskValue < 1e-6f) continue;
-                delta *= maskValue;
-                displacements[i] += delta;
-                modified = true;
-            }
-
-            return modified;
+            var query = CreateBrushInfluenceQuery(worldHitPoint, worldRadius, localToWorld, localCameraForward);
+            return BrushDisplacementApplication.Normal(_meshVertices, _meshNormals, displacements, vertexMask, query, strength, direction);
         }
 
         private bool ApplyMoveBrush(LatticeDeformer deformer, Transform meshTransform, Vector3 worldHitPoint, float worldRadius, float strength, Event evt)
@@ -913,11 +843,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (!TryGetBrushBuffers(
                     deformer, out _, out var displacements, out var vertexMask)) return false;
             Matrix4x4 localToWorld = deformer.MeshTransform.localToWorldMatrix;
-            Vector3 worldCenter = worldHitPoint;
-            float radiusSq = worldRadius * worldRadius;
 
-            bool modified = false;
-            int vertexCount = _meshVertices.Length;
             SkinnedVertexHelper.RestSpaceDeltaConverter restSpaceConverter = null;
             if (SkinnedVertexHelper.StoreMovesInRestSpace)
             {
@@ -925,57 +851,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     restSpaceConverter = _restSpaceConverterCache.Get(deformer);
             }
 
-            bool useGeodesicCandidates = s_useSurfaceDistance && _hasGeodesicDistanceCache;
-            int iterationCount = useGeodesicCandidates ? _geodesicWorkspace.VisitedCount : vertexCount;
-            for (int iteration = 0; iteration < iterationCount; iteration++)
-            {
-                int i = useGeodesicCandidates ? _geodesicWorkspace.GetVisitedVertex(iteration) : iteration;
-                if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
-                {
-                    continue;
-                }
-
-                if (s_backfaceCulling && _meshNormals != null && i < _meshNormals.Length)
-                {
-                    if (Vector3.Dot(_meshNormals[i], localCameraForward) > 0f)
-                    {
-                        continue;
-                    }
-                }
-
-                float falloff;
-                if (useGeodesicCandidates)
-                {
-                    if (!_geodesicWorkspace.TryGetDistance(i, out float geodesicDist))
-                    {
-                        continue; // Not reachable via surface
-                    }
-                    float t = geodesicDist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
-                else
-                {
-                    var vertex = _meshVertices[i] + displacements[i];
-                    float distSq = WorldDistanceSquared(i, vertex, worldCenter, localToWorld);
-                    if (distSq > radiusSq) continue;
-
-                    float dist = Mathf.Sqrt(distSq);
-                    float t = dist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
-
-                var storedDelta = restSpaceConverter != null
-                    ? restSpaceConverter.ConvertOrFallback(i, localDelta)
-                    : localDelta;
-                var delta = storedDelta * (strength * falloff * 10f);
-                float maskValue = GetMaskValue(vertexMask, i);
-                if (maskValue < 1e-6f) continue;
-                delta *= maskValue;
-                displacements[i] += delta;
-                modified = true;
-            }
-
-            return modified;
+            var query = CreateBrushInfluenceQuery(worldHitPoint, worldRadius, localToWorld, localCameraForward);
+            return BrushDisplacementApplication.Move(_meshVertices, displacements, vertexMask, query, strength, localDelta, restSpaceConverter);
         }
 
         private bool ApplySmoothBrush(LatticeDeformer deformer, Vector3 worldHitPoint, float worldRadius, float strength)
@@ -983,11 +860,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (!TryGetBrushBuffers(
                     deformer, out _, out var displacements, out var vertexMask)) return false;
             Matrix4x4 localToWorld = deformer.MeshTransform.localToWorldMatrix;
-            Vector3 worldCenter = worldHitPoint;
-            float radiusSq = worldRadius * worldRadius;
             EnsureAdjacencyBuilt();
 
-            bool modified = false;
             int vertexCount = _meshVertices.Length;
 
             // Pre-compute camera forward in local space for backface culling
@@ -1011,74 +885,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             float smoothFactor = Mathf.Clamp01(strength * 10f);
 
-            bool useGeodesicCandidates = s_useSurfaceDistance && _hasGeodesicDistanceCache;
-            int iterationCount = useGeodesicCandidates ? _geodesicWorkspace.VisitedCount : vertexCount;
-            for (int iteration = 0; iteration < iterationCount; iteration++)
-            {
-                int i = useGeodesicCandidates ? _geodesicWorkspace.GetVisitedVertex(iteration) : iteration;
-                if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
-                {
-                    continue;
-                }
-
-                if (s_backfaceCulling && _meshNormals != null && i < _meshNormals.Length)
-                {
-                    if (Vector3.Dot(_meshNormals[i], localCameraForward) > 0f)
-                    {
-                        continue;
-                    }
-                }
-
-                float falloff;
-                if (useGeodesicCandidates)
-                {
-                    if (!_geodesicWorkspace.TryGetDistance(i, out float geodesicDist))
-                    {
-                        continue; // Not reachable via surface
-                    }
-                    float t = geodesicDist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
-                else
-                {
-                    var vertex = _meshVertices[i] + currentDisplacements[i];
-                    float distSq = WorldDistanceSquared(i, vertex, worldCenter, localToWorld);
-                    if (distSq > radiusSq) continue;
-
-                    float dist = Mathf.Sqrt(distSq);
-                    float t = dist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
-
-                // Compute average displacement of neighbors
-                int neighborStart = _adjacency.GetNeighborStart(i);
-                int neighborEnd = _adjacency.GetNeighborEnd(i);
-                if (neighborStart == neighborEnd) continue;
-                var averageDisp = Vector3.zero;
-                for (int edge = neighborStart; edge < neighborEnd; edge++)
-                {
-                    int neighbor = _adjacency.GetNeighbor(edge);
-                    averageDisp += currentDisplacements[neighbor];
-                }
-                averageDisp /= neighborEnd - neighborStart;
-
-                // Blend toward neighbor average
-                var currentDisp = currentDisplacements[i];
-                float maskValue = GetMaskValue(vertexMask, i);
-                if (maskValue < 1e-6f) continue;
-                var targetDisp = Vector3.Lerp(currentDisp, averageDisp, smoothFactor * falloff * maskValue);
-                displacements[i] = targetDisp;
-                modified = true;
-            }
-
-            return modified;
+            var query = CreateBrushInfluenceQuery(worldHitPoint, worldRadius, localToWorld, localCameraForward);
+            return BrushDisplacementApplication.Smooth(_meshVertices, displacements, currentDisplacements, vertexMask, _adjacency, query, smoothFactor);
         }
 
         private bool ApplyMaskBrush(LatticeDeformer deformer, Vector3 worldHitPoint, float worldRadius)
         {
             Matrix4x4 localToWorld = deformer.MeshTransform.localToWorldMatrix;
-            Vector3 worldCenter = worldHitPoint;
-            float radiusSq = worldRadius * worldRadius;
             if (_meshVertices == null || _meshVertices.Length == 0)
             {
                 return false;
@@ -1093,7 +906,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             layer.EnsureVertexMaskCapacity(_meshVertices.Length);
             // When inverted: erase mask (unprotect), otherwise: paint mask (protect)
             float targetValue = s_invertBrush ? 1f : 0f;
-            bool modified = false;
 
             // Pre-compute camera forward in local space for backface culling
             Vector3 localCameraForward = Vector3.forward;
@@ -1110,55 +922,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
-            bool useGeodesicCandidates = s_useSurfaceDistance && _hasGeodesicDistanceCache;
-            int iterationCount = useGeodesicCandidates
-                ? _geodesicWorkspace.VisitedCount
-                : _meshVertices.Length;
-            for (int iteration = 0; iteration < iterationCount; iteration++)
-            {
-                int i = useGeodesicCandidates ? _geodesicWorkspace.GetVisitedVertex(iteration) : iteration;
-                if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
-                {
-                    continue;
-                }
-
-                if (s_backfaceCulling && _meshNormals != null && i < _meshNormals.Length)
-                {
-                    if (Vector3.Dot(_meshNormals[i], localCameraForward) > 0f)
-                    {
-                        continue;
-                    }
-                }
-
-                float falloff;
-                if (useGeodesicCandidates)
-                {
-                    if (!_geodesicWorkspace.TryGetDistance(i, out float geodesicDist))
-                    {
-                        continue;
-                    }
-                    float t = geodesicDist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
-                else
-                {
-                    var vertex = _meshVertices[i] + displacements[i];
-                    float distSq = WorldDistanceSquared(i, vertex, worldCenter, localToWorld);
-                    if (distSq > radiusSq) continue;
-
-                    float dist = Mathf.Sqrt(distSq);
-                    float t = dist / worldRadius;
-                    falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                }
-
-                float current = layer.GetVertexMask(i);
-                float blend = Mathf.Lerp(current, targetValue, falloff * s_brushStrength);
-                layer.SetVertexMask(i, blend);
-                modified = true;
-            }
-
-            return modified;
+            var query = CreateBrushInfluenceQuery(worldHitPoint, worldRadius, localToWorld, localCameraForward);
+            return BrushDisplacementApplication.Mask(_meshVertices, displacements, layer, query, targetValue, s_brushStrength);
         }
+
+        private BrushInfluenceQuery CreateBrushInfluenceQuery(Vector3 center, float radius,
+            Matrix4x4 localToWorld, Vector3 localCameraForward) =>
+            new BrushInfluenceQuery(_worldPositions, localToWorld, center, radius, s_brushFalloff,
+                s_connectedOnly ? _connectedVerticesCache : null,
+                s_backfaceCulling ? _meshNormals : null, localCameraForward,
+                s_useSurfaceDistance && _hasGeodesicDistanceCache ? _geodesicWorkspace : null);
 
         private static bool TryGetActiveLayer(LatticeDeformer deformer, out LatticeLayer layer)
         {
@@ -1172,12 +945,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return layer != null && layer.Type == MeshDeformerLayerType.Brush;
         }
 
-        private static float GetMaskValue(float[] mask, int vertexIndex)
-        {
-            return mask != null && vertexIndex >= 0 && vertexIndex < mask.Length
-                ? mask[vertexIndex]
-                : 1f;
-        }
 
         internal bool TryGetBrushLayerFast(LatticeDeformer deformer, out LatticeLayer layer)
         {
@@ -1217,7 +984,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             float direction)
         {
             Matrix4x4 localToWorld = deformer.MeshTransform.localToWorldMatrix;
-            float radiusSq = worldRadius * worldRadius;
             if (_cachedMesh == null || _meshVertices == null || _meshVertices.Length == 0) return;
             if (!TryGetBrushBuffers(
                     deformer, out _, out var displacements, out var vertexMask)) return;
@@ -1244,37 +1010,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
+            // Preserve the existing mirror policy: Euclidean distance, no backface filter.
+            var query = new BrushInfluenceQuery(_worldPositions, localToWorld, mirroredWorldCenter, worldRadius,
+                s_brushFalloff, mirrorConnected, null, Vector3.forward, null);
+
             switch (s_brushMode)
             {
                 case BrushMode.Normal:
                 {
-                    for (int i = 0; i < vertexCount; i++)
-                    {
-                        if (!mirrorMap.TryGetPartner(i, out _)) continue;
-                        if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
-                        {
-                            continue;
-                        }
-
-                        var vertex = _meshVertices[i] + displacements[i];
-                        float distSq = WorldDistanceSquared(i, vertex, mirroredWorldCenter, localToWorld);
-                        if (distSq > radiusSq) continue;
-
-                        float dist = Mathf.Sqrt(distSq);
-                        float t = dist / worldRadius;
-                        float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-
-                        var normal = _meshNormals[i].normalized;
-                        if (normal.sqrMagnitude < 0.001f) normal = Vector3.up;
-
-                        // Mirror the normal direction for the mirrored side
-                        var mirroredNormal = MirrorDirection(normal);
-                        var delta = mirroredNormal * (strength * falloff * direction);
-                        float maskValue = GetMaskValue(vertexMask, i);
-                        if (maskValue < 1e-6f) continue;
-                        delta *= maskValue;
-                        displacements[i] += delta;
-                    }
+                    BrushDisplacementApplication.Normal(_meshVertices, _meshNormals, displacements, vertexMask,
+                        query, strength, direction, mirrorMap, (int)s_mirrorAxis);
                     break;
                 }
 
@@ -1285,39 +1030,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     Array.Copy(displacements, currentDisplacements, vertexCount);
                     float smoothFactor = Mathf.Clamp01(strength * 10f);
 
-                    for (int i = 0; i < vertexCount; i++)
-                    {
-                        if (!mirrorMap.TryGetPartner(i, out _)) continue;
-                        if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
-                        {
-                            continue;
-                        }
-
-                        var vertex = _meshVertices[i] + currentDisplacements[i];
-                        float distSq = WorldDistanceSquared(i, vertex, mirroredWorldCenter, localToWorld);
-                        if (distSq > radiusSq) continue;
-
-                        float dist = Mathf.Sqrt(distSq);
-                        float t = dist / worldRadius;
-                        float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-
-                        int neighborStart = _adjacency.GetNeighborStart(i);
-                        int neighborEnd = _adjacency.GetNeighborEnd(i);
-                        if (neighborStart == neighborEnd) continue;
-                        var averageDisp = Vector3.zero;
-                        for (int edge = neighborStart; edge < neighborEnd; edge++)
-                        {
-                            int neighbor = _adjacency.GetNeighbor(edge);
-                            averageDisp += currentDisplacements[neighbor];
-                        }
-                        averageDisp /= neighborEnd - neighborStart;
-
-                        var currentDisp = currentDisplacements[i];
-                        float maskValue = GetMaskValue(vertexMask, i);
-                        if (maskValue < 1e-6f) continue;
-                        var targetDisp = Vector3.Lerp(currentDisp, averageDisp, smoothFactor * falloff * maskValue);
-                        displacements[i] = targetDisp;
-                    }
+                    BrushDisplacementApplication.Smooth(_meshVertices, displacements, currentDisplacements, vertexMask,
+                        _adjacency, query, smoothFactor, mirrorMap);
                     break;
                 }
 
@@ -1335,30 +1049,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                         using (s_restSpaceMarker.Auto())
                             restSpaceConverter = _restSpaceConverterCache.Get(deformer);
                     }
-                    for (int i = 0; i < vertexCount; i++)
-                    {
-                        if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
-                        {
-                            continue;
-                        }
-
-                        var vertex = _meshVertices[i] + displacements[i];
-                        float distSq = WorldDistanceSquared(i, vertex, mirroredWorldCenter, localToWorld);
-                        if (distSq > radiusSq) continue;
-
-                        float dist = Mathf.Sqrt(distSq);
-                        float t = dist / worldRadius;
-                        float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-
-                        var storedDelta = restSpaceConverter != null
-                            ? restSpaceConverter.ConvertOrFallback(i, mirroredDelta)
-                            : mirroredDelta;
-                        var delta = storedDelta * (strength * falloff * 10f);
-                        float maskValue = GetMaskValue(vertexMask, i);
-                        if (maskValue < 1e-6f) continue;
-                        delta *= maskValue;
-                        displacements[i] += delta;
-                    }
+                    BrushDisplacementApplication.Move(_meshVertices, displacements, vertexMask,
+                        query, strength, mirroredDelta, restSpaceConverter);
                     break;
                 }
 
@@ -1368,26 +1060,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     layer.EnsureVertexMaskCapacity(vertexCount);
                     float targetValue = s_invertBrush ? 1f : 0f;
 
-                    for (int i = 0; i < vertexCount; i++)
-                    {
-                        if (!mirrorMap.TryGetPartner(i, out _)) continue;
-                        if (s_connectedOnly && mirrorConnected != null && !mirrorConnected.Contains(i))
-                        {
-                            continue;
-                        }
-
-                        var vertex = _meshVertices[i] + displacements[i];
-                        float distSq = WorldDistanceSquared(i, vertex, mirroredWorldCenter, localToWorld);
-                        if (distSq > radiusSq) continue;
-
-                        float dist = Mathf.Sqrt(distSq);
-                        float t = dist / worldRadius;
-                        float falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-
-                        float current = layer.GetVertexMask(i);
-                        float blend = Mathf.Lerp(current, targetValue, falloff * s_brushStrength);
-                        layer.SetVertexMask(i, blend);
-                    }
+                    BrushDisplacementApplication.Mask(_meshVertices, displacements, layer,
+                        query, targetValue, s_brushStrength, mirrorMap);
                     break;
                 }
             }
@@ -1503,6 +1177,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (deformer == null || _meshVertices == null)
             {
+                _poseSnapshot.Reset();
                 _worldPositions = null;
                 _raycastMesh = null;
                 _hasBakedRaycastMesh = false;
@@ -1513,6 +1188,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Renderer targetRenderer = ResolveBrushRenderer(deformer);
             if (targetRenderer == null)
             {
+                _poseSnapshot.Reset();
                 _worldPositions = null;
                 _raycastMesh = null;
                 _hasBakedRaycastMesh = false;
@@ -1523,6 +1199,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             SkinnedMeshRenderer renderer = targetRenderer as SkinnedMeshRenderer;
             if (renderer == null)
             {
+                _poseSnapshot.Reset();
                 RefreshStaticWorldPositions(deformer, targetRenderer);
                 return;
             }
@@ -1544,18 +1221,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
 
-            // The helper uses this array only to validate the baked vertex count. The
-            // proxy renderer already contains the complete layered deformation, so no
-            // intermediate deformed-vertex array is required here.
+            // The final proxy already includes all layers. Capture its posed surface
+            // once for both visualization and raycasting, owned by this handler.
             using (s_bakeMeshMarker.Auto())
             {
-                _hasBakedRaycastMesh = SkinnedVertexHelper.TryCaptureBrushSnapshot(
-                    renderer,
-                    _meshVertices,
-                    _worldPositions,
-                    out _worldPositions,
-                    out _raycastMesh,
-                    out _raycastMatrix);
+                _hasBakedRaycastMesh = _poseSnapshot.TryCapture(renderer, _meshVertices.Length);
+                _worldPositions = _poseSnapshot.CopyWorldPositions(_worldPositions);
+                _raycastMesh = _poseSnapshot.Mesh;
+                _raycastMatrix = _poseSnapshot.LocalToWorld;
             }
 
             unchecked
@@ -1619,21 +1292,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return SkinnedVertexHelper.LocalToWorld(index, _worldPositions, null, localToWorld);
         }
 
-        private float WorldDistanceSquared(
-            int vertexIndex,
-            Vector3 localVertex,
-            Vector3 worldCenter,
-            Matrix4x4 localToWorld)
-        {
-            Vector3 worldVertex = _worldPositions != null &&
-                                  vertexIndex >= 0 && vertexIndex < _worldPositions.Length
-                ? _worldPositions[vertexIndex]
-                : localToWorld.MultiplyPoint3x4(localVertex);
-            return (worldVertex - worldCenter).sqrMagnitude;
-        }
-
         private void InvalidateCache()
         {
+            _poseSnapshot.Reset();
             _cachedMesh = null;
             _cachedMeshDirtyCount = -1;
             _meshVertices = null;
@@ -1668,7 +1329,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Renderer sourceRenderer = deformer != null ? deformer.GetComponent<Renderer>() : null;
             int mappingRevision = LatticePreviewUtility.ProxyMappingRevision;
             if (ReferenceEquals(sourceRenderer, _cachedBrushSourceRenderer) &&
-                _cachedBrushProxyMappingRevision == mappingRevision)
+                _cachedBrushProxyMappingRevision == mappingRevision &&
+                (_cachedBrushTargetRenderer != null || sourceRenderer == null))
                 return _cachedBrushTargetRenderer;
 
             _cachedBrushSourceRenderer = sourceRenderer;
@@ -1707,151 +1369,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return _mirrorMap;
         }
 
-        private static Material s_brushDotMaterial;
-        private static Texture2D s_brushCircleTex;
-
-        private static void BeginBatchedDotDraw(
-            out bool matrixPushed,
-            out bool drawingQuads)
-        {
-            matrixPushed = false;
-            drawingQuads = false;
-            if (s_brushCircleTex == null)
-            {
-                const int size = 32;
-                s_brushCircleTex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-                s_brushCircleTex.hideFlags = HideFlags.HideAndDontSave;
-                s_brushCircleTex.filterMode = FilterMode.Bilinear;
-                float center = (size - 1) * 0.5f;
-                for (int y = 0; y < size; y++)
-                    for (int x = 0; x < size; x++)
-                    {
-                        float dx = x - center, dy = y - center;
-                        float dist = Mathf.Sqrt(dx * dx + dy * dy) / center;
-                        float alpha = Mathf.Clamp01(1f - Mathf.Clamp01((dist - 0.7f) / 0.3f));
-                        s_brushCircleTex.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
-                    }
-                s_brushCircleTex.Apply();
-            }
-
-            if (s_brushDotMaterial == null)
-            {
-                s_brushDotMaterial = new Material(Shader.Find("Hidden/Internal-Colored"));
-                s_brushDotMaterial.hideFlags = HideFlags.HideAndDontSave;
-                s_brushDotMaterial.SetInt("_ZWrite", 0);
-                s_brushDotMaterial.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
-                s_brushDotMaterial.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
-                s_brushDotMaterial.SetInt("_Cull", (int)CullMode.Off);
-                s_brushDotMaterial.SetInt("_ZTest", (int)CompareFunction.Always);
-                s_brushDotMaterial.mainTexture = s_brushCircleTex;
-            }
-
-            s_brushDotMaterial.SetPass(0);
-            GL.PushMatrix();
-            matrixPushed = true;
-            GL.MultMatrix(Matrix4x4.identity);
-            GL.Begin(GL.QUADS);
-            drawingQuads = true;
-        }
-
-        private static void EndBatchedDotDraw(bool matrixPushed, bool drawingQuads)
-        {
-            try
-            {
-                if (drawingQuads) GL.End();
-            }
-            finally
-            {
-                if (matrixPushed) GL.PopMatrix();
-            }
-        }
-
-        private static void DrawBatchedDot(Vector3 worldPos, Color col, float radius, Vector3 camRight, Vector3 camUp)
-        {
-            var right = camRight * radius;
-            var up = camUp * radius;
-            GL.Color(col);
-            GL.TexCoord2(0f, 0f); GL.Vertex(worldPos - right - up);
-            GL.TexCoord2(1f, 0f); GL.Vertex(worldPos + right - up);
-            GL.TexCoord2(1f, 1f); GL.Vertex(worldPos + right + up);
-            GL.TexCoord2(0f, 1f); GL.Vertex(worldPos - right + up);
-        }
-
         private void DrawAffectedVertices(LatticeDeformer deformer, Vector3 worldHitPoint, Transform meshTransform)
         {
-            if (!TryGetBrushBuffers(
-                    deformer, out _, out var displacements, out _)) return;
-            float worldRadius = s_brushRadius;
-            float radiusSq = worldRadius * worldRadius;
-            int vertexCount = _meshVertices.Length;
-            Color brushColor = GetBrushColor();
-            var matrix = meshTransform.localToWorldMatrix;
-            var worldCenter = worldHitPoint;
-            var cam = Camera.current;
-            if (cam == null) return;
-            var camRight = cam.transform.right;
-            var camUp = cam.transform.up;
-            float baseSize = HandleUtility.GetHandleSize(meshTransform.position) * 0.004f;
-
-            bool matrixPushed = false;
-            bool drawingQuads = false;
-            try
-            {
-                BeginBatchedDotDraw(out matrixPushed, out drawingQuads);
-                bool useGeodesicCandidates = s_useSurfaceDistance && _hasGeodesicDistanceCache;
-                int candidateCount = useGeodesicCandidates
-                    ? _geodesicWorkspace.VisitedCount
-                    : vertexCount;
-                int sampleStride = GetVisualizationSampleStride(candidateCount);
-                int iterationCount = (candidateCount + sampleStride - 1) / sampleStride;
-                for (int iteration = 0; iteration < iterationCount; iteration++)
-                {
-                    int candidateIndex = iteration * sampleStride;
-                    int i = useGeodesicCandidates
-                        ? _geodesicWorkspace.GetVisitedVertex(candidateIndex)
-                        : candidateIndex;
-                    if (s_connectedOnly && _connectedVerticesCache != null && !_connectedVerticesCache.Contains(i))
-                        continue;
-
-                    var vertex = _meshVertices[i] + displacements[i];
-
-                    float falloff;
-                    if (useGeodesicCandidates)
-                    {
-                        if (!_geodesicWorkspace.TryGetDistance(i, out float geodesicDist))
-                            continue;
-                        float t = geodesicDist / worldRadius;
-                        falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                    }
-                    else
-                    {
-                        float distSq = WorldDistanceSquared(i, vertex, worldCenter, matrix);
-                        if (distSq > radiusSq) continue;
-                        float dist = Mathf.Sqrt(distSq);
-                        float t = dist / worldRadius;
-                        falloff = BrushDeformer.EvaluateFalloff(s_brushFalloff, t);
-                    }
-
-                    if (falloff < 0.01f) continue;
-
-                    var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
-                    Color dotColor = HeatmapColor(falloff);
-                    dotColor.a = 0.4f + 0.5f * falloff;
-                    float dotSize = Mathf.Lerp(s_vertexDotSize * 0.6f, s_vertexDotSize * 1.4f, falloff);
-                    DrawBatchedDot(worldPos, dotColor, baseSize * dotSize, camRight, camUp);
-                }
-            }
-            finally
-            {
-                EndBatchedDotDraw(matrixPushed, drawingQuads);
-            }
+            if (!TryGetBrushBuffers(deformer, out _, out var displacements, out _)) return;
+            var geometry = new VertexDisplayGeometry(_meshVertices, _worldPositions, displacements,
+                meshTransform.localToWorldMatrix);
+            BrushVertexVisualization.DrawAffected(geometry, worldHitPoint, s_brushRadius, s_brushFalloff,
+                s_vertexDotSize, HandleUtility.GetHandleSize(meshTransform.position) * 0.004f,
+                s_connectedOnly ? _connectedVerticesCache : null,
+                s_useSurfaceDistance && _hasGeodesicDistanceCache ? _geodesicWorkspace : null);
         }
 
         internal static int GetVisualizationSampleStride(int candidateCount)
         {
-            return candidateCount <= MaxAffectedVertexDots
-                ? 1
-                : (candidateCount + MaxAffectedVertexDots - 1) / MaxAffectedVertexDots;
+            return BrushVertexVisualization.GetVisualizationSampleStride(candidateCount);
         }
 
         internal static bool RequiresSurfaceQuery(EventType eventType)
@@ -1865,111 +1396,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void DrawDisplacementHeatmap(LatticeDeformer deformer, Transform meshTransform)
         {
             if (_meshVertices == null) return;
-
-            var displacements = deformer.Displacements;
-            if (displacements == null || displacements.Length == 0) return;
-
-            int vertexCount = Mathf.Min(_meshVertices.Length, displacements.Length);
-            var matrix = meshTransform.localToWorldMatrix;
-
-            // Find max displacement for normalization
-            float maxMag = 0f;
-            for (int i = 0; i < vertexCount; i++)
-            {
-                float mag = displacements[i].sqrMagnitude;
-                if (mag > maxMag) maxMag = mag;
-            }
-
-            if (maxMag < 1e-12f) return;
-            maxMag = Mathf.Sqrt(maxMag);
-
-            var cam = Camera.current;
-            if (cam == null) return;
-            var camRight = cam.transform.right;
-            var camUp = cam.transform.up;
-            float baseSize = HandleUtility.GetHandleSize(meshTransform.position) * 0.003f;
-
-            bool matrixPushed = false;
-            bool drawingQuads = false;
-            try
-            {
-                BeginBatchedDotDraw(out matrixPushed, out drawingQuads);
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    float mag = displacements[i].magnitude;
-                    if (mag < 1e-6f) continue;
-
-                    float normalized = Mathf.Clamp01(mag / maxMag);
-                    var vertex = _meshVertices[i] + displacements[i];
-                    var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
-
-                    Color heatColor = HeatmapColor(normalized);
-                    heatColor.a = 0.3f + 0.6f * normalized;
-
-                    float dotRadius = baseSize * (1f + normalized * 2f);
-                    DrawBatchedDot(worldPos, heatColor, dotRadius, camRight, camUp);
-                }
-            }
-            finally
-            {
-                EndBatchedDotDraw(matrixPushed, drawingQuads);
-            }
-        }
-
-        private static Color HeatmapColor(float t)
-        {
-            // 0.0=blue -> 0.25=cyan -> 0.5=green -> 0.75=yellow -> 1.0=red
-            if (t < 0.25f)
-                return Color.Lerp(new Color(0f, 0.2f, 1f), new Color(0f, 0.8f, 1f), t * 4f);
-            if (t < 0.5f)
-                return Color.Lerp(new Color(0f, 0.8f, 1f), new Color(0.2f, 1f, 0.2f), (t - 0.25f) * 4f);
-            if (t < 0.75f)
-                return Color.Lerp(new Color(0.2f, 1f, 0.2f), new Color(1f, 1f, 0f), (t - 0.5f) * 4f);
-            return Color.Lerp(new Color(1f, 1f, 0f), new Color(1f, 0.1f, 0f), (t - 0.75f) * 4f);
+            var geometry = new VertexDisplayGeometry(_meshVertices, _worldPositions, deformer.Displacements,
+                meshTransform.localToWorldMatrix);
+            BrushVertexVisualization.DrawDisplacements(geometry,
+                HandleUtility.GetHandleSize(meshTransform.position) * 0.003f);
         }
 
         private void DrawVertexMaskVisualization(LatticeDeformer deformer, Transform meshTransform)
         {
-            if (_meshVertices == null) return;
-            if (!TryGetBrushBuffers(
-                    deformer, out var layer, out var displacements, out _)) return;
-            if (!layer.HasVertexMask()) return;
-
-            var mask = layer.VertexMask;
-            if (mask == null || mask.Length == 0) return;
-
-            int vertexCount = Mathf.Min(_meshVertices.Length, mask.Length);
-            var matrix = meshTransform.localToWorldMatrix;
-            var cam = Camera.current;
-            if (cam == null) return;
-            var camRight = cam.transform.right;
-            var camUp = cam.transform.up;
-            float baseSize = HandleUtility.GetHandleSize(meshTransform.position) * 0.004f;
-
-            bool matrixPushed = false;
-            bool drawingQuads = false;
-            try
-            {
-                BeginBatchedDotDraw(out matrixPushed, out drawingQuads);
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    float maskValue = mask[i];
-                    if (maskValue > 1f - 1e-6f) continue; // Fully editable, skip
-
-                    var vertex = _meshVertices[i] + displacements[i];
-                    var worldPos = SkinnedVertexHelper.LocalToWorld(i, _worldPositions, vertex, matrix);
-
-                    // Red = protected (mask=0), Green = editable (mask=1)
-                    float protection = 1f - maskValue;
-                    Color dotColor = Color.Lerp(new Color(0.2f, 1f, 0.2f, 0.4f), new Color(1f, 0.2f, 0.2f, 0.8f), protection);
-                    float dotRadius = baseSize * (1f + protection * 2f);
-                    DrawBatchedDot(worldPos, dotColor, dotRadius, camRight, camUp);
-                }
-            }
-            finally
-            {
-                EndBatchedDotDraw(matrixPushed, drawingQuads);
-            }
+            if (_meshVertices == null ||
+                !TryGetBrushBuffers(deformer, out var layer, out var displacements, out _) ||
+                !layer.HasVertexMask()) return;
+            var geometry = new VertexDisplayGeometry(_meshVertices, _worldPositions, displacements,
+                meshTransform.localToWorldMatrix);
+            BrushVertexVisualization.DrawMask(geometry, layer.VertexMask,
+                HandleUtility.GetHandleSize(meshTransform.position) * 0.004f);
         }
 
         private void UpdatePenetrationDetection(LatticeDeformer deformer)
@@ -2342,9 +1783,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 LatticePrefabUtility.MarkModified(deformer);
             }
-            bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-            deformer.Deform(assignToRenderer);
-            LatticePreviewUtility.RequestSceneRepaint();
+            LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
         }
 
         internal static void ClearActiveMask(LatticeDeformer deformer)
@@ -2358,196 +1797,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 LatticePrefabUtility.MarkModified(deformer);
             }
-            bool assignToRenderer = LatticePreviewUtility.ShouldAssignRuntimeMesh();
-            deformer.Deform(assignToRenderer);
-            LatticePreviewUtility.RequestSceneRepaint();
+            LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
         }
 
-        /// <summary>
-        /// Creates GUIContent with a built-in Unity icon (null-safe).
-        /// Falls back to text-only if the icon name doesn't exist.
-        /// </summary>
-        private static GUIContent IconContent(string locKey, string iconName)
+        internal static bool ShowWireframe
         {
-            var text = LatticeLocalization.Tr(locKey);
-            var tooltip = LatticeLocalization.Tooltip(locKey);
-            var icon = EditorGUIUtility.IconContent(iconName);
-            return icon?.image != null
-                ? new GUIContent(text, icon.image, tooltip)
-                : new GUIContent(text, tooltip);
+            get => s_showWireframe;
+            set => s_showWireframe = value;
         }
 
-        internal static void DrawOverlayGUI(LatticeDeformer deformer)
-        {
-            // Brush Mode toolbar (icon + text)
-            var modeContent = LatticeDeformationFeatureFlags.VertexMaskEditing
-                ? new[]
-                {
-                    ToolIcons.Content(ToolIcons.Normal, LocKey.Normal),
-                    ToolIcons.Content(ToolIcons.Move, LocKey.Move),
-                    ToolIcons.Content(ToolIcons.Smooth, LocKey.Smooth),
-                    ToolIcons.Content(ToolIcons.Mask, LocKey.Mask),
-                }
-                : new[]
-                {
-                    ToolIcons.Content(ToolIcons.Normal, LocKey.Normal),
-                    ToolIcons.Content(ToolIcons.Move, LocKey.Move),
-                    ToolIcons.Content(ToolIcons.Smooth, LocKey.Smooth),
-                };
-            int currentModeIndex = Mathf.Min((int)BrushToolHandler.CurrentBrushMode, modeContent.Length - 1);
-            int modeIndex = GUILayout.Toolbar(currentModeIndex, modeContent);
-            modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
-            BrushToolHandler.CurrentBrushMode = (BrushToolHandler.BrushMode)modeIndex;
+        internal static void DrawOverlayGUI(LatticeDeformer deformer) => BrushToolOverlay.Draw(deformer);
 
-            GUILayout.Space(2f);
-
-            // Primary parameters (always visible)
-            // Display world-space cm: mesh-local radius * transform scale * 100
-            // s_brushRadius is world-space meters — display as cm directly
-            float radiusCm = BrushToolHandler.BrushRadius * 100f;
-            EditorGUI.BeginChangeCheck();
-            radiusCm = EditorGUILayout.Slider(
-                new GUIContent(LatticeLocalization.Tr(LocKey.BrushRadius) + " (cm)", LatticeLocalization.Tooltip(LocKey.BrushRadius)),
-                radiusCm, 0f, 10f);
-            if (EditorGUI.EndChangeCheck())
-                BrushToolHandler.BrushRadius = radiusCm / 100f;
-
-            // Display strength as 0-100%, store internally as 0-1
-            float strengthPercent = BrushToolHandler.BrushStrength * 100f;
-            strengthPercent = EditorGUILayout.Slider(
-                new GUIContent(LatticeLocalization.Tr(LocKey.BrushStrength) + " (%)", LatticeLocalization.Tooltip(LocKey.BrushStrength)),
-                strengthPercent, 0f, 100f);
-            BrushToolHandler.BrushStrength = strengthPercent / 100f;
-
-            if (LatticeDeformationFeatureFlags.RestSpaceEditing &&
-                BrushToolHandler.CurrentBrushMode == BrushToolHandler.BrushMode.Move &&
-                deformer != null && deformer.GetComponent<SkinnedMeshRenderer>() != null)
-            {
-                SkinnedVertexHelper.StoreMovesInRestSpace = EditorGUILayout.Toggle(
-                    LatticeLocalization.Content(LocKey.StoreMoveInRestSpace),
-                    SkinnedVertexHelper.StoreMovesInRestSpace);
-            }
-
-            // Falloff type (text only — falloff curves are self-explanatory with names)
-            var falloffContent = new GUIContent[]
-            {
-                LatticeLocalization.Content(LocKey.Smooth),
-                LatticeLocalization.Content(LocKey.Linear),
-                LatticeLocalization.Content(LocKey.Constant),
-                LatticeLocalization.Content(LocKey.Sphere),
-                LatticeLocalization.Content(LocKey.Gaussian)
-            };
-            int falloffIndex = EditorGUILayout.Popup(
-                LatticeLocalization.Content(LocKey.BrushFalloff),
-                (int)BrushToolHandler.BrushFalloff,
-                falloffContent);
-            falloffIndex = Mathf.Clamp(falloffIndex, 0, falloffContent.Length - 1);
-            BrushToolHandler.BrushFalloff = (BrushFalloffType)falloffIndex;
-
-            GUILayout.Space(2f);
-
-            // Compact toggles (horizontal)
-            using (new GUILayout.HorizontalScope())
-            {
-                BrushToolHandler.InvertBrush = GUILayout.Toggle(
-                    BrushToolHandler.InvertBrush,
-                    ToolIcons.Content(ToolIcons.Invert, LocKey.InvertBrush));
-                BrushToolHandler.BackfaceCulling = GUILayout.Toggle(
-                    BrushToolHandler.BackfaceCulling,
-                    ToolIcons.Content(ToolIcons.BackfaceCull, LocKey.BackfaceCulling));
-            }
-
-            // --- Advanced section (foldout) ---
-            s_showAdvancedSection = EditorGUILayout.Foldout(s_showAdvancedSection, LatticeLocalization.Tr(LocKey.Advanced), true);
-            if (s_showAdvancedSection)
-            {
-                EditorGUI.indentLevel++;
-                BrushToolHandler.ConnectedOnly = GUILayout.Toggle(
-                    BrushToolHandler.ConnectedOnly,
-                    ToolIcons.Content(ToolIcons.Connected, LocKey.ConnectedOnly));
-                BrushToolHandler.UseSurfaceDistance = GUILayout.Toggle(
-                    BrushToolHandler.UseSurfaceDistance,
-                    ToolIcons.Content(ToolIcons.SurfaceDistance, LocKey.SurfaceDistance));
-                EditorGUI.indentLevel--;
-            }
-
-            // --- Mirror section (foldout) ---
-            s_showMirrorSection = EditorGUILayout.Foldout(s_showMirrorSection, LatticeLocalization.Tr(LocKey.EnableMirror), true);
-            if (s_showMirrorSection)
-            {
-                EditorGUI.indentLevel++;
-                BrushToolHandler.MirrorEditing = GUILayout.Toggle(
-                    BrushToolHandler.MirrorEditing,
-                    ToolIcons.Content(ToolIcons.Mirror, LocKey.EnableMirror));
-
-                using (new EditorGUI.DisabledScope(!BrushToolHandler.MirrorEditing))
-                {
-                    GUILayout.Label(LatticeLocalization.Content(LocKey.MirrorAxis), EditorStyles.miniLabel);
-                    int axisSelection = GUILayout.Toolbar(
-                        (int)BrushToolHandler.CurrentMirrorAxis,
-                        BrushToolHandler.AxisOptions);
-                    axisSelection = Mathf.Clamp(axisSelection, 0, BrushToolHandler.AxisOptions.Length - 1);
-                    BrushToolHandler.CurrentMirrorAxis = (BrushToolHandler.MirrorAxis)axisSelection;
-                }
-                EditorGUI.indentLevel--;
-            }
-
-            // --- Visualization section (foldout) ---
-            s_showVisualizationSection = EditorGUILayout.Foldout(s_showVisualizationSection, LatticeLocalization.Tr(LocKey.Visualization), true);
-            if (s_showVisualizationSection)
-            {
-                EditorGUI.indentLevel++;
-                s_showWireframe = GUILayout.Toggle(s_showWireframe,
-                    ToolIcons.Content(ToolIcons.Eye, LocKey.ShowWireframe));
-                BrushToolHandler.ShowAffectedVertices = GUILayout.Toggle(
-                    BrushToolHandler.ShowAffectedVertices,
-                    ToolIcons.Content(ToolIcons.Eye, LocKey.ShowAffectedVertices));
-                BrushToolHandler.ShowDisplacementHeatmap = GUILayout.Toggle(
-                    BrushToolHandler.ShowDisplacementHeatmap,
-                    ToolIcons.Content(ToolIcons.Eye, LocKey.ShowDisplacementHeatmap));
-                BrushToolHandler.VertexDotSize = EditorGUILayout.Slider(
-                    LatticeLocalization.Content(LocKey.DotSize),
-                    BrushToolHandler.VertexDotSize, 1f, 8f);
-
-                BrushToolHandler.ShowPenetration = GUILayout.Toggle(
-                    BrushToolHandler.ShowPenetration,
-                    ToolIcons.Content(ToolIcons.Eye, LocKey.ShowPenetration));
-                if (BrushToolHandler.ShowPenetration)
-                {
-                    BrushToolHandler.PenetrationReference = (Renderer)EditorGUILayout.ObjectField(
-                        LatticeLocalization.Content(LocKey.ReferenceMesh),
-                        BrushToolHandler.PenetrationReference,
-                        typeof(Renderer),
-                        true);
-                }
-                EditorGUI.indentLevel--;
-            }
-
-            GUILayout.Space(4f);
-
-            // Action buttons
-            using (new GUILayout.HorizontalScope())
-            {
-                if (GUILayout.Button(ToolIcons.Content(ToolIcons.Clear, LocKey.ClearAll)))
-                {
-                    if (deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush)
-                    {
-                        BrushToolHandler.ClearAllDisplacements(deformer);
-                    }
-                }
-
-                if (LatticeDeformationFeatureFlags.VertexMaskEditing &&
-                    GUILayout.Button(ToolIcons.Content(ToolIcons.Clear, LocKey.ClearMask)))
-                {
-                    if (deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush)
-                    {
-                        BrushToolHandler.ClearActiveMask(deformer);
-                    }
-                }
-            }
-
-            GUILayout.Space(2f);
-        }
     }
 }
 #endif

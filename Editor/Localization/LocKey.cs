@@ -12,6 +12,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string No = "net.32ba.lattice-deformation-tool.localization.no";
         internal const string Apply = "net.32ba.lattice-deformation-tool.localization.apply";
         internal const string Revert = "net.32ba.lattice-deformation-tool.localization.revert";
+        internal const string InvalidMigrationJournal = "net.32ba.lattice-deformation-tool.localization.invalid-migration-journal";
         internal const string Settings = "net.32ba.lattice-deformation-tool.localization.settings";
         internal const string Copy = "net.32ba.lattice-deformation-tool.localization.copy";
         internal const string Paste = "net.32ba.lattice-deformation-tool.localization.paste";
@@ -20,6 +21,38 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string UpdateAvailable = "net.32ba.lattice-deformation-tool.localization.update-available";
         internal const string UpdateCurrentToLatest = "net.32ba.lattice-deformation-tool.localization.update-current-to-latest";
         internal const string UpdateOpenBoothPage = "net.32ba.lattice-deformation-tool.localization.update-open-booth-page";
+
+        // Guided inspector
+        internal const string GuidedQuestion = "net.32ba.lattice-deformation-tool.localization.guided-question";
+        internal const string GuidedIntro = "net.32ba.lattice-deformation-tool.localization.guided-intro";
+        internal const string GuidedTarget = "net.32ba.lattice-deformation-tool.localization.guided-target";
+        internal const string GuidedNoTarget = "net.32ba.lattice-deformation-tool.localization.guided-no-target";
+        internal const string GuidedCurrentEdit = "net.32ba.lattice-deformation-tool.localization.guided-current-edit";
+        internal const string GuidedAdjustShape = "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape";
+        internal const string GuidedAdjustShapeDescription = "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape-description";
+        internal const string GuidedSculptSurface = "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface";
+        internal const string GuidedSculptSurfaceDescription = "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface-description";
+        internal const string GuidedMoveVertices = "net.32ba.lattice-deformation-tool.localization.guided-move-vertices";
+        internal const string GuidedMoveVerticesDescription = "net.32ba.lattice-deformation-tool.localization.guided-move-vertices-description";
+        internal const string GuidedPreviewNote = "net.32ba.lattice-deformation-tool.localization.guided-preview-note";
+        internal const string GuidedSingleSelectionRequired = "net.32ba.lattice-deformation-tool.localization.guided-single-selection-required";
+        internal const string GuidedProfileReadOnly = "net.32ba.lattice-deformation-tool.localization.guided-profile-read-only";
+        internal const string GuidedUnableToStart = "net.32ba.lattice-deformation-tool.localization.guided-unable-to-start";
+        internal const string OpenDetailedInspector = "net.32ba.lattice-deformation-tool.localization.open-detailed-inspector";
+        internal const string ReturnToGuidedInspector = "net.32ba.lattice-deformation-tool.localization.return-to-guided-inspector";
+
+        // Guided Scene View overlay
+        internal const string GuidedOverlayAdjustShapeHint = "net.32ba.lattice-deformation-tool.localization.guided-overlay-adjust-shape-hint";
+        internal const string GuidedOverlaySculptSurfaceHint = "net.32ba.lattice-deformation-tool.localization.guided-overlay-sculpt-surface-hint";
+        internal const string GuidedOverlayMoveVerticesHint = "net.32ba.lattice-deformation-tool.localization.guided-overlay-move-vertices-hint";
+        internal const string GuidedBrushPushPull = "net.32ba.lattice-deformation-tool.localization.guided-brush-push-pull";
+        internal const string GuidedBrushMove = "net.32ba.lattice-deformation-tool.localization.guided-brush-move";
+        internal const string GuidedBrushSmooth = "net.32ba.lattice-deformation-tool.localization.guided-brush-smooth";
+        internal const string GuidedBrushRaise = "net.32ba.lattice-deformation-tool.localization.guided-brush-raise";
+        internal const string GuidedBrushIndent = "net.32ba.lattice-deformation-tool.localization.guided-brush-indent";
+        internal const string OpenDetailedOverlay = "net.32ba.lattice-deformation-tool.localization.open-detailed-overlay";
+        internal const string ReturnToSimpleOverlay = "net.32ba.lattice-deformation-tool.localization.return-to-simple-overlay";
+        internal const string FinishEditing = "net.32ba.lattice-deformation-tool.localization.finish-editing";
 
         // Mesh Source
         internal const string SkinnedMeshSource = "net.32ba.lattice-deformation-tool.localization.skinned-mesh-source";
@@ -33,6 +66,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string ProfileData = "net.32ba.lattice-deformation-tool.localization.profile-data";
         internal const string CreateProfile = "net.32ba.lattice-deformation-tool.localization.create-profile";
         internal const string SaveToProfile = "net.32ba.lattice-deformation-tool.localization.save-to-profile";
+        internal const string ProfileOperationFailed = "net.32ba.lattice-deformation-tool.localization.profile-operation-failed";
         internal const string CopyProfileToInstance = "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance";
         internal const string ProfileRequired = "net.32ba.lattice-deformation-tool.localization.profile-required";
         internal const string ProfileReadOnlyInfo = "net.32ba.lattice-deformation-tool.localization.profile-read-only-info";
@@ -288,6 +322,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string Advanced = "net.32ba.lattice-deformation-tool.localization.advanced";
         internal const string Validation = "net.32ba.lattice-deformation-tool.localization.validation";
         internal const string ValidationFix = "net.32ba.lattice-deformation-tool.localization.validation-fix";
+        internal const string SupportInformation = "net.32ba.lattice-deformation-tool.localization.support-information";
+        internal const string SupportInformationDescription = "net.32ba.lattice-deformation-tool.localization.support-information-description";
+        internal const string CopySupportInformation = "net.32ba.lattice-deformation-tool.localization.copy-support-information";
+        internal const string SupportInformationCopied = "net.32ba.lattice-deformation-tool.localization.support-information-copied";
 
         // Legacy Brush Deformer
         internal const string BrushDeformer = "net.32ba.lattice-deformation-tool.localization.brush-deformer";

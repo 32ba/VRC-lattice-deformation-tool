@@ -8,9 +8,11 @@ name: Test
 # which reproduces the VCC project the package actually targets. The VRChat SDK is required:
 # NDMF treats plugins that declare no platform as VRChat-avatar-only, so the bake pass is
 # skipped as "Incompatible" without it and MeshDeformerValidatorTests fails.
-# No scripting defines are added on purpose - CI must reflect a clean end-user configuration
-# (for example LATTICE_DEFORMATION_TOOL_ENABLE_NEXT_RELEASE_FEATURES must NOT be defined).
-# LATTICE_VRCSDK3_AVATAR comes from the asmdef versionDefines and is part of that configuration.
+# The default matrix entry reflects a clean end-user configuration. A second entry
+# enables next-release features so hidden functionality retains compatibility coverage.
+# Each editor uses a fresh project and isolated Library cache. Unity 6 is a package
+# compatibility target, not a claim of VRChat SDK authoring/upload support.
+# LATTICE_VRCSDK3_AVATAR comes from the asmdef versionDefines in both configurations.
 #
 # Required repository secrets (GameCI unity-test-runner v4):
 #   Unity Personal license  : UNITY_LICENSE (contents of the .ulf activation file), UNITY_EMAIL, UNITY_PASSWORD
@@ -19,6 +21,7 @@ name: Test
 # When the secrets are missing, unity-test-runner fails the job with its own activation error.
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
@@ -30,10 +33,29 @@ concurrency:
 
 jobs:
 
+  package-archives:
+    name: Package archives
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: python3 -m unittest discover -s Tools~/Release -p 'test_*.py'
+      - run: python3 -m unittest discover -s Tools~/CI -p 'test_*.py'
+      - name: Test result verification
+        shell: pwsh
+        run: ./Tools~/Test-AssertTestResults.ps1
+      - run: python3 Tools~/Release/package_release.py --commit HEAD --output release-artifacts
+
   # Run the package EditMode tests inside a scaffolded Unity project
   editmode:
-    name: EditMode Tests
+    name: EditMode Tests (${{ matrix.unityVersion }}, ${{ matrix.configuration }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        unityVersion: [2022.3.22f1, 6000.0.67f1]
+        configuration: [default, next-release]
     permissions:
       contents: read
     steps:
@@ -46,7 +68,7 @@ jobs:
       - name: Scaffold Unity Test Project
         env:
           PACKAGE_NAME: net.32ba.lattice-deformation-tool
-          UNITY_VERSION: 2022.3.22f1
+          UNITY_VERSION: ${{ matrix.unityVersion }}
         run: |
           set -euo pipefail
           PACKAGE_ROOT="ci-project/Packages/${PACKAGE_NAME}"
@@ -77,7 +99,7 @@ jobs:
           cat > ci-project/Packages/manifest.json <<'JSON'
           {
             "dependencies": {
-              "com.unity.test-framework": "1.4.5",
+              "com.unity.test-framework": "1.4.6",
               "com.unity.modules.ai": "1.0.0",
               "com.unity.modules.androidjni": "1.0.0",
               "com.unity.modules.animation": "1.0.0",
@@ -116,6 +138,19 @@ jobs:
           }
           JSON
 
+          # Unity 6 resolves its built-in Test Framework to 1.6.0. Request it
+          # explicitly so the intended test runner is recorded in the manifest.
+          if [[ "$UNITY_VERSION" == 6000.* ]]; then
+            python3 - <<'PYTF'
+          import json
+          from pathlib import Path
+          path = Path('ci-project/Packages/manifest.json')
+          manifest = json.loads(path.read_text())
+          manifest['dependencies']['com.unity.test-framework'] = '1.6.0'
+          path.write_text(json.dumps(manifest, indent=2) + '\n')
+          PYTF
+          fi
+
           # Start from an empty VPM manifest so vrc-get always sees a valid VCC project
           cat > ci-project/Packages/vpm-manifest.json <<'JSON'
           {
@@ -131,20 +166,23 @@ jobs:
       # All versions are pinned so a CI failure always points at this repository.
       - name: Install VPM Packages
         env:
-          # Latest stable VRChat SDK. It declares "unity": "2022.3", matching the editor version
-          # VRChat currently targets (https://creators.vrchat.com/sdk/upgrade/current-unity-version/).
+          # Fixed SDK compatibility fixture. Its "unity": "2022.3" declaration matches
+          # VRChat authoring support (https://creators.vrchat.com/sdk/upgrade/current-unity-version/).
+          # vrc-get warns about Unity 6; that entry is isolated package testing only.
           # com.vrchat.base is pulled in as a vpmDependency of com.vrchat.avatars.
-          VRCHAT_SDK_VERSION: 3.10.4
-          # NDMF 1.14.2 is the revision the suite is validated against. Note that com.vrchat.base
-          # already pulls com.unity.collections 2.1.4, so bumping to 1.14.3 or later no longer
-          # changes the resolved collections version.
-          NDMF_VERSION: 1.14.2
+          VRCHAT_SDK_VERSION: 3.10.5
+          # Stable dependency refresh for 2.0, checked against official feeds on 2026-09-08.
+          NDMF_VERSION: 1.14.8
+          # Setup Outfit is part of the customer workflow covered by the hotfix regression test.
+          MODULAR_AVATAR_VERSION: 1.18.7
+          # The real preview graph test uses Remove Mesh In Box as a topology-changing
+          # downstream consumer, matching the package installed in Plugin-dev-playground.
           # Avatar Optimizer registers its own NDMF render filters and bake passes, so having it
           # installed keeps CI on the same plugin set as the VCC projects this package targets.
           # RealPreviewPipelineEndToEndTests also requires its RemoveMeshInBox component; that
           # E2E still skips under -nographics, but the surrounding suite must compile against a
           # real AAO layout instead of silently passing in an environment no user has.
-          AVATAR_OPTIMIZER_VERSION: 1.9.17
+          AVATAR_OPTIMIZER_VERSION: 1.9.19
         run: |
           set -euo pipefail
 
@@ -158,18 +196,24 @@ jobs:
 
           vrc-get install --project ci-project --yes com.vrchat.avatars "$VRCHAT_SDK_VERSION"
           vrc-get install --project ci-project --yes nadena.dev.ndmf "$NDMF_VERSION"
+          vrc-get install --project ci-project --yes nadena.dev.modular-avatar "$MODULAR_AVATAR_VERSION"
           vrc-get install --project ci-project --yes com.anatawa12.avatar-optimizer "$AVATAR_OPTIMIZER_VERSION"
 
           vrc-get info project --project ci-project
+
+      - name: Configure isolated SDK test environment
+        run: |
+          mkdir -p ci-project/Assets/Editor
+          cp Tools~/CI/OfflineSdkConfig.cs ci-project/Assets/Editor/OfflineSdkConfig.cs
 
       - name: Cache Library
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ci-project/Library
           # The workflow file is part of the key because it pins the VPM package versions
-          key: Library-ci-project-${{ hashFiles('ci-project/Packages/vpm-manifest.json', 'ci-project/Packages/manifest.json', 'package.json', '.github/workflows/test.yml') }}
+          key: Library-ci-project-${{ matrix.unityVersion }}-${{ matrix.configuration }}-${{ hashFiles('ci-project/Packages/vpm-manifest.json', 'ci-project/Packages/manifest.json', 'package.json', '.github/workflows/test.yml') }}
           restore-keys: |
-            Library-ci-project-
+            Library-ci-project-${{ matrix.unityVersion }}-${{ matrix.configuration }}-
 
       # The first time the VRChat SDK loads it rewrites the API compatibility level and the
       # scripting define symbols, and each rewrite queues a script compilation. A test run keeps
@@ -186,30 +230,124 @@ jobs:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
-          unityVersion: 2022.3.22f1
+          unityVersion: ${{ matrix.unityVersion }}
           projectPath: ci-project
           testMode: editmode
           artifactsPath: warmup-artifacts
-          customParameters: '-assemblyNames net.32ba.lattice-deformation-tool.tests.editor -testFilter Net._32Ba.LatticeDeformationTool.Editor.Tests.LatticeDeformationFeatureFlagsTests'
+          customParameters: '-latticeOfflineSdkConfig -assemblyNames net.32ba.lattice-deformation-tool.tests.editor -testFilter Net._32Ba.LatticeDeformationTool.Editor.Tests.LatticeDeformationFeatureFlagsTests'
+
+      # The warmup has exited and produced ProjectSettings.asset. Change only the
+      # Standalone feature flag before the next Editor launch.
+      - name: Configure feature coverage
+        run: |
+          # Unity runs as root in GameCI's container; give this single generated
+          # settings file back to the runner before editing the feature define.
+          sudo chown "$(id -u):$(id -g)" ci-project/ProjectSettings/ProjectSettings.asset
+          python3 Tools~/CI/feature_configuration.py \
+            --mode ${{ matrix.configuration }} \
+            --settings ci-project/ProjectSettings/ProjectSettings.asset
 
       - name: Run EditMode Tests
         id: tests
+        # Unity returns code 2 for the approved UUM-85059 failures. Keep the raw
+        # outcome/XML and let the mandatory, fail-closed gate classify them.
+        continue-on-error: ${{ matrix.unityVersion == '6000.0.67f1' }}
         uses: game-ci/unity-test-runner@0ff419b913a3630032cbe0de48a0099b5a9f0ed9 # v4.3.1
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         with:
-          unityVersion: 2022.3.22f1
+          unityVersion: ${{ matrix.unityVersion }}
           projectPath: ci-project
           testMode: editmode
           artifactsPath: test-artifacts
           # Restrict the run to the two package test assemblies; the .coverage one stays
           # define-constrained out. unity-test-runner expands customParameters unquoted, so the
           # semicolon-separated list must not carry quotes of its own.
-          customParameters: '-assemblyNames net.32ba.lattice-deformation-tool.tests.editor;net.32ba.lattice-deformation-tool.tests.editor.vrchat'
+          customParameters: '-latticeOfflineSdkConfig -assemblyNames net.32ba.lattice-deformation-tool.tests.editor;net.32ba.lattice-deformation-tool.tests.editor.vrchat'
           # githubToken is intentionally omitted: publishing a check run needs a writable
           # GITHUB_TOKEN, which pull requests from forks do not get.
+
+      - name: Verify SDK test environment readiness
+        if: always()
+        run: >-
+          python3 Tools~/CI/verify_test_environment.py
+          --editor-log test-artifacts/editmode.log
+
+      - name: Prepare validation report directory
+        if: always()
+        run: |
+          # GameCI's container creates this directory as root. Its raw files
+          # remain untouched; the runner only needs to create validation.json.
+          if [[ -d test-artifacts ]]; then
+            sudo chown "$(id -u):$(id -g)" test-artifacts
+          fi
+
+      - name: Verify complete run and approved Unity issue
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -MinimumTotal 1766
+          -UnityVersion ${{ matrix.unityVersion }}
+          -EditorLogPath test-artifacts/editmode.log
+          -RunnerOutcome '${{ steps.tests.outcome }}'
+          -ReportPath test-artifacts/validation.json
+
+      - name: Verify compiled feature configuration
+        if: always()
+        run: >-
+          python3 Tools~/CI/feature_configuration.py
+          --mode ${{ matrix.configuration }}
+          --results test-artifacts/editmode-results.xml
+          --unity-version ${{ matrix.unityVersion }}
+          --editor-log test-artifacts/editmode.log
+
+      - name: Verify MA Setup Outfit Workflow Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -UnityVersion ${{ matrix.unityVersion }}
+          -EditorLogPath test-artifacts/editmode.log
+          -RequiredCategory MaSetupOutfitE2E
+          -RequiredCategoryCount 1
+
+      - name: Verify Seeded Cage Exploration Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -UnityVersion ${{ matrix.unityVersion }}
+          -EditorLogPath test-artifacts/editmode.log
+          -RequiredCategory GraphicsE2EExploration
+          -RequiredCategoryCount 1
+
+      - name: Verify MA Setup Outfit Preview E2E Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -UnityVersion ${{ matrix.unityVersion }}
+          -EditorLogPath test-artifacts/editmode.log
+          -RequiredCategory MaSetupOutfitPreviewE2E
+          -RequiredCategoryCount 1
+
+      - name: Verify Cage Shape Exploration Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -UnityVersion ${{ matrix.unityVersion }}
+          -EditorLogPath test-artifacts/editmode.log
+          -RequiredCategory CageShapeExploration
+          -RequiredCategoryCount 1
 
       # Keep GraphicsE2E in the main EditMode run to avoid another Unity startup. Fail closed if
       # a graphics-less environment turns any of these required Scene View tests into Ignored.
@@ -219,13 +357,102 @@ jobs:
         run: >-
           ./Tools~/Assert-TestResults.ps1
           -TestResultsPath test-artifacts/editmode-results.xml
+          -UnityVersion ${{ matrix.unityVersion }}
+          -EditorLogPath test-artifacts/editmode.log
           -RequiredCategory GraphicsE2E
+          -RequiredCategoryCount 16
+
+      - name: Verify Playground E2E Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -UnityVersion ${{ matrix.unityVersion }}
+          -EditorLogPath test-artifacts/editmode.log
+          -RequiredCategory PlaygroundE2E
+          -RequiredCategoryCount 2
+
+      - name: Verify Authoring Interaction Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -UnityVersion ${{ matrix.unityVersion }}
+          -EditorLogPath test-artifacts/editmode.log
+          -RequiredCategory InteractionE2E
+          -RequiredCategoryCount 8
+
+      - name: Verify Editor Window Lifecycle Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -UnityVersion ${{ matrix.unityVersion }}
+          -EditorLogPath test-artifacts/editmode.log
+          -RequiredCategory EditorWindowLifecycle
           -RequiredCategoryCount 5
+
+      - name: Verify Preview Isolation Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -UnityVersion ${{ matrix.unityVersion }}
+          -EditorLogPath test-artifacts/editmode.log
+          -RequiredCategory PreviewIsolation
+          -RequiredCategoryCount 1
+
+      - name: Verify Localized Tool Overlay Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -UnityVersion ${{ matrix.unityVersion }}
+          -EditorLogPath test-artifacts/editmode.log
+          -RequiredCategory LocalizedToolOverlay
+          -RequiredCategoryCount 1
+
+      - name: Summarize raw test outcomes
+        if: always()
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          def annotate(text):
+              escaped = text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print('::notice::' + escaped)
+          for folder in ('warmup-artifacts', 'test-artifacts'):
+              path = Path(folder) / 'editmode-results.xml'
+              if not path.exists():
+                  annotate(folder + ': result XML was not produced')
+                  continue
+              try:
+                  root = ET.parse(path).getroot()
+              except ET.ParseError:
+                  annotate(folder + ': result XML is malformed')
+                  continue
+              annotate(folder + ': ' + json.dumps({key: root.get(key) for key in
+                       ('total', 'passed', 'failed', 'skipped', 'inconclusive')}))
+              for case in root.iter('test-case'):
+                  if case.get('result') != 'Passed':
+                      # Only case identifiers and outcomes; never log contents,
+                      # failure messages, environment variables or credentials.
+                      annotate(folder + ': ' + case.get('result', 'Unknown') + ': ' +
+                               case.get('fullname', case.get('name', 'Unnamed')))
+          PYTHON
 
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: editmode-test-results
-          path: ${{ steps.tests.outputs.artifactsPath }}
+          name: editmode-test-results-${{ matrix.unityVersion }}-${{ matrix.configuration }}
+          path: |
+            test-artifacts/
+            warmup-artifacts/
           if-no-files-found: warn

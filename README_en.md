@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="Blobs~/logo-white.png">
-    <img src="Blobs~/logo.png" alt="Lattice Deformation Tool" width="500">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/32ba/VRC-lattice-deformation-tool/2.0.0-beta.1/Blobs~/logo-white.png">
+    <img src="https://raw.githubusercontent.com/32ba/VRC-lattice-deformation-tool/2.0.0-beta.1/Blobs~/logo.png" alt="Lattice Deformation Tool" width="500">
   </picture>
 </p>
 
@@ -12,6 +12,10 @@ A Unity 2022.3+ editor extension for adjusting `MeshRenderer` and `SkinnedMeshRe
 Use it for fitting clothing, hair, and accessories, manually correcting intersections, or turning a shape adjustment into a BlendShape. The original Mesh asset is never modified.
 
 日本語ドキュメント: [README.md](README.md)
+
+This branch develops `2.0.0-beta.1`, an internal refactoring that preserves existing data and functionality.
+The implementation separates data reads, editing operations, deformation evaluation, migration, and Preview management while preserving compatibility with existing components and saved data. Inspector and Scene View tools also separate interaction, calculation, and presentation responsibilities.
+See the [development status](https://github.com/32ba/VRC-lattice-deformation-tool/blob/2.0.0-beta.1/Docs~/Architecture/2.0.0-beta.1-progress.md) for the implemented scope, test results, and remaining stages.
 
 ## Main features
 
@@ -32,7 +36,7 @@ Use it for fitting clothing, hair, and accessories, manually correcting intersec
 
 - Unity 2022.3 LTS or later
 - `MeshFilter` + `MeshRenderer`, or `SkinnedMeshRenderer`
-- NDMF (`nadena.dev.ndmf`) 1.9.0 or later
+- NDMF (`nadena.dev.ndmf`) 1.14.8 or later
 - VRChat Creator Companion (recommended when installing through VPM)
 
 ## Installation
@@ -77,7 +81,7 @@ To use a source checkout directly, place the repository under the VCC project's 
 3. If needed, enable **Show Penetration**, assign a reference Renderer, and correct the vertices highlighted in red.
 4. Switch the overlay to Vertex Selection for vertex-level finishing.
 
-Penetration visualization is an editing aid based on an approximate test. It is not an exact posed-surface test of a baked reference `SkinnedMeshRenderer`.
+Penetration visualization classifies target vertices against the nearest triangles of the reference mesh, using the reference surface normals to determine the side. A reference `SkinnedMeshRenderer` is baked in its current pose for evaluation. This is not an exhaustive mesh intersection test; intersections between sampled vertices may go undetected.
 
 ### 3. Edit and output a shape adjustment as a BlendShape
 

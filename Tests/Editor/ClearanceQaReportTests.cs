@@ -429,6 +429,39 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Writer_SecondDestinationDirectoryCollisionRollsBackFirstOutput(bool existingJson)
+        {
+            string directory = NewTemporaryDirectory();
+            string jsonPath = Path.Combine(directory, "report.json");
+            string markdownPath = Path.Combine(directory, "report.md");
+            Directory.CreateDirectory(markdownPath);
+            File.WriteAllText(Path.Combine(markdownPath, "keep.txt"), "untouched");
+            if (existingJson) File.WriteAllText(jsonPath, "original-json");
+            try
+            {
+                // Both parent directories exist, so preparation succeeds. The first
+                // output is replaced before the second move encounters this directory.
+                bool written = ClearanceQaReportWriter.TryWritePair(
+                    jsonPath, markdownPath, "replacement-json", "replacement-markdown", out string error);
+
+                Assert.That(written, Is.False);
+                Assert.That(error, Is.Not.Empty);
+                if (existingJson)
+                    Assert.That(File.ReadAllText(jsonPath), Is.EqualTo("original-json"));
+                else
+                    Assert.That(File.Exists(jsonPath), Is.False);
+                Assert.That(File.ReadAllText(Path.Combine(markdownPath, "keep.txt")), Is.EqualTo("untouched"));
+                Assert.That(Directory.GetFiles(directory).Select(Path.GetFileName),
+                    Is.EquivalentTo(existingJson ? new[] { "report.json" } : Array.Empty<string>()));
+            }
+            finally
+            {
+                Directory.Delete(directory, true);
+            }
+        }
+
         private static ClearanceHeatmapEvaluation Evaluation(ClearanceHeatmapStatistics statistics)
         {
             return new ClearanceHeatmapEvaluation(
