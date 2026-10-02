@@ -58,6 +58,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             deformer.AlignMode = LatticeDeformer.LatticeAlignMode.Mode3_BoundsRemap;
             Component removeMeshInBox = null;
             SceneView sceneView = null;
+            PreviewViewport viewport = null;
             bool holdInteraction = false;
             int ownedHotControl = 0;
             bool previewWasEnabled = IsPreviewUiEnabled();
@@ -90,6 +91,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 LatticePreviewUtility.ClearProxy(sourceRenderer);
                 Object.DestroyImmediate(root);
                 Object.DestroyImmediate(source);
+                viewport?.Dispose();
             };
 
             try
@@ -112,7 +114,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 LatticeDeformerPreviewFilter.ForcePreviewState(true);
                 PreviewSession.Current.ForceRebuild();
 
-                sceneView = EditorWindow.GetWindow<SceneView>();
+                viewport = new PreviewViewport();
+                sceneView = viewport.View;
+                monitor.ObservedView = sceneView;
                 sceneView.Show();
                 sceneView.Focus();
                 sceneView.pivot = Vector3.zero;
@@ -535,6 +539,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var random = new System.Random(seed);
             ModularAvatarSetupOutfitWorkflowTests.PreviewFixture fixture = null;
             SceneView sceneView = null;
+            PreviewViewport viewport = null;
             bool previewWasEnabled = PreviewSession.Current != null;
             int previousDisableDepth = NDMFPreview.DisablePreviewDepth;
             Object previousSelection = Selection.activeObject;
@@ -559,6 +564,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     LatticePreviewUtility.ClearProxy(fixture.Renderer);
                     fixture.Dispose();
                 }
+                viewport?.Dispose();
             };
 
             try
@@ -580,7 +586,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 LatticeDeformerPreviewFilter.ForcePreviewState(true);
                 PreviewSession.Current.ForceRebuild();
-                sceneView = EditorWindow.GetWindow<SceneView>();
+                viewport = new PreviewViewport();
+                sceneView = viewport.View;
+                monitor.ObservedView = sceneView;
                 sceneView.Show();
                 sceneView.Focus();
                 sceneView.pivot = fixture.MeshObject.transform.position;
@@ -628,6 +636,86 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 #endif
 
+        [UnityTest]
+        [Category("PreviewIsolation")]
+        public IEnumerator PreviewViewport_PreservesOtherWindowsLanguageAndOverlayRegistration()
+        {
+            var previous = SceneView.lastActiveSceneView;
+            var borrowed = ScriptableObject.CreateInstance<SceneView>();
+            SceneView reopened = null;
+            PreviewViewport viewport = null;
+            var language = LatticeLocalization.CurrentLanguage;
+            _restoreInterruptedInteraction = () =>
+            {
+                viewport?.Dispose();
+                if (reopened != null) reopened.Close();
+                if (borrowed != null) borrowed.Close();
+                if (previous != null) previous.Focus();
+            };
+            try
+            {
+                borrowed.Show();
+                borrowed.Focus();
+                yield return null;
+                Assert.That(borrowed.TryGetOverlay("Mesh Deformer", out var original), Is.True);
+                viewport = new PreviewViewport();
+                yield return null;
+                Assert.That(viewport.View, Is.Not.SameAs(borrowed));
+                Assert.That(viewport.View.TryGetOverlay("Mesh Deformer", out _), Is.False);
+                Assert.That(borrowed.TryGetOverlay("Mesh Deformer", out var unchanged), Is.True);
+                Assert.That(unchanged, Is.SameAs(original));
+                Assert.That(LatticeLocalization.CurrentLanguage, Is.EqualTo(language));
+                var ownedView = viewport.View;
+                viewport.Dispose();
+                yield return null;
+                Assert.That(ownedView == null, Is.True);
+                Assert.That(borrowed.TryGetOverlay("Mesh Deformer", out unchanged), Is.True);
+                Assert.That(unchanged, Is.SameAs(original));
+                reopened = ScriptableObject.CreateInstance<SceneView>();
+                reopened.Show();
+                yield return null;
+                Assert.That(reopened.TryGetOverlay("Mesh Deformer", out _), Is.True,
+                    "Removing controls from the owned viewport must not unregister future overlays.");
+                Assert.That(LatticeLocalization.CurrentLanguage, Is.EqualTo(language));
+            }
+            finally { RestoreInterruptedInteraction(); }
+        }
+
+        // These graph tests exercise geometry, camera-driven NDMF updates and
+        // interactive handles. Localized controls are drawn by the separate
+        // AllToolLanguagesAndModes UI test, not by this owned viewport.
+        private sealed class PreviewViewport : IDisposable
+        {
+            private readonly SceneView _previous = SceneView.lastActiveSceneView;
+            internal SceneView View { get; private set; }
+
+            internal PreviewViewport()
+            {
+                try
+                {
+                    View = ScriptableObject.CreateInstance<SceneView>();
+                    View.position = new Rect(100, 100, 960, 720);
+                    View.Show();
+                    View.Focus();
+                    Assert.That(View.TryGetOverlay("Mesh Deformer", out var controls), Is.True);
+                    Assert.That(View.overlayCanvas.Remove(controls), Is.True);
+                    Assert.That(View.TryGetOverlay("Mesh Deformer", out _), Is.False);
+                }
+                catch
+                {
+                    Dispose();
+                    throw;
+                }
+            }
+
+            public void Dispose()
+            {
+                if (View != null) View.Close();
+                View = null;
+                if (_previous != null) _previous.Focus();
+            }
+        }
+
         private sealed class CageIntervalMonitor
         {
             private readonly List<string> _violations = new List<string>();
@@ -636,6 +724,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             private Vector3[] _baseline;
             private bool _interaction;
 
+            internal SceneView ObservedView { get; set; }
             internal string CurrentOperation { get; set; } = "interaction begins";
             internal int InteractionFrameCount { get; private set; }
             internal int PostInteractionFrameCount => _settledFrames.Count;
@@ -681,6 +770,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
             internal void Observe(LatticeToolHandler.CageFrameSnapshot frame)
             {
+                // GUI hotControl belongs to a view. RepaintAll also paints other
+                // SceneViews, whose frames are not this test's interaction stream.
+                if (ObservedView != null && SceneView.currentDrawingSceneView != ObservedView)
+                    return;
                 LastFrame = frame;
                 if (_interaction)
                 {

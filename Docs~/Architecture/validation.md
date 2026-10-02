@@ -43,6 +43,16 @@ Unity 6の試験は本packageの先行互換性検証として実施し、利用
 - 過去のEditorで保存したfixtureのmanifestや期待値は維持し、両Editorで同じ入力を読み込む。
 - 公開gateは配布物検査と4組すべての同一commit CI成功を要求する。旧2 job名の結果で代用しない。
 
+## Preview機能とローカライズ描画の分離
+
+AAO/MAの実graph E2Eは、専用のSceneViewでカメラ描画・操作中のケージ保持・proxy更新・Undo/Redoを検証する。そのViewの`Mesh Deformer`操作パネルだけを`overlayCanvas.Remove`で外し、破棄時には専用Viewを閉じて元のViewへfocusを戻す。借用中の他ViewやそのOverlay、言語設定は変更しない。ITransientOverlayはUnityが再表示するため、単にdisplayed=falseとする方法に依存しない。
+
+Cage通知は全SceneViewから届く。GUI hotControlはView単位なので、操作対象の`SceneView.currentDrawingSceneView`だけをmonitorへ取り込む。対象Viewの最低frame数・全mutation stage・cage shape・proxy identity・geometryのassertは維持する。別Viewの非操作frameを対象Viewの入力喪失と誤判定しない。
+
+操作パネルの描画は既存`BrushToolOverlayTests.AllToolLanguagesAndModes_DrawWithoutChangingPayload`が3ツール・5言語・各modeを検証し、`LocalizedToolOverlay`カテゴリ1件をCI必須gateとする。67f1の既知font assertをこのUI試験から隠さず、元の失敗として記録する。graph E2Eの成功をローカライズUI成功の代用にしない。
+
+`PreviewIsolation`カテゴリ1件は、専用Viewだけがパネルを持たないこと、他ViewのOverlay identityと使用言語の維持、終了時のView破棄、後で開くViewにOverlayが登録され続けることを確認する。これらの2カテゴリを最低1,766件に加えて必須検証する。
+
 ## UUM-85059の承認済み限定例外
 
 [Unity Issue UUM-85059](https://issuetracker.unity.com/issues/6324/assert-error-is-thrown-when-the-editor-language-is-set-to-one-of-the-experimental-ones)はEditorのCJK font atlas拡張で発生する内部assert。
@@ -58,7 +68,7 @@ Unity 6の試験は本packageの先行互換性検証として実施し、利用
 
 - テストは省略しない。元のassert、描画、実行順、NUnit XML、Editorログを保持し、`LogAssert.Expect`による抑止や成功への書換えは行わない。
 - `Tools~/CI/verify_test_results.py`を唯一の分類規則とし、PowerShell入口と機能構成markerの検証から共用する。Python 3が必要。
-- 許容件数は0〜4件、同一fullnameは1件だけ。成功したテストは例外数に含めない。4件すべての存在、完全runの最低1,765件、既存Categoryの正確な件数も要求する。
+- 許容件数は0〜4件、同一fullnameは1件だけ。成功したテストは例外数に含めない。4件すべての存在、完全runの最低1,766件、既存Categoryの正確な件数も要求する。
 - 例外には版引数とEditorログの実版一致、通常のTest Runner終了code 2、対象XMLへの保存記録、完全一致の失敗message、case出力のassert、同数のnative assertそれぞれの`AddObjectToAsset` / `AddTextureToAsset` / `SetupNewAtlasTexture` stackが必要。同じassert文字列でも別のAssetDatabase障害は認めない。
 - 未知failure、全Skipped/Ignore、Inconclusive、重複、root/leaf集計不一致、suite setup/teardown失敗、crash、ログ欠損、4件超過は拒否する。2022、69f1、将来版、版指定なしでは例外を認めない。
 - CIで67f1のrunner stepだけ`continue-on-error`を用いるが、その直後の必須gateはrunner outcomeとXML/ログを照合し、未知失敗や未完了runを拒否する。raw artifactと`validation.json`を保存する。GitHub上のjob成功はこの承認条件の成立を示し、rawテストの全成功を意味しない。
