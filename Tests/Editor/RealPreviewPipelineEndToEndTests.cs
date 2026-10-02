@@ -23,6 +23,17 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     public sealed class RealPreviewPipelineEndToEndTests
     {
         private const string EnablePreviewMenu = "Tools/NDM Framework/Enable Previews";
+        private Action _restoreInterruptedInteraction;
+
+        // Native log failures can stop a UnityTest iterator without disposing it.
+        // Release the control and subscriptions even when its finally is not run.
+        [TearDown]
+        public void RestoreInterruptedInteraction()
+        {
+            var restore = _restoreInterruptedInteraction;
+            _restoreInterruptedInteraction = null;
+            restore?.Invoke();
+        }
 
         [UnityTest]
         [Category("GraphicsE2E")]
@@ -55,6 +66,31 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Type previousTool = ToolManager.activeToolType;
             var monitor = new CageIntervalMonitor();
             Vector3[] verticesBeforeEdit = null;
+
+            _restoreInterruptedInteraction = () =>
+            {
+                holdInteraction = false;
+                LatticeToolHandler.CageFrameRendered -= monitor.Observe;
+                SceneView.beforeSceneGui -= OwnInteractionControl;
+                if (ownedHotControl != 0 && GUIUtility.hotControl == ownedHotControl)
+                    GUIUtility.hotControl = 0;
+
+                if (previousTool != null)
+                    ToolManager.SetActiveTool(previousTool);
+                else
+                    ToolManager.RestorePreviousTool();
+                Selection.activeObject = previousSelection;
+
+                NDMFPreview.DisablePreviewDepth = previousDisableDepth;
+                // The menu item is a toggle: only flip it back when this test was the
+                // one that enabled it, otherwise the restore would disable previews.
+                if (!previewWasEnabled)
+                    EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
+
+                LatticePreviewUtility.ClearProxy(sourceRenderer);
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(source);
+            };
 
             try
             {
@@ -214,29 +250,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 holdInteraction = false;
                 yield return WaitForInteractionState(monitor, sceneView, false);
             }
-            finally
-            {
-                LatticeToolHandler.CageFrameRendered -= monitor.Observe;
-                SceneView.beforeSceneGui -= OwnInteractionControl;
-                if (ownedHotControl != 0 && GUIUtility.hotControl == ownedHotControl)
-                    GUIUtility.hotControl = 0;
-
-                if (previousTool != null)
-                    ToolManager.SetActiveTool(previousTool);
-                else
-                    ToolManager.RestorePreviousTool();
-                Selection.activeObject = previousSelection;
-
-                NDMFPreview.DisablePreviewDepth = previousDisableDepth;
-                // The menu item is a toggle: only flip it back when this test was the
-                // one that enabled it, otherwise the restore would disable previews.
-                if (!previewWasEnabled)
-                    EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
-
-                LatticePreviewUtility.ClearProxy(sourceRenderer);
-                Object.DestroyImmediate(root);
-                Object.DestroyImmediate(source);
-            }
+            finally { RestoreInterruptedInteraction(); }
 
             void OwnInteractionControl(SceneView view)
             {
@@ -528,6 +542,25 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             bool previousPreviewAlignedCage = LatticePreviewUtility.UsePreviewAlignedCage;
             var monitor = new CageIntervalMonitor();
 
+            _restoreInterruptedInteraction = () =>
+            {
+                LatticeToolHandler.CageFrameRendered -= monitor.Observe;
+                if (previousTool != null)
+                    ToolManager.SetActiveTool(previousTool);
+                else
+                    ToolManager.RestorePreviousTool();
+                Selection.activeObject = previousSelection;
+                LatticePreviewUtility.UsePreviewAlignedCage = previousPreviewAlignedCage;
+                NDMFPreview.DisablePreviewDepth = previousDisableDepth;
+                if (!previewWasEnabled && PreviewSession.Current != null && previousDisableDepth == 0)
+                    EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
+                if (fixture != null)
+                {
+                    LatticePreviewUtility.ClearProxy(fixture.Renderer);
+                    fixture.Dispose();
+                }
+            };
+
             try
             {
                 fixture = ModularAvatarSetupOutfitWorkflowTests.CreatePreviewFixture();
@@ -591,24 +624,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     AssertCageMatchesRetargetedSkinning(monitor.LastFrame.Value, fixture, seed, step);
                 }
             }
-            finally
-            {
-                LatticeToolHandler.CageFrameRendered -= monitor.Observe;
-                if (previousTool != null)
-                    ToolManager.SetActiveTool(previousTool);
-                else
-                    ToolManager.RestorePreviousTool();
-                Selection.activeObject = previousSelection;
-                LatticePreviewUtility.UsePreviewAlignedCage = previousPreviewAlignedCage;
-                NDMFPreview.DisablePreviewDepth = previousDisableDepth;
-                if (!previewWasEnabled && PreviewSession.Current != null && previousDisableDepth == 0)
-                    EditorApplication.ExecuteMenuItem(EnablePreviewMenu);
-                if (fixture != null)
-                {
-                    LatticePreviewUtility.ClearProxy(fixture.Renderer);
-                    fixture.Dispose();
-                }
-            }
+            finally { RestoreInterruptedInteraction(); }
         }
 #endif
 
