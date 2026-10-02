@@ -101,10 +101,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             get
             {
-                var icon = EditorGUIUtility.IconContent("EditCollider");
-                if (icon != null)
-                    icon.tooltip = LatticeLocalization.Tr(LocKey.MeshDeformer);
-                return icon ?? new GUIContent("MD", "Mesh Deformer");
+                // IconContent is cached by Unity and shared with other tools.
+                // Own the GUIContent before changing its localized tooltip.
+                var shared = EditorGUIUtility.IconContent("EditCollider");
+                var icon = shared != null ? new GUIContent(shared) : new GUIContent("MD");
+                icon.tooltip = LatticeLocalization.Tr(LocKey.MeshDeformer);
+                return icon;
             }
         }
 

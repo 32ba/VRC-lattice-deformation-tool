@@ -270,7 +270,7 @@ jobs:
         run: >-
           ./Tools~/Assert-TestResults.ps1
           -TestResultsPath test-artifacts/editmode-results.xml
-          -MinimumTotal 1760
+          -MinimumTotal 1765
           -UnityVersion ${{ matrix.unityVersion }}
           -EditorLogPath test-artifacts/editmode.log
           -RunnerOutcome '${{ steps.tests.outcome }}'
@@ -363,6 +363,17 @@ jobs:
           -EditorLogPath test-artifacts/editmode.log
           -RequiredCategory InteractionE2E
           -RequiredCategoryCount 8
+
+      - name: Verify Editor Window Lifecycle Results
+        if: always()
+        shell: pwsh
+        run: >-
+          ./Tools~/Assert-TestResults.ps1
+          -TestResultsPath test-artifacts/editmode-results.xml
+          -UnityVersion ${{ matrix.unityVersion }}
+          -EditorLogPath test-artifacts/editmode.log
+          -RequiredCategory EditorWindowLifecycle
+          -RequiredCategoryCount 5
 
       - name: Upload Test Results
         if: always()

@@ -56,7 +56,7 @@ Unity 6の試験は本packageの先行互換性検証として実施し、利用
 
 - テストは省略しない。元のassert、描画、実行順、NUnit XML、Editorログを保持し、`LogAssert.Expect`による抑止や成功への書換えは行わない。
 - `Tools~/CI/verify_test_results.py`を唯一の分類規則とし、PowerShell入口と機能構成markerの検証から共用する。Python 3が必要。
-- 許容件数は0〜4件、同一fullnameは1件だけ。成功したテストは例外数に含めない。4件すべての存在、完全runの最低1,760件、既存Categoryの正確な件数も要求する。
+- 許容件数は0〜4件、同一fullnameは1件だけ。成功したテストは例外数に含めない。4件すべての存在、完全runの最低1,765件、既存Categoryの正確な件数も要求する。
 - 例外には版引数とEditorログの実版一致、通常のTest Runner終了code 2、対象XMLへの保存記録、完全一致の失敗message、case出力のassert、同数のnative assertそれぞれの`AddObjectToAsset` / `AddTextureToAsset` / `SetupNewAtlasTexture` stackが必要。同じassert文字列でも別のAssetDatabase障害は認めない。
 - 未知failure、全Skipped/Ignore、Inconclusive、重複、root/leaf集計不一致、suite setup/teardown失敗、crash、ログ欠損、4件超過は拒否する。2022、69f1、将来版、版指定なしでは例外を認めない。
 - CIで67f1のrunner stepだけ`continue-on-error`を用いるが、その直後の必須gateはrunner outcomeとXML/ログを照合し、未知失敗や未完了runを拒否する。raw artifactと`validation.json`を保存する。GitHub上のjob成功はこの承認条件の成立を示し、rawテストの全成功を意味しない。
@@ -65,6 +65,20 @@ Unity 6の試験は本packageの先行互換性検証として実施し、利用
 
 ローカルでは`Assert-TestResults.ps1`に`-UnityVersion`と`-EditorLogPath`を渡す。`-ReportPath`で分類結果を別JSONへ保存する。
 失敗ログがあっても終了codeを一律無視せず、Unity終了code 0/2と通常終了の記録を確認してからgateへ渡す。
+
+## WindowとOverlayの互換性
+
+製品assemblyには独自EditorWindow派生型はなく、InspectorとSceneView上の`MeshDeformerToolOverlay`を使う。
+Overlayの固定idは`Mesh Deformer`で、表示名やSceneViewのtitleContentを識別子として使わない。
+5言語の現行catalogで製品名は同じ`Mesh Deformer`。`titleContent`/型による`GetWindow`は両Editorで利用でき、旧`EditorWindow.title`は2022でも既にobsoleteである。
+Unity6ではWindow > Panelsの表示名がtitleContent.textを使い、2022のtooltip優先分岐がなくなっているが、製品はそのタイトル指定やmenu path検索に依存しない。
+
+`EditorWindowLifecycle`カテゴリの5件は、生成時のOverlay名、非表示・折り畳み中の5言語切替とid不変、SceneViewのタイトル変更と型による再取得、close/reopen時のOverlay再作成と後始末、toolbarIconが共有GUIContentを変更しないことを確認する。
+`EditorGUIUtility.IconContent`はUnityの共有cacheなので、tooltipを書き換える前にGUIContentを複製する。Texture参照は共有してよい。
+`GetWindow<T>(title)`のtitleは既存windowの検索キーではなく、新規作成時の表示名である。既存windowの改名はtitleContentへ明示設定する。ただし組込みSceneViewはOnEnableで標準タイトルを再設定するため、その任意表示名をリロード後の識別に使わない。
+
+ドメインリロード・layoutファイル復元・Editor再起動は別の隔離projectで実行し、実際の復元結果を保存する。内部WindowLayout APIを診断に使う場合はEditor版ごとのsignatureを確認し、製品コードへ依存を持ち込まない。
+ウィンドウ名の検証だけでOS native file dialog、全dock配置、アクティブなcomponent toolの選択復元、全Editor APIの互換性を保証しない。
 
 ## Unity上の操作
 
