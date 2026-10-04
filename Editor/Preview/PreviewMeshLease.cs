@@ -43,6 +43,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (ReferenceEquals(_bindings[i].Renderer, renderer))
                 {
+                    var latestUpstream = PreviewRendererMesh.Get(renderer);
+                    if (!ReferenceEquals(latestUpstream, Mesh))
+                        _bindings[i] = new Binding(renderer, latestUpstream);
                     // OnFrame is NDMF's ordered stage evaluation. Rebind here,
                     // but never from the asynchronous interactive notification.
                     PreviewRendererMesh.Assign(renderer, Mesh);

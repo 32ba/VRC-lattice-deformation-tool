@@ -12,6 +12,37 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class BlendShapeTestSessionTests
     {
+        [TestCase(false)]
+        [TestCase(true)]
+        public void SwitchingOutputGroups_ClearsPreviousTestWeight(bool reorder)
+        {
+            using var fixture = new Fixture("Switch output group");
+            var owner = fixture.Deformer;
+            owner.AddGroup("Second output");
+            owner.AddLayer("Second brush", MeshDeformerLayerType.Brush);
+            owner.EnsureDisplacementCapacity();
+            owner.Displacements[0] = Vector3.right * .2f;
+            owner.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+            owner.BlendShapeName = "Second";
+            owner.ActiveGroupIndex = 0;
+            using var session = BlendShapeTestSession.TryBegin(owner, fixture.Renderer);
+            session.SetWeight(63f);
+            int previous = owner.GetGeneratedGroupBlendShapeIndex(0);
+            Assert.That(fixture.Renderer.GetBlendShapeWeight(previous), Is.EqualTo(63f));
+            if (reorder) owner.MoveGroup(0, 1);
+            owner.ActiveGroupIndex = 1;
+            owner.InvalidateCache(); owner.Deform(true); session.Refresh();
+            int active = owner.GetGeneratedGroupBlendShapeIndex(owner.ActiveGroupIndex);
+            int other = owner.GetGeneratedGroupBlendShapeIndex(1 - owner.ActiveGroupIndex);
+            Assert.That(fixture.Renderer.GetBlendShapeWeight(active), Is.EqualTo(63f));
+            Assert.That(fixture.Renderer.GetBlendShapeWeight(other), Is.Zero);
+            Assert.That(fixture.Renderer.GetBlendShapeWeight(0), Is.EqualTo(24f));
+            Assert.That(fixture.Renderer.GetBlendShapeWeight(1), Is.EqualTo(68f));
+            session.Dispose();
+            Assert.That(fixture.Renderer.sharedMesh, Is.SameAs(fixture.Source));
+            Assert.That(SerializedWeights(fixture.Renderer), Is.EqualTo(new[] {24f, 68f}));
+        }
+
         [TestCase("source")]
         [TestCase("group")]
         [TestCase("layer")]

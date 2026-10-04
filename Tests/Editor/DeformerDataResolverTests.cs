@@ -11,6 +11,28 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class DeformerDataResolverTests
     {
+        [TestCase("enabled")]
+        [TestCase("group-disabled")]
+        [TestCase("layer-disabled")]
+        public void ProfileMissingLatticeSettings_IsRejectedWithoutRepair(string state)
+        {
+            using var fixture = new Fixture();
+            var group = fixture.Profile.Groups[0];
+            var layer = group.Layers[0];
+            layer.SetType(MeshDeformerLayerType.Lattice);
+            if (state == "group-disabled") group.Enabled = false;
+            if (state == "layer-disabled") layer.Enabled = false;
+            SetField(layer, "_settings", null);
+            string profileBefore = EditorJsonUtility.ToJson(fixture.Profile);
+            string ownerBefore = EditorJsonUtility.ToJson(fixture.Target);
+            int dirty = EditorUtility.GetDirtyCount(fixture.Profile);
+            Assert.That(fixture.Target.UseProfile(fixture.Profile), Is.False);
+            Assert.That(EditorJsonUtility.ToJson(fixture.Profile), Is.EqualTo(profileBefore));
+            Assert.That(EditorJsonUtility.ToJson(fixture.Target), Is.EqualTo(ownerBefore));
+            Assert.That(layer.SerializedSettings, Is.Null);
+            Assert.That(EditorUtility.GetDirtyCount(fixture.Profile), Is.EqualTo(dirty));
+        }
+
         [Test]
         public void ProfileResolution_PreservesComponentSelectionAcrossCachedReads()
         {

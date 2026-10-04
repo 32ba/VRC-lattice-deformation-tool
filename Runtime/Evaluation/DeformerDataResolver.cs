@@ -166,6 +166,7 @@ namespace Net._32Ba.LatticeDeformationTool
                     if (layer == null || layer.HasMalformedSerializedMetadata)
                         return false;
                     var settings = layer.SerializedSettings;
+                    if (layer.Type == MeshDeformerLayerType.Lattice && settings == null) return false;
                     if (settings != null && (settings.HasUnsupportedFutureSerializationVersion || settings.HasMalformedSerializedShape))
                         return false;
                     // Disabled drafts retain their raw payload, but structural and

@@ -13,6 +13,55 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class PreviewOwnershipTests
     {
+        [TestCase(false)]
+        [TestCase(true)]
+        public void SourceSurfaceOnlyWeightChange_PublishesUpdatedNormalsOrTangents(bool tangentChannel)
+        {
+            using var fixture = new Fixture(true);
+            var zero = new Vector3[4];
+            var delta = new[] {Vector3.up*.2f, Vector3.up*.2f, Vector3.up*.2f, Vector3.up*.2f};
+            foreach (var mesh in new[] {fixture.Source, fixture.Upstream})
+            {
+                mesh.tangents = new[] {Vector4.one, Vector4.one, Vector4.one, Vector4.one};
+                mesh.AddBlendShapeFrame("Surface", 100f, zero, tangentChannel ? zero : delta,
+                    tangentChannel ? delta : zero);
+            }
+            fixture.Deformer.Reset();
+            var node = fixture.CreateNode(fixture.Proxy);
+            var output = PreviewRendererMesh.Get(fixture.Proxy);
+            var vertices = output.vertices; var normals = output.normals; var tangents = output.tangents;
+            int revision = LatticePreviewUtility.GetInteractiveRevision(fixture.Deformer).Value;
+            ((SkinnedMeshRenderer)fixture.Original).SetBlendShapeWeight(0, 50f);
+            node.OnFrameGroup();
+            Assert.That(output.vertices, Is.EqualTo(vertices));
+            if (tangentChannel) Assert.That(output.tangents, Is.Not.EqualTo(tangents));
+            else Assert.That(output.normals, Is.Not.EqualTo(normals));
+            Assert.That(LatticePreviewUtility.GetInteractiveRevision(fixture.Deformer).Value, Is.Not.EqualTo(revision));
+            ((SkinnedMeshRenderer)fixture.Original).SetBlendShapeWeight(0, 0f);
+            node.OnFrameGroup();
+            Assert.That(output.normals, Is.EqualTo(normals));
+            Assert.That(output.tangents, Is.EqualTo(tangents));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void RepeatedOnFrame_RestoresLatestBorrowedUpstream(bool skinned)
+        {
+            using var fixture = new Fixture(skinned);
+            var node = fixture.CreateNode(fixture.Proxy);
+            var latest = fixture.CloneMesh(fixture.Upstream);
+            PreviewRendererMesh.Assign(fixture.Proxy, latest);
+            node.OnFrame(fixture.Original, fixture.Proxy);
+            var owned = PreviewRendererMesh.Get(fixture.Proxy);
+            Assert.That(owned, Is.Not.SameAs(latest));
+            node.OnFrame(fixture.Original, fixture.Proxy); // observing our own output must not replace the borrow
+            Object.DestroyImmediate(fixture.Upstream);
+            node.Dispose();
+            Assert.That(PreviewRendererMesh.Get(fixture.Proxy), Is.SameAs(latest));
+            Assert.That(owned == null, Is.True);
+            Assert.That(latest != null, Is.True);
+        }
+
         [Test]
         public void SourceWeightChange_RefreshesNonlinearPreviewWithoutComponentEdit()
         {

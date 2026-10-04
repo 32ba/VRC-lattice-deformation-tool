@@ -1002,13 +1002,19 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public int ImportBlendShapeAsLayer(int blendShapeIndex, int frameIndex = 0)
         {
-            var layer = BlendShapeLayerImport.CreateLayer(_sourceMesh, blendShapeIndex, frameIndex);
+            var source = GetCurrentAuthoringSource();
+            if (!CanStartAuthoringEdit || !ReadSourceBinding().CanUse(source)) return -1;
+            using var lease = SourceMeshAccess.Acquire(source);
+            var layer = BlendShapeLayerImport.CreateLayer(lease.Mesh, blendShapeIndex, frameIndex);
             return layer != null ? InsertLayer(layer) : -1;
         }
 
         public int ImportBlendShapeAllFramesAsGroup(int blendShapeIndex)
         {
-            var group = BlendShapeLayerImport.CreateGroup(_sourceMesh, blendShapeIndex);
+            var source = GetCurrentAuthoringSource();
+            if (!CanStartAuthoringEdit || !ReadSourceBinding().CanUse(source)) return -1;
+            using var lease = SourceMeshAccess.Acquire(source);
+            var group = BlendShapeLayerImport.CreateGroup(lease.Mesh, blendShapeIndex);
             if (group == null || !EnsureGroups()) return -1;
             _groups.Add(group);
             _activeGroupIndex = _groups.Count - 1;

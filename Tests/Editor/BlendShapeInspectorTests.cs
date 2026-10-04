@@ -12,6 +12,38 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class BlendShapeInspectorTests
     {
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [TestCase(true, true)]
+        public void PublicImport_UsesSavedSourceWithoutActivationAndRejectsForeignSource(bool allFrames, bool foreignSource)
+        {
+            using var fixture = new Fixture();
+            SetField(fixture.Owner, "_sourceMesh", null);
+            Mesh foreign = foreignSource ? Object.Instantiate(fixture.Source) : null;
+            if (foreignSource) fixture.Root.GetComponent<MeshFilter>().sharedMesh = foreign;
+            string before = EditorJsonUtility.ToJson(fixture.Owner);
+            var vertices = fixture.Source.vertices;
+            try
+            {
+                int result = allFrames ? fixture.Owner.ImportBlendShapeAllFramesAsGroup(0)
+                    : fixture.Owner.ImportBlendShapeAsLayer(0);
+                if (foreignSource)
+                {
+                    Assert.That(result, Is.EqualTo(-1));
+                    Assert.That(EditorJsonUtility.ToJson(fixture.Owner), Is.EqualTo(before));
+                }
+                else
+                {
+                    Assert.That(result, Is.GreaterThanOrEqualTo(0));
+                    AssertImported(fixture.Owner, allFrames);
+                }
+                Assert.That(fixture.Root.activeSelf, Is.False);
+                Assert.That(fixture.Source.vertices, Is.EqualTo(vertices));
+            }
+            finally { if (foreign != null) Object.DestroyImmediate(foreign); }
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         public void MenuImport_UsesOneUndoAndPreservesSource(bool allFrames)

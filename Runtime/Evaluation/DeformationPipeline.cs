@@ -79,8 +79,19 @@ namespace Net._32Ba.LatticeDeformationTool
                 }
 
                 // Preserve the published Preview-specific final normal rebuild rule.
+                // Surface rebuilds must use the displayed pose, not the residual
+                // vertex base that cancels the renderer's source frame offsets.
+                if (hasSourceWeight) output.vertices = frames.DeformedCombined;
                 DeformedMeshWriter.FinalizeSurface(inputMesh, output, options, workspace.MeshOutput,
                     NormalsRecalculationMode.LegacyUnityRecalculate);
+                if (hasSourceWeight)
+                {
+                    AnchorCurrentSurface(inputMesh, output, sourceWeights, frames);
+                    output.vertices = outputVertices;
+                    if (options.RecalculateBounds) output.RecalculateBounds();
+                    else output.bounds = inputMesh.bounds;
+                    output.UploadMeshData(false);
+                }
                 return output;
             }
             catch
@@ -88,6 +99,35 @@ namespace Net._32Ba.LatticeDeformationTool
                 DeformedMeshWriter.DestroyTemporaryMesh(output);
                 throw;
             }
+        }
+
+        private static void AnchorCurrentSurface(Mesh input, Mesh output, float[] weights,
+            PreviewFrameWorkspace frames)
+        {
+            var normals = output.normals;
+            var tangents = output.tangents;
+            for (int shape = 0; shape < input.blendShapeCount; shape++)
+            {
+                float weight = weights[shape];
+                if (Mathf.Abs(weight) <= 1e-5f || input.GetBlendShapeFrameCount(shape) == 0) continue;
+                float first = input.GetBlendShapeFrameWeight(shape, 0);
+                // CopyBlendShapes inserts a zero surface-delta frame at the baked
+                // weight below the first source frame. Preview retains the source
+                // frames, so cancel their current contribution in its base instead.
+                if (weight >= first - 1e-5f) continue;
+                output.GetBlendShapeFrameVertices(shape, 0,
+                    frames.DeltaVertices, frames.DeltaNormals, frames.DeltaTangents);
+                float scale = Mathf.Abs(first) > Mathf.Epsilon ? weight / first : 0f;
+                for (int vertex = 0; vertex < normals.Length; vertex++)
+                    normals[vertex] -= frames.DeltaNormals[vertex] * scale;
+                for (int vertex = 0; vertex < tangents.Length; vertex++)
+                {
+                    var delta = frames.DeltaTangents[vertex] * scale;
+                    tangents[vertex] -= new Vector4(delta.x, delta.y, delta.z, 0f);
+                }
+            }
+            output.normals = normals;
+            output.tangents = tangents;
         }
     }
 }

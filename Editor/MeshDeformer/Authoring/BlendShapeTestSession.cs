@@ -18,6 +18,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SkinnedMeshRenderer _renderer;
         private Mesh _originalMesh;
         private Mesh _testMesh;
+        private int _weightedGeneratedIndex = -1;
         private string[] _originalNames;
         private float[] _originalWeights;
         private float[] _serializedWeights;
@@ -125,7 +126,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return;
             }
             int index = _deformer.GetGeneratedGroupBlendShapeIndex(_deformer.ReadResolvedData().ActiveGroupIndex);
+            if (_weightedGeneratedIndex >= 0 && _weightedGeneratedIndex < _testMesh.blendShapeCount &&
+                _weightedGeneratedIndex != index)
+                _renderer.SetBlendShapeWeight(_weightedGeneratedIndex, 0f);
             if (index >= 0) _renderer.SetBlendShapeWeight(index, Weight);
+            _weightedGeneratedIndex = index;
         }
 
         public void Dispose()

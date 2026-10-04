@@ -108,6 +108,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (evaluated == null) return false;
             bool outputChanged = detectWeightOutputChange &&
                                  (!_mesh.Mesh.vertices.SequenceEqual(evaluated.vertices) ||
+                                  !_mesh.Mesh.normals.SequenceEqual(evaluated.normals) ||
+                                  !_mesh.Mesh.tangents.SequenceEqual(evaluated.tangents) ||
                                   evaluated.blendShapeCount > (_upstreamMesh != null ? _upstreamMesh.blendShapeCount : 0));
             try
             {

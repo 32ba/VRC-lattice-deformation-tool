@@ -8,6 +8,69 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class PreviewInputEvaluationTests
     {
+        [TestCase(25f, true, true)]
+        [TestCase(50f, true, true)]
+        [TestCase(100f, true, true)]
+        [TestCase(50f, false, false)]
+        [TestCase(50f, true, false)]
+        [TestCase(50f, false, true)]
+        public void SourceSurfaceDeltas_CurrentWeightMatchesBakedNormalsAndTangents(float weight, bool normals, bool tangents)
+        {
+            var go = new GameObject("source surface deltas");
+            var source = CreateMesh(Vector3.zero, Vector3.zero);
+            Mesh preview = null;
+            try
+            {
+                source.uv = new[] {Vector2.zero, Vector2.right, Vector2.up};
+                source.RecalculateTangents();
+                source.ClearBlendShapes();
+                source.AddBlendShapeFrame("Shape", 100f,
+                    new[] {new Vector3(.2f,.35f,.1f), Vector3.zero, Vector3.zero},
+                    new[] {Vector3.up*.2f, Vector3.up*.2f, Vector3.up*.2f},
+                    new[] {Vector3.forward*.3f, Vector3.forward*.3f, Vector3.forward*.3f});
+                var renderer = go.AddComponent<SkinnedMeshRenderer>(); renderer.sharedMesh = source;
+                var owner = go.AddComponent<LatticeDeformer>(); owner.Reset();
+                typeof(LatticeDeformer).GetField("_recalculateTangents",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).SetValue(owner, tangents);
+                typeof(LatticeDeformer).GetField("_recalculateNormals",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).SetValue(owner, normals);
+                var lattice = owner.EditingSettings;
+                for (int i = 0; i < lattice.ControlPointCount; i++)
+                {
+                    var point = lattice.GetControlPointLocal(i);
+                    lattice.SetControlPointLocal(i, point + Vector3.forward * point.x * point.y);
+                }
+                renderer.SetBlendShapeWeight(0, weight); owner.NotifyDeformationDataChanged();
+                var baked = owner.Deform(false);
+                int sourceDirty = UnityEditor.EditorUtility.GetDirtyCount(source);
+                preview = owner.CreatePreviewMeshFromInput(source);
+                foreach (bool tangentChannel in new[] {false, true})
+                {
+                    var expected = SurfaceAtWeight(baked, weight, tangentChannel);
+                    var actual = SurfaceAtWeight(preview, weight, tangentChannel);
+                    for (int i = 0; i < expected.Length; i++)
+                        Assert.That(Vector3.Distance(actual[i], expected[i]), Is.LessThan(0.00001f),
+                            (tangentChannel ? "tangent" : "normal") + " at source weight " + weight);
+                }
+                Assert.That(UnityEditor.EditorUtility.GetDirtyCount(source), Is.EqualTo(sourceDirty));
+                Assert.That(renderer.sharedMesh, Is.SameAs(source));
+                Assert.That(renderer.GetBlendShapeWeight(0), Is.EqualTo(weight));
+            }
+            finally { if (preview != null) Object.DestroyImmediate(preview); Object.DestroyImmediate(go); Object.DestroyImmediate(source); }
+        }
+
+        private static Vector3[] SurfaceAtWeight(Mesh mesh, float weight, bool tangents)
+        {
+            var normals = new Vector3[mesh.vertexCount]; var tangentDeltas = new Vector3[mesh.vertexCount];
+            mesh.GetBlendShapeFrameVertices(0, 0, new Vector3[mesh.vertexCount], normals, tangentDeltas);
+            float frameWeight = mesh.GetBlendShapeFrameWeight(0, 0);
+            var result = mesh.normals; var baseTangents = mesh.tangents;
+            for (int i = 0; i < result.Length; i++)
+                result[i] = tangents ? (Vector3)baseTangents[i] + tangentDeltas[i] * (weight / frameWeight)
+                    : result[i] + normals[i] * (weight / frameWeight);
+            return result;
+        }
+
         [TestCase(25f)]
         [TestCase(50f)]
         [TestCase(100f)]
