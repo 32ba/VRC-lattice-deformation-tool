@@ -290,7 +290,7 @@ jobs:
         run: >-
           ./Tools~/Assert-TestResults.ps1
           -TestResultsPath test-artifacts/editmode-results.xml
-          -MinimumTotal 1781
+          -MinimumTotal 1785
           -UnityVersion ${{ matrix.unityVersion }}
           -EditorLogPath test-artifacts/editmode.log
           -RunnerOutcome '${{ steps.tests.outcome }}'

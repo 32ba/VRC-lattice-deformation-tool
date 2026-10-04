@@ -12,6 +12,30 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class BlendShapeTestSessionTests
     {
+        [TestCase(false, false)]
+        [TestCase(false, true)]
+        [TestCase(true, false)]
+        [TestCase(true, true)]
+        public void Refresh_WhenActiveGroupStopsOutput_RestoresMeshAndWeights(bool switchGroup, bool rebuild)
+        {
+            using var fixture = new Fixture("Disabled test output");
+            using var session = BlendShapeTestSession.TryBegin(fixture.Deformer, fixture.Renderer);
+            Assert.That(session, Is.Not.Null);
+            session.SetWeight(63f);
+            if (switchGroup)
+                fixture.Deformer.ActiveGroupIndex = fixture.Deformer.AddGroup("No output");
+            else
+                fixture.Deformer.BlendShapeOutput = BlendShapeOutputMode.Disabled;
+            fixture.Deformer.InvalidateCache();
+            if (rebuild) fixture.Deformer.Deform(true);
+
+            session.Refresh();
+
+            Assert.That(session.IsActive, Is.False);
+            Assert.That(fixture.Renderer.sharedMesh, Is.SameAs(fixture.Source));
+            Assert.That(SerializedWeights(fixture.Renderer), Is.EqualTo(new[] {24f, 68f}));
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         public void InspectorExit_RestoresSerializedWeightsAndExistingPrefabOverrides(bool existingOverrides)

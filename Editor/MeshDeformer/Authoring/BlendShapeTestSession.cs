@@ -101,8 +101,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Dispose();
                 return;
             }
+            // Refresh accepts only our previous assignment or the component's
+            // replacement above. Adopt that replacement before ending the
+            // session so restoration also works after an Inspector rebuild.
+            if (ReferenceEquals(_renderer.sharedMesh, runtimeMesh))
+                _testMesh = runtimeMesh;
             if (runtimeMesh == null || ReadActiveGroup()?.BlendShapeOutput != BlendShapeOutputMode.OutputAsBlendShape)
+            {
+                Dispose();
                 return;
+            }
             _testMesh = runtimeMesh;
             _renderer.sharedMesh = runtimeMesh;
             ApplyWeight();
