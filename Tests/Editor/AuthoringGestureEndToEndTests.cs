@@ -449,9 +449,19 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         private IEnumerator WaitFor(Func<bool> condition, string message)
         {
             double start = EditorApplication.timeSinceStartup;
+            double previous = start, maximumPollGap = 0;
+            int polls = 0;
             while (!condition())
             {
-                Assert.That(EditorApplication.timeSinceStartup - start, Is.LessThan(5d), message);
+                double now = EditorApplication.timeSinceStartup;
+                maximumPollGap = Math.Max(maximumPollGap, now - previous);
+                previous = now;
+                if (now - start >= 5d)
+                    Debug.Log($"Authoring preview wait failed: {message} polls={polls}, maximum-poll-gap={maximumPollGap:F3}s, " +
+                              $"editor-focused={EditorApplication.isFocused}, session={PreviewSession.Current != null}, " +
+                              $"owner-active={(_owner != null && _owner.activeInHierarchy)}, renderer={_renderer != null}");
+                Assert.That(now - start, Is.LessThan(5d), message);
+                polls++;
                 _view?.Repaint();
                 EditorApplication.QueuePlayerLoopUpdate();
                 yield return null;

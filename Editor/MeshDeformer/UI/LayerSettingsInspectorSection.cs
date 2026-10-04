@@ -38,8 +38,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ResetActiveLayer)))
                     Run(LayerSettingsOperation.Reset, LocKey.ResetLatticeCage);
                 DrawGrid(Target, layer.SerializedSettings);
-                var property = Serialized.FindProperty($"_groups.Array.data[{raw.ActiveGroupIndex}]._layers.Array.data[{raw.ActiveLayerIndex}]._settings");
-                DrawSettingsExcludingGrid(property);
+                DrawSettingsProperties(DrawSettingsExcludingGrid);
                 DrawAlignmentSettings();
             }
             if (GUILayout.Button(LatticeLocalization.Tr(LocKey.LROperations))) ShowLROperationsMenu();
@@ -155,6 +154,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var action = CreateOperationAction(command, operation, LatticeLocalization.Tr(undo));
                 menu.AddItem(LatticeLocalization.Content(item), false, () => action());
             }
+        }
+
+        internal void DrawSettingsProperties(Action<SerializedProperty> draw)
+        {
+            if (!LayerSettingsEdit.TryReadActive(Target, out var raw, out _)) return;
+            var property = Serialized.FindProperty($"_groups.Array.data[{raw.ActiveGroupIndex}]._layers.Array.data[{raw.ActiveLayerIndex}]._settings");
+            bool compatible = !_disposed && Targets().All(owner =>
+                LayerSettingsEdit.TryReadActive(owner, out var selected, out var layer) &&
+                layer.Type == MeshDeformerLayerType.Lattice && layer.SerializedSettings != null &&
+                selected.ActiveGroupIndex == raw.ActiveGroupIndex && selected.ActiveLayerIndex == raw.ActiveLayerIndex &&
+                DeformerAuthoringSource.TryRead(owner, out _, out _, out _));
+            // A shared SerializedObject applies one indexed path to every owner.
+            // Different active selections must not edit unrelated secondary layers.
+            using (new EditorGUI.DisabledScope(!compatible)) draw(property);
         }
 
         private static void DrawSettingsExcludingGrid(SerializedProperty settings)

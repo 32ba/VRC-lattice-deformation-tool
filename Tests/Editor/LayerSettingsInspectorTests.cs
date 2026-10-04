@@ -14,6 +14,48 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class LayerSettingsInspectorTests
     {
+        [TestCase("group")]
+        [TestCase("layer")]
+        [TestCase("source")]
+        [TestCase("same")]
+        public void SharedSettingsFields_DisableIncompatibleSelectionBeforeWriting(string difference)
+        {
+            using var first = new Fixture();
+            using var second = new Fixture();
+            if (difference == "group") second.Owner.AddGroup("Other active group");
+            if (difference == "layer") second.Owner.AddLayer("Other active lattice", MeshDeformerLayerType.Lattice);
+            if (difference == "source") second.Source.triangles = second.Source.triangles.Reverse().ToArray();
+            var owners = new[] { first.Owner, second.Owner };
+            var before = owners.Select(o => EditorJsonUtility.ToJson(o)).ToArray();
+            var editor = UnityEditor.Editor.CreateEditor(owners);
+            using var section = new LayerSettingsInspectorSection(editor, _ => { }, null);
+            bool? enabled = null;
+            try
+            {
+                section.DrawSettingsProperties(property =>
+                {
+                    enabled = GUI.enabled;
+                    if (GUI.enabled)
+                    {
+                        var bounds = property.FindPropertyRelative("_localBounds");
+                        Assert.That(bounds, Is.Not.Null);
+                        bounds.boundsValue = new Bounds(Vector3.one, Vector3.one * 3f);
+                    }
+                });
+                bool applied = editor.serializedObject.ApplyModifiedProperties();
+                Assert.That(enabled, Is.EqualTo(difference == "same"));
+                Assert.That(applied, Is.EqualTo(difference == "same"));
+                if (difference == "same")
+                {
+                    Assert.That(owners.Select(o => o.EditingSettings.LocalBounds),
+                        Is.All.EqualTo(new Bounds(Vector3.one, Vector3.one * 3f)));
+                    Undo.PerformUndo();
+                }
+                Assert.That(owners.Select(o => EditorJsonUtility.ToJson(o)), Is.EqualTo(before));
+            }
+            finally { Object.DestroyImmediate(editor); }
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         public void InspectorGridDraft_AppliesEnteredValueToSelectionOrRejectsIncompatibleOwner(bool invalidSecondary)

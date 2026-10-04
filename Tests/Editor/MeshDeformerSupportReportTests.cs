@@ -14,6 +14,64 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class MeshDeformerSupportReportTests
     {
+        [Test]
+        public void ImageFile_RejectsOversizedAttachmentBeforeDecode()
+        {
+            string path = Path.GetTempFileName();
+            try
+            {
+                using (var file = new FileStream(path, FileMode.Open, FileAccess.Write))
+                    file.SetLength(SupportReportCodec.MaximumAttachmentBytes + 1L);
+                Assert.Throws<InvalidDataException>(() => SupportReportMenu.ReadImageFile(path));
+            }
+            finally { File.Delete(path); }
+        }
+
+        [Test]
+        public void ImageFile_ValidSupportPngRoundTrips()
+        {
+            string path = Path.GetTempFileName();
+            try
+            {
+                var png = SupportReportCodec.GeneratePng("Bounded read\nitem=value");
+                File.WriteAllBytes(path, png);
+                Assert.That(SupportReportMenu.ReadImageFile(path), Is.EqualTo(png));
+                Assert.That(SupportReportCodec.DecodePng(SupportReportMenu.ReadImageFile(path)),
+                    Is.EqualTo(SupportReportCodec.DecodePng(png)));
+            }
+            finally { File.Delete(path); }
+        }
+
+        [TestCase(true)]
+        [TestCase(false)]
+        public void ImageStream_IsBoundedBeforeReadingOrGrowingAllocation(bool reportsLength)
+        {
+            using var input = new OversizedImageStream(reportsLength);
+            Assert.Throws<InvalidDataException>(() => SupportReportMenu.ReadImage(input));
+            Assert.That(input.BytesRead, Is.EqualTo(reportsLength ? 0 : SupportReportCodec.MaximumAttachmentBytes + 1));
+        }
+
+        private sealed class OversizedImageStream : Stream
+        {
+            private readonly bool _reportsLength;
+            internal int BytesRead;
+            internal OversizedImageStream(bool reportsLength) { _reportsLength = reportsLength; }
+            public override bool CanRead => true;
+            public override bool CanSeek => _reportsLength;
+            public override bool CanWrite => false;
+            public override long Length => SupportReportCodec.MaximumAttachmentBytes + 1024L;
+            public override long Position { get => BytesRead; set => throw new NotSupportedException(); }
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                int read = (int)Math.Min(count, Length - BytesRead);
+                Array.Clear(buffer, offset, read); BytesRead += read; return read;
+            }
+            public override void Flush() { }
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        }
+
         [TestCase(0u, 256u)]
         [TestCase(256u, 0u)]
         [TestCase(4097u, 1u)]
