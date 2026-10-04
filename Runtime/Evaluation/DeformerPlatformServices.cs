@@ -8,6 +8,7 @@ namespace Net._32Ba.LatticeDeformationTool
     internal static class DeformerPlatformServices
     {
         internal static Func<Mesh, Mesh.MeshDataArray> EditorMeshDataReader;
+        internal static Func<Component, int> AssignedMeshInstanceId;
         internal static Action<UnityEngine.Object> RecordLegacyMigration;
         internal static Func<UnityEngine.Object, Action> CaptureLegacyMigrationRecordRollback;
 

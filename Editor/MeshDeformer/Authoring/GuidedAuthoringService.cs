@@ -25,7 +25,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (!profile && data.ActiveLayers != null && data.ActiveLayerIndex >= 0 &&
                 data.ActiveLayerIndex < data.ActiveLayers.Count)
                 name = data.ActiveLayers[data.ActiveLayerIndex]?.Name;
-            return new GuidedInspectorState(owner.SourceMesh, name, profile);
+            return new GuidedInspectorState(data.SourceMesh, name, profile);
         }
     }
 

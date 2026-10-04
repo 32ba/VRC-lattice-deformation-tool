@@ -24,7 +24,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             Mesh displayed = data.SkinnedRenderer != null ? data.SkinnedRenderer.sharedMesh :
                 data.MeshFilter != null ? data.MeshFilter.sharedMesh : null;
-            return displayed != null && (ReferenceEquals(displayed, source) || ReferenceEquals(displayed, owner.RuntimeMesh));
+            return displayed != null && (displayed == source || ReferenceEquals(displayed, owner.RuntimeMesh));
         }
     }
 }

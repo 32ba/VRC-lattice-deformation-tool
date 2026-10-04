@@ -15,6 +15,27 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class GuidedAuthoringTests
     {
+        [Test]
+        public void InactiveClone_GuidedStateReadsSavedSourceWithoutInitializingRuntime()
+        {
+            using var fixture = new Fixture();
+            fixture.Target.gameObject.SetActive(false);
+            var clone = Object.Instantiate(fixture.Target.gameObject);
+            try
+            {
+                var target = clone.GetComponent<LatticeDeformer>();
+                Assert.That(target.SourceMesh, Is.Null);
+                string before = EditorJsonUtility.ToJson(target);
+                var expected = SerializedDeformerReader.Read(target).SourceMesh;
+                Assert.That(expected, Is.Not.Null);
+                Assert.That(GuidedInspectorState.Read(target).Source, Is.SameAs(expected));
+                Assert.That(target.SourceMesh, Is.Null);
+                Assert.That(target.RuntimeMesh, Is.Null);
+                Assert.That(EditorJsonUtility.ToJson(target), Is.EqualTo(before));
+            }
+            finally { Object.DestroyImmediate(clone); }
+        }
+
         [TestCase("future")]
         [TestCase("null-groups")]
         [TestCase("null-group")]

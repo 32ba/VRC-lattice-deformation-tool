@@ -13,6 +13,36 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [TestCase(true, false)]
         [TestCase(false, true)]
         [TestCase(true, true)]
+        public void DestroyedOutput_RestoresSourceUnlessAnotherMeshWasAssigned(bool skinned, bool foreign)
+        {
+            using var fixture = new Fixture(skinned);
+            var output = fixture.Owner.Deform(true);
+            Object.DestroyImmediate(output);
+            using var serialized = new UnityEditor.SerializedObject(skinned
+                ? (Object)fixture.Root.GetComponent<SkinnedMeshRenderer>() : fixture.Root.GetComponent<MeshFilter>());
+            Assert.That(ReferenceEquals(fixture.Get(false), null), Is.True);
+            Assert.That(serialized.FindProperty("m_Mesh").objectReferenceInstanceIDValue, Is.EqualTo(output.GetInstanceID()),
+                "A missing native reference retains ownership even though the Mesh getter is null.");
+            if (foreign) fixture.Set(false, fixture.Foreign);
+            fixture.Owner.enabled = false;
+            Assert.That(fixture.Get(false), Is.SameAs(foreign ? fixture.Foreign : fixture.Source));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void DestroyedOutput_ExplicitlyClearedAssignmentIsNotRestored(bool skinned)
+        {
+            using var fixture = new Fixture(skinned);
+            Object.DestroyImmediate(fixture.Owner.Deform(true));
+            fixture.Set(false, null);
+            fixture.Owner.enabled = false;
+            Assert.That(ReferenceEquals(fixture.Get(false), null), Is.True);
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(false, true)]
+        [TestCase(true, true)]
         public void ChangedTarget_CleanupRestoresTheActualAssignment(bool skinned, bool destroy)
         {
             using var f = new Fixture(skinned);

@@ -114,12 +114,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
-        [Test]
-        public void ImportedNonReadableSource_DeformUsesTemporaryReadableCopy()
+        [TestCase(true)]
+        [TestCase(false)]
+        public void ImportedNonReadableSource_DeformUsesTemporaryReadableCopy(bool initializedCache)
         {
             const string testDirectory = "Assets/LatticeDeformerReadWriteDisabledTest";
             const string meshPath = testDirectory + "/source.obj";
             var gameObject = new GameObject("Imported Non-readable Source");
+            if (!initializedCache) gameObject.SetActive(false);
             Mesh result = null;
             try
             {
@@ -159,7 +161,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var sourceMeshField = typeof(LatticeDeformer).GetField(
                     "_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic);
                 Assert.That(sourceMeshField, Is.Not.Null);
-                sourceMeshField.SetValue(deformer, mesh);
+                sourceMeshField.SetValue(deformer, initializedCache ? mesh : null);
 
                 Assert.That(mesh.isReadable, Is.False);
                 Assert.DoesNotThrow(() => result = deformer.Deform(false));

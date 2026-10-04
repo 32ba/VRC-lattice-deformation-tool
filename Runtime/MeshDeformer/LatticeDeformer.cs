@@ -1576,6 +1576,9 @@ namespace Net._32Ba.LatticeDeformationTool
             using var nativeScope = new InactiveEvaluationScope(this);
             if (DeformerPlatformServices.EditorMeshDataReader == null)
                 return DeformReadableSource(assignToRenderer);
+            // Inactive deserialized components have no runtime source cache yet.
+            // Resolve it before acquiring (and later restoring) the readable lease.
+            if (_sourceMesh == null && !EnsureLayerModelReady()) return null;
             Mesh originalSourceMesh = _sourceMesh;
             using var sourceLease = SourceMeshAccess.Acquire(originalSourceMesh);
             if (sourceLease.OwnsMesh)
@@ -1732,9 +1735,12 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             using var nativeScope = new InactiveEvaluationScope(this);
             using var dataScope = BeginEvaluationDataRead();
-            if (!EnsureLayerModelReady() || inputMesh == null || !inputMesh.isReadable ||
+            if (!EnsureLayerModelReady() || inputMesh == null ||
                 _sourceMesh == null)
                 return null;
+            using var inputLease = SourceMeshAccess.Acquire(inputMesh);
+            inputMesh = inputLease.Mesh;
+            if (inputMesh == null || !inputMesh.isReadable) return null;
             bool sourceTopologyMatches = inputMesh.vertexCount == _sourceMesh.vertexCount;
             if (!sourceTopologyMatches && !CanPreviewAfterTopologyChanges())
                 return null;

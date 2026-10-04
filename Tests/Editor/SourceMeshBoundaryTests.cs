@@ -9,6 +9,47 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class SourceMeshBoundaryTests
     {
+        [TestCase(false)]
+        [TestCase(true)]
+        public void InactiveClone_WithUnreadableSource_EvaluatesWithoutRuntimeInitialization(bool preview)
+        {
+            var root = new GameObject("Inactive readable lease regression");
+            root.SetActive(false);
+            var source = new Mesh { vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 } };
+            GameObject clone = null;
+            Mesh previewOutput = null;
+            try
+            {
+                source.RecalculateNormals();
+                root.AddComponent<MeshFilter>().sharedMesh = source;
+                root.AddComponent<MeshRenderer>();
+                var original = root.AddComponent<LatticeDeformer>();
+                original.Reset();
+                original.ActiveLayerIndex = original.AddLayer("Saved brush", MeshDeformerLayerType.Brush);
+                original.EnsureDisplacementCapacity();
+                original.SetDisplacement(0, Vector3.up * 0.17f);
+                var expected = original.Deform(false).vertices;
+                source.UploadMeshData(true);
+                clone = Object.Instantiate(root);
+                var owner = clone.GetComponent<LatticeDeformer>();
+                Assert.That(owner.SourceMesh, Is.Null, "The inactive clone must not inherit runtime cache.");
+                Assert.That(SerializedDeformerReader.Read(owner).SourceMesh, Is.SameAs(source));
+                Mesh result = preview ? previewOutput = owner.CreatePreviewMeshFromInput(source) : owner.Deform(false);
+                Assert.That(result, Is.Not.Null);
+                Assert.That(result.vertices, Is.EqualTo(expected));
+                Assert.That(source.isReadable, Is.False);
+                Assert.That(clone.GetComponent<MeshFilter>().sharedMesh, Is.SameAs(source));
+            }
+            finally
+            {
+                if (previewOutput != null) Object.DestroyImmediate(previewOutput);
+                if (clone != null) Object.DestroyImmediate(clone);
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(source);
+            }
+        }
+
         [Test]
         public void PlatformAdapter_IsRegisteredAndRuntimeDoesNotReferenceNdmf()
         {

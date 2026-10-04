@@ -9,8 +9,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         static DeformerPlatformAdapter()
         {
             DeformerPlatformServices.EditorMeshDataReader = MeshUtility.AcquireReadOnlyMeshData;
+            DeformerPlatformServices.AssignedMeshInstanceId = AssignedMeshInstanceId;
             DeformerPlatformServices.RecordLegacyMigration = RecordLegacyMigration;
             DeformerPlatformServices.CaptureLegacyMigrationRecordRollback = CaptureLegacyMigrationRecordRollback;
+        }
+
+        private static int AssignedMeshInstanceId(Component target)
+        {
+            if (target == null || (target is not MeshFilter && target is not SkinnedMeshRenderer)) return 0;
+            using var serialized = new SerializedObject(target);
+            return serialized.FindProperty("m_Mesh")?.objectReferenceInstanceIDValue ?? 0;
         }
 
         private static System.Action CaptureLegacyMigrationRecordRollback(UnityEngine.Object target)

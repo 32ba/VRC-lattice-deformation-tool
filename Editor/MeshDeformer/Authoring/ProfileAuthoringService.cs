@@ -126,7 +126,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (resolved.Status != DeformerDataResolutionStatus.Embedded &&
                 resolved.Status != DeformerDataResolutionStatus.Profile) return null;
             Mesh source = deformer.CompatibilitySourceMesh;
-            if (stored.SourceMesh != null && !ReferenceEquals(source, stored.SourceMesh)) return null;
+            if (stored.SourceMesh != null && source != stored.SourceMesh) return null;
             if (source != null && ((stored.SourceVertexCount > 0 && stored.SourceVertexCount != source.vertexCount) ||
                 (stored.SourceTopologyHash != 0 && stored.SourceTopologyHash != SourceMeshTopology.Calculate(source)))) return null;
             var prepared = destination != null ? Object.Instantiate(destination) : ScriptableObject.CreateInstance<MeshDeformerProfile>();
