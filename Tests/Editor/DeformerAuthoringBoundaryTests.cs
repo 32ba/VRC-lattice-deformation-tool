@@ -271,6 +271,40 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(EditorJsonUtility.ToJson(fixture.Deformer), Is.EqualTo(before));
         }
 
+        [TestCase("add")]
+        [TestCase("remove")]
+        [TestCase("move")]
+        [TestCase("batch")]
+        public void StructuralEdit_WithMissingLatticeSettings_RejectsBeforeUndoOrRepair(string operation)
+        {
+            using var fixture = new Fixture();
+            using var other = new Fixture();
+            var deformer = fixture.Deformer;
+            var damagedLayer = deformer.ActiveGroup.Layers[0];
+            deformer.AddGroup("Second");
+            SetField(damagedLayer, "_settings", null);
+            string before = EditorJsonUtility.ToJson(deformer);
+            string otherBefore = EditorJsonUtility.ToJson(other.Deformer);
+            int dirty = EditorUtility.GetDirtyCount(deformer);
+            int undoGroup = Undo.GetCurrentGroup();
+
+            bool result = operation switch
+            {
+                "add" => DeformerEditService.AddGroup(deformer, "Rejected Add"),
+                "remove" => DeformerEditService.RemoveGroup(deformer, 1, "Rejected Remove"),
+                "move" => DeformerEditService.MoveGroup(deformer, 1, 0, "Rejected Move"),
+                _ => DeformerEditService.ExecuteBatch(new[] {other.Deformer, deformer},
+                    "Rejected Batch", d => d.AddGroup() >= 0)
+            };
+
+            Assert.That(result, Is.False);
+            Assert.That(damagedLayer.SerializedSettings, Is.Null);
+            Assert.That(EditorJsonUtility.ToJson(deformer), Is.EqualTo(before));
+            Assert.That(EditorJsonUtility.ToJson(other.Deformer), Is.EqualTo(otherBefore));
+            Assert.That(EditorUtility.GetDirtyCount(deformer), Is.EqualTo(dirty));
+            Assert.That(Undo.GetCurrentGroup(), Is.EqualTo(undoGroup));
+        }
+
         [Test]
         public void InspectorGroupOperations_RefreshEvaluationAndKeepUndoRedoPayload()
         {

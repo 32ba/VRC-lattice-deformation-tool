@@ -41,7 +41,7 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 - `Docs~/Architecture/` には上記2文書と移行テスト入力の `2026-09-07-published-releases.json` だけを保存する。個人名、利用者のプロジェクト名、絶対パス、端末情報、画面記録、実行ログ、作業日誌をコミットしない。ローカル検証の原本はリポジトリ外へ保存する。
 - 実装基準は公開済み `1.4.6-beta.1` に作業中のGuided UI・翻訳を統合した `c7f499c38e16f386fe6734e0f7937d50c502c529`。元の `1.4.5-rc.5` 作業ツリーと起動中のPlaygroundのpackage参照は保持し、`codex/refactor-2.0.0-beta` の隔離worktreeで作業する。
 - `Runtime/MeshDeformer/SerializedDeformerReader.cs` は初期化・移行・配列補正・Profile展開を行わず、壊れた保存内容もそのまま読むinternal API。返す参照は同期処理中だけ使う借用viewであり、非同期評価用の不変snapshotではない。ValidatorとInspectorのGroup/Layerコピーが利用する。
-- `Editor/MeshDeformer/Authoring/DeformerEditService.cs` はGroup/Layer追加・削除・並べ替え・複製・貼付を、1件のUndo、失敗時rollback、cache無効化、Prefab override記録へまとめる。Profile参照中の直接編集は拒否する。再評価とUI更新は呼出し側が担当し、raw readerから実行しない。
+- `Editor/MeshDeformer/Authoring/DeformerEditService.cs` はGroup/Layer追加・削除・並べ替え・複製・貼付を、1件のUndo、失敗時rollback、cache無効化、Prefab override記録へまとめる。Profile参照中の直接編集は拒否する。構造編集は全対象のraw Group/LayerとLattice設定の欠落をUndo開始前に検査し、暗黙の設定再生成を拒否する。再評価とUI更新は呼出し側が担当し、raw readerから実行しない。
 - public `LatticeDeformer.InsertGroup` / `MoveGroup` を追加し、Inspectorのprivate field reflectionを除去した。既存APIの互換入口、保存フィールド、schema version、既存GUID、履歴fixtureと期待値は維持する。各ツールの編集寿命は `DeformerEditSession`、数値評価は `Runtime/Evaluation`、移行は `Runtime/Migration`、Previewの所有は `Editor/Preview` へ接続済み。
 - `DeformerAuthoringBoundaryTests` はraw読取り、Profile不変、失敗時rollback、Undo/Redo、Inspector callback、Prefab Apply/save-reloadを検証する。その検証だけで描画や実マウス操作の合格を主張しない。GraphicsE2Eの実XMLと利用者のScene View確認を区別して記録する。
 - `DeformerStore` はUnityのserialized propertyを変更するadapter。Layer削除後のnumeric selectionとclampは旧Inspectorの契約を保持し、public `RemoveLayer` が持つ選択規則と混同しない。Inspectorの構造操作は `PerformEditOperation` → service → store/API →再評価と表示更新へ統一した。
@@ -493,7 +493,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - 描画coroutineのnative log失敗ではTest Frameworkがiteratorのfinallyへ戻らない場合がある。実PreviewのAAO/MA試験は入力control・SceneView/Cage購読・選択/ツール・fixtureもTearDownで復元する。Peripheral Inspector試験はwindow callback・一時設定・SerializedObject・fixtureをTearDownでも解放し、失敗した描画が後続の移行試験へ破棄済みtargetエラーを漏らさないようにする。元の描画失敗は引き続き失敗として記録する。
 
-- 承認済みUUM-85059例外は `Tools~/CI/verify_test_results.py` の6000.0.67f1・確認済み4fullname・完全一致failure message・font atlas native stackに限定する。テスト自体は実行しraw XMLの失敗を保持する。`Assert-TestResults.ps1`とfeature configuration検証は同じpolicyを使う。全skip/inconclusive、未知failure、重複、件数不一致、欠損ログ、crashは拒否し、最低1,785件とCategory件数を維持する。
+- 承認済みUUM-85059例外は `Tools~/CI/verify_test_results.py` の6000.0.67f1・確認済み4fullname・完全一致failure message・font atlas native stackに限定する。テスト自体は実行しraw XMLの失敗を保持する。`Assert-TestResults.ps1`とfeature configuration検証は同じpolicyを使う。全skip/inconclusive、未知failure、重複、件数不一致、欠損ログ、crashは拒否し、最低1,789件とCategory件数を維持する。
 - CIの67f1 runnerのcontinue-on-errorは必須の後続gateと組でのみ使う。実Editor version、通常終了、XML保存先、runner outcomeを照合し、validation.jsonにaccepted_with_known_issueと件数/対象を残す。全成功と表現しない。適用範囲、既知4件、解除条件はDocs~/Architecture/validation.mdを参照し、無断で対象版やテストを広げない。
 
 - 製品のwindow/overlay識別は型または固定Overlay idで行い、翻訳表示名で検索しない。EditorWindowLifecycleカテゴリ5件を両Editorで必須にする。titleContentによる改名とGetWindow<T>の型検索を区別し、IconContent共有cacheのGUIContentへtooltipを書き込まず複製する。Editor再起動やlayout復元の診断で使う内部WindowLayout APIは製品へ持ち込まない。

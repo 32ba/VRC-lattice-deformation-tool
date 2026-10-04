@@ -74,11 +74,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 var deformer = deformers[i];
                 if (deformer == null || !unique.Add(deformer) || !deformer.CanStartAuthoringEdit ||
-                    SerializedDeformerReader.Read(deformer).UsesProfile) return false;
+                    !HasEditableStructure(SerializedDeformerReader.Read(deformer))) return false;
                 targets[i] = deformer;
             }
 
             return Commit(targets, undoLabel, edit);
+        }
+
+        private static bool HasEditableStructure(in SerializedDeformerData data)
+        {
+            if (data.UsesProfile || data.Groups == null) return false;
+            foreach (var group in data.Groups)
+            {
+                if (group?.SerializedLayers == null) return false;
+                foreach (var layer in group.SerializedLayers)
+                    if (layer == null || (layer.Type == MeshDeformerLayerType.Lattice &&
+                                          layer.SerializedSettings == null)) return false;
+            }
+            return true;
         }
 
         // Profile assignment/copy changes the data source itself. Layer commands
