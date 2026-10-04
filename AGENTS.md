@@ -493,7 +493,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - 描画coroutineのnative log失敗ではTest Frameworkがiteratorのfinallyへ戻らない場合がある。実PreviewのAAO/MA試験は入力control・SceneView/Cage購読・選択/ツール・fixtureもTearDownで復元する。Peripheral Inspector試験はwindow callback・一時設定・SerializedObject・fixtureをTearDownでも解放し、失敗した描画が後続の移行試験へ破棄済みtargetエラーを漏らさないようにする。元の描画失敗は引き続き失敗として記録する。
 
-- 承認済みUUM-85059例外は `Tools~/CI/verify_test_results.py` の6000.0.67f1・確認済み4fullname・完全一致failure message・font atlas native stackに限定する。テスト自体は実行しraw XMLの失敗を保持する。`Assert-TestResults.ps1`とfeature configuration検証は同じpolicyを使う。全skip/inconclusive、未知failure、重複、件数不一致、欠損ログ、crashは拒否し、最低1,848件とCategory件数を維持する。
+- 承認済みUUM-85059例外は `Tools~/CI/verify_test_results.py` の6000.0.67f1・確認済み4fullname・完全一致failure message・font atlas native stackに限定する。テスト自体は実行しraw XMLの失敗を保持する。`Assert-TestResults.ps1`とfeature configuration検証は同じpolicyを使う。全skip/inconclusive、未知failure、重複、件数不一致、欠損ログ、crashは拒否し、最低1,850件とCategory件数を維持する。
 - CIの67f1 runnerのcontinue-on-errorは必須の後続gateと組でのみ使う。実Editor version、通常終了、XML保存先、runner outcomeを照合し、validation.jsonにaccepted_with_known_issueと件数/対象を残す。全成功と表現しない。適用範囲、既知4件、解除条件はDocs~/Architecture/validation.mdを参照し、無断で対象版やテストを広げない。
 
 - 製品のwindow/overlay識別は型または固定Overlay idで行い、翻訳表示名で検索しない。EditorWindowLifecycleカテゴリ5件を両Editorで必須にする。titleContentによる改名とGetWindow<T>の型検索を区別し、IconContent共有cacheのGUIContentへtooltipを書き込まず複製する。Editor再起動やlayout復元の診断で使う内部WindowLayout APIは製品へ持ち込まない。
@@ -522,3 +522,5 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - サポート画像のファイル入力は8MiBを超える全体読込みを行わない。既知lengthを読取り前に検査し、成長する/length不明のstreamも最大limit+1byteで拒否する。
 - 複数対象の共有SerializedPropertyは同じindexed pathを使うため、active Group/Layer indexやsource検証が一致しない対象集合ではLattice設定欄を無効にする。非activeの別layerへ書込まない。
 - Authoring gestureの5秒条件は維持し、期限超過時だけpoll数・最大間隔・focus/session/activityを記録する。CIの初回proxy待機失敗をfont例外や自動retryで合格扱いしない。
+
+- 複数選択のInspectorは `CanEditMultipleObjects` と専用の設定containerで既存の原子的Layer操作へ接続する。単一対象のGroup構造、Guided、BlendShape試験、位置合わせを共有選択へ流用しない。通常の `Editor.CreateEditor(targets)` による型選択、到達可能なUI、両対象の変更とUndo/Redoを回帰検証する。

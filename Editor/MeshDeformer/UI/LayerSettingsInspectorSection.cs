@@ -39,10 +39,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     Run(LayerSettingsOperation.Reset, LocKey.ResetLatticeCage);
                 DrawGrid(Target, layer.SerializedSettings);
                 DrawSettingsProperties(DrawSettingsExcludingGrid);
-                DrawAlignmentSettings();
+                if (_owner.targets.Length == 1) DrawAlignmentSettings();
             }
             if (GUILayout.Button(LatticeLocalization.Tr(LocKey.LROperations))) ShowLROperationsMenu();
-            if (LatticeDeformationFeatureFlags.AdvancedBlendShapes) _drawBlendShape?.Invoke();
+            if (_owner.targets.Length == 1 && LatticeDeformationFeatureFlags.AdvancedBlendShapes) _drawBlendShape?.Invoke();
             ApplyProperties();
         }
 

@@ -13,6 +13,7 @@ using Net._32Ba.LatticeDeformationTool;
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
     [CustomEditor(typeof(LatticeDeformer), true)]
+    [CanEditMultipleObjects]
     [ExcludeFromCodeCoverage]
     public sealed class LatticeDeformerEditor : UnityEditor.Editor
     {
@@ -108,6 +109,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         public override VisualElement CreateInspectorGUI()
         {
             var root = new VisualElement();
+            if (targets.Length > 1)
+            {
+                // Group navigation and Guided actions are single-owner workflows.
+                // The selected-layer section owns atomic commands for all owners.
+                root.Add(new IMGUIContainer(DrawMultiObjectLayerSettings)
+                    { name = "lattice-multi-layer-settings" });
+                return BindInspector(root);
+            }
 
             _guidedInspectorContainer = new VisualElement();
             _guidedInspectorContainer.Add(new IMGUIContainer(DrawGuidedInspector));
@@ -133,6 +142,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             ApplyInspectorDepthVisibility();
 
+            return BindInspector(root);
+        }
+
+        private void DrawMultiObjectLayerSettings()
+        {
+            if (target == null) return;
+            bool editable = true;
+            foreach (var owner in EnumerateTargets()) editable &= LayerSettingsEdit.Capture(owner) != null;
+            using (new EditorGUI.DisabledScope(!editable)) DrawActiveLayerSettings();
+        }
+
+        private VisualElement BindInspector(VisualElement root)
+        {
             // Track serialized changes
             root.TrackSerializedObjectValue(serializedObject, _ =>
             {

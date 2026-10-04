@@ -7,6 +7,7 @@ using System.Reflection;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEngine.UIElements;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -14,6 +15,39 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class LayerSettingsInspectorTests
     {
+        [TestCase(false)]
+        [TestCase(true)]
+        public void MultiObjectInspector_ResolvesCustomEditorAndExposesAtomicActiveLayerActions(bool brush)
+        {
+            using var first = new Fixture(brush);
+            using var second = new Fixture(brush);
+            var owners = new[] { first.Owner, second.Owner };
+            var editor = UnityEditor.Editor.CreateEditor(owners);
+            try
+            {
+                Assert.That(editor, Is.InstanceOf<LatticeDeformerEditor>(),
+                    "Unity must select the custom Inspector for a real multi-object selection.");
+                var inspector = (LatticeDeformerEditor)editor;
+                var root = inspector.CreateInspectorGUI();
+                var settings = root.Q<IMGUIContainer>("lattice-multi-layer-settings");
+                Assert.That(settings, Is.Not.Null);
+                Assert.That(settings.parent, Is.SameAs(root), "Batch actions must be visible without single-target navigation.");
+                Assert.That(settings.onGUIHandler, Is.Not.Null);
+                var before = owners.Select(o => EditorJsonUtility.ToJson(o)).ToArray();
+                var action = inspector.LayerSettingsInspector.CreateOperationAction(
+                    LayerSettingsEdit.Capture(first.Owner), LayerSettingsOperation.FlipX, "Flip selected layers");
+                action();
+                var after = owners.Select(o => EditorJsonUtility.ToJson(o)).ToArray();
+                Assert.That(after[0], Is.Not.EqualTo(before[0]));
+                Assert.That(after[1], Is.Not.EqualTo(before[1]));
+                Undo.FlushUndoRecordObjects(); Undo.PerformUndo();
+                Assert.That(owners.Select(o => EditorJsonUtility.ToJson(o)), Is.EqualTo(before));
+                Undo.PerformRedo();
+                Assert.That(owners.Select(o => EditorJsonUtility.ToJson(o)), Is.EqualTo(after));
+            }
+            finally { Object.DestroyImmediate(editor); }
+        }
+
         [TestCase("group")]
         [TestCase("layer")]
         [TestCase("source")]
