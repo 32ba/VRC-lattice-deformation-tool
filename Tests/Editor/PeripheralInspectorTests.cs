@@ -93,9 +93,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 int dirty = EditorUtility.GetDirtyCount(f.Target), profileDirty = EditorUtility.GetDirtyCount(profile);
                 Mesh runtime = f.Target.RuntimeMesh;
                 string plain = SupportReportCollector.Collect(f.Target);
-                // Format v1 reports the component's embedded stack. A referenced
-                // Profile is described by presence and validation diagnostics.
-                Assert.That(plain, Does.Contain(profileMode ? "group-count=0" : "group[0]=null"));
+                // The report describes the selected data source, including raw
+                // Profile slots. Reading a malformed slot must not repair it.
+                // The v1 envelope/JSON encoding contract is tested separately.
+                Assert.That(plain, Does.Contain("group-count=1"));
+                Assert.That(plain, Does.Contain("group[0]=null"));
                 if (profileMode) Assert.That(plain, Does.Contain(MeshDeformerValidator.NullGroupOrLayer));
                 Assert.That(payload[0], Is.Null);
                 Assert.That(SerializedDeformerReader.Read(f.Target).Groups, Is.SameAs(payload));

@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using nadena.dev.ndmf.preview;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using NUnit.Framework;
@@ -12,6 +13,57 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class PreviewOwnershipTests
     {
+        [TestCase(false)]
+        [TestCase(true)]
+        public void InspectorCallback_PublishesEveryChangedOwnerAfterEvaluation(bool alreadyInvalidated)
+        {
+            using var first = new Fixture(false);
+            using var second = new Fixture(false);
+            var fixtures = new[] {first, second};
+            var revisions = new int[2];
+            var vertices = new Vector3[2][];
+            for (int i = 0; i < fixtures.Length; i++)
+            {
+                fixtures[i].CreateNode(fixtures[i].Proxy);
+                vertices[i] = PreviewRendererMesh.Get(fixtures[i].Proxy).vertices;
+                revisions[i] = LatticePreviewUtility.GetInteractiveRevision(fixtures[i].Deformer).Value;
+            }
+            var editor = UnityEditor.Editor.CreateEditor(new[] {first.Deformer, second.Deformer}, typeof(LatticeDeformerEditor));
+            var published = new List<LatticeDeformer>();
+            void OnPublished(LatticeDeformer owner)
+            {
+                if (owner != first.Deformer && owner != second.Deformer) return;
+                Assert.That(owner.RuntimeMesh, Is.Not.Null, "Evaluate before publishing.");
+                published.Add(owner);
+            }
+            LatticePreviewUtility.InteractiveDeformationPublished += OnPublished;
+            try
+            {
+                foreach (var fixture in fixtures)
+                {
+                    fixture.Deformer.EditingSettings.SetControlPointLocal(0, Vector3.one * 0.4f);
+                    if (alreadyInvalidated) fixture.Deformer.NotifyDeformationDataChanged();
+                }
+                typeof(LatticeDeformerEditor).GetMethod("NotifyPropertyChanges",
+                    BindingFlags.Instance | BindingFlags.NonPublic, null, new[] {typeof(bool)}, null)
+                    .Invoke(editor, new object[] {alreadyInvalidated});
+
+                Assert.That(published, Is.EquivalentTo(new[] {first.Deformer, second.Deformer}));
+                for (int i = 0; i < fixtures.Length; i++)
+                {
+                    var owner = fixtures[i].Deformer;
+                    Assert.That(LatticePreviewUtility.GetInteractiveRevision(owner).Value,
+                        Is.EqualTo(owner.DeformationDataRevision).And.Not.EqualTo(revisions[i]));
+                    Assert.That(PreviewRendererMesh.Get(fixtures[i].Proxy).vertices, Is.Not.EqualTo(vertices[i]));
+                }
+            }
+            finally
+            {
+                LatticePreviewUtility.InteractiveDeformationPublished -= OnPublished;
+                Object.DestroyImmediate(editor);
+            }
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         public void InteractivePublish_PreservesDownstreamAssignment(bool skinned)

@@ -14,6 +14,85 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class LayerSettingsInspectorTests
     {
+        [TestCase(false)]
+        [TestCase(true)]
+        public void InspectorGridDraft_AppliesEnteredValueToSelectionOrRejectsIncompatibleOwner(bool invalidSecondary)
+        {
+            using var first = new Fixture();
+            using var second = new Fixture();
+            var owners = new[] {first.Owner, second.Owner};
+            Assert.That(LayerSettingsEdit.Capture(second.Owner).Execute(LayerSettingsOperation.Resize,
+                "Different initial grid", new Vector3Int(4, 4, 4)), Is.True);
+            var requested = first.Owner.EditingSettings.GridSize;
+            if (invalidSecondary) SetField(second.Owner, "_migrationReleaseIndex", int.MaxValue);
+            var before = owners.Select(o => EditorJsonUtility.ToJson(o)).ToArray();
+            var editor = UnityEditor.Editor.CreateEditor(owners);
+            using var section = new LayerSettingsInspectorSection(editor, _ => { }, null);
+            try
+            {
+                Assert.That(section.SetPendingGridForSelection(requested), Is.EqualTo(!invalidSecondary));
+                Assert.That(owners.Select(o => EditorJsonUtility.ToJson(o)), Is.EqualTo(before));
+                if (invalidSecondary)
+                {
+                    Assert.That(section.HasPendingGridChanges, Is.False);
+                    Assert.That(section.PendingGrid.Apply(owners, "Rejected grid"), Is.False);
+                    Assert.That(owners.Select(o => EditorJsonUtility.ToJson(o)), Is.EqualTo(before));
+                }
+                else
+                {
+                    Assert.That(section.HasPendingGridChanges, Is.True,
+                        "Apply must remain enabled when only a secondary owner needs the entered grid.");
+                    Assert.That(section.PendingGrid.Apply(owners, "Apply selection grid"), Is.True);
+                    Assert.That(owners.Select(o => o.EditingSettings.GridSize), Is.All.EqualTo(requested));
+                    Undo.FlushUndoRecordObjects(); Undo.PerformUndo();
+                    Assert.That(owners.Select(o => EditorJsonUtility.ToJson(o)), Is.EqualTo(before));
+                }
+            }
+            finally { Object.DestroyImmediate(editor); }
+        }
+
+        [TestCase(false, "flip-x")]
+        [TestCase(true, "flip-x")]
+        [TestCase(false, "split-left")]
+        [TestCase(true, "split-left")]
+        public void DeferredMultiSelectionOperation_IsAtomicAndRejectsStaleSecondary(bool stale, string operation)
+        {
+            using var first = new Fixture(true);
+            using var second = new Fixture(true);
+            var owners = new[] {first.Owner, second.Owner};
+            var editor = UnityEditor.Editor.CreateEditor(owners);
+            int callbacks = 0;
+            using var section = new LayerSettingsInspectorSection(editor, _ => callbacks++, null);
+            try
+            {
+                var action = section.CreateOperationAction(LayerSettingsEdit.Capture(first.Owner),
+                    Operation(operation), "Split or flip selection");
+                if (stale) second.Owner.AddLayer("New selection", MeshDeformerLayerType.Brush);
+                var before = owners.Select(o => EditorJsonUtility.ToJson(o)).ToArray();
+                int undoGroup = Undo.GetCurrentGroup();
+                action();
+                var after = owners.Select(o => EditorJsonUtility.ToJson(o)).ToArray();
+                Assert.That(callbacks, Is.EqualTo(stale ? 0 : 1));
+                if (stale)
+                {
+                    Assert.That(after, Is.EqualTo(before));
+                    Assert.That(Undo.GetCurrentGroup(), Is.EqualTo(undoGroup));
+                }
+                else
+                {
+                    Assert.That(after[0], Is.Not.EqualTo(before[0]));
+                    Assert.That(after[1], Is.Not.EqualTo(before[1]));
+                    action();
+                    Assert.That(owners.Select(o => EditorJsonUtility.ToJson(o)), Is.EqualTo(after));
+                    Undo.FlushUndoRecordObjects(); Undo.PerformUndo();
+                    Assert.That(owners.Select(o => EditorJsonUtility.ToJson(o)), Is.EqualTo(before));
+                    Undo.PerformRedo();
+                    Assert.That(owners.Select(o => EditorJsonUtility.ToJson(o)), Is.EqualTo(after));
+                }
+            }
+            finally { Object.DestroyImmediate(editor); }
+        }
+
         [TestCase("resize")]
         [TestCase("reset")]
         [TestCase("clear")]

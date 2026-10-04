@@ -14,6 +14,91 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class MeshDeformerSupportReportTests
     {
+        [TestCase(0u, 256u)]
+        [TestCase(256u, 0u)]
+        [TestCase(4097u, 1u)]
+        [TestCase(1u, 4097u)]
+        [TestCase(4096u, 4096u)]
+        [TestCase(uint.MaxValue, 2u)]
+        [TestCase(16384u, 16384u)]
+        public void Png_RejectsUnsafeDimensionsBeforeNativeDecode(uint width, uint height)
+        {
+            byte[] header = PngHeader(width, height);
+            // Header-only input: no compressed large image is ever constructed.
+            var error = Assert.Throws<InvalidDataException>(() => SupportReportCodec.DecodePng(header));
+            Assert.That(error.Message, Is.EqualTo("The support image dimensions exceed the safety limit."));
+        }
+
+        [TestCase("signature")]
+        [TestCase("length")]
+        [TestCase("type")]
+        [TestCase("truncated")]
+        public void Png_RejectsMalformedHeaderBeforeNativeDecode(string damage)
+        {
+            byte[] header = PngHeader(256, 256);
+            if (damage == "signature") header[0] = 0;
+            else if (damage == "length") header[11] = 12;
+            else if (damage == "type") header[12] = (byte)'X';
+            else Array.Resize(ref header, 24);
+            var error = Assert.Throws<InvalidDataException>(() => SupportReportCodec.DecodePng(header));
+            Assert.That(error.Message, Is.EqualTo("The support image PNG header is invalid."));
+        }
+
+        private static byte[] PngHeader(uint width, uint height)
+        {
+            var header = new byte[33];
+            new byte[] {137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82}.CopyTo(header, 0);
+            for (int i = 0; i < 4; i++)
+            {
+                header[16 + i] = (byte)(width >> (24 - i * 8));
+                header[20 + i] = (byte)(height >> (24 - i * 8));
+            }
+            return header;
+        }
+
+        [Test]
+        public void Generate_ProfileStackReportsSavedGroupsWithoutMutatingPayload()
+        {
+            var root = new GameObject("Profile support report");
+            root.SetActive(false);
+            var source = CreateSourceMesh();
+            var profile = ScriptableObject.CreateInstance<MeshDeformerProfile>();
+            try
+            {
+                root.AddComponent<MeshFilter>().sharedMesh = source;
+                root.AddComponent<MeshRenderer>();
+                var deformer = root.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                deformer.AddGroup("Profile second");
+                deformer.AddLayer("Profile lattice");
+                Assert.That(deformer.SaveToProfile(profile), Is.True);
+                Assert.That(deformer.UseProfile(profile), Is.True);
+                deformer.ActiveGroupIndex = 0;
+                Assert.That(SerializedDeformerReader.Read(deformer).EmbeddedGroups, Is.Empty);
+                string componentBefore = EditorJsonUtility.ToJson(deformer);
+                string profileBefore = EditorJsonUtility.ToJson(profile);
+                int componentDirty = EditorUtility.GetDirtyCount(deformer);
+                int profileDirty = EditorUtility.GetDirtyCount(profile);
+
+                string report = MeshDeformerSupportReport.Decode(MeshDeformerSupportReport.Generate(deformer));
+
+                StringAssert.Contains("\"group-count\":\"2\"", report);
+                StringAssert.Contains("name=Profile second", report);
+                StringAssert.Contains("name=Profile lattice", report);
+                StringAssert.Contains("\"active-group\":\"0\"", report);
+                Assert.That(EditorJsonUtility.ToJson(deformer), Is.EqualTo(componentBefore));
+                Assert.That(EditorJsonUtility.ToJson(profile), Is.EqualTo(profileBefore));
+                Assert.That(EditorUtility.GetDirtyCount(deformer), Is.EqualTo(componentDirty));
+                Assert.That(EditorUtility.GetDirtyCount(profile), Is.EqualTo(profileDirty));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                UnityEngine.Object.DestroyImmediate(source);
+                UnityEngine.Object.DestroyImmediate(profile);
+            }
+        }
+
         [Test]
         public void Generate_IncludesActionableStateWithoutLocalFilesystemIdentity()
         {

@@ -136,6 +136,10 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private Mesh _sourceMesh;
         [NonSerialized] private Mesh _readableSourceMeshOverride;
         [NonSerialized] private int _lastBlendShapeHash;
+        [NonSerialized] private readonly Dictionary<int, int> _generatedGroupBlendShapeIndices = new();
+
+        internal int GetGeneratedGroupBlendShapeIndex(int groupIndex) => RuntimeMesh != null &&
+            _generatedGroupBlendShapeIndices.TryGetValue(groupIndex, out int index) ? index : -1;
         [NonSerialized] private int _lastBakedBlendShapeHash;
         // Retained for historical private read-only test probes; cache owns the data.
         [NonSerialized] private List<DeformerGroup> _profileGroups;
@@ -1703,6 +1707,23 @@ namespace Net._32Ba.LatticeDeformationTool
                 {
                     mesh.ClearBlendShapes();
                     DeformedMeshWriter.CopyBlendShapes(_sourceMesh, mesh, _evaluationWorkspace.MeshOutput, bakedBlendShapeDeltas, bakedBlendShapeWeights);
+                }
+            }
+
+            // Keep group identity separately from the evaluation workspace: an
+            // upstream preview evaluation can reuse that workspace before the
+            // Inspector next applies a test weight. Recompute on cached output
+            // too, because equal-valued groups can change position without
+            // changing the emitted geometry hash.
+            _generatedGroupBlendShapeIndices.Clear();
+            if (generatedBlendShapes.Count > 0)
+            {
+                var emittedNames = DeformedMeshWriter.CollectBlendShapeNames(_sourceMesh);
+                foreach (var generated in generatedBlendShapes)
+                {
+                    string emittedName = DeformedMeshWriter.MakeUniqueBlendShapeName(generated.Name, emittedNames);
+                    if (generated.GroupIndex >= 0)
+                        _generatedGroupBlendShapeIndices[generated.GroupIndex] = mesh.GetBlendShapeIndex(emittedName);
                 }
             }
 

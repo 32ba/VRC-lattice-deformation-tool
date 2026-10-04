@@ -338,6 +338,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (!dataAlreadyInvalidated) instance.InvalidateCache();
                 instance.Deform(assignRuntimeMesh);
                 if (!dataAlreadyInvalidated) LatticePrefabUtility.MarkModified(instance);
+                LatticePreviewUtility.PublishInteractiveDeformation(instance);
             }
 
             if (targets.Length == 1 && target is LatticeDeformer activeDeformer)

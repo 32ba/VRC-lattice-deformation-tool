@@ -14,6 +14,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const int MaximumAttachmentBytes = 8 * 1024 * 1024;
         private const int MaximumDecodedBytes = 2 * 1024 * 1024;
         private const int ImageWidth = 256;
+        private const uint MaximumImageDimension = 4096;
+        private const ulong MaximumImagePixels = 4 * 1024 * 1024;
         private const byte CodecJsonGzip = 1;
         private static readonly byte[] s_envelopeMagic = { 0x4C, 0x44, 0x54, 0x44, 0x42, 0x47 };
         internal static byte[] GeneratePng(string plainText)
@@ -48,6 +50,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             if (png == null || png.Length == 0 || png.Length > MaximumAttachmentBytes)
                 throw new InvalidDataException("The support image is empty or exceeds the attachment limit.");
+            ValidatePngDimensions(png);
             var texture = new Texture2D(2, 2, TextureFormat.RGB24, false, true);
             try
             {
@@ -75,6 +78,26 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 UnityEngine.Object.DestroyImmediate(texture);
             }
         }
+
+        private static void ValidatePngDimensions(byte[] png)
+        {
+            // LoadImage allocates decoded storage. Bound the PNG's first IHDR
+            // before creating a Texture2D or invoking the native image decoder.
+            if (png.Length < 33 || png[0] != 137 || png[1] != 80 || png[2] != 78 || png[3] != 71 ||
+                png[4] != 13 || png[5] != 10 || png[6] != 26 || png[7] != 10 ||
+                ReadBigEndianUInt32(png, 8) != 13 ||
+                png[12] != 'I' || png[13] != 'H' || png[14] != 'D' || png[15] != 'R')
+                throw new InvalidDataException("The support image PNG header is invalid.");
+            uint width = ReadBigEndianUInt32(png, 16);
+            uint height = ReadBigEndianUInt32(png, 20);
+            if (width == 0 || height == 0 || width > MaximumImageDimension || height > MaximumImageDimension ||
+                (ulong)width * height > MaximumImagePixels)
+                throw new InvalidDataException("The support image dimensions exceed the safety limit.");
+        }
+
+        private static uint ReadBigEndianUInt32(byte[] data, int offset) =>
+            ((uint)data[offset] << 24) | ((uint)data[offset + 1] << 16) |
+            ((uint)data[offset + 2] << 8) | data[offset + 3];
 
         internal static byte[] GenerateEnvelope(string plainText)
         {

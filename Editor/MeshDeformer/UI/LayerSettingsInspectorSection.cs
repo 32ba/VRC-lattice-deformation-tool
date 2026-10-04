@@ -81,9 +81,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorGUILayout.LabelField(LatticeLocalization.Content(LocKey.CurrentGridDivisions), new GUIContent(settings.GridSize.ToString()));
             EditorGUI.BeginChangeCheck();
             pending = EditorGUILayout.Vector3IntField(LatticeLocalization.Tr(LocKey.PendingGridDivisions), pending);
-            if (EditorGUI.EndChangeCheck()) PendingGrid.Set(deformer, pending);
+            if (EditorGUI.EndChangeCheck()) SetPendingGridForSelection(pending);
             using (new EditorGUILayout.HorizontalScope())
-            using (new EditorGUI.DisabledScope(pending == settings.GridSize))
+            using (new EditorGUI.DisabledScope(!HasPendingGridChanges))
             {
                 if (GUILayout.Button(LatticeLocalization.Tr(LocKey.Apply), GUILayout.Width(80f)))
                 {
@@ -95,14 +95,45 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorGUILayout.Space();
         }
 
+        internal bool SetPendingGridForSelection(Vector3Int value)
+        {
+            if (_disposed || Target == null) return false;
+            var owners = Targets();
+            if (owners.Length == 0 || owners.Any(owner => !PendingGrid.TryGet(owner, out _))) return false;
+            foreach (var owner in owners) PendingGrid.Set(owner, value);
+            return true;
+        }
+
+        internal bool HasPendingGridChanges
+        {
+            get
+            {
+                if (_disposed || Target == null) return false;
+                bool changed = false;
+                foreach (var owner in Targets())
+                {
+                    if (!LayerSettingsEdit.TryReadActive(owner, out _, out var layer) ||
+                        !PendingGrid.TryGet(owner, out var pending)) return false;
+                    changed |= pending != layer.SerializedSettings.GridSize;
+                }
+                return changed;
+            }
+        }
+
         internal Action CreateOperationAction(LayerSettingsEdit command, LayerSettingsOperation operation, string label)
         {
+            var capturedTargets = Targets();
+            var commands = capturedTargets.Select(owner => ReferenceEquals(owner, command?.Owner)
+                ? command : LayerSettingsEdit.Capture(owner)).ToArray();
             bool used = false;
             return () =>
             {
                 if (used || _disposed || command == null || Target == null || !ReferenceEquals(Target, command.Owner)) return;
                 used = true;
-                if (command.Execute(operation, label)) Changed();
+                var currentTargets = Targets();
+                if (currentTargets.Length != capturedTargets.Length ||
+                    currentTargets.Where((owner, i) => !ReferenceEquals(owner, capturedTargets[i])).Any()) return;
+                if (LayerSettingsEdit.ExecuteBatch(commands, operation, label)) Changed();
             };
         }
 

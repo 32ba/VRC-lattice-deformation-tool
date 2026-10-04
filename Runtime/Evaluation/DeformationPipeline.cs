@@ -21,12 +21,14 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 output = DeformedMeshWriter.CloneInput(inputMesh, outputVertices);
 
-                var deltaVertices = new Vector3[vertexCount];
-                var deltaNormals = new Vector3[vertexCount];
-                var deltaTangents = new Vector3[vertexCount];
-                var combined = new Vector3[vertexCount];
-                var deformedCombined = new Vector3[vertexCount];
-                var outputDelta = new Vector3[vertexCount];
+                var frames = workspace.PreviewFrames;
+                if (inputMesh.blendShapeCount > 0) frames.EnsureCapacity(vertexCount);
+                var deltaVertices = frames.DeltaVertices;
+                var deltaNormals = frames.DeltaNormals;
+                var deltaTangents = frames.DeltaTangents;
+                var combined = frames.Combined;
+                var deformedCombined = frames.DeformedCombined;
+                var outputDelta = frames.OutputDelta;
                 for (int shape = 0; shape < inputMesh.blendShapeCount; shape++)
                 {
                     string shapeName = inputMesh.GetBlendShapeName(shape);

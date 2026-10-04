@@ -12,6 +12,49 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class BlendShapeTestSessionTests
     {
+        [TestCase("source")]
+        [TestCase("group")]
+        [TestCase("layer")]
+        public void TestWeight_NameCollisionTargetsGeneratedGroupWithoutChangingSource(string collision)
+        {
+            using var fixture = new Fixture("Name collision");
+            fixture.Deformer.BlendShapeName = "Smile";
+            if (collision == "group")
+            {
+                fixture.Deformer.AddGroup("Second output");
+                fixture.Deformer.AddLayer("Second brush", MeshDeformerLayerType.Brush);
+                fixture.Deformer.EnsureDisplacementCapacity();
+                fixture.Deformer.Displacements[0] = Vector3.up * 0.3f;
+                fixture.Deformer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                fixture.Deformer.BlendShapeName = "Smile";
+            }
+            else if (collision == "layer")
+            {
+                var layer = fixture.Deformer.ActiveGroup.Layers[fixture.Deformer.ActiveLayerIndex];
+                layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+                layer.BlendShapeName = "Smile";
+                fixture.Deformer.AddLayer("Group brush", MeshDeformerLayerType.Brush);
+                fixture.Deformer.EnsureDisplacementCapacity();
+                fixture.Deformer.Displacements[0] = Vector3.up * 0.3f;
+            }
+            using var session = BlendShapeTestSession.TryBegin(fixture.Deformer, fixture.Renderer);
+            Assert.That(session, Is.Not.Null);
+            int generated = fixture.Renderer.sharedMesh.GetBlendShapeIndex(collision == "source" ? "Smile 1" : "Smile 2");
+            Assert.That(generated, Is.GreaterThanOrEqualTo(2));
+
+            session.SetWeight(63f);
+            Assert.That(fixture.Renderer.GetBlendShapeWeight(generated), Is.EqualTo(63f));
+            Assert.That(fixture.Renderer.GetBlendShapeWeight(0), Is.EqualTo(24f));
+            Assert.That(fixture.Renderer.GetBlendShapeWeight(1), Is.EqualTo(68f));
+
+            fixture.Deformer.Deform(false); // cached output must preserve the mapping
+            session.Refresh();
+            Assert.That(fixture.Renderer.GetBlendShapeWeight(generated), Is.EqualTo(63f));
+            session.Dispose();
+            Assert.That(fixture.Renderer.sharedMesh, Is.SameAs(fixture.Source));
+            Assert.That(SerializedWeights(fixture.Renderer), Is.EqualTo(new[] {24f, 68f}));
+        }
+
         [TestCase(false, false)]
         [TestCase(false, true)]
         [TestCase(true, false)]

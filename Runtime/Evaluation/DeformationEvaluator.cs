@@ -102,7 +102,7 @@ namespace Net._32Ba.LatticeDeformationTool
                             group.SerializedBlendShapeCurve,
                             group.BlendShapeComposition,
                             stageCandidates.ToArray(),
-                            candidateWeights));
+                            candidateWeights, g));
                     }
                     else if (!stagedGroupOutput &&
                              DeformationEvaluationMath.TryBuildDeltas(sourceVertices, groupVertices, out var groupDeltas))
@@ -110,7 +110,7 @@ namespace Net._32Ba.LatticeDeformationTool
                         generatedBlendShapes.Add(new GeneratedBlendShapeOutput(
                             group.EffectiveBlendShapeName(input.DefaultOutputName),
                             group.SerializedBlendShapeCurve,
-                            groupDeltas));
+                            groupDeltas, g));
                     }
                 }
                 else

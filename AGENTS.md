@@ -372,7 +372,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `Runtime/Evaluation/` の `DeformationEvaluator` が通常Deformと上流PreviewのGroup/Layer合成を共有する。入力は検証済みの同期借用view、managed workspaceはコンポーネント所有とし、非同期処理へ渡さない
 - `GeneratedBlendShapeOutput` の候補は中間頂点bufferから独立させ、上流frameを評価しても保持済み候補を書き換えない。旧評価wrapperは削除済みで、通常処理は専用評価型へ直接接続する。履歴移行テスト用に残すprivate移行入口とは区別する
 - `LatticeEvaluator` が補間cache・managed scratch・NativeArray・Burst Jobsを所有し、`BrushEvaluator` がmaskを含むBrush加算を扱う。owner行列と旧絶対評価規則は `EvaluationSemantics` へ明示し、数値評価からコンポーネント・Renderer・Transformを参照しない。Disable/Destroy/Invalidateと確保途中の例外は同じNative解放処理を通す
-- `DeformedMeshWriter` が既存/生成BlendShapeとsurface channelを書込み、`BlendShapeComposer` は所有者の `MeshOutputWorkspace` に100フレームを順次合成する。Meshへのコピー後だけbufferを再利用し、候補配列・sourceは変更しない。`DeformationPipeline` が上流Previewの評価と出力cloneを管理し、失敗時は自身のcloneを破棄する。Preview最終法線の旧再計算規則も維持する
+- `DeformedMeshWriter` が既存/生成BlendShapeとsurface channelを書込み、`BlendShapeComposer` は所有者の `MeshOutputWorkspace` に100フレームを順次合成する。Meshへのコピー後だけbufferを再利用し、候補配列・sourceは変更しない。`DeformationPipeline` が上流Previewの評価と出力cloneを管理し、失敗時は自身のcloneを破棄する。Preview最終法線の旧再計算規則も維持する。上流BlendShape用の6本の頂点bufferは `EvaluationWorkspace.PreviewFrames` が所有し、frameがある場合だけ必要な頂点数へ確保して反復更新で再利用する
 - `SourceMeshAccess` はR/W無効Meshの全channelコピーをleaseとして所有し、`SourceVertexResolver` は取得済みweight値から元頂点とBlendShapeを評価する。通常評価の最終frame外挿と表示範囲計算の最終frame固定は `SourceBlendShapeExtrapolation` で区別する。`DeformerPlatformAdapter` がassembly load時にMeshUtility読取りと旧移行の保存記録を登録し、RuntimeからUnityEditor/NDMF assemblyを直接参照しない
 - 未初期化のDeformはsource cacheを確定してからreadable leaseを取得し、終了時も元assetを保持する。非readableな上流Preview入力も同じlease経路を通す。Guided表示はraw保存sourceを読み、runtime初期化を起こさない。保存sourceの照合はUnity identity、生成出力の所有判定は独立した所有権規則を使う。
 - 生成Meshが外部で破棄された場合、Renderer getterはmanaged nullでもserialized `m_Mesh`にinstance IDが残る。Editor adapterがそのIDを読み、所有していたIDと一致する場合だけRuntimeMeshAssignmentで復元する。明示的clear（ID 0）や外部Meshは復元対象にせず、Runtime assemblyにUnityEditor依存を加えない。
@@ -400,7 +400,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `SkinnedPoseSnapshot` は各handlerのBakeMesh結果、local頂点、同じ取得時点のTransformを所有する。Brushのworld表示とraycastは同じcaptureを使い、VertexとLatticeも独立したownerを持つ。失敗時は古いposeを公開せず、Deactivate/cache reset/assembly reloadで所有Meshだけを破棄する。旧 `SkinnedVertexHelper` の静的capture APIは互換入口として残すが通常のツールからは使わない
 - Brush/Vertexのpose参照はproxy登録revisionと破棄済みrendererを検出して再解決する。NDMFの登録revisionだけを最終proxyの生存保証としない。`ToolPoseSnapshotTests` は内部の複数owner検証と、実NDMF graphのpose・BlendShape・proxy世代交代の検証を区別する。Latticeのdrag中の固定座標とpending proxy切替は既存の規則を維持する
 
-- `BlendShapeTestSession` はInspectorのテスト表示が借用するRuntime Meshの割当て、元の全ウェイト配列、対象RendererのMesh/weight Prefab差分を所有する。複数Inspectorでも同じRendererのsessionは1件に限定し、終了・Disable/Destroy・assembly reloadで復元する。Runtime Meshの破棄はコンポーネントに残し、外部Mesh割当てや別propertyの編集を戻さない。元Meshのshape順が変わった場合だけ名前でウェイトを対応させ、配列indexの旧Prefab差分を再利用しない。出力無効化・出力しないGroupへの切替でもsessionを終了し、直前のInspector再評価によるRuntime Mesh置換を含めて復元する。更新時は割当て所有を先に確認し、Groupの参照には保存payloadを修復しない `ReadResolvedData` を使う
+- `BlendShapeTestSession` はInspectorのテスト表示が借用するRuntime Meshの割当て、元の全ウェイト配列、対象RendererのMesh/weight Prefab差分を所有する。複数Inspectorでも同じRendererのsessionは1件に限定し、終了・Disable/Destroy・assembly reloadで復元する。生成Group出力の実際のshape indexをコンポーネントが保持し、source・別Group・Layerとの名前衝突でもテストweightを既存shapeへ適用しない。対応表は再利用される評価workspaceと分ける。Runtime Meshの破棄はコンポーネントに残し、外部Mesh割当てや別propertyの編集を戻さない。元Meshのshape順が変わった場合だけ名前でウェイトを対応させ、配列indexの旧Prefab差分を再利用しない。出力無効化・出力しないGroupへの切替でもsessionを終了し、直前のInspector再評価によるRuntime Mesh置換を含めて復元する。更新時は割当て所有を先に確認し、Groupの参照には保存payloadを修復しない `ReadResolvedData` を使う
 
 - クリアランスの編集状態は `Authoring/ClearanceAuthoringSession` が所有する。Heatmap/Fitの別対象cache、Scan update購読、Condition再適用のScene snapshot、Undoでの無効化とassembly reload時の復元を同じownerで閉じる。`UI/ClearanceInspectorSection` は設定欄と明示操作、`UI/ClearanceSceneDrawer` は借用結果の描画だけを担当する。補正Layer生成はfresh評価後に `DeformerEditService` へ渡し、Profile・破損payloadは書込み前に拒否する。既存Editorのinternal評価入口は互換テスト用の委譲に限定し、通常のClearance処理から呼び戻さない
 
@@ -419,7 +419,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - 名前・enabled・weightの入力欄はreleaseを自身でcaptureするため、並べ替えのpointer-down待機へ入れない。animated draggerによるevent targetの変更に備え、`IsDetailInput` はpanel座標と入力欄のboundsも照合する。releaseが一覧へ届かなくても、その後のProfileコピーや構造変更の表示更新を止めないことを `FieldInput_WithCapturedRelease_DoesNotBlockRowRefresh` で検査する。
 - `DeformerStackInspectorTests` は read-only 再構築、同件数の切替、古い行入力、Editor panel 上の property event、Undo/Redo、Prefab Variant の Apply/save-reloadを検証する。property event の検証は panel への attach 後に Editor update を待ち、標準 binding の存在も確認する。未接続の field へ値を入れただけで拒否成功と判定しない。基準 Layer 操作の期待 snapshot は変更せず、fixture helper は旧 Inspector と新 section の Clipboard 保存場所を reflection で識別する。
 
-- `LayerSettingsInspectorSection` は選択LayerのGrid、reset、Brush clear、左右操作、alignmentを表示する。`PendingLatticeGrid` の未適用値はInspectorごとにowner/Group/Layerの参照で保持し、同じ番号の別Groupや置換後のLayerへ流用しない。保存Gridやsettings参照が変わった場合は破棄する。`LayerSettingsEdit` は保存source/topologyと対象参照を再検証し、複数対象を共通編集serviceで一括commitする。Profile・破損・古いメニュー対象・Grid count overflowはUndo開始前に拒否し、inactive Prefabも保存sourceから編集する。
+- `LayerSettingsInspectorSection` は選択LayerのGrid、reset、Brush clear、左右操作、alignmentを表示する。`PendingLatticeGrid` の未適用値はInspectorごとにowner/Group/Layerの参照で保持し、同じ番号の別Groupや置換後のLayerへ流用しない。保存Gridやsettings参照が変わった場合は破棄する。Gridの入力値は互換な全選択対象へ渡し、先頭と同じ値でも他対象に変更があればApplyを有効にする。Split/Flipはmenu作成時の全対象を捕捉し、対象集合と各commandの再検査後に1件のUndoで適用する。`LayerSettingsEdit` は保存source/topologyと対象参照を再検証し、複数対象を共通編集serviceで一括commitする。Profile・破損・古いメニュー対象・Grid count overflowはUndo開始前に拒否し、inactive Prefabも保存sourceから編集する。
 - Unity 2022.3のanimated ListViewがPointerDownのtargetを入れ子ListViewへ変えた場合、scroll contentにある標準選択callbackが呼ばれない。実際のpanel hitからLayer行だけを選択し、既存のpointer-up後のqueueで保存へ反映する。名前・enabled・weightとIMGUIの設定入力にはこの補完を適用しない。入力テストでは選択APIを直接呼ばず、表示された行へのretargeted PointerDown/Upも検証する。
 
 - `BrushVertexVisualization` / `SelectedVertexVisualization` はhandlerから受けた配列・座標・選択だけを描画し、Layerの選択変更、Mesh評価、proxy解決、保存を行わない。`SceneVertexDots` が共通material/textureとGL batchを所有し、各表示のdepth testを設定し直し、reload前に解放する。旧版から独立取得した色・texture・6枚のRenderTexture画像と、所有・例外回復・入力不変を `ToolVertexVisualizationTests` で照合する。GraphicsE2Eに属する画像試験とnative Scene View入力を区別する。
@@ -493,7 +493,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - 描画coroutineのnative log失敗ではTest Frameworkがiteratorのfinallyへ戻らない場合がある。実PreviewのAAO/MA試験は入力control・SceneView/Cage購読・選択/ツール・fixtureもTearDownで復元する。Peripheral Inspector試験はwindow callback・一時設定・SerializedObject・fixtureをTearDownでも解放し、失敗した描画が後続の移行試験へ破棄済みtargetエラーを漏らさないようにする。元の描画失敗は引き続き失敗として記録する。
 
-- 承認済みUUM-85059例外は `Tools~/CI/verify_test_results.py` の6000.0.67f1・確認済み4fullname・完全一致failure message・font atlas native stackに限定する。テスト自体は実行しraw XMLの失敗を保持する。`Assert-TestResults.ps1`とfeature configuration検証は同じpolicyを使う。全skip/inconclusive、未知failure、重複、件数不一致、欠損ログ、crashは拒否し、最低1,789件とCategory件数を維持する。
+- 承認済みUUM-85059例外は `Tools~/CI/verify_test_results.py` の6000.0.67f1・確認済み4fullname・完全一致failure message・font atlas native stackに限定する。テスト自体は実行しraw XMLの失敗を保持する。`Assert-TestResults.ps1`とfeature configuration検証は同じpolicyを使う。全skip/inconclusive、未知failure、重複、件数不一致、欠損ログ、crashは拒否し、最低1,814件とCategory件数を維持する。
 - CIの67f1 runnerのcontinue-on-errorは必須の後続gateと組でのみ使う。実Editor version、通常終了、XML保存先、runner outcomeを照合し、validation.jsonにaccepted_with_known_issueと件数/対象を残す。全成功と表現しない。適用範囲、既知4件、解除条件はDocs~/Architecture/validation.mdを参照し、無断で対象版やテストを広げない。
 
 - 製品のwindow/overlay識別は型または固定Overlay idで行い、翻訳表示名で検索しない。EditorWindowLifecycleカテゴリ5件を両Editorで必須にする。titleContentによる改名とGetWindow<T>の型検索を区別し、IconContent共有cacheのGUIContentへtooltipを書き込まず複製する。Editor再起動やlayout復元の診断で使う内部WindowLayout APIは製品へ持ち込まない。
@@ -509,3 +509,6 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - CIはwarmupと本試験のraw XML件数・非成功case名をGitHub noticeへ出し、両artifactを保存する。診断にはログ本文・failure message・環境変数・認証情報を出さない。診断stepは合否を変更せず、既存の必須gateが判定する。
 
 - GameCI後のvalidation.json作成前に、生成されたtest-artifacts directoryだけをrunner所有へ戻す。root所有のraw XML/logへ再帰chownや内容変更は行わず、レポート書込み失敗をテスト失敗と混同しない。
+
+- Inspectorの編集通知は各対象のDeform終了後に `PublishInteractiveDeformation` を呼び、同期Preview出力とNDMFの公開revisionを更新する。再描画要求だけで下流filterの更新を代用しない。
+- 診断レポートはraw readerのProfileを含む保存Groupを参照し、診断のためにpayloadを展開・修復しない。PNG読取りはTexture2D/LoadImageの前にsignature/IHDR・各辺4,096以下・総画素4,194,304以下を検査する。V1 envelopeと既存roundtripは維持する。

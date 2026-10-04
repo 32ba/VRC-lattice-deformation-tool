@@ -15,6 +15,7 @@ namespace Net._32Ba.LatticeDeformationTool
         internal readonly List<GeneratedBlendShapeOutput> GeneratedShapes = new List<GeneratedBlendShapeOutput>();
         internal readonly LatticeEvaluator Lattice = new LatticeEvaluator();
         internal readonly MeshOutputWorkspace MeshOutput = new MeshOutputWorkspace();
+        internal readonly PreviewFrameWorkspace PreviewFrames = new PreviewFrameWorkspace();
 
         public void Dispose() => Lattice.Dispose();
 
@@ -27,9 +28,29 @@ namespace Net._32Ba.LatticeDeformationTool
             Resize(ref FinalVertices, count);
         }
 
-        private static void Resize(ref Vector3[] buffer, int count)
+        internal static void Resize(ref Vector3[] buffer, int count)
         {
             if (buffer.Length != count) buffer = count == 0 ? Array.Empty<Vector3>() : new Vector3[count];
+        }
+    }
+
+    internal sealed class PreviewFrameWorkspace
+    {
+        internal Vector3[] DeltaVertices = Array.Empty<Vector3>();
+        internal Vector3[] DeltaNormals = Array.Empty<Vector3>();
+        internal Vector3[] DeltaTangents = Array.Empty<Vector3>();
+        internal Vector3[] Combined = Array.Empty<Vector3>();
+        internal Vector3[] DeformedCombined = Array.Empty<Vector3>();
+        internal Vector3[] OutputDelta = Array.Empty<Vector3>();
+
+        internal void EnsureCapacity(int count)
+        {
+            EvaluationWorkspace.Resize(ref DeltaVertices, count);
+            EvaluationWorkspace.Resize(ref DeltaNormals, count);
+            EvaluationWorkspace.Resize(ref DeltaTangents, count);
+            EvaluationWorkspace.Resize(ref Combined, count);
+            EvaluationWorkspace.Resize(ref DeformedCombined, count);
+            EvaluationWorkspace.Resize(ref OutputDelta, count);
         }
     }
 }

@@ -8,6 +8,55 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class MeshOutputOwnershipTests
     {
+        [TestCase(false)]
+        [TestCase(true)]
+        public void RepeatedPreview_DoesNotAllocateUnusedOrRepeatedFrameArrays(bool blendShapes)
+        {
+            const int count = 20000;
+            var vertices = new Vector3[count];
+            for (int i = 0; i < count; i++) vertices[i] = new Vector3(i * 0.001f, i % 7, 0f);
+            var source = new Mesh {vertices = vertices, triangles = new[] {0, 1, 2}};
+            var deltas = new Vector3[count];
+            deltas[0] = Vector3.forward;
+            if (blendShapes) source.AddBlendShapeFrame("Source", 100f, deltas, null, null);
+            var input = new DeformationEvaluationInput(Array.Empty<DeformerGroup>(), null, new EvaluationSemantics(false));
+            using var workspace = new EvaluationWorkspace();
+            Mesh output = null;
+            try
+            {
+                for (int i = 0; i < 2; i++)
+                    Object.DestroyImmediate(DeformationPipeline.CreatePreviewMeshFromInput(source, input, PreserveChannels, workspace));
+                var frames = workspace.PreviewFrames;
+                var retained = new[] {frames.DeltaVertices, frames.DeltaNormals, frames.DeltaTangents,
+                    frames.Combined, frames.DeformedCombined, frames.OutputDelta};
+                foreach (var buffer in retained) Assert.That(buffer.Length, Is.EqualTo(blendShapes ? count : 0));
+                _ = ManagedAllocationCounter.IsSupported;
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                output = DeformationPipeline.CreatePreviewMeshFromInput(source, input, PreserveChannels, workspace);
+                long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+                TestContext.Progress.WriteLine("Repeated preview allocation: " + ManagedAllocationCounter.Format(allocated));
+                ManagedAllocationCounter.AssertLessThan(allocated, count * 24L,
+                    "The input vertex copy is allowed; six fresh frame arrays per update are not.");
+                var current = new[] {frames.DeltaVertices, frames.DeltaNormals, frames.DeltaTangents,
+                    frames.Combined, frames.DeformedCombined, frames.OutputDelta};
+                for (int i = 0; i < current.Length; i++) Assert.That(current[i], Is.SameAs(retained[i]));
+                Assert.That(output.vertices, Is.EqualTo(vertices));
+                Assert.That(source.vertices, Is.EqualTo(vertices));
+                Assert.That(output.blendShapeCount, Is.EqualTo(blendShapes ? 1 : 0));
+                if (blendShapes)
+                {
+                    var actual = new Vector3[count];
+                    output.GetBlendShapeFrameVertices(0, 0, actual, null, null);
+                    Assert.That(actual, Is.EqualTo(deltas));
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(output);
+                Object.DestroyImmediate(source);
+            }
+        }
+
         private static readonly MeshOutputOptions PreserveChannels = new MeshOutputOptions(
             false, false, false, NormalsRecalculationMode.LegacyUnityRecalculate, false);
 

@@ -164,7 +164,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static void AppendStack(StringBuilder report, LatticeDeformer deformer)
         {
-            IReadOnlyList<DeformerGroup> groups = deformer.SerializedGroupsForEditor;
+            IReadOnlyList<DeformerGroup> groups = SerializedDeformerReader.Read(deformer).Groups;
             Append(report, "group-count", groups?.Count ?? 0);
             if (groups == null) return;
             for (int groupIndex = 0; groupIndex < groups.Count; groupIndex++)

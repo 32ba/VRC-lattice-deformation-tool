@@ -124,8 +124,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Dispose();
                 return;
             }
-            string name = ReadActiveGroup()?.EffectiveBlendShapeName(_deformer.gameObject.name) ?? _deformer.gameObject.name;
-            int index = _testMesh.GetBlendShapeIndex(name);
+            int index = _deformer.GetGeneratedGroupBlendShapeIndex(_deformer.ReadResolvedData().ActiveGroupIndex);
             if (index >= 0) _renderer.SetBlendShapeWeight(index, Weight);
         }
 
