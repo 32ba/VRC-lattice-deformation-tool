@@ -52,7 +52,7 @@ Cage通知は全SceneViewから届く。GUI hotControlはView単位なので、�
 
 操作パネルの描画は既存`BrushToolOverlayTests.AllToolLanguagesAndModes_DrawWithoutChangingPayload`が3ツール・5言語・各modeを検証し、`LocalizedToolOverlay`カテゴリ1件をCI必須gateとする。67f1の既知font assertをこのUI試験から隠さず、元の失敗として記録する。graph E2Eの成功をローカライズUI成功の代用にしない。
 
-`PreviewIsolation`カテゴリ1件は、専用Viewだけがパネルを持たないこと、他ViewのOverlay identityと使用言語の維持、終了時のView破棄、後で開くViewにOverlayが登録され続けることを確認する。これらの2カテゴリを最低1,766件に加えて必須検証する。
+`PreviewIsolation`カテゴリ1件は、専用Viewだけがパネルを持たないこと、他ViewのOverlay identityと使用言語の維持、終了時のView破棄、後で開くViewにOverlayが登録され続けることを確認する。これらの2カテゴリを最低1,769件に加えて必須検証する。
 
 ## SDKのテスト用config
 

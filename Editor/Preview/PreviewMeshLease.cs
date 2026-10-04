@@ -43,6 +43,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (ReferenceEquals(_bindings[i].Renderer, renderer))
                 {
+                    // OnFrame is NDMF's ordered stage evaluation. Rebind here,
+                    // but never from the asynchronous interactive notification.
                     PreviewRendererMesh.Assign(renderer, Mesh);
                     return;
                 }
@@ -51,13 +53,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Mesh observed = PreviewRendererMesh.Get(renderer);
             _bindings.Add(new Binding(renderer, ReferenceEquals(observed, Mesh) ? _fallbackUpstream : observed));
             PreviewRendererMesh.Assign(renderer, Mesh);
-        }
-
-        internal void Publish()
-        {
-            if (_disposed || Mesh == null) return;
-            for (int i = 0; i < _bindings.Count; i++)
-                PreviewRendererMesh.Assign(_bindings[i].Renderer, Mesh);
         }
 
         public void Dispose()

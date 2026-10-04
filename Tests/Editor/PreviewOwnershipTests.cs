@@ -14,6 +14,25 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     {
         [TestCase(false)]
         [TestCase(true)]
+        public void InteractivePublish_PreservesDownstreamAssignment(bool skinned)
+        {
+            using var fixture = new Fixture(skinned);
+            var node = fixture.CreateNode(fixture.Proxy);
+            Mesh output = PreviewRendererMesh.Get(fixture.Proxy);
+            var before = output.vertices;
+            Mesh downstream = fixture.CloneMesh(fixture.Upstream);
+            PreviewRendererMesh.Assign(fixture.Proxy, downstream);
+            fixture.Deformer.EditingSettings.SetControlPointLocal(0, Vector3.one * 0.5f);
+            fixture.Deformer.NotifyDeformationDataChanged();
+            LatticePreviewUtility.PublishInteractiveDeformation(fixture.Deformer);
+            Assert.That(output.vertices, Is.Not.EqualTo(before));
+            Assert.That(PreviewRendererMesh.Get(fixture.Proxy), Is.SameAs(downstream));
+            node.Dispose();
+            Assert.That(PreviewRendererMesh.Get(fixture.Proxy), Is.SameAs(downstream));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
         public void Dispose_RestoresBorrowedUpstreamAndReleasesOnlyOwnedMesh(bool skinned)
         {
             using var fixture = new Fixture(skinned);

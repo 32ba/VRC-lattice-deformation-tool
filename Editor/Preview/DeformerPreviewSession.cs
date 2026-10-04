@@ -96,7 +96,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 UnityEngine.Object.DestroyImmediate(evaluated);
             }
-            _mesh.Publish();
             CaptureRevision();
         }
 

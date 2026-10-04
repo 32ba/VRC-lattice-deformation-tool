@@ -12,6 +12,23 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     public sealed class DeformerDataResolverTests
     {
         [Test]
+        public void ProfileResolution_PreservesComponentSelectionAcrossCachedReads()
+        {
+            using var fixture = new Fixture();
+            Assert.That(fixture.Target.UseProfile(fixture.Profile), Is.True);
+            fixture.Target.ActiveGroupIndex = 0;
+            string profileBefore = EditorJsonUtility.ToJson(fixture.Profile);
+            var first = fixture.Target.ReadResolvedData();
+            Assert.That(first.ActiveGroupIndex, Is.EqualTo(fixture.Target.ActiveGroupIndex));
+            Assert.That(first.ActiveGroupIndex, Is.Zero);
+            fixture.Target.ActiveGroupIndex = 1;
+            var second = fixture.Target.ReadResolvedData();
+            Assert.That(second.ActiveGroupIndex, Is.EqualTo(1));
+            Assert.That(second.Groups, Is.SameAs(first.Groups));
+            Assert.That(EditorJsonUtility.ToJson(fixture.Profile), Is.EqualTo(profileBefore));
+        }
+
+        [Test]
         public void EmbeddedResolution_BorrowsRawDataWithoutNormalizingNullOrSelection()
         {
             var resolver = new DeformerDataResolver();
@@ -42,7 +59,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
             Assert.That(first.Status, Is.EqualTo(DeformerDataResolutionStatus.Profile));
             Assert.That(first.Groups.Count, Is.EqualTo(2));
-            Assert.That(first.ActiveGroupIndex, Is.EqualTo(1));
+            Assert.That(first.ActiveGroupIndex, Is.Zero,
+                "The component's saved selection is independent of the Profile's default (1).");
             Assert.That(second.Groups, Is.SameAs(first.Groups));
             Assert.That(second.ProfileRevision, Is.EqualTo(first.ProfileRevision));
             Assert.That(SerializedDeformerReader.Read(target).EmbeddedGroups, Is.SameAs(embedded));

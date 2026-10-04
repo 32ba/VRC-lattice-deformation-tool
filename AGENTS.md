@@ -388,6 +388,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `Editor/Preview/DeformerPreviewSession` はNDMF nodeごとの変更revision、同一Meshへの更新、Interactive通知とUndo購読を所有する。`MeshDeformerPreviewFilter` はplacement・入力検証とNDMF callbackの接続を維持し、既存のprivate node入口は互換テストから利用できる
 - Preview session は `AssemblyReloadEvents.beforeAssemblyReload` でも同じ `Dispose` を実行し、通常終了時にはこの購読も解除する。NDMFの遅延終了だけに依存すると、domain終了後にHideAndDontSave Meshが残る。実reloadの検証はTest Runner内の通常Dispose検証と分け、再読み込み前のinstance IDの消滅、借用Meshの復元、source不変、実graphの再生成を確認する。
 - `PreviewMeshLease` は生成Meshだけを所有し、各proxyで置き換えた上流Meshを借用する。終了時はproxyが自身の一意な出力Meshをまだ参照している場合だけ復元し、別世代・後段の割当てを上書きしない。元Renderer、上流Mesh、既存のproxy generation/token登録を変更・破棄しない。遅れて届いたproxyにも独立した復元先を保持し、終了・二重終了・破棄済みproxyを同じ処理で扱う
+- Interactive通知は所有Meshの内容だけをin-placeで変更し、後段のMesh割当てを上書きしない。NDMFの順序付きOnFrameでは各stageの出力を再割当てする必要があり、通知と同一視しない（実AAO操作E2Eで検証）。Profile解決結果のactive Groupはassetの既定値ではなくcomponentの保存済み選択を返し、同期scopeのcacheも選択を照合する。
 - NDMF Bakeは対象componentの破棄中だけ `SuppressMeshRestoration()` のscopeを使用する。scopeはownerごとに入れ子と二重Disposeを処理し、例外・native component破棄後にも閉じられる。既存public `SuppressRestoreOnDisable` の意味とAPIは互換用に維持するが、通常のBuildはglobal値を書き換えない
 - `PreviewOwnershipTests` と `MeshRestorationScopeTests` は終了時復元、世代交代、外部割当て、遅延proxy、破棄順、評価拒否と再試行、二重終了後のUndo、owner限定の復元抑止を確認する。実Scene View/NDMFの検証には起動済みの正常な `Plugin-dev-playground` を使用し、元のシーン・package参照を保全して一時Sceneで比較する。`Mayo` など別projectを代用しない
 - `DeformerEditSession` はBrush/Vertex/Latticeの複数frame編集で完全なUndo snapshot、対象Group/Layer/sourceのidentity確認、Prefab記録と終了を共有する。開始前にraw payloadを純粋に検査し、Layout/Repaintはidentity確認、実書込み前は元Meshのtopologyとpayloadを再検証する。Profile・破損・未来版・対象変更を補正して編集しない
@@ -490,7 +491,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - 描画coroutineのnative log失敗ではTest Frameworkがiteratorのfinallyへ戻らない場合がある。実PreviewのAAO/MA試験は入力control・SceneView/Cage購読・選択/ツール・fixtureもTearDownで復元する。Peripheral Inspector試験はwindow callback・一時設定・SerializedObject・fixtureをTearDownでも解放し、失敗した描画が後続の移行試験へ破棄済みtargetエラーを漏らさないようにする。元の描画失敗は引き続き失敗として記録する。
 
-- 承認済みUUM-85059例外は `Tools~/CI/verify_test_results.py` の6000.0.67f1・確認済み4fullname・完全一致failure message・font atlas native stackに限定する。テスト自体は実行しraw XMLの失敗を保持する。`Assert-TestResults.ps1`とfeature configuration検証は同じpolicyを使う。全skip/inconclusive、未知failure、重複、件数不一致、欠損ログ、crashは拒否し、最低1,766件とCategory件数を維持する。
+- 承認済みUUM-85059例外は `Tools~/CI/verify_test_results.py` の6000.0.67f1・確認済み4fullname・完全一致failure message・font atlas native stackに限定する。テスト自体は実行しraw XMLの失敗を保持する。`Assert-TestResults.ps1`とfeature configuration検証は同じpolicyを使う。全skip/inconclusive、未知failure、重複、件数不一致、欠損ログ、crashは拒否し、最低1,769件とCategory件数を維持する。
 - CIの67f1 runnerのcontinue-on-errorは必須の後続gateと組でのみ使う。実Editor version、通常終了、XML保存先、runner outcomeを照合し、validation.jsonにaccepted_with_known_issueと件数/対象を残す。全成功と表現しない。適用範囲、既知4件、解除条件はDocs~/Architecture/validation.mdを参照し、無断で対象版やテストを広げない。
 
 - 製品のwindow/overlay識別は型または固定Overlay idで行い、翻訳表示名で検索しない。EditorWindowLifecycleカテゴリ5件を両Editorで必須にする。titleContentによる改名とGetWindow<T>の型検索を区別し、IconContent共有cacheのGUIContentへtooltipを書き込まず複製する。Editor再起動やlayout復元の診断で使う内部WindowLayout APIは製品へ持ち込まない。

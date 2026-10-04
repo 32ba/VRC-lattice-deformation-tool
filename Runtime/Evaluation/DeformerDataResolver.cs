@@ -33,7 +33,6 @@ namespace Net._32Ba.LatticeDeformationTool
         private List<DeformerGroup> _profileGroups;
         private List<DeformerGroup> _blockedGroups;
         private string _fingerprint;
-        private int _profileActiveGroupIndex;
         private int _profileRevision;
         private int _evaluationDepth;
         private bool _hasEvaluationResult;
@@ -101,10 +100,11 @@ namespace Net._32Ba.LatticeDeformationTool
                     DeformerDataResolutionStatus.Embedded);
 
             if (_evaluationDepth > 0 && _hasEvaluationResult &&
-                ReferenceEquals(_evaluationProfile, profile) && ReferenceEquals(_evaluationSource, compatibilitySource))
+                ReferenceEquals(_evaluationProfile, profile) && ReferenceEquals(_evaluationSource, compatibilitySource) &&
+                _evaluationResult.ActiveGroupIndex == embeddedActiveGroupIndex)
                 return _evaluationResult;
 
-            var resolved = ResolveProfile(profile, compatibilitySource);
+            var resolved = ResolveProfile(profile, compatibilitySource, embeddedActiveGroupIndex);
             if (_evaluationDepth > 0)
             {
                 _evaluationProfile = profile;
@@ -115,7 +115,7 @@ namespace Net._32Ba.LatticeDeformationTool
             return resolved;
         }
 
-        private ResolvedDeformerData ResolveProfile(MeshDeformerProfile profile, Mesh compatibilitySource)
+        private ResolvedDeformerData ResolveProfile(MeshDeformerProfile profile, Mesh compatibilitySource, int activeGroupIndex)
         {
             if (!HasValidProfilePayload(profile, compatibilitySource != null ? compatibilitySource.vertexCount : -1))
             {
@@ -137,13 +137,12 @@ namespace Net._32Ba.LatticeDeformationTool
             {
                 var payload = profile.CreateIndependentPayload();
                 _profileGroups = payload.Groups;
-                _profileActiveGroupIndex = payload.ActiveGroupIndex;
                 _profile = profile;
                 _blockedGroups = null;
                 _fingerprint = fingerprint;
                 unchecked { _profileRevision++; }
             }
-            return new ResolvedDeformerData(_profileGroups, _profileActiveGroupIndex,
+            return new ResolvedDeformerData(_profileGroups, activeGroupIndex,
                 DeformerDataResolutionStatus.Profile, _profileRevision);
         }
 
