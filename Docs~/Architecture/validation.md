@@ -5,12 +5,12 @@
 
 ## 自動テスト
 
-`.github/workflows/test.yml`はUnity 2022.3.22f1と6000.0.67f1のそれぞれで`default`と`next-release`を実行する（4組）。
-Editorごとに新しい隔離プロジェクトを作り、Library cache・結果artifactもEditorと構成の組で分離する。
+`.github/workflows/test.yml`はUnity 2022.3.22f1と6000.0.67f1の出荷時の機能フラグ状態で実行する（2 job）。無効な次期機能をCIで強制有効化しない。
+Editorごとに新しい隔離プロジェクトを作り、Library cache・結果artifactもEditorごとに分離する。旧機能構成cacheとは別のkeyを使う。
 Test Frameworkは2022で1.4.6、Unity 6で1.6.0を指定する。Unity組込みpackageの解決差（uGUI等）は各projectのpackages-lock.jsonで記録する。
-依存バージョンと必須Categoryの期待件数はworkflowを正本とし、結果XMLで構成専用markerとCategoryの実行を照合する。
+依存バージョンと必須Categoryの期待件数はworkflowを正本とし、結果XMLで出荷状態のmarkerとCategoryの実行を照合する。
 
-2.0.0-beta.1公開時には両構成とも1,759件成功、失敗・スキップ0を確認した。
+2.0.0-beta.1公開時には当時の両機能構成とも1,759件成功、失敗・スキップ0を確認した。
 これは公開時の検証記録であり、後続commitの結果を保証するものではない。
 
 | 変更箇所 | 必須の確認 |
@@ -33,7 +33,7 @@ VRChatの[制作向けUnity指定](https://creators.vrchat.com/sdk/upgrade/curre
 [2026.3.3 Open Beta](https://docs.vrchat.com/docs/vrchat-202633-open-beta)の6000.0.67f1採用はclient側であり、SDKプロジェクトのUnity 6移行許可ではない。
 Unity 6の試験は本packageの先行互換性検証として実施し、利用者の既存プロジェクトを開いて更新しない。
 
-- 両Editorともworkflowの固定依存を導入し、warmupを完了してから構成defineを設定する。
+- 両Editorともworkflowの固定依存を導入し、warmupを完了する。出荷時の機能defineは書き換えない。
 - `-nographics`を使った試験ではGraphicsE2EやScene View入力の合格を主張しない。描画deviceをログで確認し、失敗・Skipped・Inconclusive・0件を分けて記録する。
 - 同一ユーザー設定を共有するEditorは直列実行する。独立projectでもEditorPrefsの言語・ツール設定は共有され得る。
 - Unity内部のフォントatlas追加assertが起きた場合は、VPM依存や本packageのないprojectで標準Editor labelによるCJK描画を確認する。製品なしの再現を分離して記録し、元のUI試験をignore/skipやログ抑止で合格にしない。
@@ -42,7 +42,7 @@ Unity 6の試験は本packageの先行互換性検証として実施し、利用
 - SceneView操作の準備完了はwindow生成や寸法だけで判断しない。AuthoringGestureではpreviewを一時停止したsourceの実カメラ描画完了を確認してからNDMFを開始し、実final proxyを待つ。描画とproxyは別の条件で検証し、5秒の各上限・全操作assertを維持する。shader cacheなしの隔離projectも検証し、既存projectのcacheは変更しない。
 - Linuxの仮想display上のScene View event試験は、実OSマウス操作・利用者Avatar・Windows/macOSの検証を代替しない。
 - 過去のEditorで保存したfixtureのmanifestや期待値は維持し、両Editorで同じ入力を読み込む。
-- 公開gateは配布物検査と4組すべての同一commit CI成功を要求する。旧2 job名の結果で代用しない。
+- 公開gateは配布物検査と出荷状態の両Editorの同一commit CI成功を要求する。旧機能構成付きjob名の結果で代用しない。
 
 ## Preview機能とローカライズ描画の分離
 
@@ -82,7 +82,7 @@ AAO/MA fixture破棄前に実PreviewSessionをForceRebuildし、古いgraph cont
 - 未知failure、全Skipped/Ignore、Inconclusive、重複、root/leaf集計不一致、suite setup/teardown失敗、crash、ログ欠損、4件超過は拒否する。2022、69f1、将来版、版指定なしでは例外を認めない。
 - CIで67f1のrunner stepだけ`continue-on-error`を用いるが、その直後の必須gateはrunner outcomeとXML/ログを照合し、未知失敗や未完了runを拒否する。raw artifactと`validation.json`を保存する。GitHub上のjob成功はこの承認条件の成立を示し、rawテストの全成功を意味しない。
 - `validation.json`は`passed`または`accepted_with_known_issue`、raw成功/失敗/skip数、既知issue件数とfullnameを明記する。特にInteractionE2Eの対象8件中1件がこの例外になる場合、8件全成功とは報告しない。中断したテストの後続assertによる保証は得られていない。
-- 解除条件: 指定Editorを公式修正版へ変更する場合は例外が自動的に無効になる。同じ67f1で問題が解消した場合は両構成で当該4件と全gateを再確認し、allowlistを削除する。別の失敗や版へ自動拡大しない。Unity6のVRChat SDK制作正式対応や無条件の製品対応保証を意味しない。
+- 解除条件: 指定Editorを公式修正版へ変更する場合は例外が自動的に無効になる。同じ67f1で問題が解消した場合は出荷状態で当該4件と全gateを再確認し、allowlistを削除する。別の失敗や版へ自動拡大しない。Unity6のVRChat SDK制作正式対応や無条件の製品対応保証を意味しない。
 
 ローカルでは`Assert-TestResults.ps1`に`-UnityVersion`と`-EditorLogPath`を渡す。`-ReportPath`で分類結果を別JSONへ保存する。
 失敗ログがあっても終了codeを一律無視せず、Unity終了code 0/2と通常終了の記録を確認してからgateへ渡す。

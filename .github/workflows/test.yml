@@ -8,11 +8,10 @@ name: Test
 # which reproduces the VCC project the package actually targets. The VRChat SDK is required:
 # NDMF treats plugins that declare no platform as VRChat-avatar-only, so the bake pass is
 # skipped as "Incompatible" without it and MeshDeformerValidatorTests fails.
-# The default matrix entry reflects a clean end-user configuration. A second entry
-# enables next-release features so hidden functionality retains compatibility coverage.
+# Test only the feature state shipped to end users; CI does not enable hidden features.
 # Each editor uses a fresh project and isolated Library cache. Unity 6 is a package
 # compatibility target, not a claim of VRChat SDK authoring/upload support.
-# LATTICE_VRCSDK3_AVATAR comes from the asmdef versionDefines in both configurations.
+# LATTICE_VRCSDK3_AVATAR comes from the asmdef versionDefines in both Editors.
 #
 # Required repository secrets (GameCI unity-test-runner v4):
 #   Unity Personal license  : UNITY_LICENSE (contents of the .ulf activation file), UNITY_EMAIL, UNITY_PASSWORD
@@ -49,13 +48,12 @@ jobs:
 
   # Run the package EditMode tests inside a scaffolded Unity project
   editmode:
-    name: EditMode Tests (${{ matrix.unityVersion }}, ${{ matrix.configuration }})
+    name: EditMode Tests (${{ matrix.unityVersion }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         unityVersion: [2022.3.22f1, 6000.0.67f1]
-        configuration: [default, next-release]
     permissions:
       contents: read
     steps:
@@ -211,9 +209,9 @@ jobs:
         with:
           path: ci-project/Library
           # The workflow file is part of the key because it pins the VPM package versions
-          key: Library-ci-project-${{ matrix.unityVersion }}-${{ matrix.configuration }}-${{ hashFiles('ci-project/Packages/vpm-manifest.json', 'ci-project/Packages/manifest.json', 'package.json', '.github/workflows/test.yml') }}
+          key: Library-ci-project-shipping-${{ matrix.unityVersion }}-${{ hashFiles('ci-project/Packages/vpm-manifest.json', 'ci-project/Packages/manifest.json', 'package.json', '.github/workflows/test.yml') }}
           restore-keys: |
-            Library-ci-project-${{ matrix.unityVersion }}-${{ matrix.configuration }}-
+            Library-ci-project-shipping-${{ matrix.unityVersion }}-
 
       # The first time the VRChat SDK loads it rewrites the API compatibility level and the
       # scripting define symbols, and each rewrite queues a script compilation. A test run keeps
@@ -235,17 +233,6 @@ jobs:
           testMode: editmode
           artifactsPath: warmup-artifacts
           customParameters: '-latticeOfflineSdkConfig -assemblyNames net.32ba.lattice-deformation-tool.tests.editor -testFilter Net._32Ba.LatticeDeformationTool.Editor.Tests.LatticeDeformationFeatureFlagsTests'
-
-      # The warmup has exited and produced ProjectSettings.asset. Change only the
-      # Standalone feature flag before the next Editor launch.
-      - name: Configure feature coverage
-        run: |
-          # Unity runs as root in GameCI's container; give this single generated
-          # settings file back to the runner before editing the feature define.
-          sudo chown "$(id -u):$(id -g)" ci-project/ProjectSettings/ProjectSettings.asset
-          python3 Tools~/CI/feature_configuration.py \
-            --mode ${{ matrix.configuration }} \
-            --settings ci-project/ProjectSettings/ProjectSettings.asset
 
       - name: Run EditMode Tests
         id: tests
@@ -296,11 +283,10 @@ jobs:
           -RunnerOutcome '${{ steps.tests.outcome }}'
           -ReportPath test-artifacts/validation.json
 
-      - name: Verify compiled feature configuration
+      - name: Verify compiled shipping feature state
         if: always()
         run: >-
           python3 Tools~/CI/feature_configuration.py
-          --mode ${{ matrix.configuration }}
           --results test-artifacts/editmode-results.xml
           --unity-version ${{ matrix.unityVersion }}
           --editor-log test-artifacts/editmode.log
@@ -451,7 +437,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: editmode-test-results-${{ matrix.unityVersion }}-${{ matrix.configuration }}
+          name: editmode-test-results-${{ matrix.unityVersion }}
           path: |
             test-artifacts/
             warmup-artifacts/

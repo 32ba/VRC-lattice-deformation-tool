@@ -4,7 +4,7 @@ import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 
-from feature_configuration import MARKERS, verify_results
+from feature_configuration import SHIPPING_MARKER, DEVELOPMENT_MARKER, verify_results
 from verify_test_results import (ASSERTION, FAILURE_MESSAGE, FONT_STACK, ISSUE_CASES,
                                  ISSUE_VERSION, verify_run)
 
@@ -20,7 +20,7 @@ class TestResultsPolicyTests(unittest.TestCase):
             c = ET.SubElement(self.root, 'test-case', fullname=name, result='Failed')
             ET.SubElement(ET.SubElement(c, 'failure'), 'message').text = FAILURE_MESSAGE
             ET.SubElement(c, 'output').text = ASSERTION + '\n'
-        ET.SubElement(self.root, 'test-case', fullname=MARKERS['default'], result='Passed')
+        ET.SubElement(self.root, 'test-case', fullname=SHIPPING_MARKER, result='Passed')
 
     def write(self, root=None, version=ISSUE_VERSION, transform_log=lambda s: s):
         root = self.root if root is None else root
@@ -176,15 +176,19 @@ class TestResultsPolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'contained 1 tests'):
             self.verify(required_category='InteractionE2E', required_category_count=2)
 
-    def test_feature_marker_uses_same_policy_and_rejects_wrong_mode(self):
+    def test_shipping_marker_uses_same_policy_and_rejects_development_features(self):
         self.write()
-        verify_results(self.path, 'default', ISSUE_VERSION, self.log_path)
+        verify_results(self.path, ISSUE_VERSION, self.log_path)
+        marker = next(c for c in self.root if c.get('fullname') == SHIPPING_MARKER)
+        marker.set('fullname', DEVELOPMENT_MARKER)
+        self.write()
         with self.assertRaises(ValueError):
-            verify_results(self.path, 'next-release', ISSUE_VERSION, self.log_path)
+            verify_results(self.path, ISSUE_VERSION, self.log_path)
+        marker.set('fullname', SHIPPING_MARKER)
         self.root[0].find('failure/message').text = 'Unknown failure'
         self.write()
         with self.assertRaises(ValueError):
-            verify_results(self.path, 'default', ISSUE_VERSION, self.log_path)
+            verify_results(self.path, ISSUE_VERSION, self.log_path)
 
 
 if __name__ == '__main__':

@@ -1,42 +1,36 @@
 import tempfile
 import unittest
 from pathlib import Path
-from feature_configuration import DEFINE, MARKERS, configure, verify_results
+from feature_configuration import SHIPPING_MARKER, DEVELOPMENT_MARKER, verify_results
 
 
-class FeatureConfigurationTests(unittest.TestCase):
-    def test_roundtrip_preserves_other_settings_and_line_endings(self):
-        for newline in ('\n', '\r\n'):
-            source = newline.join(['  unrelated:', '    Standalone: 1',
-                '  scriptingDefineSymbols:', '    Android: MOBILE',
-                '    Standalone: VRC_SDK_VRCSDK3;OTHER', '  nextSetting: 1', ''])
-            enabled = configure(source, 'next-release')
-            self.assertIn('VRC_SDK_VRCSDK3;OTHER;' + DEFINE, enabled)
-            self.assertEqual(enabled, configure(enabled, 'next-release'))
-            self.assertEqual(source, configure(enabled, 'default'))
-
-    def test_rejects_unknown_or_duplicate_layout(self):
-        for source in ('  scriptingDefineSymbols: {}\n',
-                       '  scriptingDefineSymbols:\n    Android: A\n',
-                       '  scriptingDefineSymbols:\n    Standalone: A\n    Standalone: B\n'):
-            with self.assertRaises(ValueError):
-                configure(source, 'next-release')
-
-    def test_requires_correct_compiled_marker(self):
+class ShippingFeatureTests(unittest.TestCase):
+    def verify(self, cases, result='Passed'):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'result.xml'
-            for mode in MARKERS:
-                for result in ('Passed', 'Skipped'):
-                    path.write_text('<test-run result="Passed"><test-case fullname="' +
-                        MARKERS[mode] + '" result="' + result + '"/></test-run>')
-                    if result == 'Passed':
-                        verify_results(path, mode)
-                    else:
-                        with self.assertRaises(ValueError):
-                            verify_results(path, mode)
-                    opposite = 'default' if mode == 'next-release' else 'next-release'
-                    with self.assertRaises(ValueError):
-                        verify_results(path, opposite)
+            path.write_text('<test-run result="' + result + '">' + ''.join(
+                '<test-case fullname="' + name + '" result="' + status + '"/>'
+                for name, status in cases) + '</test-run>')
+            verify_results(path)
+
+    def test_accepts_shipping_marker(self):
+        self.verify([(SHIPPING_MARKER, 'Passed')])
+
+    def test_rejects_missing_duplicate_failed_or_skipped_marker(self):
+        for cases in ([], [(SHIPPING_MARKER, 'Passed')]*2,
+                      [(SHIPPING_MARKER, 'Failed')], [(SHIPPING_MARKER, 'Skipped')]):
+            with self.subTest(cases=cases), self.assertRaises(ValueError):
+                self.verify(cases)
+
+    def test_rejects_development_features_even_with_shipping_marker(self):
+        for cases in ([(DEVELOPMENT_MARKER, 'Passed')],
+                      [(SHIPPING_MARKER, 'Passed'), (DEVELOPMENT_MARKER, 'Passed')]):
+            with self.subTest(cases=cases), self.assertRaises(ValueError):
+                self.verify(cases)
+
+    def test_rejects_unsuccessful_run(self):
+        with self.assertRaises(ValueError):
+            self.verify([(SHIPPING_MARKER, 'Passed')], 'Failed')
 
 
 if __name__ == '__main__':

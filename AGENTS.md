@@ -476,15 +476,15 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - CIの必須Category検証は `Tools~/Assert-TestResults.ps1` でNUnit suiteからの継承も含めてcase単位に数える。`Tools~/Test-AssertTestResults.ps1` は継承・重複・欠落・Skippedを検査する。Category付きテストを増減した際は `.github/workflows/test.yml` の期待件数を実XMLで照合する。
 
-- CIはUnity 2022.3.22f1 / 6000.0.67f1 × default/next-releaseの4組を別jobで実行する。warmup終了後に `Tools~/CI/feature_configuration.py` でStandaloneの機能defineだけを切り替え、結果XMLで指定構成のコンパイルを検証する。Library cacheとartifactはEditorと構成の組ごとに分ける。Test Frameworkは2022で1.4.6、Unity 6で1.6.0を明示し、組込みpackageの解決差はpackages-lock.jsonへ記録する。Unity 6はpackageの先行互換性検証であり、VRChat SDK制作対応とは区別する。既存利用者projectをUnity 6で開いて移行しない。利用者の稼働中projectへこの設定ツールを使わない。
+- CIは出荷時の機能フラグ状態のままUnity 2022.3.22f1 / 6000.0.67f1の2 jobを実行する。無効な次期機能をCIで強制有効化せず、機能構成のmatrix軸やProjectSettingsへのdefine書込みを追加しない。`Tools~/CI/feature_configuration.py` は結果XMLから出荷状態のmarkerだけを読取り検証する。Library cacheとartifactはEditorごとに分け、旧機能構成cacheを再利用しない。Test Frameworkは2022で1.4.6、Unity 6で1.6.0を明示し、組込みpackageの解決差はpackages-lock.jsonへ記録する。Unity 6はpackageの先行互換性検証であり、VRChat SDK制作対応とは区別する。既存利用者projectをUnity 6で開いて移行しない。
 
-- GameCIのwarmupはroot所有のProjectSettings.assetを生成するため、CI runnerへその1ファイルの所有権を戻してからfeature defineを更新する。配布時のGit archiveは呼出し単位で改行変換を固定し、Windowsのcore.autocrlf設定を配布内容へ持ち込まない。
+- CIのwarmup後も機能defineは書き換えない。配布時のGit archiveは呼出し単位で改行変換を固定し、Windowsのcore.autocrlf設定を配布内容へ持ち込まない。
 
 - 2026-09-11の公開前確認でAvatar Optimizerの最新安定版が1.9.19になったため、CIの併用検証を同版へ更新した。製品のpackage.json依存宣言にはAAOを追加しない。VRChat対応Unityおよび他の検証依存は2026-09-10の構成を維持する。
 
 - AuthoringGestureEndToEndTestsは固定サイズの独立Scene ViewをShowで開き、既存dockの幅とOverlay配置へ入力経路を依存させない。batchでreparentエラーになるShowAuxWindowは使わない。SupportReportFilesはOSのrename権限とは別にread-only属性を検査し、読み取り専用の既存reportを置換しない。
 
-- publish=trueでは `Tools~/Release/verify_release_ci.py` が同じcommitの最新push/manual Test runと配布物・両Editorの両構成（4 EditMode job）の成功を要求する。PR merge試験は公開commitの証拠に使わず、必要ならtest.ymlの手動実行を使う。dry-run生成と公開承認の条件は従来どおり。
+- publish=trueでは `Tools~/Release/verify_release_ci.py` が同じcommitの最新push/manual Test runと配布物・出荷時フラグ状態の両Editor（2 EditMode job）の成功を要求する。PR merge試験は公開commitの証拠に使わず、必要ならtest.ymlの手動実行を使う。dry-run生成と公開承認の条件は従来どおり。
 
 - Unity 6のSerializedObject bindingは旧 `IBindable.binding` に入らない。Inspector回帰試験は `BindingExtensions.s_SerializedBindingId` に対応する `GetBinding` を確認し、未接続のfieldによる見かけの入力拒否を合格にしない。2022では従来slotを確認する。
 - Scene View入力試験の固定寸法は `minSize` と `Show()` 後の `position` で指定し、実際の寸法が成立してから入力を開始する。LinuxではShow時に以前の狭いwindow寸法が復元されることがある。座標・Undo/Redo・proxyのassertを弱めて代用しない。
