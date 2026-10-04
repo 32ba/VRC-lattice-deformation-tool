@@ -159,6 +159,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     continue;
                 }
 
+                if (deformer.DataSource == DeformerDataSource.Profile && deformer.Profile != null)
+                    _ = context.Observe(deformer.Profile);
+
                 if (!MatchesPlacement(deformer))
                 {
                     continue;
@@ -262,6 +265,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _ = context.Observe(meshTransform, TransformSnapshot.Create, TransformSnapshot.Equals);
             }
 
+            if (deformer.DataSource == DeformerDataSource.Profile && deformer.Profile != null)
+                _ = context.Observe(deformer.Profile);
+
             var sourceMesh = deformer.SourceMesh;
             if (sourceMesh != null)
             {
@@ -289,13 +295,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private bool MatchesPlacement(LatticeDeformer deformer)
         {
             if (deformer == null) return false;
-            bool canRunAfterTopologyChanges = deformer.CanPreviewAfterTopologyChanges();
-            return _placement switch
-            {
-                Placement.BeforeTopologyChanges => !canRunAfterTopologyChanges,
-                Placement.AfterTopologyChanges => canRunAfterTopologyChanges,
-                _ => true,
-            };
+            // A second lattice pass would apply the field twice. All authored
+            // contributions run before position-dependent topology decisions.
+            return _placement != Placement.AfterTopologyChanges;
         }
 
         internal static bool ObservePreviewEnabled(ComputeContext context)

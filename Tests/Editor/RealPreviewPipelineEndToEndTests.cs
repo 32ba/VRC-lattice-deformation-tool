@@ -83,6 +83,18 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [Category("PlaygroundE2E")]
         public IEnumerator ActualNdmfAaoGraph_KeepsExternalCageStableAndAppliesLatticeEditsDuringInteraction()
         {
+            yield return RunActualAaoGraph(false);
+        }
+
+        [UnityTest]
+        [Category("GraphicsE2E")]
+        public IEnumerator ActualNdmfAaoGraph_PositionDependentRemovalUsesDeformedVertices()
+        {
+            yield return RunActualAaoGraph(true);
+        }
+
+        private IEnumerator RunActualAaoGraph(bool crossRemovalBoundary)
+        {
             if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
                 Assert.Ignore("The real Scene View preview E2E requires a graphics device.");
 
@@ -149,6 +161,18 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 removeMeshInBox = meshObject.AddComponent(removeMeshInBoxType);
                 InitializeRemoveMeshInBox(removeMeshInBox, new Vector3(-0.75f, 0f, 0f));
+                Vector3[] expectedBoundaryVertices = null;
+                if (crossRemovalBoundary)
+                {
+                    var boundarySettings = deformer.EditingSettings;
+                    for (int i = 0; i < boundarySettings.ControlPointCount; i++)
+                        boundarySettings.SetControlPointLocal(i, boundarySettings.GetControlPointLocal(i) + Vector3.right * 1.5f);
+                    deformer.NotifyDeformationDataChanged();
+                    expectedBoundaryVertices = deformer.Deform(false).vertices;
+                    Assert.That(expectedBoundaryVertices.All(v => v.x > -0.3f), Is.True,
+                        "All baked vertices have moved outside the left AAO removal box.");
+                }
+
 
                 NDMFPreview.DisablePreviewDepth = 0;
                 if (PreviewSession.Current == null && !previewWasEnabled)
@@ -178,6 +202,21 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 ToolManager.SetActiveTool<MeshDeformerTool>();
                 LatticeToolHandler.CageFrameRendered += monitor.Observe;
                 SceneView.beforeSceneGui += OwnInteractionControl;
+
+                if (crossRemovalBoundary)
+                {
+                    yield return WaitUntil(() =>
+                    {
+                        if (!NDMFPreviewProxyUtility.TryGetProxyRenderer(sourceRenderer, out var proxy) ||
+                            !IsGenuineNdmfProxy(proxy, root)) return false;
+                        var mesh = LatticeDeformerPreviewFilter.GetRendererMesh(proxy);
+                        if (mesh == null || mesh.vertexCount != expectedBoundaryVertices.Length ||
+                            mesh.triangles.Length != source.triangles.Length) return false;
+                        var actual = mesh.vertices;
+                        return expectedBoundaryVertices.All(v => actual.Any(a => Vector3.Distance(a, v) < 0.0001f));
+                    }, sceneView, "AAO removed vertices using the undeformed source positions instead of pre-optimizer lattice output.");
+                    yield break;
+                }
 
                 yield return WaitUntil(
                     () => monitor.LastFrame.HasValue &&

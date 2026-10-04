@@ -365,7 +365,9 @@ namespace Net._32Ba.LatticeDeformationTool
 
         internal static Mesh CloneInput(Mesh input, Vector3[] vertices)
         {
-            var output = UnityEngine.Object.Instantiate(input);
+            // Unity's Mesh Instantiate marks the borrowed input dirty, which
+            // invalidates source-to-bone bindings on every weight refresh.
+            var output = SourceMeshAccess.CreateReadableCopy(input, copyBlendShapes: false);
             try
             {
                 output.name = input.name + " (Lattice Preview)";

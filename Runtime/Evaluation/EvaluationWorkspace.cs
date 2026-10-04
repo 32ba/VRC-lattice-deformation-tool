@@ -36,6 +36,8 @@ namespace Net._32Ba.LatticeDeformationTool
 
     internal sealed class PreviewFrameWorkspace
     {
+        internal readonly SourceVertexWorkspace SourcePose = new SourceVertexWorkspace();
+        internal readonly SourceVertexWorkspace OutputPose = new SourceVertexWorkspace();
         internal Vector3[] DeltaVertices = Array.Empty<Vector3>();
         internal Vector3[] DeltaNormals = Array.Empty<Vector3>();
         internal Vector3[] DeltaTangents = Array.Empty<Vector3>();

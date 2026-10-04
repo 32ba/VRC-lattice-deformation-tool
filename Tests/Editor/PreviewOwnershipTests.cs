@@ -13,6 +13,80 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class PreviewOwnershipTests
     {
+        [Test]
+        public void SourceWeightChange_RefreshesNonlinearPreviewWithoutComponentEdit()
+        {
+            using var fixture = new Fixture(true);
+            var delta = new[] {new Vector3(0.2f, 0.35f, 0f), Vector3.zero, Vector3.zero, Vector3.zero};
+            var zero = new Vector3[4];
+            fixture.Source.AddBlendShapeFrame("Source", 100f, delta, zero, zero);
+            fixture.Upstream.AddBlendShapeFrame("Source", 100f, delta, zero, zero);
+            fixture.Deformer.Reset();
+            var lattice = fixture.Deformer.EditingSettings;
+            for (int i = 0; i < lattice.ControlPointCount; i++)
+            {
+                var point = lattice.GetControlPointLocal(i);
+                lattice.SetControlPointLocal(i, point + Vector3.forward * point.x * point.y);
+            }
+            var node = fixture.CreateNode(fixture.Proxy);
+            var before = PreviewRendererMesh.Get(fixture.Proxy).vertices;
+            int revision = LatticePreviewUtility.GetInteractiveRevision(fixture.Deformer).Value;
+            ((SkinnedMeshRenderer)fixture.Original).SetBlendShapeWeight(0, 50f);
+            node.OnFrameGroup();
+            Assert.That(PreviewRendererMesh.Get(fixture.Proxy).vertices, Is.Not.EqualTo(before));
+            Assert.That(LatticePreviewUtility.GetInteractiveRevision(fixture.Deformer).Value, Is.Not.EqualTo(revision));
+            ((SkinnedMeshRenderer)fixture.Original).SetBlendShapeWeight(0, 0f);
+            node.OnFrameGroup();
+            Assert.That(PreviewRendererMesh.Get(fixture.Proxy).vertices, Is.EqualTo(before));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void SharedProfileChanges_UpdateLiveNodesAndPublishedRevision(bool saveWithUndo)
+        {
+            using var writer = new Fixture(false);
+            using var first = new Fixture(false);
+            using var second = new Fixture(false);
+            var profile = ScriptableObject.CreateInstance<MeshDeformerProfile>();
+            try
+            {
+                profile.Capture(writer.Deformer.Groups, 0, writer.Source);
+                Assert.That(first.Deformer.UseProfile(profile), Is.True);
+                Assert.That(second.Deformer.UseProfile(profile), Is.True);
+                var firstNode = first.CreateNode(first.Proxy);
+                var secondNode = second.CreateNode(second.Proxy);
+                var firstBefore = PreviewRendererMesh.Get(first.Proxy).vertices;
+                var secondBefore = PreviewRendererMesh.Get(second.Proxy).vertices;
+                int firstRevision = LatticePreviewUtility.GetInteractiveRevision(first.Deformer).Value;
+                int secondRevision = LatticePreviewUtility.GetInteractiveRevision(second.Deformer).Value;
+                if (saveWithUndo)
+                {
+                    writer.Deformer.EditingSettings.SetControlPointLocal(0, Vector3.one * 0.4f);
+                    Assert.That(ProfileAuthoringService.SaveCurrent(writer.Deformer, profile, "Update shared profile"), Is.True);
+                }
+                else profile.Groups[0].Layers[0].Settings.SetControlPointLocal(0, Vector3.one * 0.4f);
+                string profileAfter = EditorJsonUtility.ToJson(profile);
+                int dirty = EditorUtility.GetDirtyCount(profile);
+                firstNode.OnFrameGroup(); secondNode.OnFrameGroup();
+                Assert.That(PreviewRendererMesh.Get(first.Proxy).vertices, Is.Not.EqualTo(firstBefore));
+                Assert.That(PreviewRendererMesh.Get(second.Proxy).vertices, Is.Not.EqualTo(secondBefore));
+                Assert.That(LatticePreviewUtility.GetInteractiveRevision(first.Deformer).Value, Is.Not.EqualTo(firstRevision));
+                Assert.That(LatticePreviewUtility.GetInteractiveRevision(second.Deformer).Value, Is.Not.EqualTo(secondRevision));
+                Assert.That(EditorJsonUtility.ToJson(profile), Is.EqualTo(profileAfter));
+                Assert.That(EditorUtility.GetDirtyCount(profile), Is.EqualTo(dirty));
+                if (saveWithUndo)
+                {
+                    Undo.PerformUndo(); firstNode.OnFrameGroup(); secondNode.OnFrameGroup();
+                    Assert.That(PreviewRendererMesh.Get(first.Proxy).vertices, Is.EqualTo(firstBefore));
+                    Assert.That(PreviewRendererMesh.Get(second.Proxy).vertices, Is.EqualTo(secondBefore));
+                    Undo.PerformRedo(); firstNode.OnFrameGroup(); secondNode.OnFrameGroup();
+                    Assert.That(PreviewRendererMesh.Get(first.Proxy).vertices, Is.Not.EqualTo(firstBefore));
+                    Assert.That(PreviewRendererMesh.Get(second.Proxy).vertices, Is.Not.EqualTo(secondBefore));
+                }
+            }
+            finally { Undo.ClearAll(); Object.DestroyImmediate(profile); }
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         public void InspectorCallback_PublishesEveryChangedOwnerAfterEvaluation(bool alreadyInvalidated)

@@ -29,6 +29,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int _pendingGeneration;
         private static bool s_showLayerSettings;
         private static string s_copiedLayerJson, s_copiedGroupJson;
+        private static DeformerClipboardSource s_copiedLayerSource, s_copiedGroupSource;
         private UnityEngine.Object target => _owner != null ? _owner.target : null;
         private SerializedObject serializedObject => _owner.serializedObject;
         internal VisualElement Root => _groupsContainer;
@@ -781,12 +782,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var layer = layers[layerIndex];
             if (layer == null) return;
             s_copiedLayerJson = JsonUtility.ToJson(layer);
+            s_copiedLayerSource = DeformerClipboardSource.Capture(deformer, s_copiedLayerJson);
         }
 
         internal void PasteLayer(LatticeDeformer deformer)
         {
             PerformEditOperation(() => DeformerEditService.PasteLayer(
-                deformer, s_copiedLayerJson, LatticeLocalization.Tr(LocKey.PasteLayer)));
+                deformer, s_copiedLayerJson, LatticeLocalization.Tr(LocKey.PasteLayer), s_copiedLayerSource));
         }
 
         internal void DuplicateGroup(LatticeDeformer deformer, int groupIndex)
@@ -801,12 +803,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var groups = raw.Groups;
             if (groups == null || groupIndex < 0 || groupIndex >= groups.Count) return;
             s_copiedGroupJson = JsonUtility.ToJson(groups[groupIndex]);
+            s_copiedGroupSource = DeformerClipboardSource.Capture(deformer, s_copiedGroupJson);
         }
 
         internal void PasteGroup(LatticeDeformer deformer)
         {
             PerformEditOperation(() => DeformerEditService.PasteGroup(
-                deformer, s_copiedGroupJson, LatticeLocalization.Tr(LocKey.PasteGroup)));
+                deformer, s_copiedGroupJson, LatticeLocalization.Tr(LocKey.PasteGroup), s_copiedGroupSource));
         }
 
         private void PerformEditOperation(Func<bool> operation)

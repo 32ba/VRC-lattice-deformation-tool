@@ -31,7 +31,8 @@ namespace Net._32Ba.LatticeDeformationTool
             return new SourceMeshLease(CreateReadableCopy(source), true);
         }
 
-        internal static Mesh CreateReadableCopy(Mesh sourceMesh, Func<Mesh, Mesh.MeshDataArray> reader = null)
+        internal static Mesh CreateReadableCopy(Mesh sourceMesh, Func<Mesh, Mesh.MeshDataArray> reader = null,
+            bool copyBlendShapes = true)
         {
             if (sourceMesh == null) throw new ArgumentNullException(nameof(sourceMesh));
             // NDMF may hand this component a cloned imported mesh whose managed
@@ -121,7 +122,8 @@ namespace Net._32Ba.LatticeDeformationTool
                     readableMesh.SetBoneWeights(bonesPerVertex, boneWeights);
                 }
 
-                DeformedMeshWriter.CopyBlendShapes(sourceMesh, readableMesh, new MeshOutputWorkspace());
+                if (copyBlendShapes)
+                    DeformedMeshWriter.CopyBlendShapes(sourceMesh, readableMesh, new MeshOutputWorkspace());
             }
             catch
             {

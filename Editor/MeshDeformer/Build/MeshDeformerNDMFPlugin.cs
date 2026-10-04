@@ -26,15 +26,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     LatticeDeformerPreviewFilter.Placement.BeforeTopologyChanges))
                 .BeforePlugin("com.anatawa12.avatar-optimizer");
 
-            // A lattice-only stack is a spatial deformation field and does not
-            // depend on source vertex indices. Preview it after topology-changing
-            // optimizers so handle edits can update the final displayed mesh in
-            // place without rebuilding the global NDMF preview tree.
-            InPhase(BuildPhase.Optimizing)
-                .AfterPlugin("com.anatawa12.avatar-optimizer")
-                .Run("Mesh Deformer Interactive Preview", _ => { })
-                .PreviewingWith(new LatticeDeformerPreviewFilter(
-                    LatticeDeformerPreviewFilter.Placement.AfterTopologyChanges));
+            // Position-dependent optimizers must see the same deformed surface
+            // as Bake. Published revisions rebuild downstream preview consumers;
+            // the session still updates its owned mesh during interactive edits.
+
         }
     }
 

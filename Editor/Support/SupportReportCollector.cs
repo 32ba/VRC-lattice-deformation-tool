@@ -47,7 +47,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             AppendSection(report, "component", () => AppendComponent(report, deformer));
             Renderer renderer = deformer.GetComponent<Renderer>();
-            AppendSection(report, "source-renderer", () => AppendRenderer(report, renderer, deformer.SourceMesh));
+            AppendSection(report, "source-renderer", () => AppendRenderer(report, renderer, SerializedDeformerReader.Read(deformer).SourceMesh));
             AppendSection(report, "blend-shapes", () => AppendBlendShapes(report, deformer, renderer));
             AppendSection(report, "deformer-stack", () => AppendStack(report, deformer));
             AppendSection(report, "components", () => AppendComponents(report, deformer));

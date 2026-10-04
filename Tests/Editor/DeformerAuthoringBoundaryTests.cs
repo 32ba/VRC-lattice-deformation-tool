@@ -201,7 +201,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             string groupJson = JsonUtility.ToJson(source.Deformer.ActiveGroup);
             string before = EditorJsonUtility.ToJson(destination.Deformer);
 
-            Assert.That(DeformerEditService.PasteGroup(destination.Deformer, groupJson, "Paste Group"), Is.True);
+            Assert.That(DeformerEditService.PasteGroup(destination.Deformer, groupJson, "Paste Group",
+                DeformerClipboardSource.Capture(source.Deformer, groupJson)), Is.True);
             Assert.That(JsonUtility.ToJson(destination.Deformer.ActiveGroup), Is.EqualTo(groupJson));
             Assert.That(destination.Deformer.Deform(false).vertices[0], Is.EqualTo(Vector3.up));
             Assert.That(destination.Mesh.vertices[0], Is.EqualTo(Vector3.zero));
@@ -394,7 +395,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 case "duplicate": changed = DeformerEditService.DuplicateLayer(d, 1, "Duplicate"); break;
                 case "remove": changed = DeformerEditService.RemoveLayer(d, 1, "Remove"); break;
                 case "move": changed = DeformerEditService.MoveLayer(d, 1, 0, "Move"); break;
-                default: changed = DeformerEditService.PasteLayer(d, JsonUtility.ToJson(d.Layers[1]), "Paste"); break;
+                default: changed = DeformerEditService.PasteLayer(d, JsonUtility.ToJson(d.Layers[1]), "Paste",
+                    DeformerClipboardSource.Capture(d, JsonUtility.ToJson(d.Layers[1]))); break;
             }
             Assert.That(changed, Is.True);
             string after = EditorJsonUtility.ToJson(d);

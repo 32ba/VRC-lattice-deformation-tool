@@ -321,6 +321,66 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(f.Mesh.vertices, Is.EqualTo(f.Vertices));
         }
 
+        [TestCase(false, "destination-order")]
+        [TestCase(true, "destination-order")]
+        [TestCase(false, "destination-count")]
+        [TestCase(true, "destination-count")]
+        [TestCase(false, "source-drift")]
+        [TestCase(true, "source-drift")]
+        [TestCase(false, "payload-count")]
+        [TestCase(true, "payload-count")]
+        public void Clipboard_RejectsIncompatibleVertexPayloadBeforeUndo(bool group, string change)
+        {
+            using var source = new Fixture();
+            using var destination = new Fixture(change == "destination-count");
+            source.Target.Layers[1].SetBrushDisplacement(0, Vector3.forward);
+            if (change == "payload-count") source.Target.Layers[1].BrushDisplacements = new Vector3[1];
+            if (group) source.Section.CopyGroup(source.Target, 0);
+            else source.Section.CopyLayer(source.Target, 1);
+            if (change == "destination-order")
+            {
+                destination.Mesh.vertices = new[] {Vector3.right, Vector3.zero, Vector3.up};
+                destination.Target.Reset();
+            }
+            if (change == "source-drift") source.Mesh.vertices = new[] {Vector3.right, Vector3.zero, Vector3.up};
+            Assert.That(DeformerAuthoringSource.TryRead(destination.Target, out _, out _, out _), Is.True,
+                "The destination itself must be valid before clipboard validation.");
+            string before = EditorJsonUtility.ToJson(destination.Target);
+            int undo = Undo.GetCurrentGroup();
+            if (group) destination.Section.PasteGroup(destination.Target);
+            else destination.Section.PasteLayer(destination.Target);
+            Assert.That(EditorJsonUtility.ToJson(destination.Target), Is.EqualTo(before));
+            Assert.That(Undo.GetCurrentGroup(), Is.EqualTo(undo));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void Clipboard_EquivalentSeparateMeshPreservesPayloadAndUndo(bool group)
+        {
+            using var source = new Fixture();
+            using var destination = new Fixture();
+            source.Target.Layers[1].SetBrushDisplacement(0, Vector3.forward);
+            string before = EditorJsonUtility.ToJson(destination.Target);
+            if (group)
+            {
+                source.Section.CopyGroup(source.Target, 0);
+                destination.Section.PasteGroup(destination.Target);
+                Assert.That(destination.Target.ActiveGroup.Layers[1].BrushDisplacements[0], Is.EqualTo(Vector3.forward));
+            }
+            else
+            {
+                source.Section.CopyLayer(source.Target, 1);
+                destination.Section.PasteLayer(destination.Target);
+                Assert.That(destination.Target.Layers[destination.Target.ActiveLayerIndex].BrushDisplacements[0], Is.EqualTo(Vector3.forward));
+            }
+            string after = EditorJsonUtility.ToJson(destination.Target);
+            Assert.That(after, Is.Not.EqualTo(before));
+            Undo.PerformUndo();
+            Assert.That(EditorJsonUtility.ToJson(destination.Target), Is.EqualTo(before));
+            Undo.PerformRedo();
+            Assert.That(EditorJsonUtility.ToJson(destination.Target), Is.EqualTo(after));
+        }
+
         [UnityTest]
         public IEnumerator SourceDrift_RejectsRowsSelectionAndClipboardWithoutUndo()
         {
@@ -463,8 +523,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             internal LatticeDeformerEditor Editor;
             private StackTestWindow _window;
             internal DeformerStackInspectorSection Section => Editor.StackInspector;
-            internal Fixture()
+            internal Fixture(bool extraVertex = false)
             {
+                if (extraVertex) Vertices = new[] {Vector3.zero, Vector3.right, Vector3.up, Vector3.one};
                 Mesh = new Mesh { name = "Stack Inspector source", vertices = Vertices, triangles = new[] { 0, 1, 2 } };
                 Mesh.RecalculateNormals(); Mesh.RecalculateBounds();
                 var go = new GameObject("Stack Inspector fixture"); go.SetActive(false);

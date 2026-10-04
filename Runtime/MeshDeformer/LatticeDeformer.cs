@@ -1768,8 +1768,10 @@ namespace Net._32Ba.LatticeDeformationTool
             if (sourceTopologyMatches && !EnsureAllBrushLayerDisplacementCapacity(inputMesh.vertexCount))
                 return null;
 
+            var workspace = GetEvaluationWorkspace();
+            var weights = workspace.PreviewFrames.SourcePose.CaptureMappedWeights(_skinnedMeshRenderer, inputMesh);
             return DeformationPipeline.CreatePreviewMeshFromInput(inputMesh, ResolveEvaluationInput(true),
-                GetMeshOutputOptions(), GetEvaluationWorkspace());
+                GetMeshOutputOptions(), workspace, weights);
         }
 
         /// <summary>
@@ -2758,8 +2760,10 @@ namespace Net._32Ba.LatticeDeformationTool
             foreach (var group in GetGroupStorage())
             {
                 if (group == null) continue;
+                if (_dataSource == DeformerDataSource.Profile && !group.Enabled) continue;
                 foreach (var layer in group.LayersList)
                 {
+                    if (_dataSource == DeformerDataSource.Profile && layer != null && !layer.Enabled) continue;
                     if (layer != null && layer.Type == MeshDeformerLayerType.Brush)
                     {
                         compatible &= layer.TryEnsureBrushDataCapacityPreservingExisting(vertexCount);

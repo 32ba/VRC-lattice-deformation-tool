@@ -168,6 +168,51 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(fixture.Target.GetComponent<MeshFilter>().sharedMesh, Is.SameAs(fixture.Mesh));
         }
 
+        [TestCase(false, "brush-count")]
+        [TestCase(true, "brush-count")]
+        [TestCase(false, "mask-count")]
+        [TestCase(true, "mask-count")]
+        [TestCase(false, "nonfinite")]
+        [TestCase(true, "nonfinite")]
+        public void DisabledProfilePayload_DoesNotBlockActiveOutputOrRepairSavedData(bool disableGroup, string corruption)
+        {
+            using var fixture = new Fixture();
+            var group = fixture.Profile.Groups[0];
+            var layer = group.Layers[0];
+            if (disableGroup) group.Enabled = false;
+            else layer.Enabled = false;
+            Assert.That(fixture.Target.UseProfile(fixture.Profile), Is.True);
+            var expected = DeformationOutputBaselineFixture.CaptureMesh(fixture.Target.Deform(false));
+            switch (corruption)
+            {
+                case "brush-count": layer.BrushDisplacements = new Vector3[1]; break;
+                case "mask-count": layer.VertexMask = new float[1]; break;
+                case "nonfinite": layer.BrushDisplacements[0] = new Vector3(float.NaN, 0f, 0f); break;
+            }
+            string before = EditorJsonUtility.ToJson(fixture.Profile);
+            int dirty = EditorUtility.GetDirtyCount(fixture.Profile);
+            Assert.That(fixture.Target.UseProfile(fixture.Profile), Is.True);
+            Assert.That(fixture.Target.ReadResolvedData().Status, Is.EqualTo(DeformerDataResolutionStatus.Profile));
+            var output = fixture.Target.Deform(false);
+            Assert.That(output, Is.Not.Null);
+            DeformationOutputCompatibilityTests.CompareMesh(expected,
+                DeformationOutputBaselineFixture.CaptureMesh(output), "Disabled Profile payload");
+            Assert.That(EditorJsonUtility.ToJson(fixture.Profile), Is.EqualTo(before));
+            Assert.That(EditorUtility.GetDirtyCount(fixture.Profile), Is.EqualTo(dirty));
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void DisabledProfileLayer_StillRejectsFutureSchema(bool disableGroup)
+        {
+            using var fixture = new Fixture();
+            var group = fixture.Profile.Groups[0];
+            if (disableGroup) group.Enabled = false;
+            else group.Layers[0].Enabled = false;
+            SetField(group.Layers[0].SerializedSettings, "_serializationVersion", 999);
+            Assert.That(fixture.Target.UseProfile(fixture.Profile), Is.False);
+        }
+
         [TestCase(0)]
         [TestCase(1)]
         public void ProfileSelection_PersistsThroughInactivePrefabSaveAndReload(int selection)

@@ -163,11 +163,15 @@ namespace Net._32Ba.LatticeDeformationTool
                 for (int l = 0; l < layers.Count; l++)
                 {
                     var layer = layers[l];
-                    if (layer == null || layer.HasMalformedSerializedMetadata || layer.HasNonFiniteSerializedVertexData)
+                    if (layer == null || layer.HasMalformedSerializedMetadata)
                         return false;
                     var settings = layer.SerializedSettings;
                     if (settings != null && (settings.HasUnsupportedFutureSerializationVersion || settings.HasMalformedSerializedShape))
                         return false;
+                    // Disabled drafts retain their raw payload, but structural and
+                    // future-schema checks above still apply to every layer.
+                    if (!group.Enabled || !layer.Enabled) continue;
+                    if (layer.HasNonFiniteSerializedVertexData) return false;
                     int displacements = layer.SerializedBrushDisplacementCount;
                     int mask = layer.SerializedVertexMaskCount;
                     if (vertexCount >= 0 && ((displacements != 0 && displacements != vertexCount) ||

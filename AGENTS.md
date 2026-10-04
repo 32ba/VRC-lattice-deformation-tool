@@ -493,7 +493,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - 描画coroutineのnative log失敗ではTest Frameworkがiteratorのfinallyへ戻らない場合がある。実PreviewのAAO/MA試験は入力control・SceneView/Cage購読・選択/ツール・fixtureもTearDownで復元する。Peripheral Inspector試験はwindow callback・一時設定・SerializedObject・fixtureをTearDownでも解放し、失敗した描画が後続の移行試験へ破棄済みtargetエラーを漏らさないようにする。元の描画失敗は引き続き失敗として記録する。
 
-- 承認済みUUM-85059例外は `Tools~/CI/verify_test_results.py` の6000.0.67f1・確認済み4fullname・完全一致failure message・font atlas native stackに限定する。テスト自体は実行しraw XMLの失敗を保持する。`Assert-TestResults.ps1`とfeature configuration検証は同じpolicyを使う。全skip/inconclusive、未知failure、重複、件数不一致、欠損ログ、crashは拒否し、最低1,814件とCategory件数を維持する。
+- 承認済みUUM-85059例外は `Tools~/CI/verify_test_results.py` の6000.0.67f1・確認済み4fullname・完全一致failure message・font atlas native stackに限定する。テスト自体は実行しraw XMLの失敗を保持する。`Assert-TestResults.ps1`とfeature configuration検証は同じpolicyを使う。全skip/inconclusive、未知failure、重複、件数不一致、欠損ログ、crashは拒否し、最低1,840件とCategory件数を維持する。
 - CIの67f1 runnerのcontinue-on-errorは必須の後続gateと組でのみ使う。実Editor version、通常終了、XML保存先、runner outcomeを照合し、validation.jsonにaccepted_with_known_issueと件数/対象を残す。全成功と表現しない。適用範囲、既知4件、解除条件はDocs~/Architecture/validation.mdを参照し、無断で対象版やテストを広げない。
 
 - 製品のwindow/overlay識別は型または固定Overlay idで行い、翻訳表示名で検索しない。EditorWindowLifecycleカテゴリ5件を両Editorで必須にする。titleContentによる改名とGetWindow<T>の型検索を区別し、IconContent共有cacheのGUIContentへtooltipを書き込まず複製する。Editor再起動やlayout復元の診断で使う内部WindowLayout APIは製品へ持ち込まない。
@@ -512,3 +512,10 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - Inspectorの編集通知は各対象のDeform終了後に `PublishInteractiveDeformation` を呼び、同期Preview出力とNDMFの公開revisionを更新する。再描画要求だけで下流filterの更新を代用しない。
 - 診断レポートはraw readerのProfileを含む保存Groupを参照し、診断のためにpayloadを展開・修復しない。PNG読取りはTexture2D/LoadImageの前にsignature/IHDR・各辺4,096以下・総画素4,194,304以下を検査する。V1 envelopeと既存roundtripは維持する。
+
+- 頂点依存のClipboardは元Meshの互換metadataとコピー時JSONを保持し、貼付前に元Meshの変更・貼付先の頂点順序とpayload長を検査する。同形状の別assetは許可し、拒否時はUndoを開始しない。
+- 無効Profile Group/Layerの休眠Brush/Mask内容は評価を止めず、raw保存値を維持する。null構造・不正metadata・未来schemaは無効状態でも拒否する。
+- Preview sessionは共有Profileの内容/互換性とsource BlendShape weightも照合し、component revisionを伴わない変更を下流へ通知する。Profile内容照合は公開mutable payloadの直接編集も対象とするため各frameで行う。
+- NDMFのPreviewはBakeと同じAAO前に変形し、削除ボックスをまたぐgeometryで面数も比較する。AAO後の二重変形を行わず、既存の操作中ケージとproxy更新assertを維持する。
+- 非線形Previewは現在のsource weightを反映した評価とframeの補間結果との差をbaseへ適用する。入力frame・renderer weight・source Meshは保持し、入力shape名でweightを照合する。
+- Preview用Meshの複製はread-only MeshDataから行い、借用sourceのdirty countも保持する。UnityのMesh Instantiateでsourceがdirtyになることを再現済みのため、weight更新のたびにケージbindingを無効化する複製へ戻さない。出力が変わらないweight変更ではNDMF generationも再生成しない。

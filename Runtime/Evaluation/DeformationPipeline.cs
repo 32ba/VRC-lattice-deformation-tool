@@ -7,7 +7,7 @@ namespace Net._32Ba.LatticeDeformationTool
     internal static class DeformationPipeline
     {
         internal static Mesh CreatePreviewMeshFromInput(Mesh inputMesh, in DeformationEvaluationInput input,
-            in MeshOutputOptions options, EvaluationWorkspace workspace)
+            in MeshOutputOptions options, EvaluationWorkspace workspace, float[] sourceWeights = null)
         {
             int vertexCount = inputMesh.vertexCount;
             workspace.EnsureCapacity(vertexCount);
@@ -51,6 +51,24 @@ namespace Net._32Ba.LatticeDeformationTool
                             deltaNormals,
                             deltaTangents);
                     }
+                }
+
+                bool hasSourceWeight = false;
+                if (sourceWeights != null)
+                    foreach (float weight in sourceWeights) hasSourceWeight |= Mathf.Abs(weight) > 1e-5f;
+                if (hasSourceWeight)
+                {
+                    // F(base + weighted deltas) is not generally F(base) plus
+                    // interpolated F(frame) deltas. Offset the base at the current
+                    // pose, preserving the source frames and renderer weights.
+                    var currentInput = SourceVertexResolver.Resolve(inputMesh, sourceWeights, frames.SourcePose,
+                        out _, out _, out _);
+                    DeformationEvaluator.Evaluate(input, currentInput, frames.DeformedCombined, workspace, generated);
+                    var renderedFrames = SourceVertexResolver.Resolve(output, sourceWeights, frames.OutputPose,
+                        out _, out _, out _);
+                    for (int vertex = 0; vertex < vertexCount; vertex++)
+                        outputVertices[vertex] = frames.DeformedCombined[vertex] - (renderedFrames[vertex] - outputVertices[vertex]);
+                    output.vertices = outputVertices;
                 }
 
                 var usedNames = DeformedMeshWriter.CollectBlendShapeNames(output);

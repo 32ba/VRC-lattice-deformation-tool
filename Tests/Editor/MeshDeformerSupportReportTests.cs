@@ -100,6 +100,34 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void Generate_InactiveSavedSourceDoesNotRequireRuntimeCache()
+        {
+            var root = new GameObject("Inactive report source");
+            root.SetActive(false);
+            var source = CreateSourceMesh();
+            try
+            {
+                root.AddComponent<MeshFilter>().sharedMesh = source;
+                root.AddComponent<MeshRenderer>();
+                var deformer = root.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                typeof(LatticeDeformer).GetField("_sourceMesh", System.Reflection.BindingFlags.NonPublic |
+                    System.Reflection.BindingFlags.Instance).SetValue(deformer, null);
+                Assert.That(deformer.SourceMesh, Is.Null);
+                Assert.That(SerializedDeformerReader.Read(deformer).SourceMesh, Is.SameAs(source));
+                string before = EditorJsonUtility.ToJson(deformer);
+                int dirty = EditorUtility.GetDirtyCount(deformer);
+                string report = MeshDeformerSupportReport.Decode(MeshDeformerSupportReport.Generate(deformer));
+                StringAssert.Contains("\"source-mesh.present\":\"True\"", report);
+                StringAssert.Contains("\"assigned-is-source\":\"True\"", report);
+                Assert.That(deformer.SourceMesh, Is.Null);
+                Assert.That(EditorJsonUtility.ToJson(deformer), Is.EqualTo(before));
+                Assert.That(EditorUtility.GetDirtyCount(deformer), Is.EqualTo(dirty));
+            }
+            finally { UnityEngine.Object.DestroyImmediate(root); UnityEngine.Object.DestroyImmediate(source); }
+        }
+
+        [Test]
         public void Generate_IncludesActionableStateWithoutLocalFilesystemIdentity()
         {
             var avatar = new GameObject("Support Avatar");

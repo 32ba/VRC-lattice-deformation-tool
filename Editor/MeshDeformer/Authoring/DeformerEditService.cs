@@ -6,6 +6,42 @@ using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
+    // Clipboard provenance is session-only and tied to the exact copied JSON.
+    // Equivalent separate assets are allowed; changed vertex ordering is not.
+    internal sealed class DeformerClipboardSource
+    {
+        private readonly Mesh _mesh;
+        private readonly MeshCompatibilityMetadata _metadata;
+        private readonly string _json;
+
+        private DeformerClipboardSource(Mesh mesh, MeshCompatibilityMetadata metadata, string json)
+        { _mesh = mesh; _metadata = metadata; _json = json; }
+
+        internal static DeformerClipboardSource Capture(LatticeDeformer owner, string json)
+        {
+            if (!DeformerAuthoringSource.TryRead(owner, out _, out var mesh, out _)) return null;
+            using var lease = SourceMeshAccess.Acquire(mesh);
+            return lease.Mesh == null ? null : new DeformerClipboardSource(mesh,
+                MeshCompatibilityMetadata.Capture(lease.Mesh), json);
+        }
+
+        internal bool Matches(LatticeDeformer target, string json, out int count)
+        {
+            count = _metadata.VertexCount;
+            if (_mesh == null || !string.Equals(_json, json, StringComparison.Ordinal) ||
+                !DeformerAuthoringSource.TryRead(target, out _, out var destination, out _)) return false;
+            using var originalLease = SourceMeshAccess.Acquire(_mesh);
+            using var destinationLease = SourceMeshAccess.Acquire(destination);
+            return Compatible(originalLease.Mesh) && Compatible(destinationLease.Mesh);
+        }
+
+        private bool Compatible(Mesh mesh)
+        {
+            var status = _metadata.Evaluate(mesh);
+            return status == ProfileCompatibilityStatus.ExactMatch || status == ProfileCompatibilityStatus.CompatibleSourceDiffers;
+        }
+    }
+
     /// <summary>
     /// Commits one component edit as one Undo operation. Evaluation and UI refresh
     /// remain with the caller so repeated drawing cannot write authoring data.
@@ -32,11 +68,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return Execute(deformer, undoLabel, target => target.InsertGroup(copy, index + 1) >= 0);
         }
 
-        internal static bool PasteGroup(LatticeDeformer deformer, string json, string undoLabel)
+        internal static bool PasteGroup(LatticeDeformer deformer, string json, string undoLabel,
+            DeformerClipboardSource source = null)
         {
             if (string.IsNullOrEmpty(json)) return false;
             var copy = JsonUtility.FromJson<DeformerGroup>(json);
-            return copy != null && Execute(deformer, undoLabel, target => target.InsertGroup(copy) >= 0);
+            if (copy == null || copy.HasMalformedSerializedMetadata || copy.SerializedLayers == null) return false;
+            foreach (var layer in copy.SerializedLayers)
+                if (!CanPasteLayer(deformer, layer, json, source)) return false;
+            return Execute(deformer, undoLabel, target => target.InsertGroup(copy) >= 0);
         }
 
         internal static bool AddLayer(LatticeDeformer deformer, MeshDeformerLayerType type, string undoLabel) =>
@@ -51,12 +91,29 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal static bool MoveLayer(LatticeDeformer deformer, int from, int to, string undoLabel) =>
             Execute(deformer, undoLabel, target => DeformerStore.MoveLayer(target, from, to));
 
-        internal static bool PasteLayer(LatticeDeformer deformer, string json, string undoLabel)
+        internal static bool PasteLayer(LatticeDeformer deformer, string json, string undoLabel,
+            DeformerClipboardSource source = null)
         {
             if (string.IsNullOrEmpty(json)) return false;
             var layer = new LatticeLayer();
             JsonUtility.FromJsonOverwrite(json, layer);
-            return Execute(deformer, undoLabel, target => target.InsertLayer(layer) >= 0);
+            return CanPasteLayer(deformer, layer, json, source) &&
+                   Execute(deformer, undoLabel, target => target.InsertLayer(layer) >= 0);
+        }
+
+        private static bool CanPasteLayer(LatticeDeformer target, LatticeLayer layer, string json,
+            DeformerClipboardSource source)
+        {
+            if (layer == null || layer.HasMalformedSerializedMetadata || layer.HasNonFiniteSerializedVertexData)
+                return false;
+            var settings = layer.SerializedSettings;
+            if (layer.Type == MeshDeformerLayerType.Lattice && settings == null) return false;
+            if (settings != null && (settings.HasUnsupportedFutureSerializationVersion || settings.HasMalformedSerializedShape))
+                return false;
+            int displacements = layer.SerializedBrushDisplacementCount, mask = layer.SerializedVertexMaskCount;
+            if (layer.Type != MeshDeformerLayerType.Brush && displacements == 0 && mask == 0) return true;
+            if (source == null || !source.Matches(target, json, out int count)) return false;
+            return (displacements == 0 || displacements == count) && (mask == 0 || mask == count);
         }
 
         internal static bool Execute(LatticeDeformer deformer, string undoLabel, Func<LatticeDeformer, bool> edit)

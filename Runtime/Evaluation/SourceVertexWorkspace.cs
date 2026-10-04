@@ -16,6 +16,20 @@ namespace Net._32Ba.LatticeDeformationTool
             if (VertexScratch.Capacity < vertexCount) VertexScratch.Capacity = vertexCount;
         }
 
+        internal float[] CaptureMappedWeights(SkinnedMeshRenderer renderer, Mesh input)
+        {
+            if (renderer == null || renderer.sharedMesh == null || input == null || input.blendShapeCount == 0) return null;
+            int count = input.blendShapeCount;
+            if (WeightSnapshot.Length != count) WeightSnapshot = new float[count];
+            var assigned = renderer.sharedMesh;
+            for (int i = 0; i < count; i++)
+            {
+                int index = assigned.GetBlendShapeIndex(input.GetBlendShapeName(i));
+                WeightSnapshot[i] = index >= 0 ? renderer.GetBlendShapeWeight(index) : 0f;
+            }
+            return WeightSnapshot;
+        }
+
         // Unity object reads finish here; the resolver consumes only Mesh + values.
         internal float[] CaptureWeights(SkinnedMeshRenderer renderer, int count)
         {

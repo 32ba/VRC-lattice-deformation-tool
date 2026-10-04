@@ -8,6 +8,45 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class PreviewInputEvaluationTests
     {
+        [TestCase(25f)]
+        [TestCase(50f)]
+        [TestCase(100f)]
+        public void NonlinearPreview_CurrentSourceWeightMatchesBakedSurface(float weight)
+        {
+            var go = new GameObject("nonlinear preview weight");
+            var source = CreateMesh(Vector3.zero, new Vector3(0.2f, 0.35f, 0f));
+            Mesh preview = null;
+            try
+            {
+                var renderer = go.AddComponent<SkinnedMeshRenderer>();
+                renderer.sharedMesh = source;
+                var deformer = go.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                var lattice = deformer.EditingSettings;
+                for (int i = 0; i < lattice.ControlPointCount; i++)
+                {
+                    var point = lattice.GetControlPointLocal(i);
+                    lattice.SetControlPointLocal(i, point + Vector3.forward * point.x * point.y);
+                }
+                renderer.SetBlendShapeWeight(0, weight);
+                deformer.NotifyDeformationDataChanged();
+                var baked = deformer.Deform(false).vertices;
+                preview = deformer.CreatePreviewMeshFromInput(source);
+                var actual = preview.vertices;
+                var delta = SourceBlendShapeEvaluator.EvaluateDelta(preview, 0, weight);
+                for (int i = 0; i < actual.Length; i++)
+                    Assert.That(Vector3.Distance(actual[i] + delta[i], baked[i]), Is.LessThan(0.00001f),
+                        "The displayed source weight must match the current baked surface.");
+                Assert.That(renderer.GetBlendShapeWeight(0), Is.EqualTo(weight));
+                Assert.That(renderer.sharedMesh, Is.SameAs(source));
+            }
+            finally
+            {
+                if (preview != null) Object.DestroyImmediate(preview);
+                Object.DestroyImmediate(go); Object.DestroyImmediate(source);
+            }
+        }
+
         [Test]
         public void CurrentUpstreamMesh_IsClonedAndDeformedWithoutMutatingRendererOrWeights()
         {
@@ -35,7 +74,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.NotifyDeformationDataChanged();
 
                 Vector3[] upstreamBefore = upstream.vertices;
+                int upstreamDirty = UnityEditor.EditorUtility.GetDirtyCount(upstream);
+                int sourceDirty = UnityEditor.EditorUtility.GetDirtyCount(source);
                 output = deformer.CreatePreviewMeshFromInput(upstream);
+                Assert.That(UnityEditor.EditorUtility.GetDirtyCount(upstream), Is.EqualTo(upstreamDirty));
+                Assert.That(UnityEditor.EditorUtility.GetDirtyCount(source), Is.EqualTo(sourceDirty));
 
                 Assert.That(output, Is.Not.Null);
                 Assert.That(output, Is.Not.SameAs(upstream));
