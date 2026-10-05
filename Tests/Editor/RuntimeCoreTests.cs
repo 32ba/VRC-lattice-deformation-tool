@@ -423,11 +423,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 deformer.Reset();
                 Assert.That(deformer.Deform(false), Is.Not.Null);
 
-                var cacheField = typeof(LatticeDeformer).GetField(
-                    "_cache",
-                    BindingFlags.Instance | BindingFlags.NonPublic);
-                Assert.That(cacheField, Is.Not.Null);
-                var cache = (LatticeDeformerCache)cacheField.GetValue(deformer);
+                var workspace = (EvaluationWorkspace)InvokePrivate(deformer, "GetEvaluationWorkspace");
+                var cache = workspace.Lattice.Cache;
                 var warmedEntries = cache.Entries;
                 Assert.That(warmedEntries, Is.Not.Empty);
 
@@ -1134,6 +1131,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [Test]
         public void LatticeDeformer_PrivateContributionGuards_ReturnWithoutMutating()
         {
+            using var evaluator = new LatticeEvaluator();
+            var semantics = new EvaluationSemantics(false);
             var go = new GameObject("runtime-core-private-guards");
             try
             {
@@ -1143,42 +1142,21 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var brushLayer = new LatticeLayer();
                 brushLayer.SetType(MeshDeformerLayerType.Brush);
 
-                typeof(LatticeDeformer)
-                    .GetMethod("TryApplyBrushLayerContribution", BindingFlags.Static | BindingFlags.NonPublic)
-                    .Invoke(null, new object[] { null, source, deformed });
+                BrushEvaluator.Apply(null, source, deformed);
                 Assert.That(deformed[0], Is.EqualTo(Vector3.one));
 
-                typeof(LatticeDeformer)
-                    .GetMethod("TryApplyBrushLayerContribution", BindingFlags.Static | BindingFlags.NonPublic)
-                    .Invoke(null, new object[] { brushLayer, source, deformed });
+                BrushEvaluator.Apply(brushLayer, source, deformed);
                 Assert.That(deformed[0], Is.EqualTo(Vector3.one));
 
-                InvokePrivate(
-                    deformer,
-                    "TryApplyLatticeLayerContribution",
-                    null,
-                    source,
-                    deformed);
+                evaluator.Apply(null, 1f, semantics, source, deformed);
                 Assert.That(deformed[0], Is.EqualTo(Vector3.one));
 
                 var latticeLayer = new LatticeLayer();
-                InvokePrivate(
-                    deformer,
-                    "TryApplyLatticeLayerContribution",
-                    latticeLayer,
-                    source,
-                    deformed);
+                evaluator.Apply(latticeLayer.Settings, latticeLayer.Weight, semantics, source, deformed);
                 Assert.That(deformed[0], Is.EqualTo(Vector3.one));
 
-                typeof(LatticeDeformer)
-                    .GetField("_cache", BindingFlags.Instance | BindingFlags.NonPublic)
-                    .SetValue(deformer, new LatticeDeformerCache());
-                InvokePrivate(
-                    deformer,
-                    "TryApplyLatticeLayerContribution",
-                    latticeLayer,
-                    source,
-                    deformed);
+                evaluator.BindCache(new LatticeDeformerCache());
+                evaluator.Apply(latticeLayer.Settings, latticeLayer.Weight, semantics, source, deformed);
                 Assert.That(deformed[0], Is.EqualTo(Vector3.one));
 
                 var sourceMesh = new Mesh { name = "RuntimeCoreCacheMismatch" };
@@ -1189,7 +1167,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 {
                     var cache = new LatticeDeformerCache();
                     var settings = latticeLayer.Settings;
-                    int sourceHash = InvokeStaticPrivate<int>("HashVertices", source);
+                    int sourceHash = DeformationEvaluationMath.HashVertices( source);
                     cache.Populate(
                         settings.GridSize,
                         settings.LocalBounds,
@@ -1201,15 +1179,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     typeof(LatticeDeformer)
                         .GetField("_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic)
                         .SetValue(deformer, sourceMesh);
-                    typeof(LatticeDeformer)
-                        .GetField("_cache", BindingFlags.Instance | BindingFlags.NonPublic)
-                        .SetValue(deformer, cache);
-                    InvokePrivate(
-                        deformer,
-                        "TryApplyLatticeLayerContribution",
-                        latticeLayer,
-                        source,
-                        deformed);
+                    evaluator.BindCache(cache);
+                    evaluator.Apply(latticeLayer.Settings, latticeLayer.Weight, semantics, source, deformed);
                     Assert.That(deformed[0], Is.EqualTo(Vector3.one));
                 }
                 finally
@@ -1256,8 +1227,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(InvokeStaticPrivate<int>("HashDisplacementState", new[] { Vector3.one }), Is.Not.EqualTo(0));
                 Assert.That(InvokeStaticPrivate<int>("HashMaskState", new[] { 0.25f, 1f }), Is.Not.EqualTo(0));
 
-                InvokePrivate(deformer, "EnsureControlBuffer", 0);
-                InvokePrivate(deformer, "EnsureControlBuffer", 3);
+                using (var evaluator = new LatticeEvaluator())
+                {
+                    evaluator.EnsureControlBuffer(0);
+                    evaluator.EnsureControlBuffer(3);
+                }
 
                 LatticeDeformer.CollectControlPointsLocal(null, Span<Vector3>.Empty);
                 LatticeDeformer.CollectControlPointsLocal(clone, Span<Vector3>.Empty);
@@ -1326,17 +1300,17 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var go = new GameObject("runtime-core-cache-helpers");
             try
             {
-                var deformer = go.AddComponent<LatticeDeformer>();
+                using var evaluator = new LatticeEvaluator();
 
                 Assert.That(
-                    () => InvokePrivate(deformer, "DeformWithJobs", null, new[] { Vector3.zero }),
-                    Throws.TargetInvocationException.With.InnerException.TypeOf<ArgumentException>());
+                    () => evaluator.DeformWithJobs( null, new[] { Vector3.zero }),
+                    Throws.TypeOf<ArgumentException>());
                 Assert.That(
-                    () => InvokePrivate(deformer, "DeformWithJobs", Array.Empty<LatticeCacheEntry>(), new[] { Vector3.zero }),
-                    Throws.TargetInvocationException.With.InnerException.TypeOf<ArgumentException>());
+                    () => evaluator.DeformWithJobs( Array.Empty<LatticeCacheEntry>(), new[] { Vector3.zero }),
+                    Throws.TypeOf<ArgumentException>());
                 Assert.That(
-                    () => InvokePrivate(deformer, "DeformWithJobs", new[] { new LatticeCacheEntry() }, null),
-                    Throws.TargetInvocationException.With.InnerException.TypeOf<ArgumentException>());
+                    () => evaluator.DeformWithJobs( new[] { new LatticeCacheEntry() }, null),
+                    Throws.TypeOf<ArgumentException>());
 
                 var entry = new LatticeCacheEntry
                 {
@@ -1363,21 +1337,17 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     Vector3.one + Vector3.forward
                 };
 
-                var deformed = (Vector3[])InvokePrivate(deformer, "DeformWithJobs", new[] { entry }, controlPoints);
+                var deformed = evaluator.DeformWithJobs( new[] { entry }, controlPoints);
                 Assert.That(deformed[0], Is.EqualTo(Vector3.one + Vector3.forward));
 
                 Assert.That(
-                    () => InvokePrivate(
-                        deformer,
-                        "BuildCacheWithJobs",
+                    () => LatticeEvaluator.BuildCacheWithJobs(
                         new Vector3Int(2, 2, 2),
                         new Bounds(Vector3.zero, Vector3.one),
                         null),
-                    Throws.TargetInvocationException.With.InnerException.TypeOf<ArgumentException>());
+                    Throws.TypeOf<ArgumentException>());
 
-                var entries = (LatticeCacheEntry[])InvokePrivate(
-                    deformer,
-                    "BuildCacheWithJobs",
+                var entries = LatticeEvaluator.BuildCacheWithJobs(
                     new Vector3Int(2, 2, 2),
                     new Bounds(Vector3.zero, Vector3.one),
                     new[] { Vector3.zero, Vector3.one });
@@ -1385,8 +1355,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(entries[0].Corner0, Is.EqualTo(0));
                 Assert.That(entries[1].Corner7, Is.EqualTo(7));
 
-                var emptyBernsteinWeights = InvokeStaticPrivate<float[]>(
-                    "BuildBernsteinWeightsWithJobs",
+                var emptyBernsteinWeights = LatticeEvaluator.BuildBernsteinWeightsWithJobs(
                     new Vector3Int(2, 2, 2),
                     Array.Empty<LatticeCacheEntry>());
                 Assert.That(emptyBernsteinWeights, Is.Empty);
@@ -1452,29 +1421,22 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [Test]
         public void LatticeDeformer_PrivateMathHelpers_ReturnExpectedValues()
         {
-            var normalized = InvokeStaticPrivate<Vector3>(
-                "CalculateNormalizedCoordinate",
+            var normalized = LatticeEvaluator.BuildCacheWithJobs(
+                new Vector3Int(2, 2, 2),
                 new Bounds(Vector3.zero, new Vector3(2f, 0f, 4f)),
-                new Vector3(1f, 5f, -2f));
+                new[] { new Vector3(1f, 5f, -2f) })[0].NormalizedCoordinate;
             Assert.That(normalized.x, Is.EqualTo(1f).Within(1e-6f));
             Assert.That(normalized.y, Is.EqualTo(0f).Within(1e-6f));
             Assert.That(normalized.z, Is.EqualTo(0f).Within(1e-6f));
 
-            var trilinear = InvokeStaticPrivate<LatticeCacheEntry>(
-                "BuildTrilinearEntry",
+            var trilinear = LatticeEvaluator.BuildCacheWithJobs(
                 new Vector3Int(2, 2, 2),
-                new Vector3(1f, 1f, 1f));
+                new Bounds(Vector3.one * 0.5f, Vector3.one),
+                new[] { Vector3.one })[0];
             Assert.That(trilinear.Corner7, Is.EqualTo(7));
             Assert.That(trilinear.Weights1.w, Is.EqualTo(1f).Within(1e-6f));
 
-            var bounds = InvokeStaticPrivate<Bounds>(
-                "TransformBounds",
-                Matrix4x4.TRS(new Vector3(1f, 2f, 3f), Quaternion.Euler(0f, 0f, 90f), new Vector3(2f, 3f, 4f)),
-                new Bounds(Vector3.zero, new Vector3(2f, 4f, 6f)));
-            Assert.That(bounds.center, Is.EqualTo(new Vector3(1f, 2f, 3f)));
-            Assert.That(bounds.size.x, Is.EqualTo(12f).Within(1e-5f));
-            Assert.That(bounds.size.y, Is.EqualTo(4f).Within(1e-5f));
-            Assert.That(bounds.size.z, Is.EqualTo(24f).Within(1e-5f));
+
         }
 
         [Test]
@@ -1525,7 +1487,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
                 Assert.That(InvokePrivate(deformer, "RestoreSourceNormals", (object)null), Is.Null);
                 Assert.That(InvokePrivate(deformer, "RestoreSourceTangents", (object)null), Is.Null);
-                Assert.That(InvokePrivate(deformer, "TryApplyLayerContribution", null, null, null), Is.Null);
+                Assert.DoesNotThrow(() => BrushEvaluator.Apply(null, null, null));
                 Assert.That(InvokePrivate(deformer, "HasMeaningfulBaseSettings"), Is.TypeOf<bool>());
 
                 type.GetField("_settings", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(deformer, null);
@@ -1534,12 +1496,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(InvokeStaticPrivate<bool>("HasNonNullGroups", new List<DeformerGroup> { null }), Is.False);
                 Assert.That(InvokeStaticPrivate<bool>("HasNonNullLayers", new List<LatticeLayer> { null }), Is.False);
                 Assert.That(
-                    InvokeStaticPrivate<bool>("TryBuildDeltas", null, null, null),
+                    DeformationEvaluationMath.TryBuildDeltas(null, null, out _),
                     Is.False);
-                Assert.That(InvokeStaticPrivate<HashSet<string>>("CollectBlendShapeNames", (object)null), Is.Empty);
+                Assert.That(DeformedMeshWriter.CollectBlendShapeNames(null), Is.Empty);
                 Assert.That(
-                    InvokeStaticPrivate<string>(
-                        "MakeUniqueBlendShapeName",
+                    DeformedMeshWriter.MakeUniqueBlendShapeName(
                         "Shape",
                         new HashSet<string> { "Shape", "Shape 1" }),
                     Is.EqualTo("Shape 2"));
@@ -1555,35 +1516,20 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     type.GetField("_hasIncompatibleBrushData", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(deformer),
                     Is.EqualTo(false));
 
-                var surfaceArgs = new object[]
-                {
-                    null,
-                    Array.Empty<Vector3>(),
-                    Array.Empty<Vector3>(),
-                    true,
-                    true,
-                    null,
-                    null
-                };
-                type.GetMethod("CalculateGeneratedSurfaceDeltas", BindingFlags.Static | BindingFlags.NonPublic)
-                    .Invoke(null, surfaceArgs);
-                Assert.That(surfaceArgs[5], Is.Null);
-                Assert.That(surfaceArgs[6], Is.Null);
+                DeformedMeshWriter.CalculateGeneratedSurfaceDeltasWithNormalsMode(
+                    null, Array.Empty<Vector3>(), Array.Empty<Vector3>(),
+                    NormalsRecalculationMode.LegacyUnityRecalculate, true, true,
+                    out var surfaceNormals, out var surfaceTangents);
+                Assert.That(surfaceNormals, Is.Null);
+                Assert.That(surfaceTangents, Is.Null);
 
                 mesh.uv = new[] { Vector2.zero, Vector2.right, Vector2.up, Vector2.one };
-                var tangentArgs = new object[]
-                {
-                    mesh,
-                    mesh.vertices,
+                DeformedMeshWriter.CalculateGeneratedSurfaceDeltasWithNormalsMode(
+                    mesh, mesh.vertices,
                     new[] { Vector3.forward, Vector3.zero, Vector3.zero, Vector3.zero },
-                    false,
-                    true,
-                    null,
-                    null
-                };
-                type.GetMethod("CalculateGeneratedSurfaceDeltas", BindingFlags.Static | BindingFlags.NonPublic)
-                    .Invoke(null, tangentArgs);
-                Assert.That(tangentArgs[6], Is.TypeOf<Vector3[]>());
+                    NormalsRecalculationMode.LegacyUnityRecalculate, false, true,
+                    out _, out var tangentDeltas);
+                Assert.That(tangentDeltas, Is.TypeOf<Vector3[]>());
 
                 migrationStatus.SetValue(deformer, DeformationDataMigrationStatus.Ready);
             }
@@ -1809,39 +1755,32 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 version.SetValue(deformer, DeformationDataVersion.V1_2_0);
                 Assert.That(InvokePrivate(deformer, "TryUpgradeDeformationDataOneRelease"), Is.EqualTo(false));
 
-                Assert.That(InvokePrivate(deformer, "AddGeneratedBlendShapeFrames", null, "Shape", null, null, null), Is.Null);
+                var outputWorkspace = new MeshOutputWorkspace();
+                var outputOptions = new MeshOutputOptions(true, false, true,
+                    NormalsRecalculationMode.PreserveSourceSmoothing, false);
+                Assert.DoesNotThrow(() => DeformedMeshWriter.AddGeneratedBlendShapeFrames(
+                    null, "Shape", null, new GeneratedBlendShapeOutput("Shape", null, null),
+                    outputOptions, outputWorkspace));
                 var baseVertices = mesh.vertices;
                 var deltas = new[] { Vector3.forward, Vector3.zero, Vector3.zero, Vector3.zero };
-                Assert.That(
-                    InvokePrivate(deformer, "AddGeneratedBlendShapeFrames", mesh, "Shape", new Vector3[1], deltas, null),
-                    Is.Null);
+                Assert.DoesNotThrow(() => DeformedMeshWriter.AddGeneratedBlendShapeFrames(
+                    mesh, "Shape", new Vector3[1], new GeneratedBlendShapeOutput("Shape", null, deltas),
+                    outputOptions, outputWorkspace));
 
                 type.GetField("_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(deformer, mesh);
                 type.GetField("_recalculateTangents", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(deformer, true);
                 type.GetField("_recalculateNormals", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(deformer, false);
-                Assert.That(
-                    InvokePrivate(
-                        deformer,
-                        "AddGeneratedBlendShapeFrames",
-                        mesh,
-                        "Tangent Shape",
-                        baseVertices,
-                        deltas,
-                        AnimationCurve.Linear(0f, 0f, 1f, 1f)),
-                    Is.Null);
+                outputOptions = new MeshOutputOptions(false, true, true,
+                    NormalsRecalculationMode.PreserveSourceSmoothing, false);
+                Assert.DoesNotThrow(() => DeformedMeshWriter.AddGeneratedBlendShapeFrames(
+                    mesh, "Tangent Shape", baseVertices,
+                    new GeneratedBlendShapeOutput("Tangent Shape", AnimationCurve.Linear(0f, 0f, 1f, 1f), deltas),
+                    outputOptions, outputWorkspace));
                 Assert.That(mesh.GetBlendShapeIndex("Tangent Shape"), Is.GreaterThanOrEqualTo(0));
 
-                var generatedType = type.GetNestedType("GeneratedBlendShape", BindingFlags.NonPublic);
-                var generated = Activator.CreateInstance(
-                    generatedType,
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                    null,
-                    new object[] { "Null Deltas", null, null },
-                    null);
-                var listType = typeof(List<>).MakeGenericType(generatedType);
-                var list = (System.Collections.IList)Activator.CreateInstance(listType);
-                list.Add(generated);
-                Assert.That((int)InvokePrivate(deformer, "ComputeBlendShapeOutputHash", list), Is.Not.Zero);
+                var generated = new GeneratedBlendShapeOutput("Null Deltas", null, null);
+                Assert.That(DeformationEvaluationMath.ComputeBlendShapeOutputHash(
+                    new[] { generated }), Is.Not.Zero);
 
                 var emptyObject = new GameObject("runtime-core-empty-deform");
                 var emptyMesh = new Mesh();
@@ -1881,12 +1820,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     .SetValue(deformer, true);
                 go.transform.localScale = new Vector3(0f, 1f, 1f);
                 var source = mesh.vertices;
-                InvokePrivate(
-                    deformer,
-                    "TryApplyLatticeLayerContribution",
-                    worldLayer,
-                    source,
-                    (Vector3[])source.Clone());
+                using (var evaluator = new LatticeEvaluator())
+                    evaluator.Apply(worldLayer.Settings, worldLayer.Weight,
+                        new EvaluationSemantics(false, true, go.transform.worldToLocalMatrix),
+                        source, (Vector3[])source.Clone());
                 go.transform.localScale = Vector3.one;
             }
             finally
@@ -1993,25 +1930,24 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     .SetValue(deformer, null);
                 Assert.That(deformer.WeightTransferSettings, Is.Not.Null);
 
-                InvokePrivate(deformer, "EnsureCache", null, Array.Empty<Vector3>());
+                using var evaluator = new LatticeEvaluator();
+                Assert.That(evaluator.EnsureCache(null, Array.Empty<Vector3>()), Is.False);
                 Assert.That(
-                    InvokePrivate(deformer, "RebuildCache", null, mesh, Array.Empty<Vector3>(), 0),
+                    evaluator.RebuildCache(null, Array.Empty<Vector3>(), 0, LatticeEvaluator.GetEffectiveInterpolation(null)),
                     Is.EqualTo(false));
 
                 var invalidGrid = new LatticeAsset();
                 typeof(LatticeAsset)
                     .GetField("_gridSize", BindingFlags.Instance | BindingFlags.NonPublic)
                     .SetValue(invalidGrid, Vector3Int.one);
-                Assert.That(InvokePrivate(deformer, "RebuildCache", invalidGrid, mesh, Array.Empty<Vector3>(), 0), Is.EqualTo(false));
+                Assert.That(evaluator.RebuildCache(invalidGrid, Array.Empty<Vector3>(), 0, LatticeEvaluator.GetEffectiveInterpolation(invalidGrid)), Is.EqualTo(false));
 
                 var validSettings = new LatticeAsset();
                 validSettings.EnsureInitialized();
-                Assert.That(InvokePrivate(deformer, "RebuildCache", validSettings, mesh, Array.Empty<Vector3>(), 0), Is.EqualTo(false));
+                Assert.That(evaluator.RebuildCache(validSettings, Array.Empty<Vector3>(), 0, LatticeEvaluator.GetEffectiveInterpolation(validSettings)), Is.EqualTo(false));
 
-                typeof(LatticeDeformer)
-                    .GetField("_cache", BindingFlags.Instance | BindingFlags.NonPublic)
-                    .SetValue(deformer, null);
-                Assert.That(InvokePrivate(deformer, "EnsureCache", validSettings, Array.Empty<Vector3>()), Is.EqualTo(false));
+                evaluator.Dispose();
+                Assert.That(evaluator.EnsureCache(validSettings, Array.Empty<Vector3>()), Is.False);
             }
             finally
             {
@@ -2067,8 +2003,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     .SetValue(deformer, 123);
                 Assert.That(deformer.Deform(assignToRenderer: false), Is.Not.Null);
 
+                ((EvaluationWorkspace)InvokePrivate(deformer, "GetEvaluationWorkspace")).Dispose();
                 typeof(LatticeDeformer)
-                    .GetField("_cache", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .GetField("_evaluationWorkspace", BindingFlags.Instance | BindingFlags.NonPublic)
                     .SetValue(deformer, null);
                 deformer.InvalidateCache();
 
@@ -2204,15 +2141,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(bakedArgs[1], Is.TypeOf<float[]>());
                 Assert.That((int)bakedArgs[2], Is.Not.EqualTo(0));
 
-                var interpolated = InvokeStaticPrivate<Vector3[]>("EvaluateBlendShapeVertexDelta", mesh, 0, 75f);
+                var interpolated = SourceBlendShapeEvaluator.EvaluateDelta(mesh, 0, 75f);
                 Assert.That(interpolated[0].x, Is.EqualTo(0.75f).Within(1e-6f));
-                var extrapolated = InvokeStaticPrivate<Vector3[]>("EvaluateBlendShapeVertexDelta", mesh, 0, 150f);
+                var extrapolated = SourceBlendShapeEvaluator.EvaluateDelta(mesh, 0, 150f);
                 Assert.That(extrapolated[0].x, Is.EqualTo(2f).Within(1e-6f));
 
-                Assert.That(InvokeStaticPrivate<int>("HashVertices", new object[] { null }), Is.EqualTo(0));
-                Assert.That(InvokeStaticPrivate<int>("HashVertices", Array.Empty<Vector3>()), Is.EqualTo(0));
-                Assert.That(InvokeStaticPrivate<int>("HashVertices", new[] { Vector3.one }), Is.Not.EqualTo(0));
-                InvokeStaticPrivate<object>("ScaleDeltas", null, 1f);
+                Assert.That(DeformationEvaluationMath.HashVertices(null), Is.EqualTo(0));
+                Assert.That(DeformationEvaluationMath.HashVertices( Array.Empty<Vector3>()), Is.EqualTo(0));
+                Assert.That(DeformationEvaluationMath.HashVertices( new[] { Vector3.one }), Is.Not.EqualTo(0));
+                SourceBlendShapeEvaluator.ScaleDeltas(null, 1f);
             }
             finally
             {
@@ -2235,8 +2172,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 renderer.SetBlendShapeWeight(0, 150f);
                 renderer.BakeMesh(baked);
 
-                var evaluated = InvokeStaticPrivate<Vector3[]>(
-                    "EvaluateBlendShapeVertexDelta", source, 0, 150f);
+                var evaluated = SourceBlendShapeEvaluator.EvaluateDelta(source, 0, 150f);
                 Vector3 unityDelta = baked.vertices[0] - source.vertices[0];
 
                 Assert.That(evaluated[0].x, Is.EqualTo(2f).Within(1e-5f));

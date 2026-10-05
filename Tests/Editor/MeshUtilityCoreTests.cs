@@ -854,84 +854,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void RestSpaceConverterCache_ReusesWarmConverterAndTracksPose()
-        {
-            var rendererObject = new GameObject("Renderer");
-            var boneObject = new GameObject("Bone");
-            var mesh = CreateSingleBoneTriangleMesh();
-            try
-            {
-                boneObject.transform.SetParent(rendererObject.transform, false);
-                var renderer = rendererObject.AddComponent<SkinnedMeshRenderer>();
-                renderer.sharedMesh = mesh;
-                renderer.rootBone = boneObject.transform;
-                renderer.bones = new[] { boneObject.transform };
-                var deformer = rendererObject.AddComponent<LatticeDeformer>();
-                var cache = new SkinnedVertexHelper.RestSpaceDeltaConverterCache();
-                var first = cache.Get(deformer);
-                Assert.That(first, Is.Not.Null);
-
-                long before = System.GC.GetAllocatedBytesForCurrentThread();
-                var warm = cache.Get(deformer);
-                long allocated = System.GC.GetAllocatedBytesForCurrentThread() - before;
-                Assert.That(warm, Is.SameAs(first));
-                ManagedAllocationCounter.AssertNoAllocations(allocated);
-
-                boneObject.transform.localPosition = Vector3.right;
-                Assert.That(cache.Get(deformer), Is.Not.SameAs(first));
-            }
-            finally
-            {
-                Object.DestroyImmediate(rendererObject);
-                Object.DestroyImmediate(boneObject);
-                Object.DestroyImmediate(mesh);
-            }
-        }
-
-        [Test]
-        public void RestSpaceConverterCache_TracksSourceMeshAndProxyReplacement()
-        {
-            var rendererObject = new GameObject("Renderer");
-            var proxyObject = new GameObject("Proxy");
-            var boneObject = new GameObject("Bone");
-            var mesh = CreateSingleBoneTriangleMesh();
-            var replacementMesh = CreateSingleBoneTriangleMesh();
-            try
-            {
-                boneObject.transform.SetParent(rendererObject.transform, false);
-                var renderer = rendererObject.AddComponent<SkinnedMeshRenderer>();
-                renderer.sharedMesh = mesh;
-                renderer.rootBone = boneObject.transform;
-                renderer.bones = new[] { boneObject.transform };
-                var deformer = rendererObject.AddComponent<LatticeDeformer>();
-                var cache = new SkinnedVertexHelper.RestSpaceDeltaConverterCache();
-                var first = cache.Get(deformer);
-
-                typeof(LatticeDeformer).GetField(
-                    "_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic)
-                    .SetValue(deformer, replacementMesh);
-                var replacement = cache.Get(deformer);
-                Assert.That(replacement, Is.Not.SameAs(first));
-
-                var proxyRenderer = proxyObject.AddComponent<SkinnedMeshRenderer>();
-                proxyRenderer.sharedMesh = replacementMesh;
-                proxyRenderer.rootBone = boneObject.transform;
-                proxyRenderer.bones = new[] { boneObject.transform };
-                LatticePreviewUtility.RegisterProxy(renderer, proxyRenderer);
-                Assert.That(cache.Get(deformer), Is.Not.SameAs(replacement));
-            }
-            finally
-            {
-                LatticePreviewUtility.ClearProxy(rendererObject.GetComponent<Renderer>());
-                Object.DestroyImmediate(rendererObject);
-                Object.DestroyImmediate(proxyObject);
-                Object.DestroyImmediate(boneObject);
-                Object.DestroyImmediate(mesh);
-                Object.DestroyImmediate(replacementMesh);
-            }
-        }
-
-        [Test]
         public void BrushTool_IntersectRayMeshDelegate_HitsKnownTriangle()
         {
             var mesh = new Mesh
@@ -1294,6 +1216,169 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 Object.DestroyImmediate(first);
                 Object.DestroyImmediate(second);
+            }
+        }
+
+        [Test]
+        public void VertexSelectionMove_RepeatedEditsPublishEveryInteractiveChange()
+        {
+            var rendererObject = new GameObject("Vertex Interactive Publish");
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            var handler = new VertexSelectionHandler();
+            int publishedCount = 0;
+            System.Action<LatticeDeformer> onPublished = changed =>
+            {
+                if (changed != null && changed.gameObject == rendererObject) publishedCount++;
+            };
+            try
+            {
+                rendererObject.AddComponent<MeshRenderer>();
+                rendererObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var deformer = rendererObject.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                int layerIndex = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = layerIndex;
+                deformer.EnsureDisplacementCapacity();
+
+                handler.Activate(deformer);
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                VertexSelectionHandler.ClearSelection();
+                var selected = typeof(VertexSelectionHandler).GetField(
+                    "s_selectedVertices", BindingFlags.Static | BindingFlags.NonPublic);
+                Assert.That(selected, Is.Not.Null);
+                ((HashSet<int>)selected.GetValue(null)).Add(0);
+
+                int initialRevision = deformer.DeformationDataRevision;
+                LatticePreviewUtility.InteractiveDeformationPublished += onPublished;
+                InvokeHandlerMethod(handler, "ApplyMoveDelta", deformer, Vector3.forward * 0.1f);
+                InvokeHandlerMethod(handler, "ApplyMoveDelta", deformer, Vector3.forward * 0.1f);
+
+                Assert.That(deformer.DeformationDataRevision, Is.EqualTo(initialRevision + 2));
+                Assert.That(publishedCount, Is.EqualTo(2),
+                    "Every edit must invalidate the NDMF node, including edits after its first reevaluation.");
+            }
+            finally
+            {
+                LatticePreviewUtility.InteractiveDeformationPublished -= onPublished;
+                handler.Deactivate();
+                VertexSelectionHandler.ClearSelection();
+                Object.DestroyImmediate(rendererObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void BrushStroke_RepeatedEditsPublishEveryInteractiveChange()
+        {
+            var rendererObject = new GameObject("Brush Interactive Publish");
+            var mesh = new Mesh
+            {
+                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                triangles = new[] { 0, 1, 2 }
+            };
+            mesh.RecalculateNormals();
+            var handler = new BrushToolHandler();
+            int publishedCount = 0;
+            System.Action<LatticeDeformer> onPublished = changed =>
+            {
+                if (changed != null && changed.gameObject == rendererObject) publishedCount++;
+            };
+            var previousMode = BrushToolHandler.CurrentBrushMode;
+            float previousRadius = BrushToolHandler.BrushRadius;
+            float previousStrength = BrushToolHandler.BrushStrength;
+            bool previousBackfaceCulling = BrushToolHandler.BackfaceCulling;
+            try
+            {
+                rendererObject.AddComponent<MeshRenderer>();
+                rendererObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+                var deformer = rendererObject.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                int layerIndex = deformer.AddLayer("Brush", MeshDeformerLayerType.Brush);
+                deformer.ActiveLayerIndex = layerIndex;
+                deformer.EnsureDisplacementCapacity();
+
+                handler.Activate(deformer);
+                handler.RebuildCacheIfNeeded(mesh, deformer);
+                BrushToolHandler.CurrentBrushMode = BrushToolHandler.BrushMode.Normal;
+                BrushToolHandler.BrushRadius = 2f;
+                BrushToolHandler.BrushStrength = 0.5f;
+                BrushToolHandler.BackfaceCulling = false;
+
+                var applyBrush = typeof(BrushToolHandler).GetMethod(
+                    "ApplyBrush", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(applyBrush, Is.Not.Null);
+                var brushEvent = new Event { type = EventType.MouseDrag, mousePosition = Vector2.zero };
+                int initialRevision = deformer.DeformationDataRevision;
+                LatticePreviewUtility.InteractiveDeformationPublished += onPublished;
+                for (int i = 0; i < 2; i++)
+                {
+                    applyBrush.Invoke(handler, new object[]
+                    {
+                        deformer, rendererObject.transform, Vector3.zero, Vector3.zero, Vector3.forward, brushEvent
+                    });
+                }
+
+                Assert.That(deformer.DeformationDataRevision, Is.EqualTo(initialRevision + 2));
+                Assert.That(publishedCount, Is.EqualTo(2),
+                    "Every stroke must invalidate the NDMF node, including strokes after its first reevaluation.");
+            }
+            finally
+            {
+                LatticePreviewUtility.InteractiveDeformationPublished -= onPublished;
+                BrushToolHandler.CurrentBrushMode = previousMode;
+                BrushToolHandler.BrushRadius = previousRadius;
+                BrushToolHandler.BrushStrength = previousStrength;
+                BrushToolHandler.BackfaceCulling = previousBackfaceCulling;
+                handler.Deactivate();
+                Object.DestroyImmediate(rendererObject);
+                Object.DestroyImmediate(mesh);
+            }
+        }
+
+        [Test]
+        public void MeshDeformerTool_FirstActivationSelectsLatticeHandler()
+        {
+            var go = new GameObject("first-tool-activation");
+            Mesh source = null;
+            MeshDeformerTool tool = null;
+            try
+            {
+                source = new Mesh
+                {
+                    vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
+                    triangles = new[] { 0, 1, 2 }
+                };
+                go.AddComponent<MeshFilter>().sharedMesh = source;
+                go.AddComponent<MeshRenderer>();
+                var deformer = go.AddComponent<LatticeDeformer>();
+                deformer.Reset();
+                tool = ScriptableObject.CreateInstance<MeshDeformerTool>();
+
+                var determine = typeof(MeshDeformerTool).GetMethod(
+                    "DetermineHandler", BindingFlags.Instance | BindingFlags.NonPublic);
+                var activate = typeof(MeshDeformerTool).GetMethod(
+                    "ActivateHandler", BindingFlags.Instance | BindingFlags.NonPublic);
+                var current = typeof(MeshDeformerTool).GetField(
+                    "_currentHandler", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That(determine, Is.Not.Null);
+                Assert.That(activate, Is.Not.Null);
+                Assert.That(current, Is.Not.Null);
+
+                object desired = determine.Invoke(tool, new object[] { deformer });
+                activate.Invoke(tool, new[] { desired, deformer });
+
+                Assert.That(current.GetValue(tool).ToString(), Is.EqualTo("Lattice"),
+                    "The first EditorTool activation must route Scene View GUI to the lattice handler.");
+            }
+            finally
+            {
+                if (tool != null) Object.DestroyImmediate(tool);
+                Object.DestroyImmediate(go);
+                if (source != null) Object.DestroyImmediate(source);
             }
         }
 

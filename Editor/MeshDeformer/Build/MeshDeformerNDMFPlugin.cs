@@ -22,13 +22,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             InPhase(BuildPhase.Transforming)
                 .Run(LatticeDeformerBakePass.Instance)
-                .PreviewingWith(new LatticeDeformerPreviewFilter())
+                .PreviewingWith(new LatticeDeformerPreviewFilter(
+                    LatticeDeformerPreviewFilter.Placement.BeforeTopologyChanges))
                 .BeforePlugin("com.anatawa12.avatar-optimizer");
 
-            InPhase(BuildPhase.Optimizing)
-                .AfterPlugin("com.anatawa12.avatar-optimizer")
-                .Run("Mesh Deformer AAO Preview Sync", _ => { })
-                .PreviewingWith(new LatticeDeformerPostAaoPreviewFilter());
+            // Position-dependent optimizers must see the same deformed surface
+            // as Bake. Published revisions rebuild downstream preview consumers;
+            // the session still updates its owned mesh during interactive edits.
+
         }
     }
 
@@ -53,19 +54,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     $"Mesh Deformer validation failed for '{invalidName}'. See MDV diagnostic codes in the Editor log.");
             }
 
-            bool previousSuppressRestore = LatticeDeformer.SuppressRestoreOnDisable;
-            try
+            foreach (var deformer in deformers)
             {
-                LatticeDeformer.SuppressRestoreOnDisable = true;
-
-                foreach (var deformer in deformers)
-                {
-                    ProcessValidatedDeformer(context, deformer);
-                }
-            }
-            finally
-            {
-                LatticeDeformer.SuppressRestoreOnDisable = previousSuppressRestore;
+                ProcessValidatedDeformer(context, deformer);
             }
         }
 
@@ -153,7 +144,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 meshFilter.sharedMesh = exportMesh;
             }
 
-            Object.DestroyImmediate(deformer, true);
+            using (deformer.SuppressMeshRestoration())
+                Object.DestroyImmediate(deformer, true);
         }
 
         internal static bool ShouldProcessDeformer(LatticeDeformer deformer)

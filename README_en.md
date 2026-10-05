@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="Blobs~/logo-white.png">
-    <img src="Blobs~/logo.png" alt="Lattice Deformation Tool" width="500">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/32ba/VRC-lattice-deformation-tool/2.0.0-beta.1/Blobs~/logo-white.png">
+    <img src="https://raw.githubusercontent.com/32ba/VRC-lattice-deformation-tool/2.0.0-beta.1/Blobs~/logo.png" alt="Lattice Deformation Tool" width="500">
   </picture>
 </p>
 
@@ -13,26 +13,31 @@ Use it for fitting clothing, hair, and accessories, manually correcting intersec
 
 日本語ドキュメント: [README.md](README.md)
 
+This branch develops `2.0.0-beta.1`, an internal refactoring that preserves existing data and functionality.
+The implementation separates data reads, editing operations, deformation evaluation, migration, and Preview management while preserving compatibility with existing components and saved data. Inspector and Scene View tools also separate interaction, calculation, and presentation responsibilities.
+See the [development status](https://github.com/32ba/VRC-lattice-deformation-tool/blob/2.0.0-beta.1/Docs~/Architecture/2.0.0-beta.1-progress.md) for the implemented scope, test results, and remaining stages.
+
 ## Main features
 
 - **Lattice**: Move control points to deform broad areas smoothly
-- **Brush**: Make local edits with Normal, Move, Smooth, and Mask modes
+- **Brush**: Make local edits with Normal, Move, and Smooth modes
   - Smooth, Linear, Constant, Sphere, and Gaussian falloff
   - Surface-distance falloff, X/Y/Z mirroring, and penetration visualization
 - **Vertex Selection**: Select vertices directly and apply Move, Rotate, or Scale
   - Box selection and proportional editing are supported
 - **Groups and Layers**: Stack Lattice and Brush layers with independent names, enabled states, and weights
   - Duplicate, copy and paste, or reorder layers and groups; split and flip individual layers
-- **Vertex Mask**: Paint protected vertices to limit Brush edits and layer contributions
 - **BlendShapes**: Import an existing BlendShape as a Brush layer and output a group or layer as a new BlendShape
 - **Mesh rebuild**: Optionally recalculate normals, tangents, bounds, and SkinnedMesh bone weights
 - **NDMF Preview / Bake**: Inspect changes on a proxy Mesh and apply them only during an avatar or world build
+
+Existing Profile, Mask, and advanced BlendShape data can still be loaded and evaluated. Their future authoring UI and Clearance/Scan/Fit/QA are outside the 2.0 shipping scope. Normal Group output, the test slider, and single-frame import remain available.
 
 ## Supported targets and requirements
 
 - Unity 2022.3 LTS or later
 - `MeshFilter` + `MeshRenderer`, or `SkinnedMeshRenderer`
-- NDMF (`nadena.dev.ndmf`) 1.9.0 or later
+- NDMF (`nadena.dev.ndmf`) 1.14.8 or later
 - VRChat Creator Companion (recommended when installing through VPM)
 
 ## Installation
@@ -70,14 +75,14 @@ To use a source checkout directly, place the repository under the VCC project's 
 2. Open the Lattice Editor, select one or more control points, and move them.
 3. Tune the Layer Weight and keep fine corrections in separate Layers when useful.
 
-### 2. Correct local intersections with Brush and Mask
+### 2. Correct local intersections with Brush
 
 1. Add a Brush Layer and choose Normal or Move in the Brush Editor.
-2. Protect areas that should remain fixed with Mask mode.
+2. Adjust the radius and strength to edit only the intended area.
 3. If needed, enable **Show Penetration**, assign a reference Renderer, and correct the vertices highlighted in red.
 4. Switch the overlay to Vertex Selection for vertex-level finishing.
 
-Penetration visualization is an editing aid based on an approximate test. It is not an exact posed-surface test of a baked reference `SkinnedMeshRenderer`.
+Penetration visualization classifies target vertices against the nearest triangles of the reference mesh, using the reference surface normals to determine the side. A reference `SkinnedMeshRenderer` is baked in its current pose for evaluation. This is not an exhaustive mesh intersection test; intersections between sampled vertices may go undetected.
 
 ### 3. Edit and output a shape adjustment as a BlendShape
 

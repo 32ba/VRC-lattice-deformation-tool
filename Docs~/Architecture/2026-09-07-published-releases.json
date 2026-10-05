@@ -1,0 +1,347 @@
+{
+  "schemaVersion": 1,
+  "verifiedDate": "2026-09-07",
+  "source": "GitHub release API through gh release list, local peeled tags and package.json",
+  "ordering": "Published timestamp; includes public prereleases and RCs, without reinterpreting GitHub prerelease flags",
+  "total": 42,
+  "existingCorpus": 14,
+  "laterReleaseCount": 28,
+  "releases": [
+    {
+      "tag": "0.0.1",
+      "commit": "646087621dcd27375946da8178fd1a12cb230181",
+      "packageVersion": "0.0.1",
+      "publishedUtc": "09/24/2025 11:25:29",
+      "prerelease": false,
+      "historicalCorpus": true
+    },
+    {
+      "tag": "0.0.2",
+      "commit": "daee78685540092a038a46b9cff40b21a5cf235f",
+      "packageVersion": "0.0.2",
+      "publishedUtc": "09/24/2025 18:10:43",
+      "prerelease": false,
+      "historicalCorpus": true
+    },
+    {
+      "tag": "0.0.3",
+      "commit": "200afd7a2a7b627d391c3ca395dccb18099f0782",
+      "packageVersion": "0.0.3",
+      "publishedUtc": "09/25/2025 15:32:12",
+      "prerelease": false,
+      "historicalCorpus": true
+    },
+    {
+      "tag": "0.0.4",
+      "commit": "b208a5bedbfef20f0ac3d9db72348f865ad98ea1",
+      "packageVersion": "0.0.4",
+      "publishedUtc": "09/26/2025 10:49:32",
+      "prerelease": false,
+      "historicalCorpus": true
+    },
+    {
+      "tag": "0.0.5",
+      "commit": "9cadc032e98b2f0c6099113fbad7e641d4f58278",
+      "packageVersion": "0.0.5",
+      "publishedUtc": "09/26/2025 15:41:58",
+      "prerelease": false,
+      "historicalCorpus": true
+    },
+    {
+      "tag": "0.0.6",
+      "commit": "d39dd018845922f40b868fdc2c12d07d56c639a8",
+      "packageVersion": "0.0.6",
+      "publishedUtc": "09/28/2025 10:48:43",
+      "prerelease": false,
+      "historicalCorpus": true
+    },
+    {
+      "tag": "1.0.0",
+      "commit": "ad1395f2908a57f03ee03f3c7d824e441f9c7f9f",
+      "packageVersion": "1.0.0",
+      "publishedUtc": "10/04/2025 16:31:14",
+      "prerelease": false,
+      "historicalCorpus": true
+    },
+    {
+      "tag": "1.0.1",
+      "commit": "ec5cf94d650e489e94b0df1a991b930d018c753b",
+      "packageVersion": "1.0.1",
+      "publishedUtc": "12/30/2025 14:59:00",
+      "prerelease": false,
+      "historicalCorpus": true
+    },
+    {
+      "tag": "1.1.0",
+      "commit": "b08327c3d5308a41d8dd5438bb7fe9eec91d8382",
+      "packageVersion": "1.1.0",
+      "publishedUtc": "01/22/2026 16:23:01",
+      "prerelease": false,
+      "historicalCorpus": true
+    },
+    {
+      "tag": "1.2.0",
+      "commit": "3332e986f560956f99fe78d8d33947fcacc0ca98",
+      "packageVersion": "1.2.0",
+      "publishedUtc": "03/05/2026 14:07:26",
+      "prerelease": false,
+      "historicalCorpus": true
+    },
+    {
+      "tag": "1.2.1",
+      "commit": "8c199ab68f056d29ba2ec8ad160d8ff53b0994b2",
+      "packageVersion": "1.2.1",
+      "publishedUtc": "03/30/2026 15:44:46",
+      "prerelease": false,
+      "historicalCorpus": true
+    },
+    {
+      "tag": "1.3.0",
+      "commit": "6ffebe0f01b822292e4db090bcd5dea8b0b7648f",
+      "packageVersion": "1.3.0",
+      "publishedUtc": "03/30/2026 15:54:57",
+      "prerelease": false,
+      "historicalCorpus": true
+    },
+    {
+      "tag": "1.3.1",
+      "commit": "e787c5a1a49996c539b49e596c919740f20dc204",
+      "packageVersion": "1.3.1",
+      "publishedUtc": "05/24/2026 12:05:43",
+      "prerelease": false,
+      "historicalCorpus": true
+    },
+    {
+      "tag": "1.4.0",
+      "commit": "15f684040770617bbe0c3b22b6e9720107c64adb",
+      "packageVersion": "1.4.0",
+      "publishedUtc": "07/07/2026 13:35:04",
+      "prerelease": false,
+      "historicalCorpus": true
+    },
+    {
+      "tag": "1.4.1",
+      "commit": "e784792c1931924a08300904babc5bc908309d10",
+      "packageVersion": "1.4.1",
+      "publishedUtc": "07/20/2026 03:42:46",
+      "prerelease": false,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.2-rc.1",
+      "commit": "67d779c006169531e246dd41e65f00c310e553b4",
+      "packageVersion": "1.4.2-rc.1",
+      "publishedUtc": "07/25/2026 10:36:36",
+      "prerelease": false,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.2-rc.2",
+      "commit": "191e59f0051b93617dfb6898468812c603f343d4",
+      "packageVersion": "1.4.2-rc.2",
+      "publishedUtc": "07/25/2026 10:48:34",
+      "prerelease": false,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.2-rc.3",
+      "commit": "26f29c5b4828cd4d1402e5052a00f993869c1e77",
+      "packageVersion": "1.4.2-rc.3",
+      "publishedUtc": "07/26/2026 10:33:34",
+      "prerelease": false,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.2-rc.4",
+      "commit": "80d5bbbf8f4df6d6d24823ff1bb8e7b232061f6a",
+      "packageVersion": "1.4.2-rc.4",
+      "publishedUtc": "07/26/2026 13:22:23",
+      "prerelease": false,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.2-rc.5",
+      "commit": "1c5ec378904ac81cd38eecdf6e24058a769866cb",
+      "packageVersion": "1.4.2-rc.5",
+      "publishedUtc": "07/26/2026 14:01:50",
+      "prerelease": false,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.2",
+      "commit": "92cdb61a81a6de8d46a861552f269776e596b009",
+      "packageVersion": "1.4.2",
+      "publishedUtc": "07/28/2026 13:47:12",
+      "prerelease": false,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.3-rc.1",
+      "commit": "558cedcec298184eb4cc618fc3fde81f13ef59e3",
+      "packageVersion": "1.4.3-rc.1",
+      "publishedUtc": "07/30/2026 12:16:06",
+      "prerelease": false,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.3-rc.2",
+      "commit": "81784b71659b0f2dfd142a01531c12c04948e15e",
+      "packageVersion": "1.4.3-rc.2",
+      "publishedUtc": "07/31/2026 13:04:13",
+      "prerelease": false,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.3",
+      "commit": "6e720d55e49de2a6bee4ceb174cd1bb873fed8d3",
+      "packageVersion": "1.4.3",
+      "publishedUtc": "07/31/2026 13:38:05",
+      "prerelease": false,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.4-rc.1",
+      "commit": "7405629d7254a1817a76d4fec638f4da88e3f6f8",
+      "packageVersion": "1.4.4-rc.1",
+      "publishedUtc": "08/02/2026 06:17:06",
+      "prerelease": true,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.4-rc.2",
+      "commit": "edc46301ccbabe482e1883b0478c3060665b8b0c",
+      "packageVersion": "1.4.4-rc.2",
+      "publishedUtc": "08/15/2026 08:15:03",
+      "prerelease": true,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.4-rc.3",
+      "commit": "9e0a819b424b5955f3c31a1b6dc1bcc5691895b1",
+      "packageVersion": "1.4.4-rc.3",
+      "publishedUtc": "08/15/2026 08:46:00",
+      "prerelease": true,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.4-rc.4",
+      "commit": "c7a927a1ce7fccd21e74e75350cdf2228fe7769b",
+      "packageVersion": "1.4.4-rc.4",
+      "publishedUtc": "08/15/2026 09:46:51",
+      "prerelease": true,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.4-rc.5",
+      "commit": "d5e17ef3bcf97ffefd04e866a92e740ceec944fe",
+      "packageVersion": "1.4.4-rc.5",
+      "publishedUtc": "08/15/2026 14:04:43",
+      "prerelease": true,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.4-rc.6",
+      "commit": "873464b6fea0c10431de0a96a478d728a966f1c6",
+      "packageVersion": "1.4.4-rc.6",
+      "publishedUtc": "08/15/2026 14:21:51",
+      "prerelease": true,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.4",
+      "commit": "a3625805082d460e3c31134f395d100438463c5b",
+      "packageVersion": "1.4.4",
+      "publishedUtc": "08/19/2026 15:32:31",
+      "prerelease": false,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.5-rc.1",
+      "commit": "0514fca96c8d87aef8d7146f2ffcdb5556545811",
+      "packageVersion": "1.4.5-rc.1",
+      "publishedUtc": "08/22/2026 23:54:05",
+      "prerelease": true,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.5-rc.2",
+      "commit": "ac13208b168ef5e32d01b93ec34e82af377e1dd8",
+      "packageVersion": "1.4.5-rc.2",
+      "publishedUtc": "08/23/2026 01:24:04",
+      "prerelease": true,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.5-rc.3",
+      "commit": "ae6cc333743d6ea9ce28e8f9b9ea1a1d4fbfa296",
+      "packageVersion": "1.4.5-rc.3",
+      "publishedUtc": "08/23/2026 11:13:04",
+      "prerelease": true,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.5-rc.5",
+      "commit": "70578fde23edd3e562bae86651fc290aab70b964",
+      "packageVersion": "1.4.5-rc.5",
+      "publishedUtc": "08/23/2026 21:33:22",
+      "prerelease": true,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.5-beta.1",
+      "commit": "8ac8fdbb86f654a4abe01e2ec28c8888fdbe6710",
+      "packageVersion": "1.4.5-beta.1",
+      "publishedUtc": "08/29/2026 05:23:32",
+      "prerelease": true,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.5-beta.2",
+      "commit": "e548f6d60d0377d21c7e2260bcea5bbddf2e9d33",
+      "packageVersion": "1.4.5-beta.2",
+      "publishedUtc": "08/29/2026 07:15:28",
+      "prerelease": true,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.5-beta.3",
+      "commit": "f1e228a4a1da017fdc0cdba03c37aedfe6a8e8d7",
+      "packageVersion": "1.4.5-beta.3",
+      "publishedUtc": "08/29/2026 08:40:29",
+      "prerelease": true,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.5-beta.4",
+      "commit": "34e4849dcb967aa0d409c26f470ad97a9f847bca",
+      "packageVersion": "1.4.5-beta.4",
+      "publishedUtc": "08/30/2026 01:23:39",
+      "prerelease": true,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.5-beta.5",
+      "commit": "3893f9994723b1b93df1c803a9abaf63ef3a13e6",
+      "packageVersion": "1.4.5-beta.5",
+      "publishedUtc": "08/30/2026 04:15:20",
+      "prerelease": true,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.5",
+      "commit": "41f5033658741858b273a0833467a3abee620ee8",
+      "packageVersion": "1.4.5",
+      "publishedUtc": "09/01/2026 11:46:29",
+      "prerelease": false,
+      "historicalCorpus": false
+    },
+    {
+      "tag": "1.4.6-beta.1",
+      "commit": "ceb515b8c2d1e35fda8ea8fcbdaeb96758d3afb0",
+      "packageVersion": "1.4.6-beta.1",
+      "publishedUtc": "09/01/2026 12:16:52",
+      "prerelease": true,
+      "historicalCorpus": false
+    }
+  ]
+}

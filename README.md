@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="Blobs~/logo-white.png">
-    <img src="Blobs~/logo.png" alt="Lattice Deformation Tool" width="500">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/32ba/VRC-lattice-deformation-tool/2.0.0-beta.1/Blobs~/logo-white.png">
+    <img src="https://raw.githubusercontent.com/32ba/VRC-lattice-deformation-tool/2.0.0-beta.1/Blobs~/logo.png" alt="Lattice Deformation Tool" width="500">
   </picture>
 </p>
 
@@ -13,26 +13,31 @@ Unity 内で `MeshRenderer` / `SkinnedMeshRenderer` の形状をレイヤーと�
 
 English documentation: [README_en.md](README_en.md)
 
+このブランチでは、既存データと機能を維持する内部リファクタリングを `2.0.0-beta.1` として開発しています。
+既存コンポーネントと保存データの互換性を保ちながら、データ読取り・編集操作・変形評価・移行・Previewの管理を分離しています。InspectorとScene Viewの各ツールも、操作・計算・表示の役割ごとに整理しています。
+実装済みの範囲、テスト結果、残る工程は[開発状況](https://github.com/32ba/VRC-lattice-deformation-tool/blob/2.0.0-beta.1/Docs~/Architecture/2.0.0-beta.1-progress.md)を参照してください。
+
 ## 主な機能
 
 - **Lattice**: 制御点を動かして広い範囲を滑らかに変形
-- **Brush**: Normal / Move / Smooth / Mask の4モードで局所編集
+- **Brush**: Normal / Move / Smooth の3モードで局所編集
   - Smooth / Linear / Constant / Sphere / Gaussian フォールオフ
   - 表面距離フォールオフ、X/Y/Z ミラー、貫通頂点の可視化
 - **Vertex Selection**: 頂点を直接選択し、Move / Rotate / Scale を適用
   - 矩形選択とプロポーショナル編集に対応
 - **Group / Layer**: Lattice と Brush レイヤーを重ね、名前・有効状態・ウェイトを個別管理
   - レイヤーやグループの複製、コピー＆ペースト、並べ替えと、レイヤーの左右分割・反転に対応
-- **Vertex Mask**: 保護する頂点を塗り、Brush とレイヤー合成の変形量を制限
 - **BlendShape**: 既存 BlendShape を Brush レイヤーへ読み込み、グループまたはレイヤーを新しい BlendShape として出力
 - **Mesh rebuild**: 法線、タンジェント、Bounds、SkinnedMesh の Bone Weight を必要に応じて再計算
 - **NDMF Preview / Bake**: Preview 中はプロキシ Mesh で確認し、アバターまたはワールドのビルド時にだけ変形を適用
+
+既存のProfile・Mask・高度BlendShapeデータは引き続き読み込み・評価できます。これらの次期作成編集UIとClearance/Scan/Fit/QAは2.0の出荷範囲に含めません。通常のGroup出力・テストスライダー・単一フレーム取り込みは利用できます。
 
 ## 対応対象と必要環境
 
 - Unity 2022.3 LTS 以降
 - `MeshFilter` + `MeshRenderer`、または `SkinnedMeshRenderer`
-- NDMF (`nadena.dev.ndmf`) 1.9.0 以降
+- NDMF (`nadena.dev.ndmf`) 1.14.8 以降
 - VRChat Creator Companion（VPM から導入する場合に推奨）
 
 ## 導入
@@ -70,14 +75,14 @@ English documentation: [README_en.md](README_en.md)
 2. Lattice Editor を開き、複数の制御点を選択して移動します。
 3. Layer Weight で効き具合を調整し、必要なら別 Layer に細部の修正を分けます。
 
-### 2. 貫通箇所を Brush と Mask で局所修正
+### 2. 貫通箇所を Brush で局所修正
 
 1. Brush Layer を追加し、Brush Editor の Normal または Move を選びます。
-2. 動かしたくない領域は Mask モードで保護します。
+2. 半径と強度を調整し、必要な範囲だけを編集します。
 3. 必要に応じて **Show Penetration** を有効にして参照 Renderer を指定し、赤く表示された頂点を修正します。
 4. 頂点単位で仕上げる場合は Overlay を Vertex Selection に切り替えます。
 
-貫通表示は編集補助用の近似判定です。現在ポーズを Bake した参照 `SkinnedMeshRenderer` の厳密な表面判定ではありません。
+貫通表示は、対象頂点と参照メッシュの最近傍三角形との位置関係を、参照面の法線方向で判定します。参照が `SkinnedMeshRenderer` の場合は現在ポーズを Bake して評価します。メッシュ同士の交差を網羅する判定ではないため、頂点間で交差する箇所などは検出できない場合があります。
 
 ### 3. 形状差分を BlendShape として編集・出力
 

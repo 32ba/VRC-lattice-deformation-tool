@@ -25,6 +25,92 @@ msgstr "비파괴적인 메시 변형을 위한 주요 구성 요소입니다."
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer-overview"
 msgstr "Mesh / SkinnedMesh 형상을 Lattice, Brush, Vertex Selection 레이어로 조정합니다. 원본 Mesh는 변경하지 않으며 NDMF Preview와 빌드 시 결과를 비파괴 방식으로 적용합니다."
 
+# Guided inspector
+msgid "net.32ba.lattice-deformation-tool.localization.guided-question"
+msgstr "무엇을 하고 싶으신가요?"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-intro"
+msgstr "원하는 작업을 선택하면 바로 편집을 시작할 수 있습니다. 원본 Mesh 데이터는 변경되지 않습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-target"
+msgstr "대상 메시"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-no-target"
+msgstr "대상 메시를 찾을 수 없습니다. 편집할 Renderer와 같은 GameObject에 이 컴포넌트를 추가하거나 아래에서 대상을 지정하세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-current-edit"
+msgstr "현재 편집 내용: {0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape"
+msgstr "전체 형태 다듬기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape-description"
+msgstr "의상이나 몸의 넓은 영역을 둘러싸서 한꺼번에 변형합니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface"
+msgstr "표면을 따라 조정하기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface-description"
+msgstr "브러시로 표면을 밀거나 움직이거나 부드럽게 만듭니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices"
+msgstr "버텍스를 잡아 움직이기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices-description"
+msgstr "버텍스를 선택하고 핸들로 위치를 세밀하게 조정합니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-preview-note"
+msgstr "편집을 시작하면 Scene 뷰에서 결과를 확인할 수 있습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-single-selection-required"
+msgstr "간편 화면에서 편집하려면 Mesh Deformer 하나만 선택하세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-profile-read-only"
+msgstr "공유 Profile은 이 화면에서 직접 편집할 수 없습니다. 상세 편집에서 내장 데이터로 복사하세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-unable-to-start"
+msgstr "편집을 시작할 수 없습니다. 상세 편집에서 대상 메시와 편집 내용을 확인하세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-detailed-inspector"
+msgstr "상세 편집..."
+
+msgid "net.32ba.lattice-deformation-tool.localization.return-to-guided-inspector"
+msgstr "간편 화면으로 돌아가기"
+
+# Guided Scene View overlay
+msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-adjust-shape-hint"
+msgstr "하늘색 점을 드래그하여 전체 모양을 다듬습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-sculpt-surface-hint"
+msgstr "표면을 드래그하여 조정합니다. 브러시 동작, 크기와 강도를 선택할 수 있습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-move-vertices-hint"
+msgstr "버텍스를 선택한 다음 표시된 핸들로 이동합니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-push-pull"
+msgstr "모양 바꾸기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-move"
+msgstr "밀기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-smooth"
+msgstr "부드럽게"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-raise"
+msgstr "돋우기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-indent"
+msgstr "들어가게"
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-detailed-overlay"
+msgstr "상세 조작 표시"
+
+msgid "net.32ba.lattice-deformation-tool.localization.return-to-simple-overlay"
+msgstr "간편 조작으로 돌아가기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.finish-editing"
+msgstr "편집 끝내기"
+
 msgid "net.32ba.lattice-deformation-tool.localization.yes"
 msgstr "예"
 
@@ -1352,3 +1438,21 @@ msgstr "검증"
 
 msgid "net.32ba.lattice-deformation-tool.localization.validation-fix"
 msgstr "수정"
+
+msgid "net.32ba.lattice-deformation-tool.localization.support-information"
+msgstr "지원 정보"
+
+msgid "net.32ba.lattice-deformation-tool.localization.support-information-description"
+msgstr "문제 해결에 필요한 기술 정보를 인코딩된 PNG 이미지로 저장합니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-support-information"
+msgstr "지원 정보 이미지 저장"
+
+msgid "net.32ba.lattice-deformation-tool.localization.support-information-copied"
+msgstr "지원 정보 이미지를 저장했습니다. 지원 메시지에 첨부해 주세요."
+
+msgid "net.32ba.lattice-deformation-tool.localization.invalid-migration-journal"
+msgstr "저장된 데이터의 마이그레이션 정보가 지원되지 않거나 올바르지 않아 데이터를 변경하지 않고 처리를 중단했습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-operation-failed"
+msgstr "Profile을 변경할 수 없습니다. 저장 데이터와 저장 위치를 확인하세요. 새로 만들 때는 사용하지 않은 파일 이름을 지정하세요."

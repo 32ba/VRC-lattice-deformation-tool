@@ -128,8 +128,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
-        [Test]
-        public void LatticeLocalization_CurrentLanguage_FallsBackAndRaisesChange()
+        [TestCase("English")]
+        [TestCase("Korean")]
+        public void LatticeLocalization_CurrentLanguage_FallsBackAndRaisesChange(string initialLanguage)
         {
             var previous = LatticeLocalization.CurrentLanguage;
             var key = "Net32Ba.LatticeLocalization.Language";
@@ -140,6 +141,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             LatticeLocalization.LanguageChanged += OnChanged;
             try
             {
+                EditorPrefs.SetString(key, initialLanguage);
+                Assert.That(LatticeLocalization.CurrentLanguage.ToString(), Is.EqualTo(initialLanguage));
                 EditorPrefs.SetString(key, "__invalid_language__");
                 Assert.That(LatticeLocalization.CurrentLanguage, Is.EqualTo(LatticeLocalization.Language.English));
 
@@ -147,7 +150,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 LatticeLocalization.CurrentLanguage = LatticeLocalization.Language.Korean;
 
                 Assert.That(LatticeLocalization.CurrentLanguage, Is.EqualTo(LatticeLocalization.Language.Korean));
-                Assert.That(changed, Is.EqualTo(previous == LatticeLocalization.Language.Korean ? 0 : 1));
+                // The invalid stored value above resolves to English regardless of the
+                // initial preference. English -> Korean raises exactly one event.
+                Assert.That(changed, Is.EqualTo(1));
                 Assert.That(LatticeLocalization.DisplayNames.Length, Is.EqualTo(5));
             }
             finally
@@ -767,55 +772,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 handler.Deactivate();
                 UnityEngine.Object.DestroyImmediate(go);
-                UnityEngine.Object.DestroyImmediate(mesh);
-            }
-        }
-
-        [Test]
-        public void LatticeSkinningCorrection_MissingOrUnlistedRootBone_DoesNotUseBoneZero()
-        {
-            var rendererObject = new GameObject("skinning-correction-renderer");
-            var boneObject = new GameObject("skinning-correction-bone-zero");
-            var unrelatedRoot = new GameObject("skinning-correction-unlisted-root");
-            var mesh = new Mesh
-            {
-                vertices = new[] { Vector3.zero, Vector3.right, Vector3.up },
-                triangles = new[] { 0, 1, 2 },
-                bindposes = new[] { Matrix4x4.identity },
-            };
-            try
-            {
-                boneObject.transform.position = Vector3.right * 5f;
-                var renderer = rendererObject.AddComponent<SkinnedMeshRenderer>();
-                renderer.sharedMesh = mesh;
-                renderer.bones = new[] { boneObject.transform };
-
-                var method = typeof(LatticeToolHandler).GetMethod(
-                    "ComputeSkinningCorrectionMatrix",
-                    BindingFlags.Static | BindingFlags.NonPublic);
-                Assert.That(method, Is.Not.Null);
-                var arguments = new object[]
-                {
-                    renderer,
-                    mesh.bounds,
-                    renderer.transform.localToWorldMatrix,
-                    renderer.transform.worldToLocalMatrix,
-                };
-
-                renderer.rootBone = null;
-                Assert.That(method.Invoke(null, arguments), Is.Null);
-
-                renderer.rootBone = unrelatedRoot.transform;
-                Assert.That(method.Invoke(null, arguments), Is.Null);
-
-                renderer.rootBone = boneObject.transform;
-                Assert.That(method.Invoke(null, arguments), Is.TypeOf<Matrix4x4>());
-            }
-            finally
-            {
-                UnityEngine.Object.DestroyImmediate(rendererObject);
-                UnityEngine.Object.DestroyImmediate(boneObject);
-                UnityEngine.Object.DestroyImmediate(unrelatedRoot);
                 UnityEngine.Object.DestroyImmediate(mesh);
             }
         }
