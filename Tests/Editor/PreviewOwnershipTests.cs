@@ -111,7 +111,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 if (saveWithUndo)
                 {
                     writer.Deformer.EditingSettings.SetControlPointLocal(0, Vector3.one * 0.4f);
-                    Assert.That(ProfileAuthoringService.SaveCurrent(writer.Deformer, profile, "Update shared profile"), Is.True);
+                    Undo.RegisterCompleteObjectUndo(profile, "Update legacy profile");
+                    writer.Deformer.SaveToProfile(profile);
+                    Undo.FlushUndoRecordObjects();
                 }
                 else profile.Groups[0].Layers[0].Settings.SetControlPointLocal(0, Vector3.one * 0.4f);
                 string profileAfter = EditorJsonUtility.ToJson(profile);

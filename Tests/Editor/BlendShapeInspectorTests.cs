@@ -44,9 +44,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally { if (foreign != null) Object.DestroyImmediate(foreign); }
         }
 
-        [TestCase(false)]
-        [TestCase(true)]
-        public void MenuImport_UsesOneUndoAndPreservesSource(bool allFrames)
+        [Test]
+        public void MenuImport_UsesOneUndoAndPreservesSource()
         {
             using var fixture = new Fixture();
             var owner = fixture.Owner;
@@ -57,10 +56,10 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 var menu = BlendShapeImportMenu.TryCreate(owner);
                 Assert.That(menu, Is.Not.Null);
-                var action = editor.BlendShapeInspector.CreateImportAction(menu, 0, allFrames);
+                var action = editor.BlendShapeInspector.CreateImportAction(menu, 0);
                 Undo.IncrementCurrentGroup();
                 action();
-                AssertImported(owner, allFrames);
+                AssertImported(owner, false);
                 string imported = EditorJsonUtility.ToJson(owner);
                 action();
                 Assert.That(EditorJsonUtility.ToJson(owner), Is.EqualTo(imported), "One menu choice cannot import twice.");
@@ -78,16 +77,15 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally { Object.DestroyImmediate(editor); }
         }
 
-        [TestCase(false)]
-        [TestCase(true)]
-        public void MenuImport_IntoEmptyGroupKeepsExistingSelectionContract(bool allFrames)
+        [Test]
+        public void MenuImport_IntoEmptyGroupKeepsExistingSelectionContract()
         {
             using var fixture = new Fixture();
             Assert.That(DeformerEditService.RemoveLayer(fixture.Owner, 0, "Remove last Inspector layer"), Is.True);
             var menu = BlendShapeImportMenu.TryCreate(fixture.Owner);
             Assert.That(menu, Is.Not.Null);
-            Assert.That(menu.Import(0, allFrames, "Import empty group"), Is.True);
-            Assert.That(fixture.Owner.ActiveGroup.Layers.Count, Is.EqualTo(allFrames ? 2 : 1));
+            Assert.That(menu.Import(0, "Import empty group"), Is.True);
+            Assert.That(fixture.Owner.ActiveGroup.Layers.Count, Is.EqualTo(1));
         }
 
         [TestCase("group")]
@@ -123,7 +121,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     case "frame-weight": fixture.SetFrames("Smile", 90f, true); break;
                     case "frame-count": fixture.SetFrames("Smile", 100f, false); break;
                 }
-                AssertRejected(fixture.Owner, () => menu.Import(0, false, "stale menu"));
+                AssertRejected(fixture.Owner, () => menu.Import(0, "stale menu"));
             }
             finally { if (replacement != null) Object.DestroyImmediate(replacement); }
         }
@@ -159,9 +157,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(EditorUtility.GetDirtyCount(fixture.Owner), Is.EqualTo(dirty));
         }
 
-        [TestCase(false)]
-        [TestCase(true)]
-        public void Import_RejectsNonFiniteFrameBeforeUndo(bool allFrames)
+        [Test]
+        public void Import_RejectsNonFiniteFrameBeforeUndo()
         {
             using var fixture = new Fixture();
             fixture.Source.ClearBlendShapes();
@@ -172,7 +169,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(float.IsPositiveInfinity(stored[0].x), Is.True, "The rejection input must survive Unity storage.");
             var menu = BlendShapeImportMenu.TryCreate(fixture.Owner);
             Assert.That(menu, Is.Not.Null);
-            AssertRejected(fixture.Owner, () => menu.Import(0, allFrames, "invalid frame"));
+            AssertRejected(fixture.Owner, () => menu.Import(0, "invalid frame"));
         }
 
         [Test]
@@ -184,7 +181,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 () => Assert.Fail("import callback"));
             try
             {
-                var action = section.CreateImportAction(BlendShapeImportMenu.TryCreate(fixture.Owner), 0, false);
+                var action = section.CreateImportAction(BlendShapeImportMenu.TryCreate(fixture.Owner), 0);
                 section.Dispose();
                 string before = EditorJsonUtility.ToJson(fixture.Owner);
                 action();
@@ -193,9 +190,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally { section.Dispose(); Object.DestroyImmediate(editor); }
         }
 
-        [TestCase(false)]
-        [TestCase(true)]
-        public void ImportedData_PrefabVariantApplyAndSaveReloadPreservesBase(bool allFrames)
+        [Test]
+        public void ImportedData_PrefabVariantApplyAndSaveReloadPreservesBase()
         {
             using var fixture = new Fixture();
             string folder = "Assets/__BlendShapeInspector_" + Guid.NewGuid().ToString("N");
@@ -211,13 +207,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Object.DestroyImmediate(instance);
                 instance = (GameObject)PrefabUtility.InstantiatePrefab(variant);
                 var owner = instance.GetComponent<LatticeDeformer>();
-                Assert.That(BlendShapeImportMenu.TryCreate(owner).Import(0, allFrames, "Prefab import"), Is.True);
-                AssertImported(owner, allFrames);
+                Assert.That(BlendShapeImportMenu.TryCreate(owner).Import(0, "Prefab import"), Is.True);
+                AssertImported(owner, false);
                 Assert.That(PrefabUtility.HasPrefabInstanceAnyOverrides(instance, false), Is.True);
                 PrefabUtility.ApplyPrefabInstance(instance, InteractionMode.AutomatedAction);
                 Object.DestroyImmediate(instance); instance = null;
                 var loaded = PrefabUtility.LoadPrefabContents(folder + "/variant.prefab");
-                try { AssertImported(loaded.GetComponent<LatticeDeformer>(), allFrames); }
+                try { AssertImported(loaded.GetComponent<LatticeDeformer>(), false); }
                 finally { PrefabUtility.UnloadPrefabContents(loaded); }
                 Assert.That(EditorJsonUtility.ToJson(original.GetComponent<LatticeDeformer>()), Is.EqualTo(baseBefore));
             }

@@ -19,7 +19,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [TearDown]
         public void TearDown()
         {
-            SkinnedVertexHelper.StoreMovesInRestSpace = false;
             Undo.ClearAll();
         }
 
@@ -178,33 +177,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     Object.DestroyImmediate(result);
                 }
                 AssetDatabase.DeleteAsset(testDirectory);
-            }
-        }
-
-        [Test]
-        public void NonReadableSkinnedMesh_RestSpaceValidationStillRuns()
-        {
-            var gameObject = new GameObject("Non-readable Skinned Source");
-            var mesh = CreateMesh("Non-readable Skinned Mesh");
-            mesh.UploadMeshData(true);
-            try
-            {
-                gameObject.AddComponent<SkinnedMeshRenderer>().sharedMesh = mesh;
-                var deformer = gameObject.AddComponent<LatticeDeformer>();
-                SkinnedVertexHelper.StoreMovesInRestSpace = true;
-
-                Assert.DoesNotThrow(deformer.Reset);
-                IReadOnlyList<MeshDeformerDiagnostic> diagnostics = null;
-                Assert.DoesNotThrow(() => diagnostics = MeshDeformerValidator.Validate(deformer));
-                Assert.That(diagnostics.Any(d => d.Code == MeshDeformerValidator.SourceMeshNotReadable), Is.False);
-                Assert.That(diagnostics.Any(d => d.Code == MeshDeformerValidator.RestSpaceConversionUnsafe), Is.True);
-                Assert.That(LatticeDeformerBakePass.ValidateBeforeBake(deformer), Is.True);
-                Assert.That(deformer.Deform(false), Is.Not.Null);
-            }
-            finally
-            {
-                Object.DestroyImmediate(gameObject);
-                Object.DestroyImmediate(mesh);
             }
         }
 
@@ -547,33 +519,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(MeshDeformerValidator.Validate(fixture.Deformer), Is.Empty);
         }
 
-        [Test]
-        public void ClearanceReferences_ReportMissingSelfAndInactiveAsWarningOnly()
-        {
-            using var fixture = CreateFixture("Clearance");
-            fixture.Deformer.ShowClearanceHeatmap = true;
-            AssertWarning(fixture.Deformer, MeshDeformerValidator.InvalidClearanceReference);
 
-            fixture.Deformer.ClearanceReferenceRenderer = fixture.Renderer;
-            AssertWarning(fixture.Deformer, MeshDeformerValidator.InvalidClearanceReference);
-
-            var reference = new GameObject("Inactive Reference");
-            var referenceMesh = CreateMesh("Reference");
-            try
-            {
-                reference.AddComponent<MeshFilter>().sharedMesh = referenceMesh;
-                var referenceRenderer = reference.AddComponent<MeshRenderer>();
-                reference.SetActive(false);
-                fixture.Deformer.ClearanceReferenceRenderer = referenceRenderer;
-                AssertWarning(fixture.Deformer, MeshDeformerValidator.InvalidClearanceReference);
-                Assert.That(LatticeDeformerBakePass.ValidateBeforeBake(fixture.Deformer), Is.True);
-            }
-            finally
-            {
-                Object.DestroyImmediate(reference);
-                Object.DestroyImmediate(referenceMesh);
-            }
-        }
 
         [Test]
         public void PreviewTargetMismatch_IsWarningAndBakeCanContinue()
@@ -668,28 +614,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Object.DestroyImmediate(legacy);
                 Object.DestroyImmediate(mismatch);
                 Object.DestroyImmediate(incompatibleMesh);
-            }
-        }
-
-        [Test]
-        public void UnsafeRestSpaceConversion_IsWarningOnly()
-        {
-            var gameObject = new GameObject("Unsafe Rest Space");
-            var renderer = gameObject.AddComponent<SkinnedMeshRenderer>();
-            var mesh = CreateMesh("Unskinned");
-            renderer.sharedMesh = mesh;
-            var deformer = gameObject.AddComponent<LatticeDeformer>();
-            deformer.Reset();
-            try
-            {
-                SkinnedVertexHelper.StoreMovesInRestSpace = true;
-                AssertWarning(deformer, MeshDeformerValidator.RestSpaceConversionUnsafe);
-                Assert.That(LatticeDeformerBakePass.ValidateBeforeBake(deformer), Is.True);
-            }
-            finally
-            {
-                Object.DestroyImmediate(gameObject);
-                Object.DestroyImmediate(mesh);
             }
         }
 

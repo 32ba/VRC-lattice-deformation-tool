@@ -163,8 +163,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ValidateRawStructure(data, deformer, results);
             ValidateGroups(deformer, currentMesh, results);
             ValidateProfile(deformer, results);
-            ValidateClearance(deformer, renderer, results);
-            ValidateRestSpace(deformer, renderer, results);
             return results;
         }
 
@@ -482,38 +480,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private static void ValidateClearance(
-            LatticeDeformer deformer,
-            Renderer targetRenderer,
-            List<MeshDeformerDiagnostic> results)
-        {
-            if (!deformer.ShowClearanceHeatmap) return;
-            var reference = deformer.ClearanceReferenceRenderer;
-            string message = null;
-            if (reference == null) message = "Clearance display is enabled but no reference Renderer is assigned.";
-            else if (ReferenceEquals(reference, targetRenderer)) message = "The Clearance reference Renderer cannot be the target Renderer itself.";
-            else if (!reference.enabled || !reference.gameObject.activeInHierarchy) message = "The Clearance reference Renderer is disabled or inactive.";
-            else if (GetRendererMesh(reference) == null) message = "The Clearance reference Renderer has no mesh.";
-            if (message != null)
-            {
-                Add(results, InvalidClearanceReference, MeshDeformerDiagnosticSeverity.Warning, deformer,
-                    message + " Deformation Bake continues without relying on the visualization.", property: "_clearanceReferenceRenderer");
-            }
-        }
 
-        private static void ValidateRestSpace(
-            LatticeDeformer deformer,
-            Renderer renderer,
-            List<MeshDeformerDiagnostic> results)
-        {
-            if (!SkinnedVertexHelper.StoreMovesInRestSpace || renderer is not SkinnedMeshRenderer) return;
-            if (SkinnedVertexHelper.CreateRestSpaceDeltaConverter(deformer) == null)
-            {
-                Add(results, RestSpaceConversionUnsafe, MeshDeformerDiagnosticSeverity.Warning, deformer,
-                    "Rest-space move storage is enabled, but bones, bind poses, or skin weights are insufficient for safe conversion. Unconvertible edits remain in displayed space.",
-                    property: "StoreMovesInRestSpace");
-            }
-        }
 
         private static Renderer ResolveRenderer(SerializedDeformerData data)
         {

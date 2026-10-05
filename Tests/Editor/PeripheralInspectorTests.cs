@@ -148,23 +148,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
-        [Test]
-        public void ValidationState_KeepsOwnersIndependentAndRefreshesOnExternalMutation()
-        {
-            using var a = new Fixture(); using var b = new Fixture();
-            var first = new InspectorValidationState(); var second = new InspectorValidationState();
-            var cachedA = first.Read(a.Target); var cachedB = second.Read(b.Target);
-            string beforeA = EditorJsonUtility.ToJson(a.Target), beforeB = EditorJsonUtility.ToJson(b.Target);
-            Assert.That(first.Read(a.Target), Is.SameAs(cachedA));
-            Assert.That(second.Read(b.Target), Is.SameAs(cachedB));
-            b.Target.Layers[1].BrushDisplacements = new Vector3[1];
-            Assert.That(second.Read(b.Target).Any(d => d.Code == MeshDeformerValidator.BrushLengthMismatch), Is.True);
-            Assert.That(first.Read(a.Target), Is.SameAs(cachedA));
-            Assert.That(EditorJsonUtility.ToJson(a.Target), Is.EqualTo(beforeA));
-            Assert.That(EditorJsonUtility.ToJson(b.Target), Is.Not.EqualTo(beforeB));
-            Assert.That(b.Target.Layers[1].BrushDisplacementCount, Is.EqualTo(1));
-        }
-
         [UnityTest]
         public IEnumerator RebuildInspector_PaintPreservesMixedValuesAndUnknownEnumWithoutUndoOrDirtyChanges()
         {

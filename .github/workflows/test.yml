@@ -277,7 +277,7 @@ jobs:
         run: >-
           ./Tools~/Assert-TestResults.ps1
           -TestResultsPath test-artifacts/editmode-results.xml
-          -MinimumTotal 1869
+          -MinimumTotal 1726
           -UnityVersion ${{ matrix.unityVersion }}
           -EditorLogPath test-artifacts/editmode.log
           -RunnerOutcome '${{ steps.tests.outcome }}'
@@ -346,7 +346,7 @@ jobs:
           -UnityVersion ${{ matrix.unityVersion }}
           -EditorLogPath test-artifacts/editmode.log
           -RequiredCategory GraphicsE2E
-          -RequiredCategoryCount 17
+          -RequiredCategoryCount 16
 
       - name: Verify Playground E2E Results
         if: always()

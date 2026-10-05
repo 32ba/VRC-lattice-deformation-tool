@@ -13,20 +13,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal static void Draw(LatticeDeformer deformer)
         {
             // Brush Mode toolbar (icon + text)
-            var modeContent = LatticeDeformationFeatureFlags.VertexMaskEditing
-                ? new[]
-                {
-                    ToolIcons.Content(ToolIcons.Normal, LocKey.Normal),
-                    ToolIcons.Content(ToolIcons.Move, LocKey.Move),
-                    ToolIcons.Content(ToolIcons.Smooth, LocKey.Smooth),
-                    ToolIcons.Content(ToolIcons.Mask, LocKey.Mask),
-                }
-                : new[]
-                {
-                    ToolIcons.Content(ToolIcons.Normal, LocKey.Normal),
-                    ToolIcons.Content(ToolIcons.Move, LocKey.Move),
-                    ToolIcons.Content(ToolIcons.Smooth, LocKey.Smooth),
-                };
+            var modeContent = new[]
+            {
+                ToolIcons.Content(ToolIcons.Normal, LocKey.Normal),
+                ToolIcons.Content(ToolIcons.Move, LocKey.Move),
+                ToolIcons.Content(ToolIcons.Smooth, LocKey.Smooth),
+            };
             int currentModeIndex = Mathf.Min((int)BrushToolHandler.CurrentBrushMode, modeContent.Length - 1);
             int modeIndex = GUILayout.Toolbar(currentModeIndex, modeContent);
             modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
@@ -51,15 +43,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 new GUIContent(LatticeLocalization.Tr(LocKey.BrushStrength) + " (%)", LatticeLocalization.Tooltip(LocKey.BrushStrength)),
                 strengthPercent, 0f, 100f);
             BrushToolHandler.BrushStrength = strengthPercent / 100f;
-
-            if (LatticeDeformationFeatureFlags.RestSpaceEditing &&
-                BrushToolHandler.CurrentBrushMode == BrushToolHandler.BrushMode.Move &&
-                deformer != null && deformer.GetComponent<SkinnedMeshRenderer>() != null)
-            {
-                SkinnedVertexHelper.StoreMovesInRestSpace = EditorGUILayout.Toggle(
-                    LatticeLocalization.Content(LocKey.StoreMoveInRestSpace),
-                    SkinnedVertexHelper.StoreMovesInRestSpace);
-            }
 
             // Falloff type (text only — falloff curves are self-explanatory with names)
             var falloffContent = new GUIContent[]
@@ -169,14 +152,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
                 }
 
-                if (LatticeDeformationFeatureFlags.VertexMaskEditing &&
-                    GUILayout.Button(ToolIcons.Content(ToolIcons.Clear, LocKey.ClearMask)))
-                {
-                    if (deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush)
-                    {
-                        BrushToolHandler.ClearActiveMask(deformer);
-                    }
-                }
             }
 
             GUILayout.Space(2f);

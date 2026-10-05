@@ -36,8 +36,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
 
         internal static bool Move(Vector3[] vertices, Vector3[] displacements, float[] vertexMask,
-            BrushInfluenceQuery query, float strength, Vector3 localDelta,
-            SkinnedVertexHelper.RestSpaceDeltaConverter restSpaceConverter)
+            BrushInfluenceQuery query, float strength, Vector3 localDelta)
         {
             bool modified = false;
             int vertexCount = vertices.Length;
@@ -48,10 +47,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 var vertex = vertices[i] + displacements[i];
                 if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
 
-                var storedDelta = restSpaceConverter != null
-                    ? restSpaceConverter.ConvertOrFallback(i, localDelta)
-                    : localDelta;
-                var delta = storedDelta * (strength * falloff * 10f);
+                var delta = localDelta * (strength * falloff * 10f);
                 float maskValue = MaskValue(vertexMask, i);
                 if (maskValue < 1e-6f) continue;
                 delta *= maskValue;
@@ -96,25 +92,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 modified = true;
             }
 
-            return modified;
-        }
-
-        internal static bool Mask(Vector3[] vertices, Vector3[] displacements, LatticeLayer layer,
-            BrushInfluenceQuery query, float targetValue, float strength, SymmetryVertexMap mirrorMap = null)
-        {
-            bool modified = false;
-            int iterationCount = query.CandidateCount(vertices.Length);
-            for (int iteration = 0; iteration < iterationCount; iteration++)
-            {
-                int i = query.CandidateAt(iteration);
-                if (mirrorMap != null && !mirrorMap.TryGetPartner(i, out _)) continue;
-                var vertex = vertices[i] + displacements[i];
-                if (!query.TryGetFalloff(i, vertex, out float falloff)) continue;
-                float current = layer.GetVertexMask(i);
-                float blend = Mathf.Lerp(current, targetValue, falloff * strength);
-                layer.SetVertexMask(i, blend);
-                modified = true;
-            }
             return modified;
         }
 

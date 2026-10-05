@@ -11,7 +11,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         private readonly UnityEditor.Editor _owner;
         private readonly Action<bool> _onChanged;
-        private readonly Action _drawBlendShape;
         private readonly SerializedProperty _manualOffsetProp, _manualScaleProp;
         internal PendingLatticeGrid PendingGrid { get; } = new();
         private bool _disposed;
@@ -21,9 +20,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private LatticeDeformer Target => _owner != null ? _owner.target as LatticeDeformer : null;
         private SerializedObject Serialized => _owner.serializedObject;
 
-        internal LayerSettingsInspectorSection(UnityEditor.Editor owner, Action<bool> onChanged, Action drawBlendShape)
+        internal LayerSettingsInspectorSection(UnityEditor.Editor owner, Action<bool> onChanged)
         {
-            _owner = owner; _onChanged = onChanged; _drawBlendShape = drawBlendShape;
+            _owner = owner; _onChanged = onChanged;
             _manualOffsetProp = Serialized.FindProperty("_manualOffsetProxy");
             _manualScaleProp = Serialized.FindProperty("_manualScaleProxy");
         }
@@ -42,7 +41,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (_owner.targets.Length == 1) DrawAlignmentSettings();
             }
             if (GUILayout.Button(LatticeLocalization.Tr(LocKey.LROperations))) ShowLROperationsMenu();
-            if (_owner.targets.Length == 1 && LatticeDeformationFeatureFlags.AdvancedBlendShapes) _drawBlendShape?.Invoke();
             ApplyProperties();
         }
 

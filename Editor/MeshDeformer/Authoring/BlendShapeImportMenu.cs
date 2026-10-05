@@ -45,7 +45,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return new BlendShapeImportMenu(owner, raw, source, topology);
         }
 
-        internal bool Import(int shape, bool allFrames, string undoLabel)
+        internal bool Import(int shape, string undoLabel)
         {
             if (_consumed || shape < 0 || shape >= Count ||
                 !DeformerAuthoringSource.TryRead(Owner, out var raw, out var source, out int topology) ||
@@ -55,16 +55,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 raw.ActiveLayers.Count != _layerCount ||
                 (_layerIndex >= 0 && _layerIndex < _layerCount &&
                     !ReferenceEquals(raw.ActiveLayers[_layerIndex], _layer)) ||
-                !MatchesShape(shape) || !HasValidDeltas(shape, allFrames)) return false;
+                !MatchesShape(shape) || !HasValidDeltas(shape)) return false;
 
             // A freshly loaded inactive Prefab has serialized source identity but
             // no runtime source cache. Prepare from the validated source directly.
-            var layer = allFrames ? null : BlendShapeLayerImport.CreateLayer(source, shape, 0);
-            var group = allFrames ? BlendShapeLayerImport.CreateGroup(source, shape) : null;
-            if (layer == null && group == null) return false;
-            bool changed = DeformerEditService.Execute(Owner, undoLabel, target => allFrames
-                ? target.InsertGroup(group) >= 0
-                : target.InsertLayer(layer) >= 0);
+            var layer = BlendShapeLayerImport.CreateLayer(source, shape, 0);
+            if (layer == null) return false;
+            bool changed = DeformerEditService.Execute(Owner, undoLabel,
+                target => target.InsertLayer(layer) >= 0);
             if (changed) _consumed = true;
             return changed;
         }
@@ -79,12 +77,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return true;
         }
 
-        private bool HasValidDeltas(int shape, bool allFrames)
+        private bool HasValidDeltas(int shape)
         {
             // Validate before Undo or any component mutation. Single-frame import
             // otherwise sanitizes invalid deltas through the public layer setter.
             var deltas = new Vector3[_source.vertexCount];
-            int frames = allFrames ? _weights[shape].Length : 1;
+            const int frames = 1;
             float previous = float.NegativeInfinity;
             for (int frame = 0; frame < frames; frame++)
             {

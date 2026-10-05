@@ -19,8 +19,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         private SerializedProperty _groupsProp;
         private SerializedProperty _activeGroupIndexProp;
-        private ProfileInspectorSection _profileInspector;
-        private ValidationInspectorSection _validationInspector;
         private SupportInspectorSection _supportInspector;
         private MeshRebuildInspectorSection _rebuildInspector;
         // These are resolved per-frame from the active group
@@ -28,7 +26,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private SerializedProperty _activeLayerIndexProp;
         private SerializedProperty _skinnedRendererProp;
         private SerializedProperty _meshFilterProp;
-        private ClearanceInspectorSection _clearanceInspector;
         private BlendShapeInspectorSection _blendShapeInspector;
         private LayerSettingsInspectorSection _layerSettingsInspector;
         internal LayerSettingsInspectorSection LayerSettingsInspector => _layerSettingsInspector;
@@ -45,19 +42,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _groupsProp = serializedObject.FindProperty("_groups");
             _activeGroupIndexProp = serializedObject.FindProperty("_activeGroupIndex");
             _blendShapeInspector = new BlendShapeInspectorSection(this, NotifyPropertyChanges, OnBlendShapeImported);
-            _layerSettingsInspector = new LayerSettingsInspectorSection(this, NotifyPropertyChanges, _blendShapeInspector.DrawLayer);
+            _layerSettingsInspector = new LayerSettingsInspectorSection(this, NotifyPropertyChanges);
             _stackInspector = new DeformerStackInspectorSection(this, _blendShapeInspector.DrawGroup,
                 DrawActiveLayerSettings, _blendShapeInspector.DrawImport, OnStackStructureChanged);
-            _profileInspector = new ProfileInspectorSection(this, RebuildGroupList);
             _guidedInspector = new GuidedInspectorSection(this, AutoAssignLocalRendererReferences,
                 OpenDetailedInspector, OnGuidedEditingStarted, NotifyPropertyChanges);
             _rebuildInspector = new MeshRebuildInspectorSection(serializedObject);
             _supportInspector = new SupportInspectorSection(this);
-            _validationInspector = new ValidationInspectorSection(this, NotifyPropertyChanges);
             _skinnedRendererProp = serializedObject.FindProperty("_skinnedMeshRenderer");
             _meshFilterProp = serializedObject.FindProperty("_meshFilter");
-            _clearanceInspector = new ClearanceInspectorSection(this, OnClearanceLayersChanged);
-            _clearanceInspector.Session.Changed += OnClearanceStateChanged;
             ResolveActiveGroupProperties();
             AutoAssignLocalRendererReferences();
             LatticeLocalization.LanguageChanged += OnLanguageChanged;
@@ -84,17 +77,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             LatticeLocalization.LanguageChanged -= OnLanguageChanged;
             ReleaseChecker.OnUpdateCheckCompleted -= Repaint;
-            _clearanceInspector?.Dispose();
-            _clearanceInspector = null;
             _blendShapeInspector?.Dispose();
             _blendShapeInspector = null;
             _stackInspector?.Dispose();
             _stackInspector = null;
-            _profileInspector = null;
             _guidedInspector = null;
             _rebuildInspector = null;
             _supportInspector = null;
-            _validationInspector = null;
 
             _layerSettingsInspector?.Dispose();
             _layerSettingsInspector = null;
@@ -278,11 +267,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorGUILayout.Space();
             ReleaseNotificationGUI.Draw();
 
-            if (LatticeDeformationFeatureFlags.DeformerProfiles)
-            {
-                DrawProfileSection();
-            }
-
             using (new EditorGUI.DisabledScope(disableSkinnedField))
             {
                 EditorGUILayout.PropertyField(_skinnedRendererProp, LatticeLocalization.Content(LocKey.SkinnedMeshSource));
@@ -296,8 +280,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             serializedObject.ApplyModifiedProperties();
         }
 
-        private void DrawProfileSection() => _profileInspector?.Draw();
-
         private void DrawBottomSection()
         {
             if (target == null) return;
@@ -306,20 +288,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ResolveActiveGroupProperties();
 
             _rebuildInspector.Draw();
-            if (LatticeDeformationFeatureFlags.ClearanceTools)
-            {
-                DrawClearanceHeatmapSettings();
-            }
 
             bool modified = serializedObject.ApplyModifiedProperties();
             if (modified)
             {
                 NotifyPropertyChanges();
-            }
-
-            if (LatticeDeformationFeatureFlags.ValidationDiagnostics)
-            {
-                _validationInspector.Draw();
             }
 
             EditorGUILayout.Space();
@@ -341,11 +314,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _supportInspector.Draw();
         }
 
-        internal IReadOnlyList<MeshDeformerDiagnostic> GetCachedValidationDiagnostics(LatticeDeformer deformer)
-            => _validationInspector.State.Read(deformer);
-        internal static int ComputeValidationStateHash(LatticeDeformer deformer)
-            => InspectorValidationState.ComputeValidationStateHash(deformer);
-
         private void NotifyPropertyChanges()
         {
             NotifyPropertyChanges(false);
@@ -353,7 +321,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void NotifyPropertyChanges(bool dataAlreadyInvalidated)
         {
-            InvalidateClearanceEvaluation();
             bool assignRuntimeMesh = LatticePreviewUtility.ShouldAssignRuntimeMesh();
             foreach (var instance in EnumerateTargets())
             {
@@ -371,80 +338,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             LatticePreviewUtility.RequestSceneRepaint();
         }
-
-        private void DrawClearanceHeatmapSettings() => _clearanceInspector.Draw();
-
-        internal ClearanceAuthoringSession ClearanceSession => _clearanceInspector.Session;
-
-        private void OnClearanceLayersChanged()
-        {
-            serializedObject.Update();
-            ResolveActiveGroupProperties();
-            RebuildLayerList();
-        }
-
-        private void OnClearanceStateChanged()
-        {
-            _validationInspector?.State.Invalidate();
-            Repaint();
-            SceneView.RepaintAll();
-        }
-
-        private void InvalidateClearanceEvaluation()
-        {
-            _clearanceInspector?.Session.Invalidate();
-            _validationInspector?.State.Invalidate();
-        }
-
-        internal ClearanceHeatmapEvaluation GetClearanceEvaluation(
-            LatticeDeformer deformer,
-            Renderer reference,
-            ClearanceQueryMode queryMode,
-            float warningDistance,
-            float targetDistance,
-            float updateInterval)
-            => ClearanceSession.GetClearanceEvaluation(deformer, reference, queryMode, warningDistance, targetDistance, updateInterval);
-
-        internal ClearanceHeatmapRawEvaluation GetFitCorrectionRawEvaluation(
-            LatticeDeformer deformer,
-            Renderer reference,
-            ClearanceQueryMode queryMode,
-            float updateInterval)
-            => ClearanceSession.GetFitCorrectionRawEvaluation(deformer, reference, queryMode, updateInterval);
-
-        internal FitCorrectionPlan GetCachedFitCorrectionPlan(
-            LatticeDeformer deformer,
-            ClearanceHeatmapRawEvaluation rawEvaluation,
-            Renderer reference,
-            ClearanceQueryMode queryMode,
-            FitCorrectionScope scope,
-            float warningDistance,
-            float targetDistance,
-            float maximumMove,
-            FitCorrectionConstraintOptions constraints)
-            => ClearanceSession.GetCachedFitCorrectionPlan(deformer, rawEvaluation, reference, queryMode, scope, warningDistance, targetDistance, maximumMove, constraints);
-
-        internal static int ComputeFitCorrectionPlanKey(
-            LatticeDeformer deformer,
-            ClearanceHeatmapRawEvaluation rawEvaluation,
-            Renderer reference,
-            ClearanceQueryMode queryMode,
-            FitCorrectionScope scope,
-            float warningDistance,
-            float targetDistance,
-            float maximumMove,
-            FitCorrectionConstraintOptions constraints)
-            => ClearanceAuthoringSession.ComputeFitCorrectionPlanKey(deformer, rawEvaluation, reference, queryMode, scope, warningDistance, targetDistance, maximumMove, constraints);
-
-        internal static int CalculateAdaptiveHeatmapStride(
-            int vertexCount,
-            int requestedStride,
-            int pointBudget = 4096)
-            => ClearanceSceneDrawer.CalculateAdaptiveHeatmapStride(vertexCount, requestedStride, pointBudget);
-
-        internal static Renderer ResolveClearanceTargetRenderer(LatticeDeformer deformer,
-            Renderer previewProxy, out bool usedPreviewProxy) =>
-            ClearanceAuthoringSession.ResolveClearanceTargetRenderer(deformer, previewProxy, out usedPreviewProxy);
 
         private void RebuildLayerList()
         {

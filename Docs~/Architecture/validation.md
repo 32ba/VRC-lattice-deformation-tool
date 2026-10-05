@@ -20,7 +20,7 @@ Test Frameworkは2022で1.4.6、Unity 6で1.6.0を指定する。Unity組込みp
 | 移行 | `HistoricalReleaseFixtureTests`、`LaterReleaseFixtureTests`、`ReleaseJournalFixtureTests`、`PublishedDeformationMigrationTests`による直接・順次移行、失敗時保全、保存再読込み |
 | 編集 | 編集境界・セッションの試験、Undo/Redo、複数対象の復元、Prefab Apply/Revert、Profile不変 |
 | Preview | 実NDMF graph、入力変更、対象切替、Meshの所有・復元、ドメインリロードと終了時の解放 |
-| 周辺機能 | Clearance/Scan/Fit/QA、Profile互換性、Weight Transfer、サポート出力の該当回帰試験 |
+| 周辺機能 | 保存済みProfile/ScanSet/Mask/Fitデータの互換性、Weight Transfer、サポート出力の該当回帰試験 |
 
 既存fixtureと期待値は候補実装の出力で更新しない。
 再生成が必要な場合は各公開tagのRuntimeを使い、独立した2回の生成結果を照合する。
@@ -52,7 +52,7 @@ Cage通知は全SceneViewから届く。GUI hotControlはView単位なので、�
 
 操作パネルの描画は既存`BrushToolOverlayTests.AllToolLanguagesAndModes_DrawWithoutChangingPayload`が3ツール・5言語・各modeを検証し、`LocalizedToolOverlay`カテゴリ1件をCI必須gateとする。67f1の既知font assertをこのUI試験から隠さず、元の失敗として記録する。graph E2Eの成功をローカライズUI成功の代用にしない。
 
-`PreviewIsolation`カテゴリ1件は、専用Viewだけがパネルを持たないこと、他ViewのOverlay identityと使用言語の維持、終了時のView破棄、後で開くViewにOverlayが登録され続けることを確認する。これらの2カテゴリを最低1,869件に加えて必須検証する。
+`PreviewIsolation`カテゴリ1件は、専用Viewだけがパネルを持たないこと、他ViewのOverlay identityと使用言語の維持、終了時のView破棄、後で開くViewにOverlayが登録され続けることを確認する。これらの2カテゴリを最低1,726件に加えて必須検証する。
 
 ## SDKのテスト用config
 
@@ -77,7 +77,7 @@ AAO/MA fixture破棄前に実PreviewSessionをForceRebuildし、古いgraph cont
 
 - テストは省略しない。元のassert、描画、実行順、NUnit XML、Editorログを保持し、`LogAssert.Expect`による抑止や成功への書換えは行わない。
 - `Tools~/CI/verify_test_results.py`を唯一の分類規則とし、PowerShell入口と機能構成markerの検証から共用する。Python 3が必要。
-- 許容件数は0〜4件、同一fullnameは1件だけ。成功したテストは例外数に含めない。4件すべての存在、完全runの最低1,869件、既存Categoryの正確な件数も要求する。
+- 許容件数は0〜4件、同一fullnameは1件だけ。成功したテストは例外数に含めない。4件すべての存在、完全runの最低1,726件、既存Categoryの正確な件数も要求する。
 - 例外には版引数とEditorログの実版一致、通常のTest Runner終了code 2、対象XMLへの保存記録、完全一致の失敗message、case出力のassert、同数のnative assertそれぞれの`AddObjectToAsset` / `AddTextureToAsset` / `SetupNewAtlasTexture` stackが必要。同じassert文字列でも別のAssetDatabase障害は認めない。
 - 未知failure、全Skipped/Ignore、Inconclusive、重複、root/leaf集計不一致、suite setup/teardown失敗、crash、ログ欠損、4件超過は拒否する。2022、69f1、将来版、版指定なしでは例外を認めない。
 - CIで67f1のrunner stepだけ`continue-on-error`を用いるが、その直後の必須gateはrunner outcomeとXML/ログを照合し、未知失敗や未完了runを拒否する。raw artifactと`validation.json`を保存する。GitHub上のjob成功はこの承認条件の成立を示し、rawテストの全成功を意味しない。
@@ -106,8 +106,8 @@ Unity6ではWindow > Panelsの表示名がtitleContent.textを使い、2022のto
 専用の検証プロジェクトを使い、対象package、コンパイル完了、正常なScene Viewを確認してから操作する。
 利用者が編集中のSceneをテストのために自動保存しない。
 
-- Brushの各mode、Mask、mirror、頂点のMove/Rotate/Scale・矩形選択・比例編集、ラティスの編集を確認する。
-- 複数フレームのdragとUndo/Redo、対象切替、PrefabとProfileの操作を確認する。
+- BrushのNormal/Move/Smooth、既存Mask評価、mirror、頂点のMove/Rotate/Scale・矩形選択・比例編集、ラティスの編集を確認する。
+- 複数フレームのdragとUndo/Redo、対象切替、Prefab編集と既存Profileの読取りを確認する。
 - NDMFと併用packageを含むPreviewの更新・終了・再生成を確認する。
 - OS入力とScene Viewへの自動イベント送信は実行方法を区別して記録する。
 
@@ -143,3 +143,11 @@ UnityPackage導入とVPM通常更新をそれぞれ別の隔離プロジェク�
 AAO/MAのfixture終了時は入力と購読を復元し、sessionのgraph contextを解放する。その後UnityTearDownでAvatarを非active化し、公開`ChangeNotifier.NotifyObjectUpdate`で直接変更をNDMFへ通知する。ウィンドウマネージャーのないbatch環境ではInspector/focus由来のproperty監視を頼れない。NDMFの公開`GetAvatarRoots()`が対象を含まなくなるまでEditor更新を進める。共有queryのinvalidationをflushしてからGameObjectとMeshを破棄する。これはNDMFの全非同期処理の完了を保証するAPIではなく、実際に破棄済みAvatarを返していた共有queryの参照解除を確認する条件である。180 frame以内に解除されなければテストを失敗させる。機能assert、言語設定、明示的な多言語UI試験は変更しない。
 
 Prefab Stageの自動移行試験は、stage openによる選択変更が既存InspectorのCJK計測を起こすため、実Previewと同じ`InspectorPresentationScope`を使う。これはInspectorの表示styleだけを一時変更し、移行イベント・dirty/save・再openの冪等性をそのまま検証する。native log失敗でもTearDownからStage・一時asset・表示状態を復元する。ローカライズされたInspector/Overlayを直接描画する専用試験には適用しない。
+
+## 非出荷authoring撤去後の有限検証
+
+最低件数は1,726、GraphicsE2Eは16件。削除対象はProfile編集サービス、Clearance/Scan/Fit/QA、Mask塗布・専用描画、rest-space authoring、詳細診断UI、all-frame importメニューの専用テスト。既存データの公開API/保存field/GUID、42 release fixtures、Profile/Mask/Fit/高度BlendShape評価は維持する。旧fixtureやgoldenは変更しない。
+
+通常Group出力・slider・単一frame import、Brush mirror/貫通表示、簡易Overlay対称選択、移行/save-reload、Undo/Prefab、実NDMF-AAO/描画を確認する。ShippingAuthoringBoundaryTestsは専用executorの不在、asset作成menu撤去、旧asset用Inspector、旧ScanSetのsave-reloadと廃止表示設定の保存保全を確認する。歴史的Editorユーティリティ4ファイルはGUID保持だけの空ファイルであり、実行コードを含まない。
+
+公開mutable APIの書込み入口は既存API契約として残るため、全経路で物理的に編集不可能にしたという意味ではない。通常asset Inspectorを読取り専用とし、新規作成・編集サービスを除去した。Debug Inspectorや外部コードによる書込み禁止は保証しない。

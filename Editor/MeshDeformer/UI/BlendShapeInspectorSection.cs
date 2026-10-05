@@ -31,20 +31,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 index >= 0 && index < raw.EmbeddedGroups.Count && raw.EmbeddedGroups[index] != null;
         }
 
-        private bool TryGetActiveLayers(out SerializedProperty layers, out SerializedProperty active)
-        {
-            layers = null; active = null;
-            if (_disposed || target is not LatticeDeformer d || d == null) return false;
-            var raw = SerializedDeformerReader.Read(d);
-            if (!CanDrawGroup(raw.ActiveGroupIndex) || raw.ActiveLayers == null ||
-                raw.ActiveLayerIndex < 0 || raw.ActiveLayerIndex >= raw.ActiveLayers.Count ||
-                raw.ActiveLayers[raw.ActiveLayerIndex] == null) return false;
-            var group = _groupsProp.GetArrayElementAtIndex(raw.ActiveGroupIndex);
-            layers = group.FindPropertyRelative("_layers");
-            active = group.FindPropertyRelative("_activeLayerIndex");
-            return layers != null && active != null;
-        }
-
         public void Dispose()
         {
             if (_disposed) return;
@@ -65,7 +51,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var outputProp = groupProp.FindPropertyRelative("_blendShapeOutput");
             var nameProp = groupProp.FindPropertyRelative("_blendShapeName");
             var curveProp = groupProp.FindPropertyRelative("_blendShapeCurve");
-            var compositionProp = groupProp.FindPropertyRelative("_blendShapeComposition");
             if (outputProp == null) return;
 
             EditorGUI.BeginChangeCheck();
@@ -87,22 +72,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (curveProp != null)
                     EditorGUILayout.PropertyField(curveProp, new GUIContent(LatticeLocalization.Tr(LocKey.Curve)));
 
-                if (LatticeDeformationFeatureFlags.AdvancedBlendShapes && compositionProp != null)
-                {
-                    var compositionOptions = new[]
-                    {
-                        LatticeLocalization.Content(LocKey.BlendShapeCompositionSingle),
-                        LatticeLocalization.Content(LocKey.BlendShapeCompositionProgressive),
-                        LatticeLocalization.Content(LocKey.BlendShapeCompositionCrossfade)
-                    };
-                    EditorGUI.BeginChangeCheck();
-                    int composition = EditorGUILayout.Popup(
-                        LatticeLocalization.Content(LocKey.BlendShapeComposition),
-                        compositionProp.enumValueIndex,
-                        compositionOptions);
-                    if (EditorGUI.EndChangeCheck()) compositionProp.enumValueIndex = composition;
-                }
-
                 // Test mode only for active group
                 int activeGroupIdx = _activeGroupIndexProp != null ? _activeGroupIndexProp.intValue : 0;
                 if (groupIndex == activeGroupIdx)
@@ -111,46 +80,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (serializedObject.ApplyModifiedProperties())
                 _onPropertyChanges();
-        }
-
-        internal void DrawLayer()
-        {
-            if (!TryGetActiveLayers(out var layersProp, out var activeLayerIndexProp))
-            {
-                return;
-            }
-
-            int activeLayerIndex = activeLayerIndexProp.intValue;
-            var layerProp = layersProp.GetArrayElementAtIndex(activeLayerIndex);
-            if (layerProp == null)
-            {
-                return;
-            }
-
-            var outputProp = layerProp.FindPropertyRelative("_blendShapeOutput");
-            var nameProp = layerProp.FindPropertyRelative("_blendShapeName");
-            var curveProp = layerProp.FindPropertyRelative("_blendShapeCurve");
-            if (outputProp == null)
-            {
-                return;
-            }
-
-            EditorGUILayout.Space(4f);
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.BlendShapeOutput), EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(outputProp, LatticeLocalization.Content(LocKey.BlendShapeOutput));
-
-            if (outputProp.intValue == (int)BlendShapeOutputMode.OutputAsBlendShape)
-            {
-                if (nameProp != null)
-                {
-                    EditorGUILayout.PropertyField(nameProp, LatticeLocalization.Content(LocKey.BlendShapeName));
-                }
-
-                if (curveProp != null)
-                {
-                    EditorGUILayout.PropertyField(curveProp, LatticeLocalization.Content(LocKey.Curve));
-                }
-            }
         }
 
         private void DrawTestMode()
@@ -229,14 +158,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     for (int i = 0; i < snapshot.Count; i++)
                     {
                         string name = snapshot.GetName(i);
-                        if (LatticeDeformationFeatureFlags.AdvancedBlendShapes)
-                        {
-                            menu.AddItem(new GUIContent(LatticeLocalization.Tr(LocKey.ImportBlendShapeSingleFrame) + "/" + name),
-                                false, CreateImportAction(snapshot, i, false));
-                            menu.AddItem(new GUIContent(LatticeLocalization.Tr(LocKey.ImportBlendShapeAllFrames) + "/" + name),
-                                false, CreateImportAction(snapshot, i, true));
-                        }
-                        else menu.AddItem(new GUIContent(name), false, CreateImportAction(snapshot, i, false));
+                        menu.AddItem(new GUIContent(name), false, CreateImportAction(snapshot, i));
                     }
                     menu.ShowAsContext();
                 }
@@ -244,12 +166,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EditorGUILayout.EndHorizontal();
         }
 
-        internal GenericMenu.MenuFunction CreateImportAction(BlendShapeImportMenu menu, int shape, bool allFrames)
+        internal GenericMenu.MenuFunction CreateImportAction(BlendShapeImportMenu menu, int shape)
         {
             return () =>
             {
                 if (_disposed || menu == null || target == null || target != menu.Owner ||
-                    !menu.Import(shape, allFrames, "Import BlendShape")) return;
+                    !menu.Import(shape, "Import BlendShape")) return;
                 serializedObject.Update();
                 _onImported();
             };

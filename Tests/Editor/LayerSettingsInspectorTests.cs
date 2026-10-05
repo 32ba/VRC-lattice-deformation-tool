@@ -62,7 +62,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var owners = new[] { first.Owner, second.Owner };
             var before = owners.Select(o => EditorJsonUtility.ToJson(o)).ToArray();
             var editor = UnityEditor.Editor.CreateEditor(owners);
-            using var section = new LayerSettingsInspectorSection(editor, _ => { }, null);
+            using var section = new LayerSettingsInspectorSection(editor, _ => { });
             bool? enabled = null;
             try
             {
@@ -103,7 +103,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             if (invalidSecondary) SetField(second.Owner, "_migrationReleaseIndex", int.MaxValue);
             var before = owners.Select(o => EditorJsonUtility.ToJson(o)).ToArray();
             var editor = UnityEditor.Editor.CreateEditor(owners);
-            using var section = new LayerSettingsInspectorSection(editor, _ => { }, null);
+            using var section = new LayerSettingsInspectorSection(editor, _ => { });
             try
             {
                 Assert.That(section.SetPendingGridForSelection(requested), Is.EqualTo(!invalidSecondary));
@@ -138,7 +138,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var owners = new[] {first.Owner, second.Owner};
             var editor = UnityEditor.Editor.CreateEditor(owners);
             int callbacks = 0;
-            using var section = new LayerSettingsInspectorSection(editor, _ => callbacks++, null);
+            using var section = new LayerSettingsInspectorSection(editor, _ => callbacks++);
             try
             {
                 var action = section.CreateOperationAction(LayerSettingsEdit.Capture(first.Owner),
@@ -327,7 +327,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             using var fixture = new Fixture(true);
             var editor = UnityEditor.Editor.CreateEditor(fixture.Owner);
             int callbacks = 0;
-            var section = new LayerSettingsInspectorSection(editor, _ => callbacks++, null);
+            var section = new LayerSettingsInspectorSection(editor, _ => callbacks++);
             try
             {
                 var action = section.CreateOperationAction(LayerSettingsEdit.Capture(fixture.Owner), LayerSettingsOperation.FlipX, "Flip");

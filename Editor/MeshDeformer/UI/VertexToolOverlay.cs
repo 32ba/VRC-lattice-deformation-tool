@@ -22,15 +22,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
             VertexSelectionHandler.CurrentTransformMode = (VertexSelectionHandler.TransformMode)modeIndex;
 
-            if (LatticeDeformationFeatureFlags.RestSpaceEditing &&
-                VertexSelectionHandler.CurrentTransformMode == VertexSelectionHandler.TransformMode.Move &&
-                deformer != null && deformer.GetComponent<SkinnedMeshRenderer>() != null)
-            {
-                SkinnedVertexHelper.StoreMovesInRestSpace = EditorGUILayout.Toggle(
-                    LatticeLocalization.Content(LocKey.StoreMoveInRestSpace),
-                    SkinnedVertexHelper.StoreMovesInRestSpace);
-            }
-
             // Handle orientation selector
             var orientContent = new GUIContent[]
             {
@@ -117,27 +108,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (GUILayout.Button(ToolIcons.Content(ToolIcons.Invert, LocKey.Invert)))
                 {
                     VertexSelectionHandler.InvertSelection(deformer);
-                }
-            }
-
-            if (LatticeDeformationFeatureFlags.SymmetricVertexSelection)
-            {
-                using (new GUILayout.HorizontalScope())
-                {
-                    GUILayout.Label(LatticeLocalization.Content(LocKey.MirrorAxis), GUILayout.Width(75f));
-                    int mirrorAxis = GUILayout.Toolbar(
-                        (int)BrushToolHandler.CurrentMirrorAxis,
-                        BrushToolHandler.AxisOptions);
-                    mirrorAxis = Mathf.Clamp(mirrorAxis, 0, BrushToolHandler.AxisOptions.Length - 1);
-                    BrushToolHandler.CurrentMirrorAxis = (BrushToolHandler.MirrorAxis)mirrorAxis;
-
-                    using (new EditorGUI.DisabledScope(VertexSelectionHandler.SelectedVertexCount == 0))
-                    {
-                        if (GUILayout.Button(ToolIcons.Content(ToolIcons.Mirror, LocKey.Mirror)))
-                        {
-                            VertexSelectionHandler.SelectMirrorPartners(deformer, mirrorAxis);
-                        }
-                    }
                 }
             }
 

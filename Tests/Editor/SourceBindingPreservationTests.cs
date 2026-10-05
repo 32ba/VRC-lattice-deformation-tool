@@ -12,9 +12,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class SourceBindingPreservationTests
     {
-        [TestCase(false)]
-        [TestCase(true)]
-        public void SameUnityMeshWithDistinctManagedWrapper_AllowsAuthoringAndProfileSave(bool saveProfile)
+        [Test]
+        public void SameUnityMeshWithDistinctManagedWrapper_AllowsAuthoring()
         {
             using var fixture = new Fixture();
             // Model a second managed wrapper without cloning the native mesh.
@@ -25,15 +24,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(alias == fixture.Source, Is.True);
             Set(fixture.Owner, "_serializedSourceMesh", alias);
             Assert.That(fixture.Owner.HasValidSerializedAuthoringData, Is.True);
-            var profile = ScriptableObject.CreateInstance<MeshDeformerProfile>();
-            try
-            {
-                if (saveProfile)
-                    Assert.That(ProfileAuthoringService.SaveCurrent(fixture.Owner, profile, "Save reimported source"), Is.True);
-                else
-                    Assert.That(DeformerAuthoringSource.TryRead(fixture.Owner, out _, out _, out _), Is.True);
-            }
-            finally { Object.DestroyImmediate(profile); }
+            Assert.That(DeformerAuthoringSource.TryRead(fixture.Owner, out _, out _, out _), Is.True);
         }
 
         [TestCase("missing-mesh", false)]

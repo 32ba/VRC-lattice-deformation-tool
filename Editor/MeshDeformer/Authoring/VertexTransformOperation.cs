@@ -82,12 +82,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         internal static void Apply(LatticeDeformer owner, in VertexTransformGeometry geometry,
             HashSet<int> selected, VertexProportionalInfluenceCache influences,
-            SkinnedVertexHelper.RestSpaceDeltaConverter restSpace, in VertexTransformOperation operation)
+            in VertexTransformOperation operation)
         {
             foreach (int index in selected)
             {
                 if (!operation.IsMove && !geometry.HasPosition(index)) continue;
-                ApplyOne(owner, geometry, restSpace, operation, index, proportional: false, influence: 1f);
+                ApplyOne(owner, geometry, operation, index, proportional: false, influence: 1f);
             }
 
             if (influences == null) return;
@@ -96,18 +96,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (selected.Contains(index) || (!operation.IsMove && !geometry.HasPosition(index))) continue;
                 float influence = influences.GetInfluence(index);
                 if (influence <= 0f) continue;
-                ApplyOne(owner, geometry, restSpace, operation, index, proportional: true, influence);
+                ApplyOne(owner, geometry, operation, index, proportional: true, influence);
             }
         }
 
         private static void ApplyOne(LatticeDeformer owner, in VertexTransformGeometry geometry,
-            SkinnedVertexHelper.RestSpaceDeltaConverter restSpace, in VertexTransformOperation operation,
+            in VertexTransformOperation operation,
             int index, bool proportional, float influence)
         {
             Vector3 delta = operation.LocalDelta(geometry, index, proportional, influence);
-            if (restSpace != null) delta = restSpace.ConvertOrFallback(index, delta);
-            // Move weights the converted delta; rotate/scale weight their operation
-            // before converting. Preserve that distinction for posed meshes.
+            // Move weights its delta; rotate/scale weight their operation.
             if (proportional && operation.IsMove) delta *= influence;
             owner.AddDisplacement(index, delta);
         }

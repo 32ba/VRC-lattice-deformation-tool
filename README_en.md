@@ -20,17 +20,18 @@ See the [development status](https://github.com/32ba/VRC-lattice-deformation-too
 ## Main features
 
 - **Lattice**: Move control points to deform broad areas smoothly
-- **Brush**: Make local edits with Normal, Move, Smooth, and Mask modes
+- **Brush**: Make local edits with Normal, Move, and Smooth modes
   - Smooth, Linear, Constant, Sphere, and Gaussian falloff
   - Surface-distance falloff, X/Y/Z mirroring, and penetration visualization
 - **Vertex Selection**: Select vertices directly and apply Move, Rotate, or Scale
   - Box selection and proportional editing are supported
 - **Groups and Layers**: Stack Lattice and Brush layers with independent names, enabled states, and weights
   - Duplicate, copy and paste, or reorder layers and groups; split and flip individual layers
-- **Vertex Mask**: Paint protected vertices to limit Brush edits and layer contributions
 - **BlendShapes**: Import an existing BlendShape as a Brush layer and output a group or layer as a new BlendShape
 - **Mesh rebuild**: Optionally recalculate normals, tangents, bounds, and SkinnedMesh bone weights
 - **NDMF Preview / Bake**: Inspect changes on a proxy Mesh and apply them only during an avatar or world build
+
+Existing Profile, Mask, and advanced BlendShape data can still be loaded and evaluated. Their future authoring UI and Clearance/Scan/Fit/QA are outside the 2.0 shipping scope. Normal Group output, the test slider, and single-frame import remain available.
 
 ## Supported targets and requirements
 
@@ -74,10 +75,10 @@ To use a source checkout directly, place the repository under the VCC project's 
 2. Open the Lattice Editor, select one or more control points, and move them.
 3. Tune the Layer Weight and keep fine corrections in separate Layers when useful.
 
-### 2. Correct local intersections with Brush and Mask
+### 2. Correct local intersections with Brush
 
 1. Add a Brush Layer and choose Normal or Move in the Brush Editor.
-2. Protect areas that should remain fixed with Mask mode.
+2. Adjust the radius and strength to edit only the intended area.
 3. If needed, enable **Show Penetration**, assign a reference Renderer, and correct the vertices highlighted in red.
 4. Switch the overlay to Vertex Selection for vertex-level finishing.
 

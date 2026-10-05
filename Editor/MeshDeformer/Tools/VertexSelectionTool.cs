@@ -94,8 +94,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private bool _preTransformWorldPositionsValid;
         private readonly VertexProportionalInfluenceCache _proportionalInfluenceCache =
             new VertexProportionalInfluenceCache();
-        private readonly SkinnedVertexHelper.RestSpaceDeltaConverterCache _restSpaceConverterCache =
-            new SkinnedVertexHelper.RestSpaceDeltaConverterCache();
         private int _transformInfluenceRevision;
 
         private static readonly Color k_ProportionalRadiusColor = new Color(0.5f, 1f, 0.5f, 0.4f);
@@ -775,13 +773,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void ApplyVertexTransform(LatticeDeformer deformer, Transform meshTransform, VertexTransformOperation operation)
         {
-            var restSpace = SkinnedVertexHelper.StoreMovesInRestSpace
-                ? _restSpaceConverterCache.Get(deformer) : null;
             if (ProportionalEditing) EnsureProportionalInfluences(meshTransform);
             var geometry = new VertexTransformGeometry(_meshVertices?.Length ?? 0,
                 _deformedVertices, _worldPositions, meshTransform);
             VertexTransformApplication.Apply(deformer, geometry, s_selectedVertices,
-                ProportionalEditing ? _proportionalInfluenceCache : null, restSpace, operation);
+                ProportionalEditing ? _proportionalInfluenceCache : null, operation);
             _editSession?.RecordChange();
             LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
         }
@@ -1093,7 +1089,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _meshTriangles = null;
             _worldPositions = null;
             _cachedRuntimeMesh = null;
-            _restSpaceConverterCache.Clear();
             _preTransformWorldPositions = null;
             _preTransformWorldPositionsValid = false;
             _proportionalInfluenceCache.Clear();

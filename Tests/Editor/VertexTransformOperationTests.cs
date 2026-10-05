@@ -12,16 +12,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 {
     public sealed class VertexTransformOperationTests
     {
-        [TestCase("Move", false, false)]
-        [TestCase("Rotate", false, false)]
-        [TestCase("Scale", false, false)]
-        [TestCase("Move", true, false)]
-        [TestCase("Rotate", true, false)]
-        [TestCase("Scale", true, false)]
-        [TestCase("Move", false, true)]
-        [TestCase("Rotate", false, true)]
-        [TestCase("Scale", false, true)]
-        public void SelectedAndProportionalDelta_MatchesAnalyticGeometryAndUndo(string operation, bool scaled, bool restSpace)
+        [TestCase("Move", false)]
+        [TestCase("Rotate", false)]
+        [TestCase("Scale", false)]
+        [TestCase("Move", true)]
+        [TestCase("Rotate", true)]
+        [TestCase("Scale", true)]
+        public void SelectedAndProportionalDelta_MatchesAnalyticGeometryAndUndo(string operation, bool scaled)
         {
             var root = new GameObject("__VertexTransformOperation");
             var mesh = new Mesh
@@ -33,30 +30,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var oldRadius = VertexSelectionHandler.ProportionalRadius;
             var oldFalloff = VertexSelectionHandler.ProportionalFalloffType;
             var oldMode = VertexSelectionHandler.CurrentTransformMode;
-            var oldRest = SkinnedVertexHelper.StoreMovesInRestSpace;
             LatticeDeformer owner = null;
             try
             {
-                if (restSpace)
-                {
-                    var bone = new GameObject("Bone").transform;
-                    bone.SetParent(root.transform, false);
-                    bone.localRotation = Quaternion.Euler(0f, 0f, 90f);
-                    mesh.bindposes = new[] { Matrix4x4.identity };
-                    mesh.boneWeights = new[] {
-                        new BoneWeight { boneIndex0 = 0, weight0 = 1f },
-                        new BoneWeight { boneIndex0 = 0, weight0 = 1f },
-                        new BoneWeight { boneIndex0 = 0, weight0 = 1f } };
-                    var renderer = root.AddComponent<SkinnedMeshRenderer>();
-                    renderer.sharedMesh = mesh;
-                    renderer.bones = new[] { bone };
-                    renderer.rootBone = bone;
-                }
-                else
-                {
-                    root.AddComponent<MeshRenderer>();
-                    root.AddComponent<MeshFilter>().sharedMesh = mesh;
-                }
+
+                root.AddComponent<MeshRenderer>();
+                root.AddComponent<MeshFilter>().sharedMesh = mesh;
                 if (scaled)
                 {
                     root.transform.position = new Vector3(5f, 6f, 7f);
@@ -76,9 +55,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 VertexSelectionHandler.ProportionalFalloffType = VertexSelectionHandler.FalloffType.Linear;
                 VertexSelectionHandler.CurrentTransformMode =
                     (VertexSelectionHandler.TransformMode)Enum.Parse(typeof(VertexSelectionHandler.TransformMode), operation);
-                SkinnedVertexHelper.StoreMovesInRestSpace = restSpace;
-                Vector3 pivot = scaled ? root.transform.position : restSpace ? Vector3.zero : Vector3.up * 2f;
-                if (!scaled && !restSpace)
+                Vector3 pivot = scaled ? root.transform.position : Vector3.up * 2f;
+                if (!scaled)
                 {
                     // A borrowed posed snapshot takes precedence over local vertices.
                     typeof(VertexSelectionHandler).GetField("_worldPositions", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -93,13 +71,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Vector3 selected, proportional;
                 if (operation == "Move")
                 {
-                    selected = restSpace ? new Vector3(.5f, -.25f, .75f) : new Vector3(.25f, .5f, .75f);
+                    selected = new Vector3(.25f, .5f, .75f);
                     proportional = selected * .5f;
                 }
                 else if (operation == "Scale")
                 {
-                    selected = restSpace ? Vector3.left * .5f : Vector3.right;
-                    proportional = restSpace ? Vector3.left * .375f : Vector3.right * .75f;
+                    selected = Vector3.right;
+                    proportional = Vector3.right * .75f;
                 }
                 else
                 {
@@ -121,7 +99,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 VertexSelectionHandler.ProportionalRadius = oldRadius;
                 VertexSelectionHandler.ProportionalFalloffType = oldFalloff;
                 VertexSelectionHandler.CurrentTransformMode = oldMode;
-                SkinnedVertexHelper.StoreMovesInRestSpace = oldRest;
                 if (owner != null) Undo.ClearUndo(owner);
                 Object.DestroyImmediate(root);
                 Object.DestroyImmediate(mesh);

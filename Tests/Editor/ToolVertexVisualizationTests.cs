@@ -130,7 +130,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
         [TestCase("DrawAffectedVertices")]
         [TestCase("DrawDisplacementHeatmap")]
-        [TestCase("DrawVertexMaskVisualization")]
         [Category("GraphicsE2E")]
         public void BrushDisplays_MatchPixelsFromPublishedHandler(string operation)
         {
@@ -152,9 +151,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     case "DrawDisplacementHeatmap":
                         BrushVertexVisualization.DrawDisplacements(geometry, baselineHandleSize * 0.003f);
                         break;
-                    default:
-                        BrushVertexVisualization.DrawMask(geometry, mask, baselineHandleSize * 0.004f);
-                        break;
+                    default: throw new ArgumentOutOfRangeException(nameof(operation));
                 }
             });
             AssertPixels(actual, operation);

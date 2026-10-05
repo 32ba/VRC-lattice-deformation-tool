@@ -19,19 +19,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.Tests
             Assert.That(LatticeDeformationFeatureFlags.ValidationDiagnostics, Is.EqualTo(expected));
         }
 
-#if LATTICE_DEFORMATION_TOOL_ENABLE_NEXT_RELEASE_FEATURES
-        [Test]
-        public void NextReleaseFeatures_AreEnabledWhenRequested()
-        {
-            Assert.That(LatticeDeformationFeatureFlags.NextReleaseFeatures, Is.True);
-        }
-#else
         [Test]
         public void NextReleaseFeatures_AreDisabledByDefault()
         {
             Assert.That(LatticeDeformationFeatureFlags.NextReleaseFeatures, Is.False);
         }
-#endif
     }
 }
 #endif

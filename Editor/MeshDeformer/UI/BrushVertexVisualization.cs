@@ -124,32 +124,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return Color.Lerp(new Color(1f, 1f, 0f), new Color(1f, 0.1f, 0f), (t - 0.75f) * 4f);
         }
 
-        internal static void DrawMask(VertexDisplayGeometry geometry, float[] mask, float baseSize)
-        {
-            if (geometry.Count == 0 || mask == null || mask.Length == 0) return;
-            int vertexCount = Mathf.Min(geometry.Count, mask.Length);
-            var cam = Camera.current;
-            if (cam == null) return;
-            var camRight = cam.transform.right;
-            var camUp = cam.transform.up;
-
-            using (var batch = SceneVertexDots.Shared.Begin(CompareFunction.Always))
-            {
-                for (int i = 0; i < vertexCount; i++)
-                {
-                    float maskValue = mask[i];
-                    if (maskValue > 1f - 1e-6f) continue; // Fully editable, skip
-
-                    var worldPos = geometry.WorldPosition(i);
-
-                    // Red = protected (mask=0), Green = editable (mask=1)
-                    float protection = 1f - maskValue;
-                    Color dotColor = Color.Lerp(new Color(0.2f, 1f, 0.2f, 0.4f), new Color(1f, 0.2f, 0.2f, 0.8f), protection);
-                    float dotRadius = baseSize * (1f + protection * 2f);
-                    batch.Draw(worldPos, dotColor, dotRadius, camRight, camUp);
-                }
-            }
-        }
     }
 }
 #endif

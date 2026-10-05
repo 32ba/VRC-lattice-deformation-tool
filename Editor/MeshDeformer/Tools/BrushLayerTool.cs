@@ -88,8 +88,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             Normal = 0,
             Move = 1,
-            Smooth = 2,
-            Mask = 3
+            Smooth = 2
         }
 
         internal enum MirrorAxis
@@ -147,8 +146,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private int _geodesicCacheGeometryRevision = -1;
         private Matrix4x4 _geodesicCacheMatrix;
         private readonly Queue<int> _connectedQueue = new Queue<int>();
-        private readonly SkinnedVertexHelper.RestSpaceDeltaConverterCache _restSpaceConverterCache =
-            new SkinnedVertexHelper.RestSpaceDeltaConverterCache();
         private Mesh _raycastMesh;
         private readonly SkinnedPoseSnapshot _poseSnapshot = new SkinnedPoseSnapshot("Brush Posed Surface");
         private Matrix4x4 _raycastMatrix;
@@ -172,7 +169,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static readonly ProfilerMarker s_raycastMarker = new ProfilerMarker("Brush.Raycast");
         private static readonly ProfilerMarker s_buildAdjacencyMarker = new ProfilerMarker("Brush.BuildAdjacency");
         private static readonly ProfilerMarker s_geodesicMarker = new ProfilerMarker("Brush.Geodesic");
-        private static readonly ProfilerMarker s_restSpaceMarker = new ProfilerMarker("Brush.RestSpaceConverter");
         private static readonly ProfilerMarker s_visualizationMarker = new ProfilerMarker("Brush.Visualization");
         private static readonly ProfilerMarker s_deformMarker = new ProfilerMarker("Brush.Deform");
         internal const int MaxAffectedVertexDots = BrushVertexVisualization.MaxAffectedVertexDots;
@@ -200,7 +196,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static readonly Color k_NormalBrushColor = new Color(0.3f, 0.5f, 1f, 0.8f);
         private static readonly Color k_SmoothBrushColor = new Color(0.3f, 1f, 0.5f, 0.8f);
         private static readonly Color k_MoveBrushColor = new Color(1f, 0.6f, 0.2f, 0.8f);
-        private static readonly Color k_MaskBrushColor = new Color(1f, 0.3f, 0.3f, 0.8f);
 
         static BrushToolHandler()
         {
@@ -557,13 +552,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     DrawDisplacementHeatmap(deformer, meshTransform);
             }
 
-            // Draw vertex mask visualization when in Mask mode
-            if (s_brushMode == BrushMode.Mask)
-            {
-                using (s_visualizationMarker.Auto())
-                    DrawVertexMaskVisualization(deformer, meshTransform);
-            }
-
             // Penetration detection
             if (s_showPenetration)
             {
@@ -754,9 +742,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     modified = ApplySmoothBrush(deformer, worldHitPoint, worldRadius, strength);
                     break;
 
-                case BrushMode.Mask:
-                    modified = ApplyMaskBrush(deformer, worldHitPoint, worldRadius);
-                    break;
             }
 
             if (modified)
@@ -844,15 +829,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     deformer, out _, out var displacements, out var vertexMask)) return false;
             Matrix4x4 localToWorld = deformer.MeshTransform.localToWorldMatrix;
 
-            SkinnedVertexHelper.RestSpaceDeltaConverter restSpaceConverter = null;
-            if (SkinnedVertexHelper.StoreMovesInRestSpace)
-            {
-                using (s_restSpaceMarker.Auto())
-                    restSpaceConverter = _restSpaceConverterCache.Get(deformer);
-            }
-
             var query = CreateBrushInfluenceQuery(worldHitPoint, worldRadius, localToWorld, localCameraForward);
-            return BrushDisplacementApplication.Move(_meshVertices, displacements, vertexMask, query, strength, localDelta, restSpaceConverter);
+            return BrushDisplacementApplication.Move(_meshVertices, displacements, vertexMask, query, strength, localDelta);
         }
 
         private bool ApplySmoothBrush(LatticeDeformer deformer, Vector3 worldHitPoint, float worldRadius, float strength)
@@ -889,43 +867,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return BrushDisplacementApplication.Smooth(_meshVertices, displacements, currentDisplacements, vertexMask, _adjacency, query, smoothFactor);
         }
 
-        private bool ApplyMaskBrush(LatticeDeformer deformer, Vector3 worldHitPoint, float worldRadius)
-        {
-            Matrix4x4 localToWorld = deformer.MeshTransform.localToWorldMatrix;
-            if (_meshVertices == null || _meshVertices.Length == 0)
-            {
-                return false;
-            }
-
-            if (!TryGetBrushBuffers(
-                    deformer, out var layer, out var displacements, out _))
-            {
-                return false;
-            }
-
-            layer.EnsureVertexMaskCapacity(_meshVertices.Length);
-            // When inverted: erase mask (unprotect), otherwise: paint mask (protect)
-            float targetValue = s_invertBrush ? 1f : 0f;
-
-            // Pre-compute camera forward in local space for backface culling
-            Vector3 localCameraForward = Vector3.forward;
-            if (s_backfaceCulling)
-            {
-                var cam = SceneView.lastActiveSceneView != null ? SceneView.lastActiveSceneView.camera : null;
-                if (cam != null)
-                {
-                    var deformerTransform = deformer.MeshTransform;
-                    if (deformerTransform != null)
-                    {
-                        localCameraForward = deformerTransform.InverseTransformDirection(cam.transform.forward);
-                    }
-                }
-            }
-
-            var query = CreateBrushInfluenceQuery(worldHitPoint, worldRadius, localToWorld, localCameraForward);
-            return BrushDisplacementApplication.Mask(_meshVertices, displacements, layer, query, targetValue, s_brushStrength);
-        }
-
         private BrushInfluenceQuery CreateBrushInfluenceQuery(Vector3 center, float radius,
             Matrix4x4 localToWorld, Vector3 localCameraForward) =>
             new BrushInfluenceQuery(_worldPositions, localToWorld, center, radius, s_brushFalloff,
@@ -944,7 +885,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (!deformer.TryGetActiveLayerFast(out layer)) return false;
             return layer != null && layer.Type == MeshDeformerLayerType.Brush;
         }
-
 
         internal bool TryGetBrushLayerFast(LatticeDeformer deformer, out LatticeLayer layer)
         {
@@ -1043,27 +983,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
 
                     var mirroredDelta = MirrorDirection(_lastMoveBrushLocalDelta);
-                    SkinnedVertexHelper.RestSpaceDeltaConverter restSpaceConverter = null;
-                    if (SkinnedVertexHelper.StoreMovesInRestSpace)
-                    {
-                        using (s_restSpaceMarker.Auto())
-                            restSpaceConverter = _restSpaceConverterCache.Get(deformer);
-                    }
+
                     BrushDisplacementApplication.Move(_meshVertices, displacements, vertexMask,
-                        query, strength, mirroredDelta, restSpaceConverter);
+                        query, strength, mirroredDelta);
                     break;
                 }
 
-                case BrushMode.Mask:
-                {
-                    if (!TryGetBrushLayerFast(deformer, out var layer)) break;
-                    layer.EnsureVertexMaskCapacity(vertexCount);
-                    float targetValue = s_invertBrush ? 1f : 0f;
-
-                    BrushDisplacementApplication.Mask(_meshVertices, displacements, layer,
-                        query, targetValue, s_brushStrength, mirrorMap);
-                    break;
-                }
             }
         }
 
@@ -1119,7 +1044,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 case BrushMode.Normal: return k_NormalBrushColor;
                 case BrushMode.Smooth: return k_SmoothBrushColor;
                 case BrushMode.Move: return k_MoveBrushColor;
-                case BrushMode.Mask: return k_MaskBrushColor;
                 default: return k_NormalBrushColor;
             }
         }
@@ -1129,7 +1053,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             switch (s_brushMode)
             {
                 case BrushMode.Smooth: return LatticeLocalization.Tr(LocKey.BrushSmooth);
-                case BrushMode.Mask: return LatticeLocalization.Tr(LocKey.BrushMask);
                 default: return LatticeLocalization.Tr(LocKey.BrushDeform);
             }
         }
@@ -1304,7 +1227,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _distanceWorldPositions = null;
             _raycastMesh = null;
             _hasBakedRaycastMesh = false;
-            _restSpaceConverterCache.Clear();
             _cachedBrushSourceRenderer = null;
             _cachedBrushTargetRenderer = null;
             _cachedBrushSkinnedRenderer = null;
@@ -1400,17 +1322,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 meshTransform.localToWorldMatrix);
             BrushVertexVisualization.DrawDisplacements(geometry,
                 HandleUtility.GetHandleSize(meshTransform.position) * 0.003f);
-        }
-
-        private void DrawVertexMaskVisualization(LatticeDeformer deformer, Transform meshTransform)
-        {
-            if (_meshVertices == null ||
-                !TryGetBrushBuffers(deformer, out var layer, out var displacements, out _) ||
-                !layer.HasVertexMask()) return;
-            var geometry = new VertexDisplayGeometry(_meshVertices, _worldPositions, displacements,
-                meshTransform.localToWorldMatrix);
-            BrushVertexVisualization.DrawMask(geometry, layer.VertexMask,
-                HandleUtility.GetHandleSize(meshTransform.position) * 0.004f);
         }
 
         private void UpdatePenetrationDetection(LatticeDeformer deformer)
@@ -1779,20 +1690,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             int previousStateHash = deformer.ComputeLayeredStateHash();
             Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ClearAll));
             deformer.ClearDisplacements();
-            if (deformer.ComputeLayeredStateHash() != previousStateHash)
-            {
-                LatticePrefabUtility.MarkModified(deformer);
-            }
-            LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
-        }
-
-        internal static void ClearActiveMask(LatticeDeformer deformer)
-        {
-            if (deformer == null) return;
-            if (!TryGetActiveLayer(deformer, out var layer)) return;
-            int previousStateHash = deformer.ComputeLayeredStateHash();
-            Undo.RecordObject(deformer, LatticeLocalization.Tr(LocKey.ClearMask));
-            layer.ClearVertexMask();
             if (deformer.ComputeLayeredStateHash() != previousStateHash)
             {
                 LatticePrefabUtility.MarkModified(deformer);

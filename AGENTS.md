@@ -48,6 +48,14 @@ Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で�
 - `DeformerEditService.ExecuteBatch` は対象集合を先に固定・検証し、全対象を1つのUndoへ記録する。途中の拒否・例外は全対象をrollbackしてcacheを破棄する。Profileやfuture component/layer-model/lattice versionはUndoを作る前に拒否し、複数選択のLayer設定UIは `LayerSettingsEdit.ExecuteBatch` へ接続する。3ツールの複数frame dragは別の `DeformerEditSession` がUndo snapshotと対象identityを所有する。
 - `Tests/Editor/Fixtures/ArchitectureBaseline/` は固定基準の実行結果。`ArchitectureContractSnapshot.Export` と `LayerOperationBaselineFixture.Export` を隔離した基準版Unityで実行して生成し、新実装から期待値を上書きしない。公開API・保存field/path・enum・GUIDの維持と、6種類の旧Inspector操作を独立の互換性テストで照合する。fixtureのcommit値は生成元の由来であり、履歴整理後のcommitへ機械的に置換しない。
 
+### 2.0出荷範囲と公開データ互換
+
+- 非出荷のProfile作成編集、Clearance/Scan/Fit/QA、詳細対称選択UI、Mask塗布、rest-space編集、診断Inspector、layer出力/composition/all-frame importの編集UIと専用実行コードは撤去した。旧defineで再有効化しない。復元する場合はGit履歴から独立した機能追加として扱う。
+- 通常Group出力・test slider・単一frame import・Brush mirror・貫通表示を維持する。簡易Overlayの対称選択は既に出荷経路なので、その共有handlerとSymmetryVertexMapも維持する。
+- 公開betaのMeshDeformerProfile/ClearanceScanSet型・namespace・script GUID・保存field/enum値と公開APIは互換契約として残す。asset作成menuを撤去し、通常asset Inspectorは読取り専用。公開APIの書込み入口は既存API互換のため残るが、新しいauthoring UIへ接続しない。
+- 既存Profile、Mask、Fit生成Brush、layer出力/compositionのpayloadは保存・評価・移行を維持する。MeshCompatibilityMetadata/fingerprint、BlendShape評価、SkinnedPoseSnapshot、ClearanceQuery/Cache/PenetrationDetector、Build/Preview/Support validatorは共有依存であり一括削除しない。
+- 回帰は出荷時フラグの両Editor、公開release fixture、既存データ不変、Undo/Prefab、通常Group/import/mirror/貫通、実NDMF-AAO/描画を完了条件とする。撤去専用testのみ削除し、固定fixture/goldenや失敗判定を変更しない。件数変更は実XMLのremoved/added一覧で説明する。
+
 ### 統合 EditorTool アーキテクチャ
 
 Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`EditorTool`）から 3 つのハンドラに委譲する構成:
@@ -70,25 +78,17 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
 **Editor:**
 - `BrushDeformerEditor.cs`: Inspector UI（メッシュソース、変形データ管理、リビルドオプション）
 - `BrushLayerTool.cs` (`BrushToolHandler`): ブラシ編集ハンドラ（`MeshDeformerTool` から委譲）
-  - **ブラシモード**: Normal（法線方向）、Move（スクリーン方向）、Smooth（ラプラシアン平滑化）、Mask（頂点マスク）
+  - **ブラシモード**: Normal（法線方向）、Move（スクリーン方向）、Smooth（ラプラシアン平滑化）
   - **設定**: 半径、強度、減衰タイプ（Smooth/Linear/Constant/Sphere/Gaussian）
   - **表面距離（Surface Distance）**: ユークリッド距離の代わりに測地線（表面）距離を使用するフォールオフモード。Dijkstra アルゴリズムでメッシュ隣接グラフ上の最短経路を計算し、重なった面への影響の漏れを防止
-  - **ミラー編集**: X/Y/Z 軸対称。Normal/Smooth/Mask に加えて Move ブラシもミラー側へ反転移動量を適用
+  - **ミラー編集**: X/Y/Z 軸対称。Normal/Smooth に加えて Move ブラシもミラー側へ反転移動量を適用
   - **操作**: Alt+スクロールで半径、Shift+スクロールで強度調整
 - `GeodesicDistanceCalculator.cs`: 測地線距離計算（Dijkstra ベースの表面距離フォールオフ用）
-- SkinnedMeshRenderer の Move ブラシは任意で、ポーズ上の renderer-local 移動量を頂点ごとの blended skinning matrix で逆変換し、rest-space 変位として保存できる。不正 weight・bind pose 不足・特異行列は従来の local-space 変位へ安全に fallback する
 - 旧 `BrushDeformer` はデシリアライズ互換性だけのために残し、空の `AddComponentMenu` で新規追加を禁止する。NDMF Preview/Bakeは登録しない。Editorのdelay callbackでロード済みScene、Prefab Stage、`Assets/`内のimport済みPrefabを検出し、変位と再構築設定を専用 `DeformerGroup` / Brushレイヤーへ自動移行する。移行後も旧コンポーネントは削除せず、無効化したバックアップとして保持する
 - 旧 `BrushDeformer` の複数選択移行は1つの原子的な操作として扱い、1件でも失敗したら全対象を Undo で戻し、移行前のsource meshからruntime previewを再構築する。既存 `LatticeDeformer` とのsource不一致は、初期化を伴うpublic group APIへ触れる前にfail-fastで拒否する
 - 自動移行はserialization callback、Play Mode、compile/import中、batch mode、read-only/package assetでは実行しない。Scene/Prefab単位で全対象を原子的に処理し、失敗時は元データを保ったまま警告する。Prefab assetは`LoadPrefabContents`で隔離して検証し、全件成功後だけ保存する。再検出時はmarker・source・payloadを純粋に照合して重複Group/Layerを作らない
 
-**頂点マスク（Vertex Mask）:**
-- `LatticeLayer` に `_vertexMask` (`float[]`) を保持。各頂点の編集可能度を 0.0（保護）〜 1.0（編集可能）で管理
-- Mask ブラシモードで塗布（デフォルトは保護を塗る、Invert で保護を消す）
-- Brush Overlay のモード選択から Mask モードを直接選択可能。Clear Mask でアクティブレイヤーのマスクを初期化
-- Normal/Move/Smooth ブラシモードでは、マスク値に応じて変形量が自動的にスケーリングされる
-- `TryApplyBrushLayerContribution` でもマスクが適用され、ビルド時の出力にも反映
-- ミラー編集にも対応
-- Scene ビューで保護された頂点を赤、編集可能な頂点を緑で可視化
+**既存頂点マスク:** `_vertexMask`の保存値と評価倍率を互換維持する。塗布・Clear・専用表示は撤去した。
 
 **貫通検出（Penetration Detection）:**
 - `ClearanceQuery.cs` (`Editor/MeshDeformer/Utilities/`): 参照メッシュのworld-space三角形からBVHを構築し、最近傍triangle index・最近傍点・barycentric coordinate・補間法線・距離・符号付きclearanceを返す共通Query基盤
@@ -102,33 +102,11 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
   - 表示結果は変形状態・参照メッシュ・関連 Transform をキーとしてキャッシュする
   - 対象頂点を評価し、参照側の最近傍三角形探索は共通BVHで枝刈りする。参照 SkinnedMeshRenderer は現在ポーズをBakeして扱い、通常のBrush貫通表示はReferenceNormalの片側判定を使う。頂点サンプルに基づくため全mesh交差の網羅判定とは扱わない
 
-**クリアランスヒートマップ:**
-- `ClearanceHeatmap.cs` (`Editor/MeshDeformer/Utilities/`): `ClearanceQuery` 結果を貫通・警告・目標未満・安全へ分類し、最小clearance、最大貫通深度、違反頂点数、評価頂点数を集計する。しきい値はworld-space meterで保持し、Inspectorではmm表示する
-- `LatticeDeformer` ごとに参照Renderer、Query mode、表示mode、警告/目標距離、表示stride、更新間隔をserializeする。ヒートマップは検出専用でMesh・Layer・BlendShapeを変更しない
-- Scene View描画は「貫通のみ」「警告範囲を含む」「全体分布」を切り替え、NDMF preview proxyが存在する場合はproxy meshを評価してInspectorへ評価対象を明示する。参照/対象の無効化、Undo/Redo、設定変更時は古い表示を破棄する
-
-**複数ConditionクリアランスScan:**
-- `ClearanceScanSet.cs` (`Runtime/MeshDeformer/`): 明示的なCondition順を保持する再利用可能asset。AnimationClip/sample time/relative animation root、対象・参照BlendShape、relative Transform pose override、Condition固有の警告/目標距離を保存する
-- `ClearanceScanRunner.cs` (`Editor/MeshDeformer/Utilities/`): 1 Editor updateにつき1 Conditionを評価し、進捗・Cancelを提供する。各Conditionの統計・頂点clearance・NDMF proxy利用有無と、頂点ごとのworst Conditionを決定的に集計する。評価meshはscan開始時のoriginal mesh identityと位置非依存のtopology hashを維持し（NDMF proxyはtopology一致を必須とする）、proxyへ対象Renderer/Bone poseとBlendShape weightを同期する
-- Scan開始時にAvatar root配下と外部Preview proxyのTransform/active state、Renderer enabled/shared mesh、SkinnedMeshRendererの全BlendShape weight、Animator設定をsnapshotし、完了・Cancel・Condition例外時に復元する。Condition間でUndoを伴う利用者編集を検出した場合はscanを中止してその編集を保持する。無効Conditionは個別errorとして記録し次へ進む。結果Conditionは明示操作でSceneへ再適用でき、Restoreでscan前状態へ戻す
-- Condition評価のためのproxy pose/BlendShape同期は評価内だけに限定し、成功・例外時とも評価終了時にproxy状態を復元する。Applyでoriginalへ適用したConditionは保持し、NDMFの次frameでShadowBoneが追従する際にproxyのlocal offsetを二重加算しない
-**Fit Correction:**
-- `FitCorrectionGenerator.cs` (`Editor/MeshDeformer/Utilities/`): クリアランス評価から不足量を参照面のworld-space法線方向へ補正し、元Meshや既存Layerを変更せず専用Brushレイヤーとして追加する
-- 対象範囲は貫通のみ・警告距離以下・目標距離未満から選択し、最大移動量もworld-spaceで制限する。生成後は改善数と未解決数を再評価して表示する
-- 生成レイヤーには参照Renderer、Query mode、対象範囲、警告/目標距離、最大移動量を保存する。古い評価、頂点数不一致、無効な参照、rest poseでないSkinnedMeshRendererでは生成をfail-closedにする
-- 形状保護制約としてactive layerのVertex Mask、open boundary固定、connected component分離、mesh adjacencyだけを使うsurface-aware smoothing、平滑化後のclearance再投影、`SymmetryVertexMap`による明示的な対称補正を個別に切り替えられる。Mask/boundary/max moveをclearance再投影より優先し、未解決頂点は隠さず報告する
-- Scene Viewでは生成前のworld-space移動をPreviewでき、生成Brushレイヤーには使用したconstraintとMask snapshotも保存する。全constraintを無効にした場合は基本Fit Correctionと同じ結果を維持する
-
-**クリアランスQAレポート:**
-- `ClearanceQaReport.cs` (`Editor/MeshDeformer/Utilities/`): 現在のHeatmapまたは複数Condition Scan結果をschema v1のJSONとMarkdownへ変換する。Scanレポートは評価時点のtarget/reference/topologyと、Clip/sample/root/BlendShape/Transform overrideを含むCondition定義を不変snapshotとして保持し、package/Unity version、UTC評価時刻、Query mode、しきい値、Condition統計・error、worst Conditionとともに出力する
-- 対象Mesh互換性はvertex/triangle/submesh countと、vertex座標を含めずsubmesh topology/index bufferからSHA-256で計算したTopology hashで識別する。共有用JSON/Markdownへ頂点座標、index配列、per-vertex clearance、変形deltaを出力しない
-- JSONとMarkdownは同一directory内のtemporary fileへ先に完全出力し、既存ファイルのbackupを取ってから置換する。片方の置換に失敗した場合は両方をrollbackし、不完全な既存レポートを残さない。同じschemaとTopology hashのレポートだけを比較対象とする
-
 **共通Validation:**
-- `MeshDeformerValidator.cs` (`Editor/MeshDeformer/Validation/`): Inspector、NDMF Preview、Bake前で共有する診断API。`MDVxxx` のstable code、severity、対象Object/group/layer/property、任意の明示Fixを返す
-- Renderer/source mesh、保存後のtopology drift、Brush/Mask配列長、Lattice設定、Group/Layer構造、BlendShape名、Profile互換性、Clearance参照、rest-space変換、Preview/Bake対象差を検査する。無効component/group/layerは致命Errorにしない
+- `MeshDeformerValidator.cs` (`Editor/MeshDeformer/Validation/`): Support、NDMF Preview、Bake前で共有する診断API。`MDVxxx` のstable code、severity、対象Object/group/layer/property、任意の明示Fixを返す
+- Renderer/source mesh、保存後のtopology drift、Brush/Mask配列長、Lattice設定、Group/Layer構造、BlendShape名、Profile互換性、Preview/Bake対象差を検査する。無効component/group/layerは致命Errorにしない
 - BakeはErrorが1件でもあればMesh生成・置換前に停止する。Warningはstable codeと継続時の意味をEditor logへ出し、Bake自体は継続する
-- Fixはsilentに実行せずInspectorのボタンから対象`LatticeDeformer` 1件だけをUndo可能に変更する。診断側から通常のgroup/layer getterを呼んで配列を暗黙補正しない
+- Fix互換APIはsilentに実行せず明示呼出しから対象`LatticeDeformer` 1件だけをUndo可能に変更する。診断側から通常のgroup/layer getterを呼んで配列を暗黙補正しない
 
 ### 頂点選択ツール（Vertex Selection Tool）
 
@@ -140,7 +118,6 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
   - **変換モード**: Move（移動）、Rotate（回転）、Scale（スケール）
   - **プロポーショナル編集**: 選択頂点周囲の頂点にも減衰付きで影響。Smooth/Linear/Constant 減衰
   - **操作**: W/E/R で変換モード切替、Alt+スクロールでプロポーショナル半径調整
-  - Vertex Selection Move も Move ブラシと同じ rest-space 逆変換 option を共有し、MeshRenderer には影響しない
 
 ### DeformerGroup アーキテクチャ
 
@@ -192,10 +169,10 @@ DeformerGroup [Serializable]
 - `OutputAsBlendShape`: グループ内レイヤーの合成変形を1つの BlendShape として出力。頂点はソース位置のまま保持
 - `BlendShapeName`: 出力名（有効化時に空なら `gameObject.name` で自動補完）
 - `BlendShapeCurve` (`AnimationCurve`): BlendShape の補間カーブ。常に100フレームをカーブからサンプリング
-- `BlendShapeComposition` は既存互換の `Single` に加えて `Progressive` / `Crossfade` を選択できる。ProgressiveはGroup内の有効Layer差分を順に累積し、Crossfadeは隣接Layer状態だけを補間する。いずれも100フレーム上で `BlendShapeCurve` をstage進行として評価する
+- `BlendShapeComposition` は既存互換の `Single` に加えて 保存済み `Progressive` / `Crossfade` を評価できる（選択UIは撤去）。ProgressiveはGroup内の有効Layer差分を順に累積し、Crossfadeは隣接Layer状態だけを補間する。いずれも100フレーム上で `BlendShapeCurve` をstage進行として評価する
 - Inspector UI の「BlendShape Output」独立 Foldout セクション内に配置。テストモードで SkinnedMeshRenderer 上の重みをプレビュー可能
 - NDMF ビルドパイプラインは `Object.Instantiate()` で BlendShape データを保持
-- レイヤー単位でも `BlendShapeOutput` / `BlendShapeName` / `BlendShapeCurve` を設定可能。レイヤー出力を有効にしたレイヤーはグループ合成から除外され、個別 BlendShape として出力される
+- 保存済みレイヤー単位の `BlendShapeOutput` / `BlendShapeName` / `BlendShapeCurve` を互換評価する。レイヤー出力を有効にしたレイヤーはグループ合成から除外され、個別 BlendShape として出力される
 - Progressive / Crossfadeの候補にはGroup合成へ参加するLayerだけを使い、個別BlendShape出力Layerは候補からも除外する。出力無効Groupではcomposition設定にかかわらず従来どおり直接加算する
 - 生成 BlendShape には、メッシュ再計算オプションに応じて法線/タンジェントデルタも付与される
 - 公開 `1.2.1`〜`1.4.0` はレイヤーの出力mode/nameを保存していたが、実際の `Deform` はレイヤーを分離せずグループ出力だけを生成し、生成shapeの法線/タンジェントdeltaも書かなかった。出力設定が有効な旧assetは `_legacyPublishedBlendShapeSemantics` を保持してこの実挙動を再現し、この互換flagを持たないassetだけが上記の現行レイヤー出力を使う
@@ -205,7 +182,7 @@ DeformerGroup [Serializable]
 - `LatticeDeformer.ImportBlendShapeAllFramesAsGroup(int blendShapeIndex)`: multi-frame BlendShapeを専用Crossfadeグループへ展開し、各frameを独立したBrushレイヤーとしてインポートする。元frameの順序とweightはレイヤーの非表示metadataへ保持する
 - 全frame由来の有効レイヤーが厳密昇順のweight metadataを維持している間は、生成BlendShapeを100分割へ再サンプルせず、元のframe数・weightで直接出力する。各レイヤーの変位は独立編集でき、zero-delta frameも候補として保持する
 - `LatticeDeformer.GetSourceBlendShapeNames()`: 利用可能な BlendShape 名一覧を取得
-- Inspector UI の「Import BlendShape」ドロップダウンで「単一フレーム」と「全フレーム」を選択できる
+- Inspector UI の「Import BlendShape」は単一フレーム取り込みだけを提供する。全フレーム公開APIは既存API互換として残す
 
 ### レイヤー左右分割・反転（L/R Split & Flip）
 
@@ -402,11 +379,9 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - `BlendShapeTestSession` はInspectorのテスト表示が借用するRuntime Meshの割当て、元の全ウェイト配列、対象RendererのMesh/weight Prefab差分を所有する。複数Inspectorでも同じRendererのsessionは1件に限定し、終了・Disable/Destroy・assembly reloadで復元する。生成Group出力の実際のshape indexをコンポーネントが保持し、source・別Group・Layerとの名前衝突でもテストweightを既存shapeへ適用しない。対応表は再利用される評価workspaceと分ける。Runtime Meshの破棄はコンポーネントに残し、外部Mesh割当てや別propertyの編集を戻さない。元Meshのshape順が変わった場合だけ名前でウェイトを対応させ、配列indexの旧Prefab差分を再利用しない。出力無効化・出力しないGroupへの切替でもsessionを終了し、直前のInspector再評価によるRuntime Mesh置換を含めて復元する。更新時は割当て所有を先に確認し、Groupの参照には保存payloadを修復しない `ReadResolvedData` を使う
 
-- クリアランスの編集状態は `Authoring/ClearanceAuthoringSession` が所有する。Heatmap/Fitの別対象cache、Scan update購読、Condition再適用のScene snapshot、Undoでの無効化とassembly reload時の復元を同じownerで閉じる。`UI/ClearanceInspectorSection` は設定欄と明示操作、`UI/ClearanceSceneDrawer` は借用結果の描画だけを担当する。補正Layer生成はfresh評価後に `DeformerEditService` へ渡し、Profile・破損payloadは書込み前に拒否する。既存Editorのinternal評価入口は互換テスト用の委譲に限定し、通常のClearance処理から呼び戻さない
 
-- ProfileのInspectorは `UI/ProfileInspectorSection`、互換性query・保存準備・明示操作は `Authoring/ProfileAuthoringService` が担当する。sourceの現在の参照と保存済みtopologyを検査し、保存用copyを準備してから対象ProfileだけをUndo可能に更新・保存する。`SaveAssets`で無関係なdirty assetを一括保存しない。新規作成は未使用の`Assets/`内pathだけへ行い、失敗時は自身が作成したassetだけを解放する。source切替と内蔵への複製は `DeformerEditService` の共通commitへ接続し、通常のLayer操作がProfileを編集しない制約は維持する。null inline Groupを持つ破損テストでは、UnityのJSON化がnullを実体化し得るため、検査自体で修復しないraw readerによる比較を使う
 
-- Inspector の再計算設定は `UI/MeshRebuildInspectorSection`、診断表示は `UI/ValidationInspectorSection` と `Validation/InspectorValidationState` が担当する。表示だけで mixed selection や未知の enum 値を書き戻さず、明示入力時だけ SerializedProperty を変更する。Weight Transfer の計算と設定の保存 path は維持する。
+- Inspector の再計算設定は `UI/MeshRebuildInspectorSection` が担当する。非出荷の診断表示は撤去した。表示だけで mixed selection や未知の enum 値を書き戻さず、明示入力時だけ SerializedProperty を変更する。Weight Transfer の計算と設定の保存 path は維持する。
 
 - Guided UI は `UI/GuidedInspectorSection` が表示とツール起動を担当し、`GuidedInspectorState` は raw reader から表示値だけを取得する。Profile が欠落している Profile mode も編集開始しない。`Authoring/GuidedAuthoringService` が既存 Layer の再利用・選択・追加を判断し、変更が必要な場合だけ共通 `DeformerEditService` で Undo / Prefab / cache 更新を記録する。開始前の raw payload・source identity・topology 照合はドラッグと共通の `DeformerAuthoringSource` を通し、拒否時は配列修復、ツール起動、Preview 更新を行わない。null inline Group の検査では JSON による実体化を避け、raw list と slot を直接比較する。
 - サポート情報は `Editor/Support/` の収集・形式 codec・NDMF 調査 adapter・ファイル出力・menu に分離する。既存 `MeshDeformerSupportReport` は形式 v1 の互換 facade として残す。収集は component の保存データを初期化せず、codec は component/Editor/NDMF を参照しない。PNG と decode JSON は同じ原子的ファイル置換を使い、途中失敗で既存ファイルを壊さない。`SupportCodecV1` fixture は変更前の実装 blob `4fcb1f3962534ceb208e68af92fe8a3814861cfa` から取得したもので、候補 codec の出力で期待値を作り直さない。
@@ -428,14 +403,13 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `DeformationSourceBinding` は保存sourceのUnity identityとcountを検査し、実行用cacheと保存の正本を区別する。参照欠落・別Meshへの差替え時は、OnEnable・getter・単一release移行から保存情報やBrushを初期化しない。既存single-settings由来の未完了移行は旧分類契約を維持し、current/groupの参照消失と混同しない。Unityのnull placeholderはmanaged nullと異なり、同じassetの再importはmanaged wrapperだけが変わるため、保存bindingの比較に`ReferenceEquals`を使わない。
 - source不一致で評価を拒否しても、構造が有効なEmbedded Groupの既存読取りviewは調査用に保持する。明示Resetだけがcurrentのbindingと変形を再設定する。Disable/Destroyは自分のRuntime Meshがまだ割り当てられている場合だけsourceへ戻し、外部割当てを上書きしない。`SourceBindingPreservationTests` は欠落・修復・移行進捗・Reset/Undo・Prefab Variant・同assetの再import後の変位保持を検証する。
 - `RuntimeMeshAssignment` はRuntime出力を割り当てた実際のMeshFilter/SkinnedMeshRendererと、その時点の借用Meshを保持する。serialized target参照の切替・消失後も元の割当先を復元し、再割当時は以前の対象を先に解放する。source cache更新後の復元に新sourceを使わない。外部割当ては保持し、明示的な復元抑止scopeでは借用参照だけを解放する。`RuntimeMeshAssignmentTests` が両Renderer種別の切替・参照消失・Reset・終了を確認する。
-- `VertexTransformOperation` は頂点のMove/Rotate/Scaleと比例補間の計算、`VertexTransformGeometry` は同期操作中だけの借用pose/行列、`VertexTransformApplication` は既存displacement APIへの適用を担当する。handlerは入力・session・cache準備・Undo記録とpreview更新を保持する。Moveはrest-space逆変換後のdeltaへ影響率を掛け、Rotate/Scaleは操作を補間してから逆変換する。snapshotを新しくBakeせず、world poseがある場合はlocal頂点より優先する。
-- `BrushInfluenceQuery` は通常・mirrorの候補列挙、接続面、裏面、world距離/表面距離、falloffだけを評価し、変位・Mask・cacheを変更しない。各modeは既存の書込みとSmooth snapshotを保持する。通常側のgeodesic sparse traversalを維持し、mirror側へsurface/backface設定を新たに適用しない。`BrushInfluenceContractTests` は固定した分離前48ケースと独立した数値境界を照合する。
+- `VertexTransformOperation` は頂点のMove/Rotate/Scaleと比例補間の計算、`VertexTransformGeometry` は同期操作中だけの借用pose/行列、`VertexTransformApplication` は既存displacement APIへの適用を担当する。handlerは入力・session・cache準備・Undo記録とpreview更新を保持する。Moveはlocal deltaへ影響率を掛け、Rotate/Scaleは操作を補間する。snapshotを新しくBakeせず、world poseがある場合はlocal頂点より優先する。
+- `BrushInfluenceQuery` は通常・mirrorの候補列挙、接続面、裏面、world距離/表面距離、falloffだけを評価し、変位・Mask・cacheを変更しない。各modeは既存の書込みとSmooth snapshotを保持する。通常側のgeodesic sparse traversalを維持し、mirror側へsurface/backface設定を新たに適用しない。`BrushInfluenceContractTests` は固定した分離前48ケースのうち出荷3modeの36ケースと独立した数値境界を照合する（Mask塗布12ケースは撤去、fixtureは不変）。
 
 ## 依存関係
 
-- `BrushDisplacementApplication` のMaskも準備済みLayer/queryへ適用する。mirror側Normal/Smooth/Maskは対応mapがある頂点だけを処理し、Moveは従来どおりmap制限しない。mirror queryはEuclidean・裏面filterなしを維持する。Smooth snapshotは通常適用後、mirror適用前にhandlerが取り直す。
 
-- `BrushDisplacementApplication` はNormal/Move/Smoothの準備済みqueryと借用配列へ適用する。handlerはtarget検証、Undo、rest-space converter取得、Smooth snapshot、preview更新を所有する。maskの既定1、1e-6境界、Moveの10倍係数、Smoothのsnapshot読取りを維持する。通常modeから分離し、mirror固有の経路は別に残る。
+- `BrushDisplacementApplication` はNormal/Move/Smoothの準備済みqueryと借用配列へ適用する。handlerはtarget検証、Undo、Smooth snapshot、preview更新を所有する。maskの既定1、1e-6境界、Moveの10倍係数、Smoothのsnapshot読取りを維持する。通常modeから分離し、mirror固有の経路は別に残る。
 
 - 頂点選択矩形は `SelectedVertexVisualization.DrawSelectionRectangle` が描画し、handlerは `VertexPickingQuery.Rectangle` で作ったRectを渡す。描画側はHandles.BeginGUI/EndGUIのscopeを所有し、入力や選択状態を読み書きしない。
 
@@ -493,7 +467,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - 描画coroutineのnative log失敗ではTest Frameworkがiteratorのfinallyへ戻らない場合がある。実PreviewのAAO/MA試験は入力control・SceneView/Cage購読・選択/ツール・fixtureもTearDownで復元する。Peripheral Inspector試験はwindow callback・一時設定・SerializedObject・fixtureをTearDownでも解放し、失敗した描画が後続の移行試験へ破棄済みtargetエラーを漏らさないようにする。元の描画失敗は引き続き失敗として記録する。
 
-- 承認済みUUM-85059例外は `Tools~/CI/verify_test_results.py` の6000.0.67f1・確認済み4fullname・完全一致failure message・font atlas native stackに限定する。テスト自体は実行しraw XMLの失敗を保持する。`Assert-TestResults.ps1`とfeature configuration検証は同じpolicyを使う。全skip/inconclusive、未知failure、重複、件数不一致、欠損ログ、crashは拒否し、最低1,869件とCategory件数を維持する。
+- 承認済みUUM-85059例外は `Tools~/CI/verify_test_results.py` の6000.0.67f1・確認済み4fullname・完全一致failure message・font atlas native stackに限定する。テスト自体は実行しraw XMLの失敗を保持する。`Assert-TestResults.ps1`とfeature configuration検証は同じpolicyを使う。全skip/inconclusive、未知failure、重複、件数不一致、欠損ログ、crashは拒否し、最低1,726件とCategory件数を維持する。
 - CIの67f1 runnerのcontinue-on-errorは必須の後続gateと組でのみ使う。実Editor version、通常終了、XML保存先、runner outcomeを照合し、validation.jsonにaccepted_with_known_issueと件数/対象を残す。全成功と表現しない。適用範囲、既知4件、解除条件はDocs~/Architecture/validation.mdを参照し、無断で対象版やテストを広げない。
 
 - 製品のwindow/overlay識別は型または固定Overlay idで行い、翻訳表示名で検索しない。EditorWindowLifecycleカテゴリ5件を両Editorで必須にする。titleContentによる改名とGetWindow<T>の型検索を区別し、IconContent共有cacheのGUIContentへtooltipを書き込まず複製する。Editor再起動やlayout復元の診断で使う内部WindowLayout APIは製品へ持ち込まない。

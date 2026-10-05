@@ -15,7 +15,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
     {
         private const string BaselinePath = "Packages/net.32ba.lattice-deformation-tool/Tests/Editor/Fixtures/ArchitectureBaseline/brush-influence.json";
         private static readonly string[] Scenarios = { "plain", "pose", "connected", "surface", "backface", "gaussian" };
-        private static readonly string[] Modes = { "Normal", "Move", "Smooth", "Mask" };
+        private static readonly string[] Modes = { "Normal", "Move", "Smooth" };
 
         [Serializable] public sealed class Sample
         {
@@ -59,7 +59,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(actual.mask[i], Is.EqualTo(expected.mask[i]).Within(2e-6f), "mask " + i);
             }
         }
-
 
         [Test]
         public void Query_UsesWorldRadiusUnderNonuniformScale()
@@ -134,7 +133,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var field = typeof(BrushToolHandler).GetField(name, flags);
                 settings.Add(field, field.GetValue(null));
             }
-            bool oldRest = SkinnedVertexHelper.StoreMovesInRestSpace;
             var camera = SceneView.lastActiveSceneView != null ? SceneView.lastActiveSceneView.camera : null;
             Quaternion cameraRotation = camera != null ? camera.transform.rotation : Quaternion.identity;
             try
@@ -181,7 +179,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Set(null, "s_connectedOnly", scenario == "connected");
                 Set(null, "s_backfaceCulling", scenario == "backface");
                 Set(null, "s_useSurfaceDistance", scenario == "surface");
-                SkinnedVertexHelper.StoreMovesInRestSpace = false;
                 Vector3 localHit = Vector3.right * .5f;
                 Vector3 worldHit = root.transform.TransformPoint(localHit);
                 object result;
@@ -189,7 +186,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 else if (mode == "Normal") result = Invoke(handler, "ApplyNormalBrush", owner, worldHit, 2f, .1f, 1f);
                 else if (mode == "Move") result = Invoke(handler, "ApplyMoveBrushLocalDelta", owner, worldHit, 2f, .1f, new Vector3(.1f, .2f, .3f), Vector3.forward);
                 else if (mode == "Smooth") result = Invoke(handler, "ApplySmoothBrush", owner, worldHit, 2f, .1f);
-                else result = Invoke(handler, "ApplyMaskBrush", owner, worldHit, 2f);
+                else throw new ArgumentOutOfRangeException(nameof(mode));
                 var mask = new float[vertices.Length];
                 for (int i = 0; i < mask.Length; i++) mask[i] = layer.GetVertexMask(i);
                 Assert.That(mesh.vertices, Is.EqualTo(vertices), "Source asset must remain unchanged.");
@@ -200,7 +197,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             {
                 handler.Deactivate();
                 foreach (var setting in settings) setting.Key.SetValue(null, setting.Value);
-                SkinnedVertexHelper.StoreMovesInRestSpace = oldRest;
                 if (camera != null) camera.transform.rotation = cameraRotation;
                 Object.DestroyImmediate(root);
                 Object.DestroyImmediate(mesh);
