@@ -44,18 +44,21 @@ English documentation: [README_en.md](README_en.md)
 
 1. [VPM リポジトリ](https://vpm.32ba.net) を VCC に追加し、対象プロジェクトへ **Lattice Deformation Tool** を導入します。
 2. 調整する Renderer と同じ GameObject に `LatticeDeformer` を追加します。
-3. Inspector の **Skinned Mesh Source** または **Static Mesh Source** を確認します。同じ GameObject 上の対応 Renderer は自動設定されます。
-4. **(NDMF) Enable Mesh Preview** を有効にし、Scene View で編集結果を確認します。
+3. 同じ GameObject 上の Renderer は対象メッシュとして自動設定されます。別の Renderer を使う場合は、Inspector の「詳細」タブにある「対象メッシュ」で指定します。
+4. 編集を始めると NDMF Preview が有効になり、Scene View で結果を確認できます。プレビューの切り替えは「詳細」タブの「メッシュ再構築オプション」にあります。
 
 リポジトリを直接利用する場合は、VCC プロジェクトの `Packages` 以下へ配置してください。
 
 ## 基本操作
 
-1. `LatticeDeformer` の Inspector で Group を作成または選択します。
-2. Group 内に Lattice Layer または Brush Layer を追加します。
-3. Layer を選び、Inspector 下部の **Open Lattice Editor** / **Open Brush Editor** を押します。
-4. Scene View の **Mesh Deformer** Overlay から編集モードと設定を選びます。
-5. Group / Layer の有効状態とウェイトを調整し、NDMF Preview で最終結果を確認します。
+1. `LatticeDeformer` の Inspector の「かんたん」タブで、やりたいことを選びます。
+   - **形をまとめて変える**: メッシュを囲む箱の点を動かして、広い範囲を変形します（ラティス）。
+   - **ブラシでなぞって整える**: 表面をなぞって部分的に形を変えます（ブラシ）。
+   - **点をつかんで細かく動かす**: 点を選んでハンドルで動かします。
+2. 必要なレイヤーが用意され、Scene View に **Mesh Deformer** オーバーレイが出ます。操作方法や範囲を選んで編集し、終わったら「完了」を押します。
+3. レイヤーを分けたり重ね方を調整したりするときは「詳細」タブを開きます。「変形レイヤー」で追加・並べ替え・表示切り替え・効き具合を調整し、「選択中のレイヤー」でそのレイヤーの設定を変更します。
+4. 「詳細」タブ下部の **ラティスエディターを開く** / **ブラシエディターを開く** からは、すべての設定を含むオーバーレイで編集できます。オーバーレイの「詳細」「かんたん」でも切り替えられます。
+5. NDMF Preview で最終結果を確認します。
 6. 通常の NDMF 対応アバター／ワールドのビルドを実行すると、生成 Mesh に変形が Bake されます。
 
 ### Scene View の主な操作
@@ -71,25 +74,25 @@ English documentation: [README_en.md](README_en.md)
 
 ### 1. 衣装全体のシルエットをラティスで調整
 
-1. Lattice Layer を追加し、グリッド数と Bounds を対象範囲に合わせます。
-2. Lattice Editor を開き、複数の制御点を選択して移動します。
-3. Layer Weight で効き具合を調整し、必要なら別 Layer に細部の修正を分けます。
+1. 「形をまとめて変える」で編集を始めます。点の数や Bounds は「詳細」タブの「選択中のレイヤー」で対象範囲に合わせます。
+2. 複数の点を選択して移動します。左右対称の衣装では「反対側も一緒に動かす」を使います。
+3. レイヤーの効き具合を調整し、必要なら別レイヤーに細部の修正を分けます。
 
 ### 2. 貫通箇所を Brush で局所修正
 
-1. Brush Layer を追加し、Brush Editor の Normal または Move を選びます。
-2. 半径と強度を調整し、必要な範囲だけを編集します。
-3. 必要に応じて **Show Penetration** を有効にして参照 Renderer を指定し、赤く表示された頂点を修正します。
-4. 頂点単位で仕上げる場合は Overlay を Vertex Selection に切り替えます。
+1. 「ブラシでなぞって整える」で編集を始め、ブラシの働き（形を変える／ずらす／なめらかに）を選びます。
+2. 大きさと強さを調整し、必要な範囲だけを編集します。
+3. 必要に応じて、詳細オーバーレイの「表示オプション」で **貫通表示** を有効にして参照メッシュを指定し、赤く表示された頂点を修正します。
+4. 頂点単位で仕上げる場合は、詳細オーバーレイで「点を動かす」に切り替えます。
 
 貫通表示は、対象頂点と参照メッシュの最近傍三角形との位置関係を、参照面の法線方向で判定します。参照が `SkinnedMeshRenderer` の場合は現在ポーズを Bake して評価します。メッシュ同士の交差を網羅する判定ではないため、頂点間で交差する箇所などは検出できない場合があります。
 
 ### 3. 形状差分を BlendShape として編集・出力
 
-1. Source Mesh の既存 BlendShape を **Import BlendShape** から Brush Layer として読み込みます。
-2. Brush または Vertex Selection で形状を編集します。
-3. Layer または Group の **BlendShape Output** を有効にして出力名とカーブを設定します。
-4. Test Mode と NDMF Preview でウェイト変化を確認してからビルドします。
+1. Source Mesh の既存 BlendShape を「詳細」タブの **BlendShapeから読み込む** からブラシのレイヤーとして読み込みます。
+2. ブラシまたは「点を動かす」で形状を編集します。
+3. グループの **BlendShapeとして出力** を有効にして、出力名とカーブを設定します。
+4. テストモードと NDMF Preview でウェイト変化を確認してからビルドします。
 
 直接変形する Group と BlendShape 出力する Group は同じコンポーネント内で併用できます。
 

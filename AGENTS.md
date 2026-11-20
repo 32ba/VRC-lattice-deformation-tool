@@ -65,9 +65,9 @@ Scene ビュー上の変形ツールは、単一の `MeshDeformerTool`（`Editor
 - `BrushToolHandler` (`BrushLayerTool.cs`): ブラシ変形ハンドラ
 - `VertexSelectionHandler` (`VertexSelectionTool.cs`): 頂点選択・変換ハンドラ
 - `LatticeToolHandler` (`LatticeLayerTool.cs`): ラティス制御点ハンドラ
-- `MeshDeformerToolOverlay` (`MeshDeformerTool.cs`): 統合 Overlay UI（レイヤー選択、サブモード切替、各ハンドラの `DrawOverlayGUI` を呼び出し）
+- `MeshDeformerToolOverlay` (`MeshDeformerTool.cs`): UI Toolkit の統合 Overlay。かんたん表示（モード別）と詳細表示（レイヤー選択、サブモード切替、各ハンドラの `CreateOverlayGUI` を呼び出し）を組む
 
-ハンドラは `Activate(LatticeDeformer)` / `Deactivate()` / `OnToolGUI(EditorWindow, LatticeDeformer)` / `DrawOverlayGUI(LatticeDeformer)` のインターフェースを持つ。
+ハンドラは `Activate(LatticeDeformer)` / `Deactivate()` / `OnToolGUI(EditorWindow, LatticeDeformer)` / `CreateOverlayGUI(LatticeDeformer, OverlayControls)` のインターフェースを持つ。
 
 ### ブラシ変形ツール（Brush Deformer）
 
@@ -266,6 +266,11 @@ VRChat アバターの対称ワークフロー向けのレイヤー操作機能�
 - UI Toolkit の画面は `MeshDeformerStyles.Apply(root)` で、共通トークン、Editor テーマ（`EditorGUIUtility.isProSkin`）の色トークン、部品をまとめて当てる。テーマ切り替えで呼び直してもシートは重複しない
 - アイコンは `Editor/UI/Icons/` の白一色の 64px PNG（24px グリッド、線幅 1.75 の線画）。USS の `.md-icon--<名前>` で読み込み、`-unity-background-image-tint-color` で文脈の色に染める
 - 状態の見分け（セグメントの選択中、トグルのオン／オフ、フォーカス、入力欄の枠）は両テーマで 3:1 以上、文字は 4.5:1 以上。色を変えたら組み合わせを計算し直す
+- `Layout.uss` は部品の配置と Unity 標準コントロールの調整だけを書く（Inspector、かんたん画面、Group/Layer 一覧、オーバーレイ）。部品そのものの見た目は `Components.uss` 側で直す
+- 部品は `MdUI`（`Editor/UI/MdUI.cs`）の builder で作り、クラス名を手で組み立てない。Inspector と Overlay に IMGUI は使わない
+- Inspector の各 section は表示内容から作った signature が変わったときだけ子要素を組み直し、それ以外は入力中でない欄の値と有効状態だけを更新する。組み直しと更新は保存データを書かない。言語変更は Inspector 全体を組み直す
+- Overlay の設定値は `OverlayControls` の getter/setter で結び、100ms ごとの `Sync` で読み直す（ショートカットでも変わるため）。編集対象・Layer・モード・言語が変わったときだけ組み直す
+- 画面に出す言葉はデザインシステムの用語集（glossary.md）にそろえる。5 言語の .po を同時に更新し、内部名（Lattice Layer、制御点、プロポーショナル編集など）を新しい文言に出さない
 
 ### NDMF 連携
 
@@ -400,7 +405,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - Guided UI は `UI/GuidedInspectorSection` が表示とツール起動を担当し、`GuidedInspectorState` は raw reader から表示値だけを取得する。Profile が欠落している Profile mode も編集開始しない。`Authoring/GuidedAuthoringService` が既存 Layer の再利用・選択・追加を判断し、変更が必要な場合だけ共通 `DeformerEditService` で Undo / Prefab / cache 更新を記録する。開始前の raw payload・source identity・topology 照合はドラッグと共通の `DeformerAuthoringSource` を通し、拒否時は配列修復、ツール起動、Preview 更新を行わない。null inline Group の検査では JSON による実体化を避け、raw list と slot を直接比較する。
 - サポート情報は `Editor/Support/` の収集・形式 codec・NDMF 調査 adapter・ファイル出力・menu に分離する。既存 `MeshDeformerSupportReport` は形式 v1 の互換 facade として残す。収集は component の保存データを初期化せず、codec は component/Editor/NDMF を参照しない。PNG と decode JSON は同じ原子的ファイル置換を使い、途中失敗で既存ファイルを壊さない。`SupportCodecV1` fixture は変更前の実装 blob `4fcb1f3962534ceb208e68af92fe8a3814861cfa` から取得したもので、候補 codec の出力で期待値を作り直さない。
 
-- `DeformerStackInspectorSection` が Group/Layer の入れ子一覧、行の binding、context menu と選択表示を所有する。詳細設定・BlendShape・import は Inspector の別の描画 callback として接続する。表示再構築は `SetSelectionWithoutNotify` を使用し、不正な保存選択を補正しない。Profile asset が欠落した Profile mode も編集禁止を維持する。IMGUIの設定欄はpanel座標の表示範囲で判別し、一覧のdrag待機を開始しない。native popupがMouseUpを消費し、Unity draggerがeventのtargetをListViewへ変えるため、event型だけで判別しない。
+- `DeformerStackInspectorSection` が Group/Layer の入れ子一覧、行の binding、context menu と選択表示を所有する。BlendShape と import は Inspector が渡す element factory として行へ入れ、選択中 Layer の設定は一覧の外の「選択中のレイヤー」section に置く。表示再構築は `SetSelectionWithoutNotify` を使用し、不正な保存選択を補正しない。Profile asset が欠落した Profile mode も編集禁止を維持する。行内の詳細入力（`DeformerStackInspectorSection.DetailClass` の要素）はpanel座標の表示範囲で判別し、一覧のdrag待機を開始しない。native popupがMouseUpを消費し、Unity draggerがeventのtargetをListViewへ変えるため、event型だけで判別しない。
 - `BlendShapeInspectorSection` がGroup/Layerの出力設定、読み込みmenu、`BlendShapeTestSession` の表示を所有する。`BlendShapeImportMenu` は開いた時点のowner・source/topology・Group/Layer選択と参照・shape名/frame構成を保持し、選択時に再検査する。Profile・破損・source drift・非finite deltaはUndo開始前に拒否する。payloadは `Runtime/Model/BlendShapeLayerImport` で検証済み保存sourceから独立生成し、`DeformerEditService` で追加する。inactive Prefabは実行用source cacheがなくても保存参照から読み込める。public import APIも同じfactoryへ委譲し、既存の署名・frame metadata・出力規則を維持する。
 - `DeformerStackStructure` は Group/Layer の identity・型・選択だけを独立配列へ保存し、同じ件数の切替・入替え・Undo/Redoも再検出する。保持した object は identity 比較だけに使い、過去の mutable payload を表示値として読まない。通常の照合は Brush/Mask 全頂点の検査を繰り返さず、構造再構築と変更時に検証する。
 - 行・メニュー・選択の callback は一覧の世代と storage identity を確認してから適用する。行の名前・enabled・weight は標準の SerializedProperty binding を保ち、その handler より先の TrickleDown で古い入力を拒否する。Unity のテキスト/slider Undo grouping、Prefab override 表示と property menu を独自実装で置換しない。選択は `DeformerStackSelection` から共通 `DeformerEditService` へ接続する。構造操作・行変更・内部 Clipboard copy は source/topology の純粋な検査を通し、拒否した選択表示は保存値へ戻す。破棄時は行の callback と binding を解除する。
@@ -409,7 +414,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - `DeformerStackInspectorTests` は read-only 再構築、同件数の切替、古い行入力、Editor panel 上の property event、Undo/Redo、Prefab Variant の Apply/save-reloadを検証する。property event の検証は panel への attach 後に Editor update を待ち、標準 binding の存在も確認する。未接続の field へ値を入れただけで拒否成功と判定しない。基準 Layer 操作の期待 snapshot は変更せず、fixture helper は旧 Inspector と新 section の Clipboard 保存場所を reflection で識別する。
 
 - `LayerSettingsInspectorSection` は選択LayerのGrid、reset、Brush clear、左右操作、alignmentを表示する。`PendingLatticeGrid` の未適用値はInspectorごとにowner/Group/Layerの参照で保持し、同じ番号の別Groupや置換後のLayerへ流用しない。保存Gridやsettings参照が変わった場合は破棄する。Gridの入力値は互換な全選択対象へ渡し、先頭と同じ値でも他対象に変更があればApplyを有効にする。Split/Flipはmenu作成時の全対象を捕捉し、対象集合と各commandの再検査後に1件のUndoで適用する。`LayerSettingsEdit` は保存source/topologyと対象参照を再検証し、複数対象を共通編集serviceで一括commitする。Profile・破損・古いメニュー対象・Grid count overflowはUndo開始前に拒否し、inactive Prefabも保存sourceから編集する。
-- Unity 2022.3のanimated ListViewがPointerDownのtargetを入れ子ListViewへ変えた場合、scroll contentにある標準選択callbackが呼ばれない。実際のpanel hitからLayer行だけを選択し、既存のpointer-up後のqueueで保存へ反映する。名前・enabled・weightとIMGUIの設定入力にはこの補完を適用しない。入力テストでは選択APIを直接呼ばず、表示された行へのretargeted PointerDown/Upも検証する。
+- Unity 2022.3のanimated ListViewがPointerDownのtargetを入れ子ListViewへ変えた場合、scroll contentにある標準選択callbackが呼ばれない。実際のpanel hitからLayer行だけを選択し、既存のpointer-up後のqueueで保存へ反映する。名前・enabled・weightと行内の詳細入力にはこの補完を適用しない。入力テストでは選択APIを直接呼ばず、表示された行へのretargeted PointerDown/Upも検証する。
 
 - `BrushVertexVisualization` / `SelectedVertexVisualization` はhandlerから受けた配列・座標・選択だけを描画し、Layerの選択変更、Mesh評価、proxy解決、保存を行わない。`SceneVertexDots` が共通material/textureとGL batchを所有し、各表示のdepth testを設定し直し、reload前に解放する。旧版から独立取得した色・texture・6枚のRenderTexture画像と、所有・例外回復・入力不変を `ToolVertexVisualizationTests` で照合する。GraphicsE2Eに属する画像試験とnative Scene View入力を区別する。
 - 起動中Editorの検証では、候補packageを読み込む前に元packageでcleanな検証Sceneへ切り替える。Scene切替や表示領域・前面状態の検査が失敗した場合は、後続のpackage変更やTest Runnerを実行しない。Unity Test Runnerがdirtyな利用者Sceneを自動保存する経路があるため、開始前にscene pathとdirty状態を再確認する。

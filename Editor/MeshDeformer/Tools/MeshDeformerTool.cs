@@ -339,9 +339,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 body.Add(OverlayControls.Hint(LatticeLocalization.Tr(LocKey.GuidedOverlayAdjustShapeHint)));
                 body.Add(MdUI.Button(LatticeLocalization.Tr(LocKey.ClearSelection), LatticeToolHandler.ClearSelection,
                     "md-button--small"));
-                body.Add(c.Switch(LatticeLocalization.Tr(LocKey.EnableMirror),
+                body.Add(c.Switch(LatticeLocalization.Tr(LocKey.EnableSymmetryEditing),
                     () => LatticeToolHandler.MirrorEditing, value => LatticeToolHandler.MirrorEditing = value));
-                var axis = OverlayControls.Group(LatticeLocalization.Tr(LocKey.MirrorAxis),
+                var axis = OverlayControls.Group(LatticeLocalization.Tr(LocKey.SymmetryAxis),
                     c.Segmented(OverlayControls.Texts(LatticeToolHandler.AxisOptions),
                         () => (int)LatticeToolHandler.CurrentMirrorAxis,
                         index => LatticeToolHandler.CurrentMirrorAxis = (LatticeToolHandler.MirrorAxis)index));
@@ -416,10 +416,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 LatticeLocalization.Tooltip(LocKey.ProportionalRadius));
             c.EnabledWhen(radius, () => VertexSelectionHandler.ProportionalRadius > 0f);
             body.Add(radius);
-            var mirror = MdUI.Button(LatticeLocalization.Tr(LocKey.Mirror),
+            var mirror = MdUI.Button(LatticeLocalization.Tr(LocKey.SelectMirrorPartners),
                 () => VertexSelectionHandler.SelectMirrorPartners(deformer, (int)BrushToolHandler.CurrentMirrorAxis),
                 "md-button--small");
-            mirror.tooltip = LatticeLocalization.Tooltip(LocKey.Mirror);
+            mirror.tooltip = LatticeLocalization.Tooltip(LocKey.SelectMirrorPartners);
             c.EnabledWhen(mirror, () => VertexSelectionHandler.SelectedVertexCount > 0);
             body.Add(OverlayControls.Group(LatticeLocalization.Tr(LocKey.MirrorAxis),
                 c.Segmented(OverlayControls.Texts(BrushToolHandler.AxisOptions),

@@ -17,10 +17,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal static VisualElement Create(LatticeDeformer deformer, OverlayControls c)
         {
             var root = MdUI.Element("md-overlay__content");
-            root.Add(c.Segmented(OverlayControls.Tr(LocKey.Normal, LocKey.Move, LocKey.Smooth),
+            root.Add(c.Segmented(OverlayControls.Tr(LocKey.GuidedBrushPushPull, LocKey.GuidedBrushMove, LocKey.GuidedBrushSmooth),
                 () => Mathf.Min((int)BrushToolHandler.CurrentBrushMode, 2),
                 index => BrushToolHandler.CurrentBrushMode = (BrushToolHandler.BrushMode)index,
-                ModeIcons, strong: true, tooltips: OverlayControls.Tooltips(LocKey.Normal, LocKey.Move, LocKey.Smooth)));
+                ModeIcons, strong: true,
+                tooltips: OverlayControls.Tooltips(LocKey.GuidedBrushPushPull, LocKey.GuidedBrushMove, LocKey.GuidedBrushSmooth)));
 
             // Radius is world-space meters, shown in cm. Strength is 0-1, shown in %.
             root.Add(c.Slider(LatticeLocalization.Tr(LocKey.BrushRadius) + " (cm)", 0f, 10f,

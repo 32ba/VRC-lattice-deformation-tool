@@ -58,8 +58,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var curveProp = groupProp.FindPropertyRelative("_blendShapeCurve");
             if (outputProp == null) return root;
 
-            var output = new PropertyField(outputProp, LatticeLocalization.Tr(LocKey.BlendShapeOutput));
-            root.Add(output);
+            string outputPath = outputProp.propertyPath;
+            root.Add(MdUI.Switch(LatticeLocalization.Tr(LocKey.BlendShapeOutput), null,
+                () => IsBlendShapeOutput(serializedObject.FindProperty(outputPath)), value =>
+                {
+                    if (_disposed || !CanShowGroup(groupIndex)) return;
+                    serializedObject.Update();
+                    var property = serializedObject.FindProperty(outputPath);
+                    if (property == null) return;
+                    property.intValue = (int)(value ? BlendShapeOutputMode.OutputAsBlendShape : BlendShapeOutputMode.Disabled);
+                    if (serializedObject.ApplyModifiedProperties()) _onPropertyChanges();
+                }, out var syncOutput));
             var details = MdUI.Element("md-blendshape__details");
             if (nameProp != null) details.Add(new PropertyField(nameProp, LatticeLocalization.Tr(LocKey.BlendShapeName)));
             if (curveProp != null) details.Add(new PropertyField(curveProp, LatticeLocalization.Tr(LocKey.Curve)));
@@ -68,9 +77,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             root.Add(details);
             root.Bind(serializedObject);
 
-            string outputPath = outputProp.propertyPath;
             string namePath = nameProp?.propertyPath;
-            void Sync() => MdUI.SetVisible(details, IsBlendShapeOutput(serializedObject.FindProperty(outputPath)));
+            void Sync()
+            {
+                syncOutput();
+                MdUI.SetVisible(details, IsBlendShapeOutput(serializedObject.FindProperty(outputPath)));
+            }
             root.TrackPropertyValue(outputProp, property =>
             {
                 if (_disposed || target is not LatticeDeformer deformer || deformer == null) return;

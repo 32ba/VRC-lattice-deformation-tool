@@ -588,7 +588,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             root.Add(row1);
 
             // Row 2: Weight slider
-            var weightSlider = new Slider(0f, 1f) { name = "layer-weight", showInputField = true };
+            var weightSlider = new Slider(0f, 1f) { name = "layer-weight", showInputField = true,
+                tooltip = LatticeLocalization.Tr(LocKey.LayerInfluence) };
             weightSlider.AddToClassList("md-layer-row__weight-slider");
             root.Add(weightSlider);
 

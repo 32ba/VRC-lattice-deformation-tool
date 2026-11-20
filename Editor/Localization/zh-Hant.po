@@ -42,19 +42,19 @@ msgid "net.32ba.lattice-deformation-tool.localization.guided-current-edit"
 msgstr "目前編輯內容：{0}"
 
 msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape"
-msgstr "調整整體形狀"
+msgstr "用框整體變形"
 
 msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape-description"
 msgstr "框住衣物或身體的較大範圍並一次調整形狀。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface"
-msgstr "沿表面進行調整"
+msgstr "用畫筆塗抹調整"
 
 msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface-description"
 msgstr "使用筆刷推動、移動或平滑表面。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices"
-msgstr "抓取並移動頂點"
+msgstr "抓住點精細移動"
 
 msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices-description"
 msgstr "選取頂點並使用操作控點精細調整位置。"
@@ -103,13 +103,13 @@ msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-indent"
 msgstr "凹陷"
 
 msgid "net.32ba.lattice-deformation-tool.localization.open-detailed-overlay"
-msgstr "顯示詳細操作"
+msgstr "詳細"
 
 msgid "net.32ba.lattice-deformation-tool.localization.return-to-simple-overlay"
-msgstr "返回簡易操作"
+msgstr "簡易"
 
 msgid "net.32ba.lattice-deformation-tool.localization.finish-editing"
-msgstr "結束編輯"
+msgstr "完成"
 
 msgid "net.32ba.lattice-deformation-tool.localization.yes"
 msgstr "是"
@@ -142,7 +142,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.settings.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy"
-msgstr "複製"
+msgstr "同向"
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy.tooltip"
 msgstr ""
@@ -180,7 +180,7 @@ msgstr "將 MeshFilter 設定為變形。"
 
 # Groups & Layers
 msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups"
-msgstr "變形群組"
+msgstr "群組（進階）"
 
 msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups.tooltip"
 msgstr "將變更組織到單獨的群組中，每個群組都可以輸出自己的效果。"
@@ -204,7 +204,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer.tooltip"
 msgstr "建立一個筆刷圖層。用筆刷在網格上繪製以重塑區域。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer"
-msgstr "活動圖層"
+msgstr "編輯的圖層"
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer.tooltip"
 msgstr "選擇目前正在編輯的圖層。"
@@ -258,7 +258,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.delete-group.tooltip"
 msgstr "刪除選定的群組及其所有圖層。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer"
-msgstr "重置活動層"
+msgstr "將框還原"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer.tooltip"
 msgstr "清除活動圖層中的所有變形資料。"
@@ -362,73 +362,73 @@ msgid "net.32ba.lattice-deformation-tool.localization.reset-lattice-cage.tooltip
 msgstr "將所有控制點返回其預設位置。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.control-point-scope"
-msgstr "控制點範圍"
+msgstr "可移動的點"
 
 msgid "net.32ba.lattice-deformation-tool.localization.control-point-scope.tooltip"
 msgstr "過濾顯示和可選擇的控制點。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.all-controls"
-msgstr "全部控制點"
+msgstr "包括內側"
 
 msgid "net.32ba.lattice-deformation-tool.localization.all-controls.tooltip"
 msgstr "顯示所有控制點，包括內部控制點。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.boundary-only"
-msgstr "僅邊界"
+msgstr "僅外側"
 
 msgid "net.32ba.lattice-deformation-tool.localization.boundary-only.tooltip"
 msgstr "僅顯示保持架外表面上的控制點。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.keep-control-points-visible"
-msgstr "物件不會遮住控制點"
+msgstr "顯示物體後方的點"
 
 msgid "net.32ba.lattice-deformation-tool.localization.keep-control-points-visible.tooltip"
 msgstr "在場景幾何體頂部渲染控制點。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-control-ids"
-msgstr "顯示控制 ID"
+msgstr "顯示點編號"
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-control-ids.tooltip"
 msgstr "顯示每個控制點旁的索引號。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.handle-orientation"
-msgstr "手柄方向"
+msgstr "箭頭方向"
 
 msgid "net.32ba.lattice-deformation-tool.localization.handle-orientation.tooltip"
 msgstr "設定移動手把與局部空間還是世界空間對齊。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.local"
-msgstr "局部"
+msgstr "物件"
 
 msgid "net.32ba.lattice-deformation-tool.localization.local.tooltip"
 msgstr "將手把與物件的局部座標空間對齊。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.global"
-msgstr "全域"
+msgstr "世界"
 
 msgid "net.32ba.lattice-deformation-tool.localization.global.tooltip"
 msgstr "將手把與世界座標空間對齊。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-symmetry-editing"
-msgstr "啟用對稱編輯"
+msgstr "同時移動對側"
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-symmetry-editing.tooltip"
 msgstr "啟用跨軸控制點的鏡像編輯。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-axis"
-msgstr "對稱軸"
+msgstr "軸"
 
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-axis.tooltip"
 msgstr "設定用於對稱控制點編輯的軸。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-mode"
-msgstr "對稱模式"
+msgstr "移動方式"
 
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-mode.tooltip"
 msgstr "在鏡面反射或反對稱反射之間進行選擇。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.antisymmetric"
-msgstr "反對稱"
+msgstr "反向"
 
 msgid "net.32ba.lattice-deformation-tool.localization.antisymmetric.tooltip"
 msgstr "鏡像運動但翻轉軸分量符號。"
@@ -440,25 +440,25 @@ msgid "net.32ba.lattice-deformation-tool.localization.mirror.tooltip"
 msgstr "將精確的運動複製到相反的控制點。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.x"
-msgstr "X"
+msgstr "左右（X）"
 
 msgid "net.32ba.lattice-deformation-tool.localization.x.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.y"
-msgstr "Y"
+msgstr "上下（Y）"
 
 msgid "net.32ba.lattice-deformation-tool.localization.y.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.z"
-msgstr "Z"
+msgstr "前後（Z）"
 
 msgid "net.32ba.lattice-deformation-tool.localization.z.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.shift-click-hint"
-msgstr "按住 Shift/Ctrl 以新增或移除控制點。"
+msgstr "按住 Shift/Ctrl 點擊可新增或移除點。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.shift-click-hint.tooltip"
 msgstr "Shift 新增選擇； Ctrl 切換各點。"
@@ -489,13 +489,13 @@ msgstr "對於多個選擇，全域空間編輯不可用。"
 
 # Lattice Grid
 msgid "net.32ba.lattice-deformation-tool.localization.current-grid-divisions"
-msgstr "目前網格分段"
+msgstr "目前點數"
 
 msgid "net.32ba.lattice-deformation-tool.localization.current-grid-divisions.tooltip"
 msgstr "顯示每個軸上目前的細分數。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.pending-grid-divisions"
-msgstr "變更後的網格分段"
+msgstr "新點數"
 
 msgid "net.32ba.lattice-deformation-tool.localization.pending-grid-divisions.tooltip"
 msgstr "設定應用於晶格網格的新細分計數。"
@@ -538,25 +538,25 @@ msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info.tooltip"
 msgstr "筆刷基礎圖層。每個筆觸都保存在這裡。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-radius"
-msgstr "筆刷半徑"
+msgstr "大小"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-radius.tooltip"
 msgstr "控制畫筆效果區域的大小。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-strength"
-msgstr "筆刷強度"
+msgstr "強度"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-strength.tooltip"
 msgstr "控制每個筆劃所施加的位移量。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-falloff"
-msgstr "筆刷衰減"
+msgstr "衰減方式"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-falloff.tooltip"
 msgstr "選擇畫筆邊緣的軟度或硬度。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.normal"
-msgstr "法線"
+msgstr "沿表面"
 
 msgid "net.32ba.lattice-deformation-tool.localization.normal.tooltip"
 msgstr "將表面向外推（垂直於網格）。"
@@ -604,19 +604,19 @@ msgid "net.32ba.lattice-deformation-tool.localization.constant.tooltip"
 msgstr "整個刷子區域充滿力量。鋒利的邊緣。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.sphere"
-msgstr "球體"
+msgstr "圓形"
 
 msgid "net.32ba.lattice-deformation-tool.localization.sphere.tooltip"
 msgstr "軟邊。從中心到邊緣平滑、圓形漸層。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.gaussian"
-msgstr "高斯"
+msgstr "柔和"
 
 msgid "net.32ba.lattice-deformation-tool.localization.gaussian.tooltip"
 msgstr "鐘形褪色。最自然的有機塑形。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.falloff"
-msgstr "衰減"
+msgstr "衰減方式"
 
 msgid "net.32ba.lattice-deformation-tool.localization.falloff.tooltip"
 msgstr "畫筆效果如何從中心到邊緣漸層。"
@@ -628,19 +628,19 @@ msgid "net.32ba.lattice-deformation-tool.localization.invert.tooltip"
 msgstr "反轉刷子方向（推入而不是向外）。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.invert-brush"
-msgstr "反轉筆刷"
+msgstr "反向（凹陷）"
 
 msgid "net.32ba.lattice-deformation-tool.localization.invert-brush.tooltip"
 msgstr "在推和拉之間切換。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-mirror"
-msgstr "啟用鏡像"
+msgstr "左右對稱塗抹"
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-mirror.tooltip"
 msgstr "一次在兩面繪畫（鏡像模式）。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.mirror-axis"
-msgstr "鏡像軸"
+msgstr "軸"
 
 msgid "net.32ba.lattice-deformation-tool.localization.mirror-axis.tooltip"
 msgstr "選擇要鏡像的軸：左右、上下或前後。"
@@ -658,7 +658,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.clear-all-displacements.to
 msgstr "擦除所有圖層上的所有變更。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements"
-msgstr "清除活動層位移"
+msgstr "還原整個圖層"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements.tooltip"
 msgstr "僅擦除目前圖層上的所有變更。"
@@ -688,13 +688,13 @@ msgid "net.32ba.lattice-deformation-tool.localization.clear-mask.tooltip"
 msgstr "刪除所有蒙版數據，使所有頂點再次可編輯。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-all"
-msgstr "全部清除"
+msgstr "還原整個圖層"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-all.tooltip"
 msgstr "從活動圖層中刪除所有位移和遮罩。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.visualization"
-msgstr "可視化"
+msgstr "顯示選項"
 
 msgid "net.32ba.lattice-deformation-tool.localization.visualization.tooltip"
 msgstr "用於在場景視圖中顯示編輯回饋的選項。"
@@ -950,7 +950,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool.tooltip"
 msgstr "啟動頂點選擇和變換編輯器。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection"
-msgstr "頂點選取"
+msgstr "移動點"
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection.tooltip"
 msgstr "按一下以選取頂點。拖曳以選擇一個群組。"
@@ -980,7 +980,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.vertex-transform.tooltip"
 msgstr "移動、旋轉所選頂點或調整其大小。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.transform-mode"
-msgstr "變換模式"
+msgstr "操作方式"
 
 msgid "net.32ba.lattice-deformation-tool.localization.transform-mode.tooltip"
 msgstr "在移動、旋轉和縮放操作之間切換。"
@@ -1010,7 +1010,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.select-none.tooltip"
 msgstr "取消選擇所有目前選定的頂點。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-selection"
-msgstr "清除選取"
+msgstr "取消選取"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-selection.tooltip"
 msgstr "從目前選擇中刪除所有頂點。"
@@ -1022,25 +1022,25 @@ msgid "net.32ba.lattice-deformation-tool.localization.connected-only.tooltip"
 msgstr "將矩形選擇僅限於網格連接的頂點。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-selected-vertices"
-msgstr "重置選取頂點"
+msgstr "僅還原所選點"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-selected-vertices.tooltip"
 msgstr "僅清除選定頂點的位移資料。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-all-vertices"
-msgstr "重置所有頂點"
+msgstr "還原整個圖層"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-all-vertices.tooltip"
 msgstr "清除圖層中所有頂點的位移資料。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-editing"
-msgstr "比例編輯"
+msgstr "周圍也平滑移動"
 
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-editing.tooltip"
 msgstr "附近未選擇的頂點也會受到較弱的影響。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-radius"
-msgstr "比例半徑"
+msgstr "範圍"
 
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-radius.tooltip"
 msgstr "影響傳播到附近頂點的距離。"
@@ -1205,7 +1205,7 @@ msgstr "顯示該圖層是否已儲存任何變更。"
 
 # BlendShape
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-output"
-msgstr "BlendShape 輸出"
+msgstr "作為 BlendShape 輸出"
 
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-output.tooltip"
 msgstr "建立一個新的 ShapeKey，而不是直接使網格變形。"
@@ -1247,7 +1247,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.test-weight.tooltip"
 msgstr "將預覽強度從 0 調整到 100%。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape"
-msgstr "匯入 BlendShape"
+msgstr "從 BlendShape 匯入"
 
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape.tooltip"
 msgstr "載入現有的 ShapeKey 作為繪畫圖層進行編輯。"
@@ -1260,13 +1260,13 @@ msgstr "所有影格"
 
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
-msgstr "(NDMF) 停用晶格預覽"
+msgstr "關閉預覽"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview.tooltip"
 msgstr "關閉即時 NDMF 變形預覽。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview"
-msgstr "(NDMF) 啟用晶格預覽"
+msgstr "開啟預覽"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview.tooltip"
 msgstr "在場景視圖中開啟即時 NDMF 變形預覽。"
@@ -1511,3 +1511,11 @@ msgstr "三軸連動中（點擊解除）"
 
 msgid "net.32ba.lattice-deformation-tool.localization.scale-unlinked"
 msgstr "三軸獨立（點擊連動）"
+
+# Editor UI glossary
+msgid "net.32ba.lattice-deformation-tool.localization.select-mirror-partners"
+msgstr "同時選取對側的點"
+
+# Editor UI glossary
+msgid "net.32ba.lattice-deformation-tool.localization.layer-influence"
+msgstr "影響程度"

@@ -354,6 +354,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string LayerBadgeBrush = "net.32ba.lattice-deformation-tool.localization.layer-badge-brush";
         internal const string ScaleLinked = "net.32ba.lattice-deformation-tool.localization.scale-linked";
         internal const string ScaleUnlinked = "net.32ba.lattice-deformation-tool.localization.scale-unlinked";
+
+        // Editor UI glossary
+        internal const string SelectMirrorPartners = "net.32ba.lattice-deformation-tool.localization.select-mirror-partners";
+
+        // Editor UI glossary
+        internal const string LayerInfluence = "net.32ba.lattice-deformation-tool.localization.layer-influence";
     }
 }
 #endif

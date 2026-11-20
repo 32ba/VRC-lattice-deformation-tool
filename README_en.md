@@ -44,18 +44,21 @@ Existing Profile, Mask, and advanced BlendShape data can still be loaded and eva
 
 1. Add the [VPM repository](https://vpm.32ba.net) to VCC and install **Lattice Deformation Tool** in your project.
 2. Add `LatticeDeformer` to the same GameObject as the Renderer you want to adjust.
-3. Check **Skinned Mesh Source** or **Static Mesh Source** in the Inspector. A compatible Renderer on the same GameObject is assigned automatically.
-4. Enable **(NDMF) Enable Mesh Preview** to inspect changes in the Scene view.
+3. A compatible Renderer on the same GameObject is assigned as the target mesh automatically. To use another Renderer, set it under **Target mesh** on the Inspector's **Detailed** tab.
+4. Starting an edit turns on NDMF Preview so you can check the result in the Scene view. The preview toggle is under **Mesh Rebuild Options** on the **Detailed** tab.
 
 To use a source checkout directly, place the repository under the VCC project's `Packages` directory.
 
 ## Basic workflow
 
-1. Create or select a Group in the `LatticeDeformer` Inspector.
-2. Add a Lattice Layer or Brush Layer to the Group.
-3. Select the Layer and press **Open Lattice Editor** or **Open Brush Editor** at the bottom of the Inspector.
-4. Choose the editing mode and options from the **Mesh Deformer** overlay in the Scene view.
-5. Adjust Group and Layer enabled states and weights, then inspect the combined result with NDMF Preview.
+1. On the **Simple** tab of the `LatticeDeformer` Inspector, choose what you want to do.
+   - **Reshape with a cage**: move the points of a cage around the mesh to reshape a large area (Lattice).
+   - **Sculpt with a brush**: stroke the surface to change its shape locally (Brush).
+   - **Move vertices**: select points and move them with a handle.
+2. The tool prepares the layer it needs and shows the **Mesh Deformer** overlay in the Scene view. Choose how to edit, make your changes, then press **Done**.
+3. To split edits into layers or change how they stack, open the **Detailed** tab. Use **Deform layers** to add, reorder, show or hide layers and set their influence, and **Selected layer** to change the settings of the selected layer.
+4. **Open Lattice Editor** or **Open Brush Editor** at the bottom of the **Detailed** tab opens the overlay with every option. The overlay's **Detailed** and **Simple** buttons also switch between the two.
+5. Inspect the combined result with NDMF Preview.
 6. Run the normal NDMF-enabled avatar or world build to bake the deformation into the generated Mesh.
 
 ### Scene view controls
@@ -71,24 +74,24 @@ To use a source checkout directly, place the repository under the VCC project's 
 
 ### 1. Adjust a clothing silhouette with a Lattice
 
-1. Add a Lattice Layer and fit its grid divisions and bounds to the target area.
-2. Open the Lattice Editor, select one or more control points, and move them.
-3. Tune the Layer Weight and keep fine corrections in separate Layers when useful.
+1. Start with **Reshape with a cage**. Fit the number of points and the bounds to the target area under **Selected layer** on the **Detailed** tab.
+2. Select one or more points and move them. For symmetric clothing, turn on **Move the opposite side too**.
+3. Tune the layer's influence and keep fine corrections in separate layers when useful.
 
 ### 2. Correct local intersections with Brush
 
-1. Add a Brush Layer and choose Normal or Move in the Brush Editor.
-2. Adjust the radius and strength to edit only the intended area.
-3. If needed, enable **Show Penetration**, assign a reference Renderer, and correct the vertices highlighted in red.
-4. Switch the overlay to Vertex Selection for vertex-level finishing.
+1. Start with **Sculpt with a brush** and choose what the brush does (Reshape, Shift or Smooth).
+2. Adjust the size and strength to edit only the intended area.
+3. If needed, enable **Show Penetration** under **Display options** in the detailed overlay, assign a reference mesh, and correct the vertices highlighted in red.
+4. For vertex-level finishing, switch the detailed overlay to **Move points**.
 
 Penetration visualization classifies target vertices against the nearest triangles of the reference mesh, using the reference surface normals to determine the side. A reference `SkinnedMeshRenderer` is baked in its current pose for evaluation. This is not an exhaustive mesh intersection test; intersections between sampled vertices may go undetected.
 
 ### 3. Edit and output a shape adjustment as a BlendShape
 
-1. Use **Import BlendShape** to load an existing Source Mesh BlendShape as a Brush Layer.
-2. Edit the shape with Brush or Vertex Selection.
-3. Enable **BlendShape Output** on the Layer or Group, then set its output name and curve.
+1. Use **Import from BlendShape** on the **Detailed** tab to load an existing Source Mesh BlendShape as a brush layer.
+2. Edit the shape with the brush or **Move points**.
+3. Turn on **Export as BlendShape** for the group, then set its output name and curve.
 4. Check the weight in Test Mode and NDMF Preview before building.
 
 Groups that deform vertices directly and Groups that output BlendShapes can coexist on the same component.
