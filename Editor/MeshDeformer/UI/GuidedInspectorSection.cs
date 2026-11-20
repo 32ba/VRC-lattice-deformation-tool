@@ -2,7 +2,9 @@
 using System;
 using UnityEditor;
 using UnityEditor.EditorTools;
+using UnityEditor.UIElements;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
@@ -11,8 +13,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         private readonly UnityEditor.Editor _owner;
         private readonly Action _prepareTarget, _showDetailed, _onStarted, _onPropertyChanged;
-        private readonly SerializedProperty _skinnedRenderer, _meshFilter;
+        private readonly VisualElement _root = MdUI.Element("md-guided");
+        private string _signature;
         internal bool StartFailed { get; private set; }
+        internal VisualElement Root => _root;
 
         internal GuidedInspectorSection(UnityEditor.Editor owner, Action prepareTarget, Action showDetailed,
             Action onStarted, Action onPropertyChanged)
@@ -20,70 +24,104 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _owner = owner;
             _prepareTarget = prepareTarget; _showDetailed = showDetailed;
             _onStarted = onStarted; _onPropertyChanged = onPropertyChanged;
-            _skinnedRenderer = owner.serializedObject.FindProperty("_skinnedMeshRenderer");
-            _meshFilter = owner.serializedObject.FindProperty("_meshFilter");
         }
 
-        internal void Draw()
+        /// <summary>
+        /// Rebuilds the content when what it shows has changed. It reads the target only, so it is
+        /// safe to call on every Inspector refresh.
+        /// </summary>
+        internal void Refresh()
         {
             if (_owner == null || _owner.target == null) return;
             _prepareTarget();
-            _owner.serializedObject.Update();
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.GuidedQuestion), EditorStyles.boldLabel);
-            EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.GuidedIntro), MessageType.Info);
-            if (_owner.targets.Length != 1 || _owner.target is not LatticeDeformer deformer)
+            var deformer = _owner.targets.Length == 1 ? _owner.target as LatticeDeformer : null;
+            var state = deformer != null ? GuidedInspectorState.Read(deformer) : default;
+            string signature = string.Join("|", LatticeLocalization.CurrentLanguage, _owner.targets.Length,
+                deformer != null, state.Source != null ? state.Source.GetInstanceID() : 0,
+                state.Source != null ? state.Source.name : null, state.IsProfile, state.ActiveLayerName, StartFailed);
+            if (signature == _signature) return;
+            _signature = signature;
+            Build(deformer, state);
+        }
+
+        private void Build(LatticeDeformer deformer, GuidedInspectorState state)
+        {
+            _root.Clear();
+            _root.Add(MdUI.Text(LatticeLocalization.Tr(LocKey.GuidedQuestion), "md-text-title"));
+            _root.Add(MdUI.Text(LatticeLocalization.Tr(LocKey.GuidedIntro), "md-guided__intro md-text-muted"));
+            if (deformer == null)
             {
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.GuidedSingleSelectionRequired), MessageType.Warning);
-                DrawDetailedButton();
+                _root.Add(MdUI.HelpBox(LatticeLocalization.Tr(LocKey.GuidedSingleSelectionRequired), MdUI.HelpKind.Warning));
+                AddDetailedButton();
                 return;
             }
 
-            var state = GuidedInspectorState.Read(deformer);
-            if (state.Source != null)
-                EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.GuidedTarget), state.Source.name);
+            if (state.Source != null) _root.Add(TargetRow(state.Source));
             else
             {
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.GuidedNoTarget), MessageType.Warning);
-                EditorGUILayout.PropertyField(_skinnedRenderer, LatticeLocalization.Content(LocKey.SkinnedMeshSource));
-                EditorGUILayout.PropertyField(_meshFilter, LatticeLocalization.Content(LocKey.StaticMeshSource));
+                _root.Add(MdUI.HelpBox(LatticeLocalization.Tr(LocKey.GuidedNoTarget), MdUI.HelpKind.Warning));
+                _root.Add(SourceField("_skinnedMeshRenderer", LocKey.SkinnedMeshSource));
+                _root.Add(SourceField("_meshFilter", LocKey.StaticMeshSource));
             }
+
             if (state.IsProfile)
             {
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.GuidedProfileReadOnly), MessageType.Warning);
-                DrawDetailedButton();
+                _root.Add(MdUI.HelpBox(LatticeLocalization.Tr(LocKey.GuidedProfileReadOnly), MdUI.HelpKind.Warning));
+                AddDetailedButton();
                 return;
             }
+
+            var cards = MdUI.Element("md-guided__cards");
+            cards.Add(Card("lattice", "lattice", LocKey.GuidedAdjustShape, LocKey.GuidedAdjustShapeDescription,
+                LocKey.GuidedAdjustShapeExample, GuidedEditingIntent.AdjustShape));
+            cards.Add(Card("brush", "brush", LocKey.GuidedSculptSurface, LocKey.GuidedSculptSurfaceDescription,
+                LocKey.GuidedSculptSurfaceExample, GuidedEditingIntent.SculptSurface));
+            cards.Add(Card("vertex", "vertex", LocKey.GuidedMoveVertices, LocKey.GuidedMoveVerticesDescription,
+                LocKey.GuidedMoveVerticesExample, GuidedEditingIntent.MoveVertices));
+            cards.SetEnabled(state.Source != null);
+            _root.Add(cards);
+
             if (state.ActiveLayerName != null)
-                EditorGUILayout.LabelField(string.Format(LatticeLocalization.Tr(LocKey.GuidedCurrentEdit),
-                    state.ActiveLayerName), EditorStyles.miniLabel);
-
-            using (new EditorGUI.DisabledScope(state.Source == null))
-            {
-                DrawAction(LocKey.GuidedAdjustShape, LocKey.GuidedAdjustShapeDescription, GuidedEditingIntent.AdjustShape);
-                DrawAction(LocKey.GuidedSculptSurface, LocKey.GuidedSculptSurfaceDescription, GuidedEditingIntent.SculptSurface);
-                DrawAction(LocKey.GuidedMoveVertices, LocKey.GuidedMoveVerticesDescription, GuidedEditingIntent.MoveVertices);
-            }
-            EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.GuidedPreviewNote), MessageType.None);
+                _root.Add(MdUI.Text(string.Format(LatticeLocalization.Tr(LocKey.GuidedCurrentEdit), state.ActiveLayerName),
+                    "md-text-small"));
             if (StartFailed)
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.GuidedUnableToStart), MessageType.Warning);
-            DrawDetailedButton();
-            if (_owner.serializedObject.ApplyModifiedProperties()) _onPropertyChanged();
+                _root.Add(MdUI.HelpBox(LatticeLocalization.Tr(LocKey.GuidedUnableToStart), MdUI.HelpKind.Warning));
         }
 
-        private void DrawAction(string label, string descriptionKey, GuidedEditingIntent intent)
+        private VisualElement TargetRow(Mesh source)
         {
-            string description = LatticeLocalization.Tr(descriptionKey);
-            if (GUILayout.Button(new GUIContent(LatticeLocalization.Tr(label), description), GUILayout.Height(34f)))
-                StartEditing(intent);
-            GUILayout.Label(description, EditorStyles.wordWrappedMiniLabel);
-            EditorGUILayout.Space(4f);
+            var value = new Button(() => EditorGUIUtility.PingObject(source)) { text = string.Empty };
+            value.AddToClassList("md-object-field");
+            value.AddToClassList("md-guided__target");
+            value.Add(MdUI.Icon("cube", "md-icon--small md-icon--muted"));
+            value.Add(new Label(source.name) { pickingMode = PickingMode.Ignore });
+            return MdUI.FieldRow(LatticeLocalization.Tr(LocKey.GuidedTarget), value);
         }
 
-        private void DrawDetailedButton()
+        private VisualElement SourceField(string propertyName, string labelKey)
         {
-            EditorGUILayout.Space(4f);
-            if (GUILayout.Button(LatticeLocalization.Tr(LocKey.OpenDetailedInspector))) _showDetailed();
+            var property = _owner.serializedObject.FindProperty(propertyName);
+            var field = new PropertyField(property, LatticeLocalization.Tr(labelKey));
+            field.Bind(_owner.serializedObject);
+            field.RegisterValueChangeCallback(_ => _onPropertyChanged());
+            return field;
         }
+
+        private Button Card(string mode, string icon, string titleKey, string descriptionKey, string exampleKey,
+            GuidedEditingIntent intent)
+        {
+            var card = MdUI.ActionCard(mode, icon, LatticeLocalization.Tr(titleKey),
+                LatticeLocalization.Tr(descriptionKey), LatticeLocalization.Tr(exampleKey), () =>
+                {
+                    StartEditing(intent);
+                    Refresh();
+                });
+            card.name = "guided-" + mode;
+            return card;
+        }
+
+        private void AddDetailedButton() =>
+            _root.Add(MdUI.Button(LatticeLocalization.Tr(LocKey.OpenDetailedInspector), _showDetailed));
 
         internal bool StartEditing(GuidedEditingIntent intent)
         {

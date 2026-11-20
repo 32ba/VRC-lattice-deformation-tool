@@ -2,7 +2,9 @@
 using System;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
@@ -12,13 +14,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly UnityEditor.Editor _owner;
         private readonly Action<bool> _onChanged;
         private readonly SerializedProperty _manualOffsetProp, _manualScaleProp;
+        private readonly VisualElement _root = MdUI.Element("md-layer-settings");
         internal PendingLatticeGrid PendingGrid { get; } = new();
         private bool _disposed;
+        private string _signature;
         private static bool s_showAlignSettings, s_linkManualScale = true;
-        private static GUIContent s_linkOn, s_linkOff;
-        private static readonly GUIContent[] s_xyzLabels = { new("X"), new("Y"), new("Z") };
+
+        // Live parts updated in place, so typing into them is never interrupted by a rebuild.
+        private Label _currentGrid;
+        private Vector3IntField _pendingGrid;
+        private Button _applyGrid, _revertGrid;
+        private Vector3Field _scaleField;
         private LatticeDeformer Target => _owner != null ? _owner.target as LatticeDeformer : null;
         private SerializedObject Serialized => _owner.serializedObject;
+        internal VisualElement Root => _root;
 
         internal LayerSettingsInspectorSection(UnityEditor.Editor owner, Action<bool> onChanged)
         {
@@ -27,21 +36,83 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _manualScaleProp = Serialized.FindProperty("_manualScaleProxy");
         }
 
-        internal void Draw()
+        /// <summary>Creates an element that shows this section; the section keeps one shared root.</summary>
+        internal VisualElement CreateView()
         {
-            if (_disposed || !LayerSettingsEdit.TryReadActive(Target, out var raw, out var layer)) return;
+            _signature = null;
+            Refresh();
+            return _root;
+        }
+
+        internal void Refresh()
+        {
+            if (_disposed || Target == null) return;
+            if (!LayerSettingsEdit.TryReadActive(Target, out var raw, out var layer))
+            {
+                if (_signature != string.Empty) { _root.Clear(); _signature = string.Empty; }
+                return;
+            }
+            var property = SettingsProperty(out bool editable);
+            string signature = string.Join("|", LatticeLocalization.CurrentLanguage, _owner.targets.Length,
+                raw.ActiveGroupIndex, raw.ActiveLayerIndex, layer.Type, editable, property?.propertyPath,
+                layer.SerializedSettings != null, PendingGrid.TryGet(Target, out _));
+            if (signature != _signature)
+            {
+                _signature = signature;
+                Build(raw, layer, property, editable);
+            }
+            RefreshLive(layer);
+        }
+
+        private void Build(in SerializedDeformerData raw, LatticeLayer layer, SerializedProperty settings, bool editable)
+        {
+            _root.Clear();
+            _currentGrid = null; _pendingGrid = null; _applyGrid = null; _revertGrid = null; _scaleField = null;
             Serialized.Update();
-            if (layer.Type == MeshDeformerLayerType.Brush) DrawBrush(raw);
+            if (layer.Type == MeshDeformerLayerType.Brush)
+            {
+                _root.Add(MdUI.HelpBox(LatticeLocalization.Tr(LocKey.BrushLayerInfo)));
+                _root.Add(MdUI.FieldRow(LatticeLocalization.Tr(LocKey.VertexCount),
+                    MdUI.Text((raw.SourceMesh != null ? raw.SourceMesh.vertexCount : 0).ToString("N0"))));
+                _root.Add(MdUI.Button(LatticeLocalization.Tr(LocKey.ClearActiveLayerDisplacements),
+                    () => Run(LayerSettingsOperation.Clear, LocKey.ClearActiveLayerDisplacements), "md-button--danger"));
+            }
             else
             {
-                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ResetActiveLayer)))
-                    Run(LayerSettingsOperation.Reset, LocKey.ResetLatticeCage);
-                DrawGrid(Target, layer.SerializedSettings);
-                DrawSettingsProperties(DrawSettingsExcludingGrid);
-                if (_owner.targets.Length == 1) DrawAlignmentSettings();
+                BuildGrid(layer.SerializedSettings);
+                var fields = MdUI.Element("md-layer-settings__fields");
+                AddSettingsFields(fields, settings);
+                fields.SetEnabled(editable);
+                _root.Add(fields);
+                if (_owner.targets.Length == 1) _root.Add(BuildAlignment());
+                _root.Add(MdUI.Button(LatticeLocalization.Tr(LocKey.ResetActiveLayer),
+                    () => Run(LayerSettingsOperation.Reset, LocKey.ResetLatticeCage), "md-button--danger", "undo"));
             }
-            if (GUILayout.Button(LatticeLocalization.Tr(LocKey.LROperations))) ShowLROperationsMenu();
-            ApplyProperties();
+            var operations = MdUI.Button(LatticeLocalization.Tr(LocKey.LROperations), null, null);
+            operations.Add(MdUI.Icon("caret-down", "md-icon--small"));
+            operations.clicked += () => ShowLROperationsMenu(operations);
+            _root.Add(operations);
+        }
+
+        private void RefreshLive(LatticeLayer layer)
+        {
+            if (_currentGrid != null && layer.SerializedSettings != null)
+                _currentGrid.text = layer.SerializedSettings.GridSize.ToString();
+            if (_pendingGrid != null && PendingGrid.TryGet(Target, out var pending) &&
+                !IsWithin(_pendingGrid.focusController?.focusedElement as VisualElement, _pendingGrid))
+                _pendingGrid.SetValueWithoutNotify(pending);
+            bool changed = HasPendingGridChanges;
+            _applyGrid?.SetEnabled(changed);
+            _revertGrid?.SetEnabled(changed);
+            if (_scaleField != null && _manualScaleProp != null &&
+                !IsWithin(_scaleField.focusController?.focusedElement as VisualElement, _scaleField))
+                _scaleField.SetValueWithoutNotify(_manualScaleProp.vector3Value);
+        }
+
+        private static bool IsWithin(VisualElement element, VisualElement container)
+        {
+            for (var e = element; e != null; e = e.parent) if (e == container) return true;
+            return false;
         }
 
         private LatticeDeformer[] Targets() => _owner.targets.OfType<LatticeDeformer>().ToArray();
@@ -54,42 +125,43 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void Changed()
         {
             Serialized.Update(); _onChanged?.Invoke(true);
+            Refresh();
         }
 
         private void Run(LayerSettingsOperation operation, string label)
         {
+            if (_disposed) return;
             ApplyProperties();
             var commands = Targets().Select(LayerSettingsEdit.Capture).ToArray();
             if (LayerSettingsEdit.ExecuteBatch(commands, operation, LatticeLocalization.Tr(label))) Changed();
         }
 
-        private void DrawBrush(in SerializedDeformerData raw)
+        private void BuildGrid(LatticeAsset settings)
         {
-            EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.BrushLayerInfo), MessageType.Info);
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.VertexCount),
-                (raw.SourceMesh != null ? raw.SourceMesh.vertexCount : 0).ToString());
-            if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ClearActiveLayerDisplacements)))
-                Run(LayerSettingsOperation.Clear, LocKey.ClearActiveLayerDisplacements);
-        }
-
-        private void DrawGrid(LatticeDeformer deformer, LatticeAsset settings)
-        {
-            if (settings == null || !PendingGrid.TryGet(deformer, out var pending)) return;
-            EditorGUILayout.LabelField(LatticeLocalization.Content(LocKey.CurrentGridDivisions), new GUIContent(settings.GridSize.ToString()));
-            EditorGUI.BeginChangeCheck();
-            pending = EditorGUILayout.Vector3IntField(LatticeLocalization.Tr(LocKey.PendingGridDivisions), pending);
-            if (EditorGUI.EndChangeCheck()) SetPendingGridForSelection(pending);
-            using (new EditorGUILayout.HorizontalScope())
-            using (new EditorGUI.DisabledScope(!HasPendingGridChanges))
+            if (settings == null || !PendingGrid.TryGet(Target, out var pending)) return;
+            _currentGrid = MdUI.Text(settings.GridSize.ToString());
+            _root.Add(MdUI.FieldRow(LatticeLocalization.Tr(LocKey.CurrentGridDivisions), _currentGrid));
+            _pendingGrid = new Vector3IntField { name = "pending-grid" };
+            _pendingGrid.SetValueWithoutNotify(pending);
+            _pendingGrid.RegisterValueChangedCallback(evt =>
             {
-                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.Apply), GUILayout.Width(80f)))
-                {
-                    ApplyProperties();
-                    if (PendingGrid.Apply(Targets(), LatticeLocalization.Tr(LocKey.ChangeLatticeDivisions))) Changed();
-                }
-                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.Revert), GUILayout.Width(80f))) PendingGrid.Revert(Targets());
-            }
-            EditorGUILayout.Space();
+                SetPendingGridForSelection(evt.newValue);
+                Refresh();
+            });
+            _root.Add(MdUI.FieldRow(LatticeLocalization.Tr(LocKey.PendingGridDivisions), _pendingGrid));
+            _applyGrid = MdUI.Button(LatticeLocalization.Tr(LocKey.Apply), () =>
+            {
+                if (_disposed) return;
+                ApplyProperties();
+                if (PendingGrid.Apply(Targets(), LatticeLocalization.Tr(LocKey.ChangeLatticeDivisions))) Changed();
+            }, "md-button--primary md-button--small");
+            _revertGrid = MdUI.Button(LatticeLocalization.Tr(LocKey.Revert), () =>
+            {
+                if (_disposed) return;
+                PendingGrid.Revert(Targets());
+                Refresh();
+            }, "md-button--small");
+            _root.Add(MdUI.Element("md-button-row", _applyGrid, _revertGrid));
         }
 
         internal bool SetPendingGridForSelection(Vector3Int value)
@@ -134,8 +206,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             };
         }
 
-        private void ShowLROperationsMenu()
+        private void ShowLROperationsMenu(VisualElement anchor)
         {
+            if (_disposed) return;
             ApplyProperties();
             var command = LayerSettingsEdit.Capture(Target);
             if (command == null) return;
@@ -146,7 +219,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Add(LocKey.FlipX, LocKey.FlipLayerX, LayerSettingsOperation.FlipX);
             Add(LocKey.FlipY, LocKey.FlipLayerY, LayerSettingsOperation.FlipY);
             Add(LocKey.FlipZ, LocKey.FlipLayerZ, LayerSettingsOperation.FlipZ);
-            menu.ShowAsContext();
+            menu.DropDown(anchor.worldBound);
             void Add(string item, string undo, LayerSettingsOperation operation)
             {
                 var action = CreateOperationAction(command, operation, LatticeLocalization.Tr(undo));
@@ -154,21 +227,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        internal void DrawSettingsProperties(Action<SerializedProperty> draw)
+        /// <summary>
+        /// The active layer's settings property, and whether it may be edited. A shared
+        /// SerializedObject applies one indexed path to every owner, so different active
+        /// selections must not edit unrelated secondary layers.
+        /// </summary>
+        internal SerializedProperty SettingsProperty(out bool editable)
         {
-            if (!LayerSettingsEdit.TryReadActive(Target, out var raw, out _)) return;
+            editable = false;
+            if (!LayerSettingsEdit.TryReadActive(Target, out var raw, out _)) return null;
             var property = Serialized.FindProperty($"_groups.Array.data[{raw.ActiveGroupIndex}]._layers.Array.data[{raw.ActiveLayerIndex}]._settings");
-            bool compatible = !_disposed && Targets().All(owner =>
+            editable = !_disposed && Targets().All(owner =>
                 LayerSettingsEdit.TryReadActive(owner, out var selected, out var layer) &&
                 layer.Type == MeshDeformerLayerType.Lattice && layer.SerializedSettings != null &&
                 selected.ActiveGroupIndex == raw.ActiveGroupIndex && selected.ActiveLayerIndex == raw.ActiveLayerIndex &&
                 DeformerAuthoringSource.TryRead(owner, out _, out _, out _));
-            // A shared SerializedObject applies one indexed path to every owner.
-            // Different active selections must not edit unrelated secondary layers.
-            using (new EditorGUI.DisabledScope(!compatible)) draw(property);
+            return property;
         }
 
-        private static void DrawSettingsExcludingGrid(SerializedProperty settings)
+        private void AddSettingsFields(VisualElement parent, SerializedProperty settings)
         {
             if (settings == null) return;
             var iterator = settings.Copy(); var end = iterator.GetEndProperty();
@@ -176,117 +253,83 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             while (hasNext && !SerializedProperty.EqualContents(iterator, end))
             {
                 if (iterator.depth == settings.depth + 1 && iterator.name != "_gridSize" && iterator.name != "_controlPointsLocal")
-                    EditorGUILayout.PropertyField(iterator, includeChildren: true);
+                {
+                    var field = new PropertyField(iterator.Copy());
+                    field.Bind(Serialized);
+                    parent.Add(field);
+                }
                 hasNext = iterator.NextVisible(false);
             }
         }
 
-        public void Dispose() { _disposed = true; PendingGrid.Dispose(); }
-        private void DrawAlignmentSettings()
+        public void Dispose()
         {
-            s_showAlignSettings = EditorGUILayout.Foldout(s_showAlignSettings, LatticeLocalization.Tr(LocKey.LatticeCageAlignment), true);
-            if (!s_showAlignSettings)
-            {
-                return;
-            }
+            _disposed = true;
+            PendingGrid.Dispose();
+            _root.Unbind();
+            _root.Clear();
+        }
 
-            EditorGUI.indentLevel++;
-
-            EditorGUILayout.HelpBox(
-                LatticeLocalization.Tr(LocKey.AlignmentCageInfo),
-                MessageType.Info);
-
+        private VisualElement BuildAlignment()
+        {
+            var list = MdUI.Element("md-foldout-list");
+            list.Add(MdUI.Foldout(LatticeLocalization.Tr(LocKey.LatticeCageAlignment),
+                () => s_showAlignSettings, open => s_showAlignSettings = open, out var content));
+            content.Add(MdUI.HelpBox(LatticeLocalization.Tr(LocKey.AlignmentCageInfo)));
             if (_manualOffsetProp != null)
             {
-                EditorGUILayout.PropertyField(_manualOffsetProp,
-                    new GUIContent(LatticeLocalization.Tr(LocKey.Offset),
-                        LatticeLocalization.Tr(LocKey.OffsetTooltip)));
+                var offset = new PropertyField(_manualOffsetProp, LatticeLocalization.Tr(LocKey.Offset))
+                    { tooltip = LatticeLocalization.Tr(LocKey.OffsetTooltip) };
+                offset.Bind(Serialized);
+                content.Add(offset);
             }
-
-            if (_manualScaleProp != null)
+            if (_manualScaleProp != null && _manualScaleProp.propertyType == SerializedPropertyType.Vector3)
+                content.Add(BuildLinkedScale());
+            var debug = new Toggle(LatticeLocalization.Tr(LocKey.DebugLogAlignment))
+                { value = LatticePreviewUtility.DebugAlignLogs };
+            debug.RegisterValueChangedCallback(evt =>
             {
-                DrawLinkedScaleField(_manualScaleProp, ref s_linkManualScale, LatticeLocalization.Tr(LocKey.Scale));
-            }
-
-            bool debugAlign = LatticePreviewUtility.DebugAlignLogs;
-            bool nextDebug = EditorGUILayout.ToggleLeft(
-                new GUIContent(LatticeLocalization.Tr(LocKey.DebugLogAlignment)),
-                debugAlign);
-            if (nextDebug != debugAlign)
-            {
-                LatticePreviewUtility.DebugAlignLogs = nextDebug;
-                LatticePreviewUtility.LogAlign("Toggle", $"DebugAlignLogs set to {nextDebug}");
-            }
-
-            EditorGUI.indentLevel--;
+                LatticePreviewUtility.DebugAlignLogs = evt.newValue;
+                LatticePreviewUtility.LogAlign("Toggle", $"DebugAlignLogs set to {evt.newValue}");
+            });
+            content.Add(debug);
+            return list;
         }
 
-        private static void DrawLinkedScaleField(SerializedProperty prop, ref bool link, string label)
+        private VisualElement BuildLinkedScale()
         {
-            if (prop == null || prop.propertyType != SerializedPropertyType.Vector3)
+            _scaleField = new Vector3Field { name = "manual-scale" };
+            _scaleField.SetValueWithoutNotify(_manualScaleProp.vector3Value);
+            Button link = null;
+            link = MdUI.IconButton(s_linkManualScale ? "check" : "plus", () =>
             {
-                return;
+                s_linkManualScale = !s_linkManualScale;
+                SyncLink();
+            }, null);
+            void SyncLink()
+            {
+                link.tooltip = LatticeLocalization.Tr(s_linkManualScale ? LocKey.ScaleLinked : LocKey.ScaleUnlinked);
+                link.EnableInClassList("md-icon-button--active", s_linkManualScale);
             }
-
-            EnsureLinkIcons();
-
-            var value = prop.vector3Value;
-            var rect = EditorGUILayout.GetControlRect();
-            var labelContent = new GUIContent(label);
-
-            EditorGUI.BeginProperty(rect, labelContent, prop);
-            rect = EditorGUI.PrefixLabel(rect, labelContent);
-
-            const float linkWidth = 20f;
-            var linkRect = new Rect(rect.x, rect.y, linkWidth, rect.height);
-            var fieldsRect = new Rect(linkRect.xMax + 2f, rect.y, rect.width - linkWidth - 2f, rect.height);
-
-            if (GUI.Button(linkRect, link ? s_linkOn : s_linkOff, GUIStyle.none))
+            SyncLink();
+            _scaleField.RegisterValueChangedCallback(evt =>
             {
-                link = !link;
-            }
-
-            float[] vals = { value.x, value.y, value.z };
-            EditorGUI.BeginChangeCheck();
-            EditorGUI.MultiFloatField(fieldsRect, s_xyzLabels, vals);
-            if (EditorGUI.EndChangeCheck())
-            {
-                if (link)
+                var value = evt.newValue;
+                if (s_linkManualScale)
                 {
-                    vals[1] = vals[2] = vals[0];
+                    float uniform = value.x != evt.previousValue.x ? value.x
+                        : value.y != evt.previousValue.y ? value.y : value.z;
+                    value = new Vector3(uniform, uniform, uniform);
                 }
-
-                value = new Vector3(
-                    Mathf.Max(0.0001f, vals[0]),
-                    Mathf.Max(0.0001f, vals[1]),
-                    Mathf.Max(0.0001f, vals[2]));
-                prop.vector3Value = value;
-            }
-
-            EditorGUI.EndProperty();
+                value = new Vector3(Mathf.Max(0.0001f, value.x), Mathf.Max(0.0001f, value.y), Mathf.Max(0.0001f, value.z));
+                Serialized.Update();
+                _manualScaleProp.vector3Value = value;
+                ApplyProperties();
+                _scaleField.SetValueWithoutNotify(value);
+            });
+            var control = MdUI.Element("md-linked-field", link, _scaleField);
+            return MdUI.FieldRow(LatticeLocalization.Tr(LocKey.Scale), control);
         }
-
-        private static void EnsureLinkIcons()
-        {
-            if (s_linkOn == null)
-            {
-                s_linkOn = EditorGUIUtility.IconContent("Linked");
-                if (s_linkOn == null || s_linkOn.image == null)
-                {
-                    s_linkOn = new GUIContent("≡", "Link axes");
-                }
-            }
-
-            if (s_linkOff == null)
-            {
-                s_linkOff = EditorGUIUtility.IconContent("Unlinked");
-                if (s_linkOff == null || s_linkOff.image == null)
-                {
-                    s_linkOff = new GUIContent("≠", "Unlink axes");
-                }
-            }
-        }
-
     }
 }
 #endif

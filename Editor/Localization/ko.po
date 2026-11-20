@@ -1456,3 +1456,58 @@ msgstr "저장된 데이터의 마이그레이션 정보가 지원되지 않거�
 
 msgid "net.32ba.lattice-deformation-tool.localization.profile-operation-failed"
 msgstr "Profile을 변경할 수 없습니다. 저장 데이터와 저장 위치를 확인하세요. 새로 만들 때는 사용하지 않은 파일 이름을 지정하세요."
+
+# Editor UI (design system)
+msgid "net.32ba.lattice-deformation-tool.localization.guided-inspector-tab"
+msgstr "간단"
+
+msgid "net.32ba.lattice-deformation-tool.localization.detailed-inspector-tab"
+msgstr "상세"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape-example"
+msgstr "예: 가슴·소매·스커트 크기 맞추기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface-example"
+msgstr "예: 뚫림 수정, 움푹한 곳 다듬기"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices-example"
+msgstr "예: 일부 점만 손으로 미세 조정"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-source"
+msgstr "대상 메시"
+
+msgid "net.32ba.lattice-deformation-tool.localization.deformation-layers"
+msgstr "변형 레이어"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-layer-settings"
+msgstr "선택한 레이어"
+
+msgid "net.32ba.lattice-deformation-tool.localization.tool-preferences"
+msgstr "언어 및 표시"
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-group"
+msgstr "그룹 추가"
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-layer"
+msgstr "레이어 추가"
+
+msgid "net.32ba.lattice-deformation-tool.localization.group-layer-count"
+msgstr "레이어 {0}개"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-visible"
+msgstr "이 레이어 적용"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-editing"
+msgstr "편집 중"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-badge-lattice"
+msgstr "래티스"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-badge-brush"
+msgstr "브러시"
+
+msgid "net.32ba.lattice-deformation-tool.localization.scale-linked"
+msgstr "축 연동 중 (클릭하여 해제)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.scale-unlinked"
+msgstr "축 개별 설정 (클릭하여 연동)"

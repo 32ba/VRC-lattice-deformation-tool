@@ -97,14 +97,21 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         public IEnumerator PointerCancel_DiscardsPendingSelectionAndReorder() => DragDispatch(true, false, true);
 
         [UnityTest]
-        public IEnumerator ImguiPopup_WithoutPointerUp_DoesNotBlockImportedRowRefresh()
+        public IEnumerator DetailPopup_WithoutPointerUp_DoesNotBlockImportedRowRefresh()
         {
             using var f = new Fixture();
             f.Attach(f.Section.Root);
             yield return null;
             var list = f.Section.GroupList;
-            var control = list.Q<IMGUIContainer>();
-            Assert.That(control, Is.Not.Null);
+            // Detail fields create their controls once bound, a frame after the row.
+            VisualElement control = null;
+            for (int frame = 0; frame < 30 && control == null; frame++)
+            {
+                control = list.Query<VisualElement>(className: DeformerStackInspectorSection.DetailClass).ToList()
+                    .Find(detail => detail.worldBound.height > 0);
+                if (control == null) yield return null;
+            }
+            Assert.That(control, Is.Not.Null, "A visible detail control must exist in the group row.");
             using (var down = PointerDownEvent.GetPooled(new Event
                 { type = EventType.MouseDown, button = 0, mousePosition = control.worldBound.center }))
             {

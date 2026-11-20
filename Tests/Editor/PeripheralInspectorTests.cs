@@ -9,6 +9,7 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEngine.UIElements;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using Object = UnityEngine.Object;
 
@@ -28,7 +29,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         {
             if (_paintWindow != null)
             {
-                _paintWindow.Draw = null;
                 _paintWindow.Close();
                 _paintWindow = null;
             }
@@ -166,26 +166,21 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             _restorePaintOptions = () => expanded.SetValue(null, previous);
             expanded.SetValue(null, true);
             var window = _paintWindow = ScriptableObject.CreateInstance<RebuildTestWindow>();
-            Exception failure = null; int paints = 0;
-            window.Draw = () =>
-            {
-                try
-                {
-                    int undo = Undo.GetCurrentGroup();
-                    both.Update(); section.Draw(); both.ApplyModifiedProperties();
-                    Assert.That(Undo.GetCurrentGroup(), Is.EqualTo(undo));
-                    if (Event.current.type == EventType.Repaint) paints++;
-                }
-                catch (Exception exception) { failure = exception; }
-            };
             try
             {
                 window.position = new Rect(120, 160, 650, 440); window.ShowUtility();
-                double deadline = EditorApplication.timeSinceStartup + 5;
-                while (paints < 3 && failure == null && EditorApplication.timeSinceStartup < deadline)
-                { window.Repaint(); yield return null; }
-                Assert.That(failure, Is.Null);
-                Assert.That(paints, Is.GreaterThanOrEqualTo(3));
+                int undo = Undo.GetCurrentGroup();
+                var view = section.CreateView();
+                MeshDeformerStyles.Apply(window.rootVisualElement);
+                window.rootVisualElement.Add(view);
+                for (int frame = 0; frame < 4; frame++) { section.Refresh(); window.Repaint(); yield return null; }
+                Assert.That(Undo.GetCurrentGroup(), Is.EqualTo(undo));
+                var toggles = view.Query<Toggle>().ToList();
+                Assert.That(toggles.Count, Is.GreaterThanOrEqualTo(3));
+                Assert.That(toggles.Take(3).All(t => t.showMixedValue), Is.True, "Differing values must show as mixed.");
+                var normals = view.Q<PopupField<string>>("normals-mode");
+                Assert.That(normals, Is.Not.Null);
+                Assert.That(normals.index, Is.EqualTo(0), "An unknown saved mode shows the legacy fallback.");
                 Assert.That(EditorJsonUtility.ToJson(a.Target), Is.EqualTo(beforeA));
                 Assert.That(EditorJsonUtility.ToJson(b.Target), Is.EqualTo(beforeB));
                 Assert.That(EditorUtility.GetDirtyCount(a.Target), Is.EqualTo(dirtyA));
@@ -196,8 +191,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
         private sealed class RebuildTestWindow : EditorWindow
         {
-            internal Action Draw;
-            private void OnGUI() => Draw?.Invoke();
         }
 
         private sealed class Fixture : IDisposable

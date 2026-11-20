@@ -1456,3 +1456,58 @@ msgstr "The saved migration information is unsupported or invalid. Processing wa
 
 msgid "net.32ba.lattice-deformation-tool.localization.profile-operation-failed"
 msgstr "The Profile could not be changed. Check the saved data and destination. Choose a new filename when creating a Profile."
+
+# Editor UI (design system)
+msgid "net.32ba.lattice-deformation-tool.localization.guided-inspector-tab"
+msgstr "Simple"
+
+msgid "net.32ba.lattice-deformation-tool.localization.detailed-inspector-tab"
+msgstr "Advanced"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape-example"
+msgstr "e.g. fitting the chest, sleeves or skirt"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface-example"
+msgstr "e.g. fixing clipping or smoothing dents"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices-example"
+msgstr "e.g. nudging a few points by hand"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-source"
+msgstr "Target mesh"
+
+msgid "net.32ba.lattice-deformation-tool.localization.deformation-layers"
+msgstr "Deformation layers"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-layer-settings"
+msgstr "Selected layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.tool-preferences"
+msgstr "Language and display"
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-group"
+msgstr "Add group"
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-layer"
+msgstr "Add layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.group-layer-count"
+msgstr "{0} layer(s)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-visible"
+msgstr "Apply this layer"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-editing"
+msgstr "Editing"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-badge-lattice"
+msgstr "Lattice"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-badge-brush"
+msgstr "Brush"
+
+msgid "net.32ba.lattice-deformation-tool.localization.scale-linked"
+msgstr "Axes linked (click to unlink)"
+
+msgid "net.32ba.lattice-deformation-tool.localization.scale-unlinked"
+msgstr "Axes independent (click to link)"

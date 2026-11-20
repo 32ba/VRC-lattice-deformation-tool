@@ -29,10 +29,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     "Unity must select the custom Inspector for a real multi-object selection.");
                 var inspector = (LatticeDeformerEditor)editor;
                 var root = inspector.CreateInspectorGUI();
-                var settings = root.Q<IMGUIContainer>("lattice-multi-layer-settings");
+                var settings = root.Q<VisualElement>("lattice-multi-layer-settings");
                 Assert.That(settings, Is.Not.Null);
                 Assert.That(settings.parent, Is.SameAs(root), "Batch actions must be visible without single-target navigation.");
-                Assert.That(settings.onGUIHandler, Is.Not.Null);
+                Assert.That(settings.Contains(inspector.LayerSettingsInspector.Root), Is.True);
+                Assert.That(inspector.LayerSettingsInspector.Root.childCount, Is.GreaterThan(0));
+                Assert.That(root.Q<VisualElement>("inspector-depth"), Is.Null, "Single-owner navigation must stay hidden.");
                 var before = owners.Select(o => EditorJsonUtility.ToJson(o)).ToArray();
                 var action = inspector.LayerSettingsInspector.CreateOperationAction(
                     LayerSettingsEdit.Capture(first.Owner), LayerSettingsOperation.FlipX, "Flip selected layers");
@@ -66,16 +68,18 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             bool? enabled = null;
             try
             {
-                section.DrawSettingsProperties(property =>
+                var view = section.CreateView();
+                var property = section.SettingsProperty(out bool editable);
+                enabled = editable;
+                var fields = view.Q(className: "md-layer-settings__fields");
+                Assert.That(fields, Is.Not.Null);
+                Assert.That(fields.enabledSelf, Is.EqualTo(editable), "The shown fields must follow the edit guard.");
+                if (editable)
                 {
-                    enabled = GUI.enabled;
-                    if (GUI.enabled)
-                    {
-                        var bounds = property.FindPropertyRelative("_localBounds");
-                        Assert.That(bounds, Is.Not.Null);
-                        bounds.boundsValue = new Bounds(Vector3.one, Vector3.one * 3f);
-                    }
-                });
+                    var bounds = property.FindPropertyRelative("_localBounds");
+                    Assert.That(bounds, Is.Not.Null);
+                    bounds.boundsValue = new Bounds(Vector3.one, Vector3.one * 3f);
+                }
                 bool applied = editor.serializedObject.ApplyModifiedProperties();
                 Assert.That(enabled, Is.EqualTo(difference == "same"));
                 Assert.That(applied, Is.EqualTo(difference == "same"));

@@ -7,6 +7,7 @@ using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UIElements;
 using UnityEngine.TestTools;
 using Net._32Ba.LatticeDeformationTool.Editor;
 using Object = UnityEngine.Object;
@@ -163,7 +164,8 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var section = new GuidedInspectorSection(inspector, Fail, Fail, Fail, Fail);
             Object.DestroyImmediate(inspector);
             var mode = MeshDeformerTool.CurrentBrushSubMode;
-            section.Draw();
+            section.Refresh();
+            Assert.That(section.Root.childCount, Is.Zero);
             Assert.That(section.StartEditing(GuidedEditingIntent.MoveVertices), Is.False);
             Assert.That(MeshDeformerTool.CurrentBrushSubMode, Is.EqualTo(mode));
         }
@@ -199,30 +201,21 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Set(f.Target, "_groups", null);
             string before = EditorJsonUtility.ToJson(f.Target);
             int dirty = EditorUtility.GetDirtyCount(f.Target);
-            Exception failure = null; int paints = 0;
-            window.Draw = () =>
-            {
-                try
-                {
-                    int undo = Undo.GetCurrentGroup();
-                    inspector.GuidedInspector.Draw();
-                    Assert.That(Undo.GetCurrentGroup(), Is.EqualTo(undo));
-                    if (Event.current.type == EventType.Repaint) paints++;
-                }
-                catch (Exception ex) { failure = ex; }
-            };
             try
             {
                 window.position = new Rect(120, 160, 600, 550); window.ShowUtility();
+                var root = inspector.CreateInspectorGUI();
+                window.rootVisualElement.Add(root);
                 foreach (var current in Enum.GetValues(typeof(LatticeLocalization.Language)).Cast<LatticeLocalization.Language>())
                 {
+                    int undo = Undo.GetCurrentGroup();
                     LatticeLocalization.CurrentLanguage = current;
-                    int start = paints;
-                    double deadline = EditorApplication.timeSinceStartup + 5;
-                    while (paints < start + 2 && failure == null && EditorApplication.timeSinceStartup < deadline)
-                    { window.Repaint(); yield return null; }
-                    Assert.That(failure, Is.Null);
-                    Assert.That(paints, Is.GreaterThanOrEqualTo(start + 2), current.ToString());
+                    inspector.GuidedInspector.Refresh();
+                    for (int frame = 0; frame < 3; frame++) { window.Repaint(); yield return null; }
+                    Assert.That(Undo.GetCurrentGroup(), Is.EqualTo(undo), current.ToString());
+                    Assert.That(inspector.GuidedInspector.Root.childCount, Is.GreaterThan(0), current.ToString());
+                    Assert.That(inspector.GuidedInspector.Root.Q<Label>().text,
+                        Is.EqualTo(LatticeLocalization.Tr(LocKey.GuidedQuestion)), current.ToString());
                     Assert.That(EditorJsonUtility.ToJson(f.Target), Is.EqualTo(before));
                     Assert.That(SerializedDeformerReader.Read(f.Target).EmbeddedGroups, Is.Null);
                     Assert.That(EditorUtility.GetDirtyCount(f.Target), Is.EqualTo(dirty));
@@ -230,7 +223,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
             finally
             {
-                window.Draw = null; window.Close();
+                window.Close();
                 LatticeLocalization.CurrentLanguage = language;
                 Object.DestroyImmediate(inspector);
             }
@@ -291,8 +284,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(target, value);
         private sealed class GuidedTestWindow : EditorWindow
         {
-            internal Action Draw;
-            private void OnGUI() => Draw?.Invoke();
         }
         private sealed class Fixture : IDisposable
         {

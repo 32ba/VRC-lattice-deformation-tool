@@ -1,12 +1,17 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
+using UnityEngine.UIElements;
+
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
     internal sealed class MeshRebuildInspectorSection
     {
         private static bool s_showOptions;
         private static bool s_showWeightTransferSettings;
+        private readonly SerializedObject _serialized;
         private readonly SerializedProperty _recalcNormalsProp;
         private readonly SerializedProperty _normalsModeProp;
         private readonly SerializedProperty _recalcTangentsProp;
@@ -14,8 +19,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly SerializedProperty _recalcBoneWeightsProp;
         private readonly SerializedProperty _weightTransferSettingsProp;
         private readonly SerializedProperty _skinnedRendererProp;
+        private VisualElement _normalsMode, _boneWeights, _boneWeightInfo, _weightTransfer, _inpainting;
+        private PopupField<string> _normalsModePopup;
+        private Button _previewButton;
+
         internal MeshRebuildInspectorSection(SerializedObject serialized)
         {
+            _serialized = serialized;
             _recalcNormalsProp = serialized.FindProperty("_recalculateNormals");
             _normalsModeProp = serialized.FindProperty("_normalsRecalculationMode");
             _recalcTangentsProp = serialized.FindProperty("_recalculateTangents");
@@ -25,152 +35,126 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _skinnedRendererProp = serialized.FindProperty("_skinnedMeshRenderer");
         }
 
-        internal void Draw()
+        /// <summary>Builds the rebuild options. Building and refreshing never write the target.</summary>
+        internal VisualElement CreateView()
         {
-            s_showOptions = EditorGUILayout.BeginFoldoutHeaderGroup(s_showOptions, LatticeLocalization.Tr(LocKey.MeshRebuildOptions));
-            if (s_showOptions)
+            var root = MdUI.Foldout(LatticeLocalization.Tr(LocKey.MeshRebuildOptions),
+                () => s_showOptions, open => s_showOptions = open, out var content);
+            root.name = "mesh-rebuild-options";
+
+            var toggles = MdUI.Element("md-toggle-row");
+            AddToggle(toggles, _recalcNormalsProp, LocKey.Normals);
+            AddToggle(toggles, _recalcTangentsProp, LocKey.Tangents);
+            AddToggle(toggles, _recalcBoundsProp, LocKey.Bounds);
+            content.Add(toggles);
+
+            if (_normalsModeProp != null)
             {
-                EditorGUI.indentLevel++;
-
-                // Compact horizontal toggles
-                using (new EditorGUILayout.HorizontalScope())
+                var choices = new List<string>
                 {
-                    DrawToggle(_recalcNormalsProp, LocKey.Normals);
-                    DrawToggle(_recalcTangentsProp, LocKey.Tangents);
-                    DrawToggle(_recalcBoundsProp, LocKey.Bounds);
-                }
-
-                if (_recalcNormalsProp != null && _recalcNormalsProp.boolValue && _normalsModeProp != null)
+                    LatticeLocalization.Tr(LocKey.NormalsLegacyUnityRecalculate),
+                    LatticeLocalization.Tr(LocKey.NormalsPreserveSourceSmoothing)
+                };
+                // Display the legacy fallback without rewriting unknown saved values.
+                _normalsModePopup = new PopupField<string>(LatticeLocalization.Tr(LocKey.NormalsMode), choices, 0)
+                    { name = "normals-mode", tooltip = LatticeLocalization.Tooltip(LocKey.NormalsMode) };
+                _normalsModePopup.RegisterValueChangedCallback(_ =>
                 {
-                    // Display the legacy fallback without rewriting unknown saved values.
-                    bool mixed = EditorGUI.showMixedValue;
-                    EditorGUI.showMixedValue = _normalsModeProp.hasMultipleDifferentValues;
-                    EditorGUI.BeginChangeCheck();
-                    int normalsMode = Mathf.Clamp(_normalsModeProp.enumValueIndex, 0, 1);
-                    int selected = EditorGUILayout.Popup(
-                        LatticeLocalization.Content(LocKey.NormalsMode),
-                        normalsMode,
-                        new[]
-                        {
-                            LatticeLocalization.Content(LocKey.NormalsLegacyUnityRecalculate),
-                            LatticeLocalization.Content(LocKey.NormalsPreserveSourceSmoothing)
-                        });
-                    if (EditorGUI.EndChangeCheck()) _normalsModeProp.enumValueIndex = selected;
-                    EditorGUI.showMixedValue = mixed;
-                }
-
-                // Bone weight recalculation (only for SkinnedMeshRenderer)
-                bool hasSkinnedRenderer = _skinnedRendererProp != null &&
-                    !_skinnedRendererProp.hasMultipleDifferentValues &&
-                    _skinnedRendererProp.objectReferenceValue != null;
-
-                using (new EditorGUI.DisabledScope(!hasSkinnedRenderer))
-                {
-                    EditorGUILayout.PropertyField(_recalcBoneWeightsProp, LatticeLocalization.Content(LocKey.RecalculateBoneWeights));
-                }
-
-                if (!hasSkinnedRenderer && _recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue)
-                {
-                    EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.BoneWeightRequiresSMR), MessageType.Info);
-                }
-
-                // Weight transfer settings (shown only when bone weight recalculation is enabled)
-                if (_recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue && hasSkinnedRenderer)
-                {
-                    s_showWeightTransferSettings = EditorGUILayout.Foldout(s_showWeightTransferSettings, LatticeLocalization.Tr(LocKey.WeightTransferSettings), true);
-                    if (s_showWeightTransferSettings && _weightTransferSettingsProp != null)
-                    {
-                        EditorGUI.indentLevel++;
-                        DrawWeightTransferSettings();
-                        EditorGUI.indentLevel--;
-                    }
-                }
-
-                EditorGUILayout.Space();
-                bool previewEnabled = LatticeDeformerPreviewFilter.PreviewToggleEnabled;
-                string previewLabel = previewEnabled
-                    ? LatticeLocalization.Tr(LocKey.NDMFDisableMeshPreview)
-                    : LatticeLocalization.Tr(LocKey.NDMFEnableMeshPreview);
-                if (GUILayout.Button(previewLabel))
-                {
-                    LatticeDeformerPreviewFilter.ForcePreviewState(!previewEnabled);
-                }
-
-                EditorGUI.indentLevel--;
+                    _serialized.Update();
+                    _normalsModeProp.enumValueIndex = _normalsModePopup.index;
+                    _serialized.ApplyModifiedProperties();
+                });
+                _normalsMode = _normalsModePopup;
+                content.Add(_normalsMode);
             }
-            EditorGUILayout.EndFoldoutHeaderGroup();
+
+            if (_recalcBoneWeightsProp != null)
+            {
+                _boneWeights = new PropertyField(_recalcBoneWeightsProp, LatticeLocalization.Tr(LocKey.RecalculateBoneWeights))
+                    { tooltip = LatticeLocalization.Tooltip(LocKey.RecalculateBoneWeights) };
+                content.Add(_boneWeights);
+            }
+            _boneWeightInfo = MdUI.HelpBox(LatticeLocalization.Tr(LocKey.BoneWeightRequiresSMR));
+            content.Add(_boneWeightInfo);
+
+            if (_weightTransferSettingsProp != null)
+            {
+                _weightTransfer = MdUI.Foldout(LatticeLocalization.Tr(LocKey.WeightTransferSettings),
+                    () => s_showWeightTransferSettings, open => s_showWeightTransferSettings = open, out var transfer);
+                BuildWeightTransfer(transfer);
+                content.Add(_weightTransfer);
+            }
+
+            _previewButton = MdUI.Button(string.Empty, () =>
+            {
+                LatticeDeformerPreviewFilter.ForcePreviewState(!LatticeDeformerPreviewFilter.PreviewToggleEnabled);
+                Refresh();
+            });
+            _previewButton.name = "toggle-mesh-preview";
+            content.Add(_previewButton);
+
+            root.Bind(_serialized);
+            root.TrackSerializedObjectValue(_serialized, _ => Refresh());
+            Refresh();
+            return root;
         }
 
-        private void DrawWeightTransferSettings()
+        private void BuildWeightTransfer(VisualElement parent)
         {
-            if (_weightTransferSettingsProp == null)
-            {
-                return;
-            }
-
-            // Stage 1 settings
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.Stage1InitialTransfer), EditorStyles.boldLabel);
-
-            var maxDistProp = _weightTransferSettingsProp.FindPropertyRelative("maxTransferDistance");
-            if (maxDistProp != null)
-            {
-                EditorGUILayout.PropertyField(
-                    maxDistProp,
-                    LatticeLocalization.Content(
-                        LocKey.MaxTransferDistance,
-                        "If weights stick to the wrong surface, try lowering this value or the Normal Angle Threshold for stricter matching."));
-            }
-
-            var normalThresholdProp = _weightTransferSettingsProp.FindPropertyRelative("normalAngleThreshold");
-            if (normalThresholdProp != null)
-            {
-                EditorGUILayout.PropertyField(
-                    normalThresholdProp,
-                    LatticeLocalization.Content(
-                        LocKey.NormalAngleThreshold,
-                        "If weights stick to the wrong surface, try lowering this value or the Max Transfer Distance for stricter matching."));
-            }
-
-            EditorGUILayout.Space(4);
-
-            // Stage 2 settings
-            EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.Stage2WeightInpainting), EditorStyles.boldLabel);
-
-            var enableInpaintingProp = _weightTransferSettingsProp.FindPropertyRelative("enableInpainting");
-            if (enableInpaintingProp != null)
-            {
-                EditorGUILayout.PropertyField(enableInpaintingProp, LatticeLocalization.Content(LocKey.EnableInpainting));
-
-                if (enableInpaintingProp.boolValue)
-                {
-                    EditorGUI.indentLevel++;
-
-                    var maxIterProp = _weightTransferSettingsProp.FindPropertyRelative("maxIterations");
-                    if (maxIterProp != null)
-                    {
-                        EditorGUILayout.PropertyField(maxIterProp, LatticeLocalization.Content(LocKey.MaxIterations));
-                    }
-
-                    var toleranceProp = _weightTransferSettingsProp.FindPropertyRelative("tolerance");
-                    if (toleranceProp != null)
-                    {
-                        EditorGUILayout.PropertyField(toleranceProp, LatticeLocalization.Content(LocKey.Tolerance));
-                    }
-
-                    EditorGUI.indentLevel--;
-                }
-            }
+            parent.Add(MdUI.Text(LatticeLocalization.Tr(LocKey.Stage1InitialTransfer), "md-text-section"));
+            AddRelative(parent, "maxTransferDistance", LocKey.MaxTransferDistance);
+            AddRelative(parent, "normalAngleThreshold", LocKey.NormalAngleThreshold);
+            parent.Add(MdUI.Text(LatticeLocalization.Tr(LocKey.Stage2WeightInpainting), "md-text-section"));
+            AddRelative(parent, "enableInpainting", LocKey.EnableInpainting);
+            _inpainting = MdUI.Element("md-indent");
+            AddRelative(_inpainting, "maxIterations", LocKey.MaxIterations);
+            AddRelative(_inpainting, "tolerance", LocKey.Tolerance);
+            parent.Add(_inpainting);
         }
 
-        private static void DrawToggle(SerializedProperty property, string key)
+        private void AddRelative(VisualElement parent, string name, string key)
+        {
+            var property = _weightTransferSettingsProp.FindPropertyRelative(name);
+            if (property == null) return;
+            parent.Add(new PropertyField(property, LatticeLocalization.Tr(key))
+                { tooltip = LatticeLocalization.Tooltip(key) });
+        }
+
+        private static void AddToggle(VisualElement parent, SerializedProperty property, string key)
         {
             if (property == null) return;
-            bool mixed = EditorGUI.showMixedValue;
-            EditorGUI.showMixedValue = property.hasMultipleDifferentValues;
-            EditorGUI.BeginChangeCheck();
-            bool selected = GUILayout.Toggle(property.boolValue, LatticeLocalization.Tr(key));
-            if (EditorGUI.EndChangeCheck()) property.boolValue = selected;
-            EditorGUI.showMixedValue = mixed;
+            var toggle = new Toggle { text = LatticeLocalization.Tr(key), tooltip = LatticeLocalization.Tooltip(key) };
+            toggle.BindProperty(property);
+            parent.Add(toggle);
+        }
+
+        /// <summary>Resyncs visibility and labels with the serialized values; never writes them.</summary>
+        internal void Refresh()
+        {
+            if (_serialized == null || _serialized.targetObject == null) return;
+            _serialized.Update();
+            bool recalcNormals = _recalcNormalsProp != null && _recalcNormalsProp.boolValue;
+            MdUI.SetVisible(_normalsMode, recalcNormals && _normalsModeProp != null);
+            if (_normalsModePopup != null && _normalsModeProp != null)
+            {
+                _normalsModePopup.showMixedValue = _normalsModeProp.hasMultipleDifferentValues;
+                _normalsModePopup.SetValueWithoutNotify(_normalsModePopup.choices[Mathf.Clamp(_normalsModeProp.enumValueIndex, 0, 1)]);
+            }
+
+            bool hasSkinnedRenderer = _skinnedRendererProp != null &&
+                !_skinnedRendererProp.hasMultipleDifferentValues &&
+                _skinnedRendererProp.objectReferenceValue != null;
+            bool boneWeights = _recalcBoneWeightsProp != null && _recalcBoneWeightsProp.boolValue;
+            _boneWeights?.SetEnabled(hasSkinnedRenderer);
+            MdUI.SetVisible(_boneWeightInfo, !hasSkinnedRenderer && boneWeights);
+            MdUI.SetVisible(_weightTransfer, boneWeights && hasSkinnedRenderer);
+            var inpainting = _weightTransferSettingsProp?.FindPropertyRelative("enableInpainting");
+            MdUI.SetVisible(_inpainting, inpainting != null && inpainting.boolValue);
+
+            if (_previewButton != null)
+                MdUI.SetButtonText(_previewButton, LatticeDeformerPreviewFilter.PreviewToggleEnabled
+                    ? LatticeLocalization.Tr(LocKey.NDMFDisableMeshPreview)
+                    : LatticeLocalization.Tr(LocKey.NDMFEnableMeshPreview));
         }
     }
 }

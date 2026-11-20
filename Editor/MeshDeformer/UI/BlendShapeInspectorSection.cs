@@ -1,7 +1,9 @@
 #if UNITY_EDITOR
 using System;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
@@ -13,6 +15,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly SerializedProperty _groupsProp, _activeGroupIndexProp;
         private BlendShapeTestSession _blendShapeTestSession;
         private bool _disposed;
+        private event Action TestModeChanged;
         private UnityEngine.Object target => _owner != null ? _owner.target : null;
         private SerializedObject serializedObject => _owner.serializedObject;
 
@@ -23,7 +26,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _activeGroupIndexProp = serializedObject.FindProperty("_activeGroupIndex");
         }
 
-        private bool CanDrawGroup(int index)
+        internal bool IsTestModeActive => _blendShapeTestSession != null && _blendShapeTestSession.IsActive;
+
+        private bool CanShowGroup(int index)
         {
             if (_disposed || target is not LatticeDeformer d || d == null) return false;
             var raw = SerializedDeformerReader.Read(d);
@@ -36,88 +41,88 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (_disposed) return;
             _disposed = true;
             ExitTestMode();
+            TestModeChanged = null;
         }
 
-        internal void DrawGroup(int groupIndex)
+        /// <summary>BlendShape output settings of one group. Reads only; edits go through bindings.</summary>
+        internal VisualElement CreateGroupView(int groupIndex)
         {
-            // This runs from an IMGUIContainer inside a list item, which can repaint
-            // once more after the inspected object was destroyed.
-            if (!CanDrawGroup(groupIndex)) return;
-
+            var root = MdUI.Element("md-blendshape md-detail");
+            if (!CanShowGroup(groupIndex)) return root;
             serializedObject.Update();
-            if (_groupsProp == null || groupIndex < 0 || groupIndex >= _groupsProp.arraySize) return;
+            if (_groupsProp == null || groupIndex < 0 || groupIndex >= _groupsProp.arraySize) return root;
 
             var groupProp = _groupsProp.GetArrayElementAtIndex(groupIndex);
             var outputProp = groupProp.FindPropertyRelative("_blendShapeOutput");
             var nameProp = groupProp.FindPropertyRelative("_blendShapeName");
             var curveProp = groupProp.FindPropertyRelative("_blendShapeCurve");
-            if (outputProp == null) return;
+            if (outputProp == null) return root;
 
-            EditorGUI.BeginChangeCheck();
-            EditorGUILayout.PropertyField(outputProp, new GUIContent(LatticeLocalization.Tr(LocKey.BlendShapeOutput)));
-            bool modeJustChanged = EditorGUI.EndChangeCheck();
+            var output = new PropertyField(outputProp, LatticeLocalization.Tr(LocKey.BlendShapeOutput));
+            root.Add(output);
+            var details = MdUI.Element("md-blendshape__details");
+            if (nameProp != null) details.Add(new PropertyField(nameProp, LatticeLocalization.Tr(LocKey.BlendShapeName)));
+            if (curveProp != null) details.Add(new PropertyField(curveProp, LatticeLocalization.Tr(LocKey.Curve)));
+            int activeGroup = _activeGroupIndexProp != null ? _activeGroupIndexProp.intValue : 0;
+            if (groupIndex == activeGroup) details.Add(CreateTestModeView());
+            root.Add(details);
+            root.Bind(serializedObject);
 
-            if (outputProp.intValue == (int)BlendShapeOutputMode.OutputAsBlendShape)
+            string outputPath = outputProp.propertyPath;
+            string namePath = nameProp?.propertyPath;
+            void Sync() => MdUI.SetVisible(details, IsBlendShapeOutput(serializedObject.FindProperty(outputPath)));
+            root.TrackPropertyValue(outputProp, property =>
             {
-                if (modeJustChanged && nameProp != null && string.IsNullOrWhiteSpace(nameProp.stringValue))
+                if (_disposed || target is not LatticeDeformer deformer || deformer == null) return;
+                if (IsBlendShapeOutput(property) && namePath != null)
                 {
-                    var deformer = target as LatticeDeformer;
-                    if (deformer != null)
-                        nameProp.stringValue = deformer.gameObject.name;
+                    var name = serializedObject.FindProperty(namePath);
+                    if (name != null && string.IsNullOrWhiteSpace(name.stringValue))
+                    {
+                        name.stringValue = deformer.gameObject.name;
+                        if (serializedObject.ApplyModifiedProperties()) _onPropertyChanges();
+                    }
                 }
-
-                if (nameProp != null)
-                    EditorGUILayout.PropertyField(nameProp, new GUIContent(LatticeLocalization.Tr(LocKey.BlendShapeName)));
-
-                if (curveProp != null)
-                    EditorGUILayout.PropertyField(curveProp, new GUIContent(LatticeLocalization.Tr(LocKey.Curve)));
-
-                // Test mode only for active group
-                int activeGroupIdx = _activeGroupIndexProp != null ? _activeGroupIndexProp.intValue : 0;
-                if (groupIndex == activeGroupIdx)
-                    DrawTestMode();
-            }
-
-            if (serializedObject.ApplyModifiedProperties())
-                _onPropertyChanges();
+                Sync();
+            });
+            Sync();
+            return root;
         }
 
-        private void DrawTestMode()
+        private static bool IsBlendShapeOutput(SerializedProperty output) =>
+            output != null && output.intValue == (int)BlendShapeOutputMode.OutputAsBlendShape;
+
+        private VisualElement CreateTestModeView()
         {
-            var deformer = target as LatticeDeformer;
-            if (deformer == null) return;
-
-            var smr = deformer.GetComponent<SkinnedMeshRenderer>();
-            if (smr == null) return;
-
-            EditorGUILayout.Space(2);
-
-            if (_blendShapeTestSession == null || !_blendShapeTestSession.IsActive)
+            var root = MdUI.Element("md-blendshape__test");
+            void Build()
             {
-                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.EnterTestMode)))
+                root.Clear();
+                if (_disposed || target is not LatticeDeformer deformer || deformer == null) return;
+                var smr = deformer.GetComponent<SkinnedMeshRenderer>();
+                if (smr == null) return;
+                if (!IsTestModeActive)
                 {
-                    EnterTestMode(deformer, smr);
+                    root.Add(MdUI.Button(LatticeLocalization.Tr(LocKey.EnterTestMode),
+                        () => EnterTestMode(deformer, smr), "md-button--small"));
+                    return;
                 }
-            }
-            else
-            {
-                EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.BlendShapeTestMode), MessageType.Info);
-
-                EditorGUI.BeginChangeCheck();
-                float weight = EditorGUILayout.Slider(
-                    new GUIContent(LatticeLocalization.Tr(LocKey.TestWeight)),
-                    _blendShapeTestSession.Weight, 0f, 100f);
-                if (EditorGUI.EndChangeCheck())
+                root.Add(MdUI.HelpBox(LatticeLocalization.Tr(LocKey.BlendShapeTestMode)));
+                var weight = new Slider(LatticeLocalization.Tr(LocKey.TestWeight), 0f, 100f) { showInputField = true };
+                weight.SetValueWithoutNotify(_blendShapeTestSession.Weight);
+                weight.RegisterValueChangedCallback(evt =>
                 {
-                    _blendShapeTestSession.SetWeight(weight);
+                    if (!IsTestModeActive) return;
+                    _blendShapeTestSession.SetWeight(evt.newValue);
                     SceneView.RepaintAll();
-                }
-
-                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ExitTestMode)))
-                {
-                    ExitTestMode();
-                }
+                });
+                root.Add(weight);
+                root.Add(MdUI.Button(LatticeLocalization.Tr(LocKey.ExitTestMode), ExitTestMode, "md-button--small"));
             }
+            root.RegisterCallback<AttachToPanelEvent>(_ => TestModeChanged += Build);
+            root.RegisterCallback<DetachFromPanelEvent>(_ => TestModeChanged -= Build);
+            Build();
+            return root;
         }
 
         internal void EnterTestMode(LatticeDeformer deformer, SkinnedMeshRenderer smr)
@@ -126,6 +131,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _blendShapeTestSession?.Dispose();
             _blendShapeTestSession = BlendShapeTestSession.TryBegin(deformer, smr);
             SceneView.RepaintAll();
+            TestModeChanged?.Invoke();
         }
 
         internal void ExitTestMode()
@@ -133,6 +139,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _blendShapeTestSession?.Dispose();
             _blendShapeTestSession = null;
             SceneView.RepaintAll();
+            TestModeChanged?.Invoke();
         }
 
         internal void Refresh(LatticeDeformer deformer)
@@ -141,29 +148,27 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _blendShapeTestSession.Refresh();
         }
 
-        internal void DrawImport()
+        /// <summary>The BlendShape import row; empty when the source mesh has no BlendShapes.</summary>
+        internal VisualElement CreateImportView()
         {
-            if (_disposed || target is not LatticeDeformer deformer || deformer == null) return;
+            var root = MdUI.Element("md-blendshape-import md-detail");
+            if (_disposed || target is not LatticeDeformer deformer || deformer == null) return root;
             var source = SerializedDeformerReader.Read(deformer).SourceMesh;
-            if (source == null || source.blendShapeCount == 0) return;
-            EditorGUILayout.Space(4);
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.PrefixLabel(LatticeLocalization.Tr(LocKey.ImportBlendShape));
-            if (EditorGUILayout.DropdownButton(new GUIContent(LatticeLocalization.Tr(LocKey.Select)), FocusType.Keyboard))
+            if (source == null || source.blendShapeCount == 0) return root;
+            Button select = null;
+            select = MdUI.Button(LatticeLocalization.Tr(LocKey.Select), () =>
             {
                 var snapshot = BlendShapeImportMenu.TryCreate(deformer);
-                if (snapshot != null)
-                {
-                    var menu = new GenericMenu();
-                    for (int i = 0; i < snapshot.Count; i++)
-                    {
-                        string name = snapshot.GetName(i);
-                        menu.AddItem(new GUIContent(name), false, CreateImportAction(snapshot, i));
-                    }
-                    menu.ShowAsContext();
-                }
-            }
-            EditorGUILayout.EndHorizontal();
+                if (snapshot == null) return;
+                var menu = new GenericMenu();
+                for (int i = 0; i < snapshot.Count; i++)
+                    menu.AddItem(new GUIContent(snapshot.GetName(i)), false, CreateImportAction(snapshot, i));
+                menu.DropDown(select.worldBound);
+            }, "md-button--small");
+            select.name = "blendshape-import";
+            select.Add(MdUI.Icon("caret-down", "md-icon--small"));
+            root.Add(MdUI.FieldRow(LatticeLocalization.Tr(LocKey.ImportBlendShape), select));
+            return root;
         }
 
         internal GenericMenu.MenuFunction CreateImportAction(BlendShapeImportMenu menu, int shape)
@@ -176,7 +181,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _onImported();
             };
         }
-
     }
 }
 #endif

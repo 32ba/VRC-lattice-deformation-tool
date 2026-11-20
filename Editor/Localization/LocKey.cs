@@ -334,6 +334,26 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string MigrateLegacyBrush = "net.32ba.lattice-deformation-tool.localization.migrate-legacy-brush";
         internal const string LegacyBrushMigrationSucceeded = "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-succeeded";
         internal const string LegacyBrushMigrationFailed = "net.32ba.lattice-deformation-tool.localization.legacy-brush-migration-failed";
+
+        // Editor UI (design system)
+        internal const string GuidedInspectorTab = "net.32ba.lattice-deformation-tool.localization.guided-inspector-tab";
+        internal const string DetailedInspectorTab = "net.32ba.lattice-deformation-tool.localization.detailed-inspector-tab";
+        internal const string GuidedAdjustShapeExample = "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape-example";
+        internal const string GuidedSculptSurfaceExample = "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface-example";
+        internal const string GuidedMoveVerticesExample = "net.32ba.lattice-deformation-tool.localization.guided-move-vertices-example";
+        internal const string MeshSource = "net.32ba.lattice-deformation-tool.localization.mesh-source";
+        internal const string DeformationLayers = "net.32ba.lattice-deformation-tool.localization.deformation-layers";
+        internal const string SelectedLayerSettings = "net.32ba.lattice-deformation-tool.localization.selected-layer-settings";
+        internal const string ToolPreferences = "net.32ba.lattice-deformation-tool.localization.tool-preferences";
+        internal const string AddGroup = "net.32ba.lattice-deformation-tool.localization.add-group";
+        internal const string AddLayer = "net.32ba.lattice-deformation-tool.localization.add-layer";
+        internal const string GroupLayerCount = "net.32ba.lattice-deformation-tool.localization.group-layer-count";
+        internal const string LayerVisible = "net.32ba.lattice-deformation-tool.localization.layer-visible";
+        internal const string LayerEditing = "net.32ba.lattice-deformation-tool.localization.layer-editing";
+        internal const string LayerBadgeLattice = "net.32ba.lattice-deformation-tool.localization.layer-badge-lattice";
+        internal const string LayerBadgeBrush = "net.32ba.lattice-deformation-tool.localization.layer-badge-brush";
+        internal const string ScaleLinked = "net.32ba.lattice-deformation-tool.localization.scale-linked";
+        internal const string ScaleUnlinked = "net.32ba.lattice-deformation-tool.localization.scale-unlinked";
     }
 }
 #endif

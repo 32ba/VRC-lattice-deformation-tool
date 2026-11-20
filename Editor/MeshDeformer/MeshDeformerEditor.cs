@@ -32,8 +32,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private const string DetailedInspectorSessionKeyPrefix =
             "Net32Ba.LatticeDeformationTool.DetailedInspector.";
 
+        private VisualElement _root;
         private VisualElement _guidedInspectorContainer;
         private VisualElement _detailedInspectorContainer;
+        private VisualElement _depthTabs;
+        private VisualElement _releaseNotification;
+        private PropertyField _skinnedSourceField, _staticSourceField;
+        private Button _openEditorButton;
+        private IVisualElementScheduledItem _refreshTicker;
         private GuidedInspectorSection _guidedInspector;
         internal GuidedInspectorSection GuidedInspector => _guidedInspector;
 
@@ -43,8 +49,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _activeGroupIndexProp = serializedObject.FindProperty("_activeGroupIndex");
             _blendShapeInspector = new BlendShapeInspectorSection(this, NotifyPropertyChanges, OnBlendShapeImported);
             _layerSettingsInspector = new LayerSettingsInspectorSection(this, NotifyPropertyChanges);
-            _stackInspector = new DeformerStackInspectorSection(this, _blendShapeInspector.DrawGroup,
-                DrawActiveLayerSettings, _blendShapeInspector.DrawImport, OnStackStructureChanged);
+            _stackInspector = new DeformerStackInspectorSection(this, _blendShapeInspector.CreateGroupView,
+                _blendShapeInspector.CreateImportView, OnStackStructureChanged);
             _guidedInspector = new GuidedInspectorSection(this, AutoAssignLocalRendererReferences,
                 OpenDetailedInspector, OnGuidedEditingStarted, NotifyPropertyChanges);
             _rebuildInspector = new MeshRebuildInspectorSection(serializedObject);
@@ -54,7 +60,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ResolveActiveGroupProperties();
             AutoAssignLocalRendererReferences();
             LatticeLocalization.LanguageChanged += OnLanguageChanged;
-            ReleaseChecker.OnUpdateCheckCompleted += Repaint;
+            ReleaseChecker.OnUpdateCheckCompleted += OnReleaseCheckCompleted;
         }
 
         private void ResolveActiveGroupProperties()
@@ -76,7 +82,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void OnDisable()
         {
             LatticeLocalization.LanguageChanged -= OnLanguageChanged;
-            ReleaseChecker.OnUpdateCheckCompleted -= Repaint;
+            ReleaseChecker.OnUpdateCheckCompleted -= OnReleaseCheckCompleted;
+            _refreshTicker?.Pause();
+            _refreshTicker = null;
             _blendShapeInspector?.Dispose();
             _blendShapeInspector = null;
             _stackInspector?.Dispose();
@@ -91,55 +99,194 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void OnLanguageChanged()
         {
-            Repaint();
+            // Labels are baked into the elements, so rebuild the content in the new language.
+            if (_root != null && target != null) BuildContent();
             RebuildLayerList();
+        }
+
+        private void OnReleaseCheckCompleted()
+        {
+            if (_releaseNotification != null) RefreshReleaseNotification();
+            Repaint();
         }
 
         public override VisualElement CreateInspectorGUI()
         {
-            var root = new VisualElement();
+            _root = new VisualElement { name = "mesh-deformer-inspector" };
+            MeshDeformerStyles.Apply(_root);
+            _root.AddToClassList("md-inspector");
+            BuildContent();
+            _refreshTicker = _root.schedule.Execute(RefreshInspector).Every(250);
+            _root.RegisterCallback<DetachFromPanelEvent>(_ => _refreshTicker?.Pause());
+            _root.RegisterCallback<AttachToPanelEvent>(_ => _refreshTicker?.Resume());
+            return BindInspector(_root);
+        }
+
+        private void BuildContent()
+        {
+            _root.Clear();
+            _guidedInspectorContainer = null; _detailedInspectorContainer = null; _depthTabs = null;
+            _releaseNotification = null; _skinnedSourceField = null; _staticSourceField = null; _openEditorButton = null;
             if (targets.Length > 1)
             {
                 // Group navigation and Guided actions are single-owner workflows.
                 // The selected-layer section owns atomic commands for all owners.
-                root.Add(new IMGUIContainer(DrawMultiObjectLayerSettings)
-                    { name = "lattice-multi-layer-settings" });
-                return BindInspector(root);
+                var multi = MdUI.Section(LatticeLocalization.Tr(LocKey.Settings), out var multiBody);
+                multi.name = "lattice-multi-layer-settings";
+                multiBody.Add(_layerSettingsInspector.CreateView());
+                _root.Add(multi);
+                RefreshMultiObjectLayerSettings();
+                return;
             }
 
-            _guidedInspectorContainer = new VisualElement();
-            _guidedInspectorContainer.Add(new IMGUIContainer(DrawGuidedInspector));
-            root.Add(_guidedInspectorContainer);
-
-            _detailedInspectorContainer = new VisualElement();
-            _detailedInspectorContainer.Add(new IMGUIContainer(DrawDetailedInspectorNavigation));
-
-            // Top: Language + Mesh Source (IMGUI)
-            _detailedInspectorContainer.Add(new IMGUIContainer(DrawTopSection));
-
-            // Groups > Layers nested structure (UI Toolkit)
-            if (targets.Length == 1)
+            _depthTabs = MdUI.Segmented(new[]
             {
-                _groupsContainer = _stackInspector.Root;
-                RebuildGroupList();
-                _detailedInspectorContainer.Add(_groupsContainer);
-            }
+                LatticeLocalization.Tr(LocKey.GuidedInspectorTab),
+                LatticeLocalization.Tr(LocKey.DetailedInspectorTab)
+            }, DetailedInspectorEnabled ? 1 : 0, index =>
+            {
+                DetailedInspectorEnabled = index == 1;
+                ApplyInspectorDepthVisibility();
+            }, "md-inspector__tabs");
+            _depthTabs.name = "inspector-depth";
+            _root.Add(_depthTabs);
 
-            // Build Options + Open Editor (IMGUI)
-            _detailedInspectorContainer.Add(new IMGUIContainer(DrawBottomSection));
-            root.Add(_detailedInspectorContainer);
+            _guidedInspectorContainer = MdUI.Element("md-inspector__page");
+            _guidedInspectorContainer.name = "guided-inspector";
+            _guidedInspectorContainer.Add(_guidedInspector.Root);
+            _root.Add(_guidedInspectorContainer);
+
+            _detailedInspectorContainer = MdUI.Element("md-inspector__page");
+            _detailedInspectorContainer.name = "detailed-inspector";
+            BuildDetailedInspector(_detailedInspectorContainer);
+            _root.Add(_detailedInspectorContainer);
 
             ApplyInspectorDepthVisibility();
-
-            return BindInspector(root);
+            RefreshInspector();
         }
 
-        private void DrawMultiObjectLayerSettings()
+        private void BuildDetailedInspector(VisualElement page)
+        {
+            _releaseNotification = MdUI.Element("md-release");
+            page.Add(_releaseNotification);
+            RefreshReleaseNotification();
+
+            var source = MdUI.Section(LatticeLocalization.Tr(LocKey.MeshSource), out var sourceBody);
+            source.name = "mesh-source";
+            _skinnedSourceField = new PropertyField(_skinnedRendererProp, LatticeLocalization.Tr(LocKey.SkinnedMeshSource))
+                { tooltip = LatticeLocalization.Tooltip(LocKey.SkinnedMeshSource) };
+            _staticSourceField = new PropertyField(_meshFilterProp, LatticeLocalization.Tr(LocKey.StaticMeshSource))
+                { tooltip = LatticeLocalization.Tooltip(LocKey.StaticMeshSource) };
+            sourceBody.Add(_skinnedSourceField);
+            sourceBody.Add(_staticSourceField);
+            page.Add(source);
+
+            // Groups > Layers nested structure
+            _groupsContainer = _stackInspector.Root;
+            var stack = MdUI.Section(LatticeLocalization.Tr(LocKey.DeformationLayers), out var stackBody);
+            stack.name = "deformer-stack";
+            stackBody.Add(_groupsContainer);
+            page.Add(stack);
+            RebuildGroupList();
+
+            var settings = MdUI.Section(LatticeLocalization.Tr(LocKey.SelectedLayerSettings), out var settingsBody);
+            settings.name = "selected-layer-settings";
+            settingsBody.Add(_layerSettingsInspector.CreateView());
+            page.Add(settings);
+
+            _openEditorButton = MdUI.Button(string.Empty, () =>
+            {
+                MeshDeformerTool.UseDetailedOverlay();
+                ToolManager.SetActiveTool<MeshDeformerTool>();
+                LatticePreviewUtility.RequestSceneRepaint();
+            }, "md-button--primary md-inspector__open-editor");
+            _openEditorButton.name = "open-editor";
+            page.Add(_openEditorButton);
+
+            var more = MdUI.Element("md-foldout-list md-inspector__more");
+            more.Add(_rebuildInspector.CreateView());
+            more.Add(BuildPreferences());
+            more.Add(_supportInspector.CreateView());
+            page.Add(more);
+        }
+
+        private static bool s_showPreferences;
+
+        private VisualElement BuildPreferences()
+        {
+            var root = MdUI.Foldout(LatticeLocalization.Tr(LocKey.ToolPreferences),
+                () => s_showPreferences, open => s_showPreferences = open, out var content);
+            root.name = "tool-preferences";
+            var language = new PopupField<string>(LatticeLocalization.Tr(LocKey.ToolLanguage),
+                new List<string>(LatticeLocalization.DisplayNames), (int)LatticeLocalization.CurrentLanguage)
+                { name = "tool-language", tooltip = LatticeLocalization.Tooltip(LocKey.ToolLanguage) };
+            language.RegisterValueChangedCallback(_ =>
+            {
+                int next = Mathf.Clamp(language.index, 0, LatticeLocalization.DisplayNames.Length - 1);
+                // Defer: changing the language rebuilds this element.
+                language.schedule.Execute(() => LatticeLocalization.CurrentLanguage = (LatticeLocalization.Language)next);
+            });
+            content.Add(language);
+            content.Add(MdUI.Switch(LatticeLocalization.Tr(LocKey.ShowTooltips), null,
+                () => LatticeLocalization.ShowTooltips, value => LatticeLocalization.ShowTooltips = value, out _));
+            content.Add(MdUI.Text(LatticeLocalization.Tr(LocKey.MeshDeformerOverview), "md-text-small"));
+            return root;
+        }
+
+        private void RefreshReleaseNotification()
+        {
+            _releaseNotification.Clear();
+            bool show = ReleaseChecker.HasNewVersion && !string.IsNullOrEmpty(ReleaseChecker.LatestVersion);
+            MdUI.SetVisible(_releaseNotification, show);
+            if (!show) return;
+            var box = MdUI.HelpBox(string.Format(LatticeLocalization.Tr(LocKey.UpdateCurrentToLatest),
+                VersionUtility.FormatVersion(ReleaseChecker.GetCurrentVersion()),
+                VersionUtility.FormatVersion(ReleaseChecker.LatestVersion)));
+            box.Q<Label>().text = LatticeLocalization.Tr(LocKey.UpdateAvailable) + "\n" + box.Q<Label>().text;
+            _releaseNotification.Add(box);
+            _releaseNotification.Add(MdUI.Button(LatticeLocalization.Tr(LocKey.UpdateOpenBoothPage),
+                ReleaseChecker.OpenReleasePage, "md-button--small"));
+        }
+
+        /// <summary>
+        /// Resyncs state-dependent parts with the target. Every part only reads here; the sections
+        /// rebuild themselves only when what they show has changed.
+        /// </summary>
+        private void RefreshInspector()
+        {
+            if (_root == null || target == null) return;
+            if (targets.Length > 1) { RefreshMultiObjectLayerSettings(); return; }
+            _guidedInspector?.Refresh();
+            if (!DetailedInspectorEnabled) return;
+            AutoAssignLocalRendererReferences();
+            serializedObject.Update();
+            ResolveActiveGroupProperties();
+            _layerSettingsInspector?.Refresh();
+            _rebuildInspector?.Refresh();
+
+            bool hasSkinnedAssigned = _skinnedRendererProp != null && !_skinnedRendererProp.hasMultipleDifferentValues && _skinnedRendererProp.objectReferenceValue != null;
+            bool hasMeshAssigned = _meshFilterProp != null && !_meshFilterProp.hasMultipleDifferentValues && _meshFilterProp.objectReferenceValue != null;
+            _skinnedSourceField?.SetEnabled(!(ShouldDisableRendererField<SkinnedMeshRenderer>() || hasMeshAssigned));
+            _staticSourceField?.SetEnabled(!(ShouldDisableRendererField<MeshFilter>() || hasSkinnedAssigned));
+
+            if (_openEditorButton != null)
+            {
+                bool hasLayers = _layersProp != null && _layersProp.arraySize > 0;
+                bool openBrushTool = hasLayers && GetSerializedActiveLayerType() == MeshDeformerLayerType.Brush;
+                MdUI.SetButtonText(_openEditorButton, openBrushTool
+                    ? LatticeLocalization.Tr(LocKey.OpenBrushEditor)
+                    : LatticeLocalization.Tr(LocKey.OpenLatticeEditor));
+                _openEditorButton.SetEnabled(hasLayers);
+            }
+        }
+
+        private void RefreshMultiObjectLayerSettings()
         {
             if (target == null) return;
             bool editable = true;
             foreach (var owner in EnumerateTargets()) editable &= LayerSettingsEdit.Capture(owner) != null;
-            using (new EditorGUI.DisabledScope(!editable)) DrawActiveLayerSettings();
+            _layerSettingsInspector?.Refresh();
+            _layerSettingsInspector?.Root.SetEnabled(editable);
         }
 
         private VisualElement BindInspector(VisualElement root)
@@ -149,6 +296,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 CheckAndRebuildLayers();
                 NotifyPropertyChanges();
+                RefreshInspector();
             });
             root.Bind(serializedObject);
 
@@ -170,26 +318,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void ApplyInspectorDepthVisibility()
         {
             bool detailed = DetailedInspectorEnabled;
-            if (_guidedInspectorContainer != null)
-            {
-                _guidedInspectorContainer.style.display = detailed ? DisplayStyle.None : DisplayStyle.Flex;
-            }
-            if (_detailedInspectorContainer != null)
-            {
-                _detailedInspectorContainer.style.display = detailed ? DisplayStyle.Flex : DisplayStyle.None;
-            }
+            MdUI.SetVisible(_guidedInspectorContainer, !detailed);
+            MdUI.SetVisible(_detailedInspectorContainer, detailed);
+            if (_depthTabs != null) MdUI.SelectSegment(_depthTabs, detailed ? 1 : 0);
+            RefreshInspector();
         }
-
-        private void DrawDetailedInspectorNavigation()
-        {
-            if (GUILayout.Button(LatticeLocalization.Tr(LocKey.ReturnToGuidedInspector)))
-            {
-                DetailedInspectorEnabled = false;
-                ApplyInspectorDepthVisibility();
-            }
-        }
-
-        private void DrawGuidedInspector() => _guidedInspector?.Draw();
 
         private void OpenDetailedInspector()
         {
@@ -202,6 +335,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ResolveActiveGroupProperties();
             RebuildGroupList();
             NotifyPropertyChanges(true);
+            RefreshInspector();
         }
 
         // Historical tests use this internal entry; normal UI calls the authoring service.
@@ -213,6 +347,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             ResolveActiveGroupProperties();
             NotifyPropertyChanges(true);
+            RefreshInspector();
         }
         private void OnBlendShapeImported()
         {
@@ -242,77 +377,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void ExitBlendShapeTestMode() => _blendShapeInspector?.ExitTestMode();
         internal BlendShapeInspectorSection BlendShapeInspector => _blendShapeInspector;
 
-        private void DrawActiveLayerSettings() => _layerSettingsInspector?.Draw();
-
         private bool ProfileReadOnly => _stackInspector?.ProfileReadOnly == true;
-
-        private void DrawTopSection()
-        {
-            // The Inspector can repaint once more after the inspected object was
-            // destroyed (e.g. closing a Prefab Stage); bail out before touching it.
-            if (target == null) return;
-
-            AutoAssignLocalRendererReferences();
-            serializedObject.Update();
-            ResolveActiveGroupProperties();
-
-            bool hasSkinnedAssigned = _skinnedRendererProp != null && !_skinnedRendererProp.hasMultipleDifferentValues && _skinnedRendererProp.objectReferenceValue != null;
-            bool hasMeshAssigned = _meshFilterProp != null && !_meshFilterProp.hasMultipleDifferentValues && _meshFilterProp.objectReferenceValue != null;
-            bool disableSkinnedField = ShouldDisableRendererField<SkinnedMeshRenderer>() || hasMeshAssigned;
-            bool disableMeshField = ShouldDisableRendererField<MeshFilter>() || hasSkinnedAssigned;
-
-            DrawLanguageSelector();
-            EditorGUILayout.Space();
-            EditorGUILayout.HelpBox(LatticeLocalization.Tr(LocKey.MeshDeformerOverview), MessageType.Info);
-            EditorGUILayout.Space();
-            ReleaseNotificationGUI.Draw();
-
-            using (new EditorGUI.DisabledScope(disableSkinnedField))
-            {
-                EditorGUILayout.PropertyField(_skinnedRendererProp, LatticeLocalization.Content(LocKey.SkinnedMeshSource));
-            }
-
-            using (new EditorGUI.DisabledScope(disableMeshField))
-            {
-                EditorGUILayout.PropertyField(_meshFilterProp, LatticeLocalization.Content(LocKey.StaticMeshSource));
-            }
-
-            serializedObject.ApplyModifiedProperties();
-        }
-
-        private void DrawBottomSection()
-        {
-            if (target == null) return;
-
-            serializedObject.Update();
-            ResolveActiveGroupProperties();
-
-            _rebuildInspector.Draw();
-
-            bool modified = serializedObject.ApplyModifiedProperties();
-            if (modified)
-            {
-                NotifyPropertyChanges();
-            }
-
-            EditorGUILayout.Space();
-
-            bool hasLayers = _layersProp != null && _layersProp.arraySize > 0;
-            using (new EditorGUI.DisabledScope(!hasLayers))
-            {
-                bool openBrushTool = hasLayers && GetSerializedActiveLayerType() == MeshDeformerLayerType.Brush;
-                if (GUILayout.Button(openBrushTool
-                    ? LatticeLocalization.Tr(LocKey.OpenBrushEditor)
-                    : LatticeLocalization.Tr(LocKey.OpenLatticeEditor)))
-                {
-                    MeshDeformerTool.UseDetailedOverlay();
-                    ToolManager.SetActiveTool<MeshDeformerTool>();
-                    LatticePreviewUtility.RequestSceneRepaint();
-                }
-            }
-
-            _supportInspector.Draw();
-        }
 
         private void NotifyPropertyChanges()
         {
@@ -451,24 +516,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     yield return deformer;
                 }
-            }
-        }
-
-        private void DrawLanguageSelector()
-        {
-            int current = (int)LatticeLocalization.CurrentLanguage;
-            int next = EditorGUILayout.Popup(LatticeLocalization.Content(LocKey.ToolLanguage), current, LatticeLocalization.DisplayNames);
-            if (next != current)
-            {
-                next = Mathf.Clamp(next, 0, LatticeLocalization.DisplayNames.Length - 1);
-                LatticeLocalization.CurrentLanguage = (LatticeLocalization.Language)next;
-            }
-
-            bool showTooltips = LatticeLocalization.ShowTooltips;
-            bool newShowTooltips = EditorGUILayout.Toggle(LatticeLocalization.Content(LocKey.ShowTooltips), showTooltips);
-            if (newShowTooltips != showTooltips)
-            {
-                LatticeLocalization.ShowTooltips = newShowTooltips;
             }
         }
 

@@ -7,7 +7,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 {
     /// <summary>
     /// Applies the Mesh Deformer design system (Editor/UI/Styles) to a UI Toolkit tree: the shared
-    /// size tokens, the colour tokens of the current Editor theme, and the component classes.
+    /// size tokens, the colour tokens of the current Editor theme, the component classes and the
+    /// screen layouts built from them.
     /// </summary>
     internal static class MeshDeformerStyles
     {
@@ -21,6 +22,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal static StyleSheet DarkTokens => Load("Tokens.Dark.uss");
         internal static StyleSheet LightTokens => Load("Tokens.Light.uss");
         internal static StyleSheet Components => Load("Components.uss");
+        internal static StyleSheet Layout => Load("Layout.uss");
 
         /// <summary>Applies the styles for the Editor theme the user has selected.</summary>
         internal static void Apply(VisualElement root) => Apply(root, EditorGUIUtility.isProSkin);
@@ -40,6 +42,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             AddOnce(root, Tokens);
             AddOnce(root, themeTokens);
             AddOnce(root, Components);
+            AddOnce(root, Layout);
 
             root.AddToClassList(RootClass);
             root.EnableInClassList(DarkThemeClass, darkTheme);

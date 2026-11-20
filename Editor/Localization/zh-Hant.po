@@ -1456,3 +1456,58 @@ msgstr "儲存資料的移轉資訊不受支援或無效，已停止處理，未
 
 msgid "net.32ba.lattice-deformation-tool.localization.profile-operation-failed"
 msgstr "無法修改 Profile。請檢查儲存的資料和儲存位置。新增時請使用尚未使用的檔案名稱。"
+
+# Editor UI (design system)
+msgid "net.32ba.lattice-deformation-tool.localization.guided-inspector-tab"
+msgstr "簡易"
+
+msgid "net.32ba.lattice-deformation-tool.localization.detailed-inspector-tab"
+msgstr "詳細"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape-example"
+msgstr "例如：調整胸部、袖子、裙子的尺寸"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface-example"
+msgstr "例如：修正穿模、撫平凹陷"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices-example"
+msgstr "例如：手動微調少數幾個點"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-source"
+msgstr "目標網格"
+
+msgid "net.32ba.lattice-deformation-tool.localization.deformation-layers"
+msgstr "變形圖層"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-layer-settings"
+msgstr "所選圖層"
+
+msgid "net.32ba.lattice-deformation-tool.localization.tool-preferences"
+msgstr "語言與顯示"
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-group"
+msgstr "新增群組"
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-layer"
+msgstr "新增圖層"
+
+msgid "net.32ba.lattice-deformation-tool.localization.group-layer-count"
+msgstr "{0} 個圖層"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-visible"
+msgstr "套用此圖層"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-editing"
+msgstr "編輯中"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-badge-lattice"
+msgstr "晶格"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-badge-brush"
+msgstr "畫筆"
+
+msgid "net.32ba.lattice-deformation-tool.localization.scale-linked"
+msgstr "三軸連動中（點擊解除）"
+
+msgid "net.32ba.lattice-deformation-tool.localization.scale-unlinked"
+msgstr "三軸獨立（點擊連動）"

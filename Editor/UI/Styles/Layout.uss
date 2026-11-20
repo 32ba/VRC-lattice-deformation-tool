@@ -1,0 +1,73 @@
+/*
+ * Screen layouts built from the design system components. Components.uss is generated from the
+ * design system; this file only places components and adapts built-in Unity controls.
+ */
+
+/* Inspector */
+.md-inspector { padding-top: var(--md-space-6); }
+.md-inspector__tabs { margin-bottom: var(--md-space-10); }
+.md-inspector__page > * { margin-bottom: var(--md-space-10); }
+.md-inspector__open-editor { height: var(--md-control-lg); }
+.md-inspector__more { margin-top: var(--md-space-4); }
+
+/* かんたん (guided) page */
+.md-guided > * { margin-bottom: var(--md-space-8); }
+.md-guided__intro { white-space: normal; margin-top: -4px; }
+.md-guided__cards > * { margin-bottom: var(--md-space-8); }
+.md-guided__target { flex-direction: row; align-items: center; }
+.md-guided__target > .md-icon { margin-right: var(--md-space-6); }
+
+/* Rows of buttons and toggles */
+.md-button-row { flex-direction: row; }
+.md-button-row > * { margin-right: var(--md-space-6); }
+.md-toggle-row { flex-direction: row; flex-wrap: wrap; }
+.md-toggle-row > Toggle { margin-right: var(--md-space-12); }
+.md-indent { padding-left: var(--md-space-12); }
+.md-foldout__content > * { margin-bottom: var(--md-space-6); }
+.md-layer-settings > * { margin-bottom: var(--md-space-8); }
+.md-layer-settings__fields > * { margin-bottom: var(--md-space-2); }
+.md-linked-field { flex-direction: row; align-items: center; }
+.md-linked-field > Vector3Field { flex-grow: 1; flex-shrink: 1; margin: 0; }
+.md-linked-field > .md-icon-button { margin-right: var(--md-space-4); }
+.md-icon-button--active { background-color: var(--md-row-selected); }
+.md-release > * { margin-bottom: var(--md-space-6); }
+
+/* Group and layer stack */
+.md-stack__label { margin: var(--md-space-4) 0 var(--md-space-4) 0; -unity-font-style: bold; color: var(--md-text-strong); }
+.md-stack__footer { flex-direction: row; justify-content: flex-end; margin-top: var(--md-space-4); }
+.md-stack__footer > * { margin-left: var(--md-space-6); }
+.md-stack-list { border-color: var(--md-border); border-radius: var(--md-radius-sm); background-color: var(--md-bg-inset); }
+.md-stack-list .unity-list-view__item:selected { background-color: transparent; }
+.md-stack-list .unity-list-view__item:hover { background-color: transparent; }
+.md-group-row { padding: var(--md-space-6); border-left-width: 2px; border-color: transparent; }
+.md-group-row--active { border-color: var(--md-row-selected-edge); }
+.md-group-row__name { margin: 0; }
+.md-group-row__layers { margin-top: var(--md-space-6); }
+.md-group-row__summary { margin: var(--md-space-4) 0 0 var(--md-space-4); }
+.md-blendshape { margin-top: var(--md-space-4); }
+.md-blendshape-import { margin-top: var(--md-space-6); }
+
+.md-layer-row { flex-direction: column; align-items: stretch; height: auto; padding: var(--md-space-4) var(--md-space-6); }
+.md-layer-row > * { margin-right: 0; }
+.md-layer-row__line { flex-direction: row; align-items: center; }
+.md-layer-row__line > * { margin-right: var(--md-space-6); }
+.md-layer-row__name-field { flex-grow: 1; flex-shrink: 1; min-width: 40px; margin: 0; }
+.md-layer-row__name-field > .unity-text-field__input { border-color: transparent; background-color: transparent; }
+.md-layer-row__name-field:hover > .unity-text-field__input { border-color: var(--md-border-control); }
+.md-layer-row__name-field:focus > .unity-text-field__input { border-color: var(--md-row-selected-edge); background-color: var(--md-bg-field); }
+.md-layer-row--selected .md-layer-row__name-field > .unity-text-field__input { -unity-font-style: bold; color: var(--md-text-strong); }
+.md-layer-row--hidden .md-layer-row__name-field > .unity-text-field__input { color: var(--md-text-muted); }
+.md-layer-row__weight-slider { margin: var(--md-space-2) 0 0 var(--md-space-12); }
+
+/* Visibility toggle drawn as an eye icon. */
+.md-eye-toggle { margin: 0; }
+.md-eye-toggle .unity-toggle__checkmark {
+    width: 16px;
+    height: 16px;
+    border-width: 0;
+    background-color: transparent;
+    background-image: url("../Icons/eye.png");
+    -unity-background-image-tint-color: var(--md-text-muted);
+    opacity: 0.55;
+}
+.md-eye-toggle:checked .unity-toggle__checkmark { -unity-background-image-tint-color: var(--md-text-strong); opacity: 1; }

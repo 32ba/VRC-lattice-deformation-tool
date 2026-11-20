@@ -1456,3 +1456,58 @@ msgstr "保存データの移行情報が未対応または不正なため、デ
 
 msgid "net.32ba.lattice-deformation-tool.localization.profile-operation-failed"
 msgstr "Profile を変更できませんでした。保存データと保存先を確認してください。新規作成時は未使用のファイル名を指定してください。"
+
+# Editor UI (design system)
+msgid "net.32ba.lattice-deformation-tool.localization.guided-inspector-tab"
+msgstr "かんたん"
+
+msgid "net.32ba.lattice-deformation-tool.localization.detailed-inspector-tab"
+msgstr "詳細"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape-example"
+msgstr "例：胸・袖・スカートのサイズ合わせ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface-example"
+msgstr "例：貫通の修正・へこみをならす"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices-example"
+msgstr "例：一部の点だけを手で微調整"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-source"
+msgstr "対象メッシュ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.deformation-layers"
+msgstr "変形レイヤー"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-layer-settings"
+msgstr "選択中のレイヤー"
+
+msgid "net.32ba.lattice-deformation-tool.localization.tool-preferences"
+msgstr "言語と表示"
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-group"
+msgstr "グループを追加"
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-layer"
+msgstr "レイヤーを追加"
+
+msgid "net.32ba.lattice-deformation-tool.localization.group-layer-count"
+msgstr "{0} レイヤー"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-visible"
+msgstr "このレイヤーを適用する"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-editing"
+msgstr "編集中"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-badge-lattice"
+msgstr "ラティス"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-badge-brush"
+msgstr "ブラシ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.scale-linked"
+msgstr "XYZ を連動中（クリックで解除）"
+
+msgid "net.32ba.lattice-deformation-tool.localization.scale-unlinked"
+msgstr "XYZ を個別に設定（クリックで連動）"
