@@ -51,7 +51,7 @@ English documentation: [README_en.md](README_en.md)
 
 ## 更新
 
-v2 から BOOTH での配布を終了し、VPM でのみ配布しています。新しいバージョンが出ると、`LatticeDeformer` の Inspector に通知が表示されます。
+v2 から BOOTH での配布を終了し、VPM でのみ配布しています。新しいバージョンが出ると、`LatticeDeformer` の Inspector に通知が表示され、[ドキュメント](https://vrc.32ba.net/docs/packages/vrc-lattice-deformation-tool/overview/)を開けます。
 
 1. VCC（または ALCOM などの VPM 対応ツール）で対象プロジェクトを開きます。
 2. [VPM リポジトリ](https://vpm.32ba.net) をまだ追加していない場合は、先に追加します。

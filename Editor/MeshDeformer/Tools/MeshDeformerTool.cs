@@ -61,7 +61,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     VertexSelectionHandler.CurrentHandleOrientation = VertexSelectionHandler.HandleOrientation.Normal;
                     VertexSelectionHandler.CurrentPivotMode = VertexSelectionHandler.PivotMode.Center;
                     VertexSelectionHandler.ProportionalRadius = 0f;
-                    VertexSelectionHandler.BackfaceCulling = false;
+                    // Points on the far side of the mesh stay hidden and unselectable, as in the brush.
+                    VertexSelectionHandler.BackfaceCulling = true;
                 }
                 else
                 {

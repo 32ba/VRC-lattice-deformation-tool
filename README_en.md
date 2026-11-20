@@ -51,7 +51,7 @@ To use a source checkout directly, place the repository under the VCC project's 
 
 ## Updating
 
-From version 2, the package is no longer distributed on BOOTH and is available only through VPM. When a new version is released, a notice appears in the `LatticeDeformer` Inspector.
+From version 2, the package is no longer distributed on BOOTH and is available only through VPM. When a new version is released, a notice appears in the `LatticeDeformer` Inspector with a link to the [documentation](https://vrc.32ba.net/docs/packages/vrc-lattice-deformation-tool/overview/).
 
 1. Open the project in VCC (or another VPM-compatible tool such as ALCOM).
 2. If you have not added the [VPM repository](https://vpm.32ba.net) yet, add it first.

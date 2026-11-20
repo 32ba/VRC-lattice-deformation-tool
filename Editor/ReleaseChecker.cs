@@ -15,9 +15,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         private const string PackageId = "net.32ba.lattice-deformation-tool";
         // From version 2 the package is distributed only through VPM, so the update notice opens
-        // the update instructions in the README of the version being offered.
-        private const string RepositoryBlobUrl = "https://github.com/32ba/VRC-lattice-deformation-tool/blob/";
-        private const string DefaultBranch = "master";
+        // the documentation, which explains how to update.
+        internal const string UpdateGuideUrl = "https://vrc.32ba.net/docs/packages/vrc-lattice-deformation-tool/overview/";
         private const string LastCheckKeyPrefix = "Net32Ba.LatticeDeformationTool.LastVersionCheck";
         private const double CheckIntervalHours = 24.0;
 
@@ -69,31 +68,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         [ExcludeFromCodeCoverage]
         internal static void OpenUpdateGuide()
         {
-            Application.OpenURL(UpdateGuideUrl(LatestVersion, LatticeLocalization.CurrentLanguage));
-        }
-
-        /// <summary>
-        /// The README section that explains how to update. Release tags are named after the version,
-        /// so the README of the offered version is opened; without a usable version the default
-        /// branch is used. Japanese opens README.md, every other language README_en.md.
-        /// </summary>
-        internal static string UpdateGuideUrl(string version, LatticeLocalization.Language language)
-        {
-            string reference = IsTagSafe(version) ? version : DefaultBranch;
-            return language == LatticeLocalization.Language.Japanese
-                ? RepositoryBlobUrl + reference + "/README.md#" + Uri.EscapeDataString("更新")
-                : RepositoryBlobUrl + reference + "/README_en.md#updating";
-        }
-
-        private static bool IsTagSafe(string version)
-        {
-            if (string.IsNullOrEmpty(version) || version.Length > 64 || version.StartsWith(".", StringComparison.Ordinal)) return false;
-            foreach (char c in version)
-            {
-                bool ok = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '.' || c == '-';
-                if (!ok) return false;
-            }
-            return char.IsDigit(version[0]);
+            Application.OpenURL(UpdateGuideUrl);
         }
 
         [ExcludeFromCodeCoverage]

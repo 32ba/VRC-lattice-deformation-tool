@@ -148,7 +148,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 VertexSelectionHandler.CurrentHandleOrientation = VertexSelectionHandler.HandleOrientation.Global;
                 VertexSelectionHandler.CurrentPivotMode = VertexSelectionHandler.PivotMode.LastSelected;
                 VertexSelectionHandler.ProportionalRadius = 0.25f;
-                VertexSelectionHandler.BackfaceCulling = true;
+                VertexSelectionHandler.BackfaceCulling = false;
 
                 MeshDeformerTool.UseSimpleOverlay(fixture.Deformer);
 
@@ -156,7 +156,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(VertexSelectionHandler.CurrentHandleOrientation, Is.EqualTo(VertexSelectionHandler.HandleOrientation.Normal));
                 Assert.That(VertexSelectionHandler.CurrentPivotMode, Is.EqualTo(VertexSelectionHandler.PivotMode.Center));
                 Assert.That(VertexSelectionHandler.ProportionalRadius, Is.Zero);
-                Assert.That(VertexSelectionHandler.BackfaceCulling, Is.False);
+                Assert.That(VertexSelectionHandler.BackfaceCulling, Is.True);
             }
             finally
             {
