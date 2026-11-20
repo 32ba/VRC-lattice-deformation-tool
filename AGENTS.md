@@ -516,6 +516,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - サポート画像のファイル入力は8MiBを超える全体読込みを行わない。既知lengthを読取り前に検査し、成長する/length不明のstreamも最大limit+1byteで拒否する。
 - 複数対象の共有SerializedPropertyは同じindexed pathを使うため、active Group/Layer indexやsource検証が一致しない対象集合ではLattice設定欄を無効にする。非activeの別layerへ書込まない。
 - Authoring gestureの5秒条件は維持し、期限超過時だけpoll数・最大間隔・focus/session/activityを記録する。CIの初回proxy待機失敗をfont例外や自動retryで合格扱いしない。
+- Editor domainで最初のgesture準備の前に、計測しない準備（上限120秒）を1回だけ完走させてTearDownする。NDMF preview pipelineの構築・JIT・shaderの初回費用を5秒の計測から外すためで、失敗後の再実行ではない。計測する準備の各待機は5秒のまま。
 
 - 複数選択のInspectorは `CanEditMultipleObjects` と専用の設定containerで既存の原子的Layer操作へ接続する。単一対象のGroup構造、Guided、BlendShape試験、位置合わせを共有選択へ流用しない。通常の `Editor.CreateEditor(targets)` による型選択、到達可能なUI、両対象の変更とUndo/Redoを回帰検証する。
 

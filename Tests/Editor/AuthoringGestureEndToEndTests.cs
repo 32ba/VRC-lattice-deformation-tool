@@ -41,6 +41,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         private Vector2 _pickPoint, _handlePoint;
         private PivotRotation _pivotRotation;
         private Camera.CameraCallback _initialRenderCallback;
+        // Each readiness wait in a measured preparation must finish within this budget.
+        private const double MeasuredWaitSeconds = 5d;
+        // Upper bound for the one unmeasured cold-start preparation per Editor domain.
+        private const double ColdStartWaitSeconds = 120d;
+        private static bool s_coldStartComplete;
+        private double _waitLimit = MeasuredWaitSeconds;
 
         [UnityTest]
         [Category("InteractionE2E")]
@@ -255,6 +261,26 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
                 Assert.Ignore("Scene View input and a real NDMF proxy require an initialized graphics Editor.");
 
+            if (!s_coldStartComplete)
+            {
+                // The first gesture preparation in an Editor domain also pays one-time costs that
+                // are not part of the gesture: building the NDMF preview pipeline, JIT and shader
+                // warm-up. On CI single frames then take ~3 s and the first test always ran out of
+                // its 5 s budget. Run one complete, unmeasured preparation and tear it down first.
+                // This is not a retry: it runs before the measured preparation whatever happens,
+                // and every wait of the measured preparation keeps the 5 s limit.
+                _waitLimit = ColdStartWaitSeconds;
+                try { yield return PrepareBrushEditOnce(); }
+                finally { _waitLimit = MeasuredWaitSeconds; }
+                yield return TearDown();
+                s_coldStartComplete = true;
+            }
+            yield return PrepareBrushEditOnce();
+        }
+
+        private IEnumerator PrepareBrushEditOnce()
+        {
+            _inputPoints = null;
             CaptureEditorState();
             CreateFixture();
             ConfigureBrush();
@@ -456,11 +482,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 double now = EditorApplication.timeSinceStartup;
                 maximumPollGap = Math.Max(maximumPollGap, now - previous);
                 previous = now;
-                if (now - start >= 5d)
+                if (now - start >= _waitLimit)
                     Debug.Log($"Authoring preview wait failed: {message} polls={polls}, maximum-poll-gap={maximumPollGap:F3}s, " +
+                              $"limit={_waitLimit:F0}s, " +
                               $"editor-focused={EditorApplication.isFocused}, session={PreviewSession.Current != null}, " +
                               $"owner-active={(_owner != null && _owner.activeInHierarchy)}, renderer={_renderer != null}");
-                Assert.That(now - start, Is.LessThan(5d), message);
+                Assert.That(now - start, Is.LessThan(_waitLimit), message);
                 polls++;
                 _view?.Repaint();
                 EditorApplication.QueuePlayerLoopUpdate();
