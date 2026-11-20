@@ -5,7 +5,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
 {
     /// <summary>
     /// Settings for weight transfer operations.
-    /// Based on "Robust Skin Weights Transfer via Weight Inpainting" (SIGGRAPH Asia 2023).
+    /// The two-stage workflow is inspired by "Robust Skin Weights Transfer via Weight Inpainting"
+    /// (SIGGRAPH Asia 2023); Stage 2 uses a cotangent harmonic approximation, not the paper's
+    /// full formulation.
     /// </summary>
     [Serializable]
     public class WeightTransferSettings

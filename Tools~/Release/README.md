@@ -15,7 +15,7 @@ Git archiveの呼出しでは`core.autocrlf=false`と`core.eol=lf`を指定し�
 
 Tests、Tools~、AGENTS、隠しファイル、Docs~/Architectureは配布しない。Unityが無視する~ directoryのファイルは従来のexporterと同じくZIPだけに含み、reportへ一覧を出す。READMEのロゴと開発状況は公開versionのGitHub tagを参照するため、tag公開前のURL到達性は保証しない。
 
-UnityPackageは既存の固定exporterと同じGUID directory内のasset.meta・pathname・非folderのassetを保存する。空folderのGUIDも保持する。参考: [既存actionの実装](https://github.com/pCYSl5EDgo/create-unitypackage/blob/b5c57408698b1fab8b3a84d4b67f767b8b7c0be9/src/index.ts)と、そのlockfileのunitypackage 1.0.8。
+UnityPackageは既存の固定exporterと同じGUID directory内のasset.meta・pathname・非folderのassetを保存する。空folderのGUIDも保持する。互換性の確認先は、1.x系のリリースworkflowが使っていた[create-unitypackage action](https://github.com/pCYSl5EDgo/create-unitypackage/blob/b5c57408698b1fab8b3a84d4b67f767b8b7c0be9/src/index.ts)（lockfileのunitypackage 1.0.8）の出力である。出力形式を合わせているだけで、`package_release.py`はこのリポジトリ独自の実装である。
 
 workflow_dispatchのpublishは既定false。falseでは生成・内容検査・Actions artifact保持だけを行い、tag/Release/VPMを書き換えない。trueは別の公開操作であり、最終の実機・通常更新・CI検証と利用者の公開承認後にのみ実行する。beta等のSemVer prerelease identifierがある場合はGitHub Releaseもprereleaseにする。build metadata中のhyphenはprereleaseと扱わない。
 

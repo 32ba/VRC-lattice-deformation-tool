@@ -106,3 +106,4 @@ Groups that deform vertices directly and Groups that output BlendShapes can coex
 ## License
 
 This package is provided under the MIT License. See [LICENSE](LICENSE) for details.
+The license of the bundled icons (Tabler Icons) and the paper the weight transfer draws on are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -106,3 +106,4 @@ English documentation: [README_en.md](README_en.md)
 ## ライセンス
 
 本パッケージは MIT License で提供されています。詳細は [LICENSE](LICENSE) を参照してください。
+同梱しているアイコン（Tabler Icons）のライセンスと、参考にした論文は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) に記載しています。

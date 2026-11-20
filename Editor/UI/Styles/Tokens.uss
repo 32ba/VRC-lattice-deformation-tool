@@ -1,4 +1,5 @@
-/* Generated from the Mesh Deformer Design System tokens.json. Edit the design system, then regenerate. */
+/* Generated from tokens.json of this project's own Mesh Deformer Design System (maintained outside this
+   repository). Edit the design system, then regenerate. */
 .md-root {
     --md-space-2: 2px;
     --md-space-4: 4px;

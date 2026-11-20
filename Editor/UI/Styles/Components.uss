@@ -1,6 +1,7 @@
 /*
  * Mesh Deformer Design System components for UI Toolkit.
- * Source: the design system's components/bundle.css. Class names are the same; what USS lacks is replaced:
+ * Source: components/bundle.css of this project's own Mesh Deformer Design System (maintained outside
+ * this repository). Class names are the same; what USS lacks is replaced:
  * gap -> child margins, ::after -> a child element, :focus-visible -> :focus, box-shadow -> none.
  * Colours and sizes come from Tokens.uss and Tokens.Dark.uss / Tokens.Light.uss (MeshDeformerStyles.Apply).
  */
