@@ -1,6 +1,8 @@
 #if UNITY_EDITOR
 using System;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Text;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -52,13 +54,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (_signature != string.Empty) { _root.Clear(); _signature = string.Empty; }
                 return;
             }
-            var property = SettingsProperty(out bool editable);
+            // Only cheap reads here: this runs on every Inspector refresh, including during strokes.
+            // The edit guard hashes source topology, so it is evaluated only when this key changes.
             string signature = string.Join("|", LatticeLocalization.CurrentLanguage, _owner.targets.Length,
-                raw.ActiveGroupIndex, raw.ActiveLayerIndex, layer.Type, editable, property?.propertyPath,
-                layer.SerializedSettings != null, PendingGrid.TryGet(Target, out _));
+                raw.ActiveGroupIndex, raw.ActiveLayerIndex, layer.Type,
+                layer.SerializedSettings != null ? RuntimeHelpers.GetHashCode(layer.SerializedSettings) : 0,
+                PendingGrid.TryGet(Target, out _), OwnersKey());
             if (signature != _signature)
             {
                 _signature = signature;
+                var property = SettingsProperty(out bool editable);
                 Build(raw, layer, property, editable);
             }
             RefreshLive(layer);
@@ -107,6 +112,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (_scaleField != null && _manualScaleProp != null &&
                 !IsWithin(_scaleField.focusController?.focusedElement as VisualElement, _scaleField))
                 _scaleField.SetValueWithoutNotify(_manualScaleProp.vector3Value);
+        }
+
+        private string OwnersKey()
+        {
+            var key = new StringBuilder();
+            foreach (var owner in Targets())
+            {
+                if (!LayerSettingsEdit.TryReadActive(owner, out var data, out var active)) { key.Append("x;"); continue; }
+                var source = data.SourceMesh;
+                var displayed = data.SkinnedRenderer != null ? data.SkinnedRenderer.sharedMesh
+                    : data.MeshFilter != null ? data.MeshFilter.sharedMesh : null;
+                key.Append(owner.GetInstanceID()).Append(',').Append(data.DataSource).Append(',')
+                    .Append(displayed != null ? displayed.GetInstanceID() : 0).Append(',')
+                    .Append(source != null ? source.GetInstanceID() : 0).Append(',')
+                    .Append(source != null ? source.vertexCount : 0).Append(',')
+                    .Append(data.ActiveGroupIndex).Append(',').Append(data.ActiveLayerIndex).Append(',')
+                    .Append(active.Type).Append(',').Append(active.SerializedSettings != null).Append(';');
+            }
+            return key.ToString();
         }
 
         private static bool IsWithin(VisualElement element, VisualElement container)

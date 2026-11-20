@@ -40,6 +40,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private PropertyField _skinnedSourceField, _staticSourceField;
         private Button _openEditorButton;
         private IVisualElementScheduledItem _refreshTicker;
+        private bool _refreshRequested = true;
+        private double _nextFallbackRefresh;
+        // State that can change outside this Inspector (preview toggle, release check) is re-read
+        // at this interval even without a serialized change.
+        private const double FallbackRefreshInterval = 1.0;
         private GuidedInspectorSection _guidedInspector;
         internal GuidedInspectorSection GuidedInspector => _guidedInspector;
 
@@ -116,7 +121,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             MeshDeformerStyles.Apply(_root);
             _root.AddToClassList("md-inspector");
             BuildContent();
-            _refreshTicker = _root.schedule.Execute(RefreshInspector).Every(250);
+            _refreshTicker = _root.schedule.Execute(OnRefreshTick).Every(250);
             _root.RegisterCallback<DetachFromPanelEvent>(_ => _refreshTicker?.Pause());
             _root.RegisterCallback<AttachToPanelEvent>(_ => _refreshTicker?.Resume());
             return BindInspector(_root);
@@ -248,6 +253,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 ReleaseChecker.OpenReleasePage, "md-button--small"));
         }
 
+        private void RequestRefresh() => _refreshRequested = true;
+
+        private void OnRefreshTick()
+        {
+            double now = EditorApplication.timeSinceStartup;
+            if (!_refreshRequested && now < _nextFallbackRefresh) return;
+            _refreshRequested = false;
+            _nextFallbackRefresh = now + FallbackRefreshInterval;
+            RefreshInspector();
+        }
+
         /// <summary>
         /// Resyncs state-dependent parts with the target. Every part only reads here; the sections
         /// rebuild themselves only when what they show has changed.
@@ -296,7 +312,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 CheckAndRebuildLayers();
                 NotifyPropertyChanges();
-                RefreshInspector();
+                // Brush strokes change the target every frame; refresh on the next tick only.
+                RequestRefresh();
             });
             root.Bind(serializedObject);
 
@@ -335,7 +352,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             ResolveActiveGroupProperties();
             RebuildGroupList();
             NotifyPropertyChanges(true);
-            RefreshInspector();
+            RequestRefresh();
         }
 
         // Historical tests use this internal entry; normal UI calls the authoring service.
@@ -347,7 +364,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             ResolveActiveGroupProperties();
             NotifyPropertyChanges(true);
-            RefreshInspector();
+            RequestRefresh();
         }
         private void OnBlendShapeImported()
         {
