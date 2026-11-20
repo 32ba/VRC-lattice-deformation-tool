@@ -105,6 +105,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void OnLanguageChanged()
         {
             // Labels are baked into the elements, so rebuild the content in the new language.
+            if (_root != null) MeshDeformerStyles.Apply(_root);
             if (_root != null && target != null) BuildContent();
             RebuildLayerList();
         }

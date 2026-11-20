@@ -18,7 +18,7 @@
     --md-border-subtle: #b3b3b3;
     --md-text: #111111;
     --md-text-strong: #000000;
-    --md-text-muted: #474747;
+    --md-text-muted: #383838;
     --md-text-on-key: #f0f0f0;
     --md-accent: #2e6db4;
     --md-accent-border: #245a96;

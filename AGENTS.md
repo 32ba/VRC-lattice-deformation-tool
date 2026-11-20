@@ -13,7 +13,7 @@ Lattice Deformation Tool は Unity 6 向けのエディタ拡張で（2.x系はU
 │   ├── MeshDeformer/    # Authoring / Tools / UI / Validation / Build / Preview
 │   │   └── WeightTransfer/ # ボーンウェイト転写とBurst solver
 │   ├── Preview/         # Preview sessionとMeshの所有・終了処理
-│   ├── UI/              # デザインシステムのUSS（Styles/）、白一色のアイコン（Icons/）、MeshDeformerStyles
+│   ├── UI/              # デザインシステムのUSS（Styles/）、白一色のアイコン（Icons/）、MeshDeformerStyles、MeshDeformerFonts
 │   ├── Legacy/          # 旧Brushの検出とEditor移行
 │   ├── Localization/    # 5言語のUIテキスト
 │   ├── Support/         # 診断と更新情報
@@ -264,6 +264,7 @@ VRChat アバターの対称ワークフロー向けのレイヤー操作機能�
 - `Tokens.uss`（寸法・余白・角丸・文字サイズ）、`Tokens.Dark.uss`／`Tokens.Light.uss`（色）はデザインシステムの tokens.json から生成する。変数名は `--md-<トークン名>`。手で値を足さず、デザインシステムを直してから生成し直す
 - `Components.uss` はデザインシステムの components/bundle.css を元にした部品のクラス（`.md-button`、`.md-segmented`、`.md-switch` など）。USS にない `gap`、`:first-child`／`:last-child`、`::after`、`:focus-visible`、`box-shadow` は使わず、子要素の margin、子要素、`:focus` で置き換える
 - UI Toolkit の画面は `MeshDeformerStyles.Apply(root)` で、共通トークン、Editor テーマ（`EditorGUIUtility.isProSkin`）の色トークン、部品をまとめて当てる。テーマ切り替えで呼び直してもシートは重複しない
+- 文字は `MeshDeformerFonts` が表示言語ごとの候補（Web の font-family と同じ考え方）から、インストール済みのフォントを Editor の英字フォント（Inter）の後ろに予備として並べる。Unity 標準の予備（Windows では Yu Gothic UI）は細いため。候補が1つもなければ Editor の標準のまま。Editor 自身のフォントアセットは書き換えない。言語を変えたら `MeshDeformerStyles.Apply` を呼び直す
 - アイコンは `Editor/UI/Icons/` の白一色の 64px PNG（24px グリッド、線幅 1.75 の線画）。USS の `.md-icon--<名前>` で読み込み、`-unity-background-image-tint-color` で文脈の色に染める
 - 状態の見分け（セグメントの選択中、トグルのオン／オフ、フォーカス、入力欄の枠）は両テーマで 3:1 以上、文字は 4.5:1 以上。色を変えたら組み合わせを計算し直す
 - `Layout.uss` は部品の配置と Unity 標準コントロールの調整だけを書く（Inspector、かんたん画面、Group/Layer 一覧、オーバーレイ）。部品そのものの見た目は `Components.uss` 側で直す

@@ -8,7 +8,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     /// <summary>
     /// Applies the Mesh Deformer design system (Editor/UI/Styles) to a UI Toolkit tree: the shared
     /// size tokens, the colour tokens of the current Editor theme, the component classes and the
-    /// screen layouts built from them.
+    /// screen layouts built from them, plus the per-language font stack (MeshDeformerFonts).
     /// </summary>
     internal static class MeshDeformerStyles
     {
@@ -47,6 +47,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             root.AddToClassList(RootClass);
             root.EnableInClassList(DarkThemeClass, darkTheme);
             root.EnableInClassList(LightThemeClass, !darkTheme);
+            MeshDeformerFonts.Apply(root);
         }
 
         private static void AddOnce(VisualElement root, StyleSheet sheet)

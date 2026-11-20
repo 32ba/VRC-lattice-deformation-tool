@@ -234,6 +234,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void OnLanguageChanged()
         {
             displayName = LatticeLocalization.Tr(LocKey.MeshDeformer);
+            if (_root != null) MeshDeformerFonts.Apply(_root);
             _signature = null;
         }
 
