@@ -54,7 +54,12 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         {
             var installed = MeshDeformerFonts.CandidatesFor(LatticeLocalization.Language.Japanese)
                 .FirstOrDefault(c => MeshDeformerFonts.CreateStack(new[] { c }) != null);
-            if (installed.Family == null) Assert.Ignore("No Japanese UI font is installed on this machine.");
+            if (installed.Family == null)
+            {
+                // CI images have no CJK fonts: the whole list then yields no stack, keeping the Editor default.
+                Assert.That(MeshDeformerFonts.CreateStack(MeshDeformerFonts.CandidatesFor(LatticeLocalization.Language.Japanese)), Is.Null);
+                return;
+            }
 
             var stack = MeshDeformerFonts.CreateStack(new[] { new MeshDeformerFonts.Candidate("Mesh Deformer Missing Font 0f3a"), installed });
 
@@ -91,7 +96,11 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             var root = new VisualElement();
             MeshDeformerStyles.Apply(root, true);
             var expected = MeshDeformerFonts.StackFor(LatticeLocalization.CurrentLanguage);
-            if (expected == null) Assert.Ignore("No candidate font is installed on this machine.");
+            if (expected == null)
+            {
+                Assert.That(root.style.unityFontDefinition.keyword, Is.EqualTo(StyleKeyword.Null));
+                return;
+            }
             Assert.That(root.style.unityFontDefinition.value.fontAsset, Is.SameAs(expected));
         }
 
