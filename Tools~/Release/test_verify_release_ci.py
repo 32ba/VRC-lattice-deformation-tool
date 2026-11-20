@@ -25,12 +25,17 @@ class ReleaseCiTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             verify_jobs(candidate, SHA)
 
-    def test_requires_exactly_two_shipping_editor_jobs(self):
+    def test_requires_the_unity6_shipping_editor_job(self):
         self.assertEqual(REQUIRED_JOBS, {
             'Package archives',
-            'EditMode Tests (2022.3.22f1)',
             'EditMode Tests (6000.0.67f1)',
         })
+
+    def test_dropped_unity2022_job_does_not_satisfy_release(self):
+        candidate = run(jobs=[dict(name=name, status='completed', conclusion='success')
+                              for name in ('Package archives', 'EditMode Tests (2022.3.22f1)')])
+        with self.assertRaises(ValueError):
+            verify_jobs(candidate, SHA)
 
     def test_old_four_configuration_jobs_cannot_replace_shipping_jobs(self):
         candidate = run(jobs=[dict(name='Package archives', status='completed', conclusion='success')] + [

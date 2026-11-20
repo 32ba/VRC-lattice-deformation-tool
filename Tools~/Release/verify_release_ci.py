@@ -6,7 +6,7 @@ import subprocess
 
 REQUIRED_JOBS = {'Package archives'} | {
     f'EditMode Tests ({version})'
-    for version in ('2022.3.22f1', '6000.0.67f1')
+    for version in ('6000.0.67f1',)  # The 2.x line ships for Unity 6 only.
 }
 
 
