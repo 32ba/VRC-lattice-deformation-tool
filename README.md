@@ -7,7 +7,7 @@
 
 # Lattice Deformation Tool
 
-Unity 内で `MeshRenderer` / `SkinnedMeshRenderer` の形状をレイヤーとして調整し、NDMF Preview とビルド時 Bake へ非破壊で反映する Unity 2022.3 以降向けエディタ拡張です。ラティスだけでなく、ブラシ、頂点選択、マスク、BlendShape 入出力を1つのワークフローで扱えます。
+Unity 内で `MeshRenderer` / `SkinnedMeshRenderer` の形状をレイヤーとして調整し、NDMF Preview とビルド時 Bake へ非破壊で反映する Unity 6 向けエディタ拡張です。ラティスだけでなく、ブラシ、頂点選択、マスク、BlendShape 入出力を1つのワークフローで扱えます。
 
 衣装・髪・アクセサリのフィット調整、貫通箇所の手動修正、形状差分の BlendShape 化などに利用できます。元の Mesh アセットは変更しません。
 
@@ -35,9 +35,9 @@ English documentation: [README_en.md](README_en.md)
 
 ## 対応対象と必要環境
 
-- Unity 2022.3 LTS 以降
+- Unity 6 (6000.0) 以降（2.x系はUnity 6専用です。Unity 2022.3では1.x系を使用してください）
 - `MeshFilter` + `MeshRenderer`、または `SkinnedMeshRenderer`
-- NDMF (`nadena.dev.ndmf`) 1.14.8 以降
+- NDMF (`nadena.dev.ndmf`) 1.15.0 以降
 - VRChat Creator Companion（VPM から導入する場合に推奨）
 
 ## 導入

@@ -9,9 +9,8 @@ name: Test
 # NDMF treats plugins that declare no platform as VRChat-avatar-only, so the bake pass is
 # skipped as "Incompatible" without it and MeshDeformerValidatorTests fails.
 # Test only the feature state shipped to end users; CI does not enable hidden features.
-# Each editor uses a fresh project and isolated Library cache. Unity 6 is a package
-# compatibility target, not a claim of VRChat SDK authoring/upload support.
-# LATTICE_VRCSDK3_AVATAR comes from the asmdef versionDefines in both Editors.
+# The 2.x line supports Unity 6 only. The job uses a fresh project and an isolated Library cache.
+# LATTICE_VRCSDK3_AVATAR comes from the asmdef versionDefines.
 #
 # Required repository secrets (GameCI unity-test-runner v4):
 #   Unity Personal license  : UNITY_LICENSE (contents of the .ulf activation file), UNITY_EMAIL, UNITY_PASSWORD
@@ -53,7 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        unityVersion: [2022.3.22f1, 6000.0.67f1]
+        unityVersion: [6000.0.67f1]
     permissions:
       contents: read
     steps:
@@ -164,13 +163,12 @@ jobs:
       # All versions are pinned so a CI failure always points at this repository.
       - name: Install VPM Packages
         env:
-          # Fixed SDK compatibility fixture. Its "unity": "2022.3" declaration matches
-          # VRChat authoring support (https://creators.vrchat.com/sdk/upgrade/current-unity-version/).
-          # vrc-get warns about Unity 6; that entry is isolated package testing only.
+          # Fixed SDK fixture. 3.11.0-beta.1 is the first VRChat SDK that declares
+          # "unity": "6000.0" (checked against the official listing on 2026-11-20).
           # com.vrchat.base is pulled in as a vpmDependency of com.vrchat.avatars.
-          VRCHAT_SDK_VERSION: 3.10.5
-          # Stable dependency refresh for 2.0, checked against official feeds on 2026-09-08.
-          NDMF_VERSION: 1.14.8
+          VRCHAT_SDK_VERSION: 3.11.0-beta.1
+          # Matches the package's minimum (vpmDependencies nadena.dev.ndmf >=1.15.0).
+          NDMF_VERSION: 1.15.0
           # Setup Outfit is part of the customer workflow covered by the hotfix regression test.
           MODULAR_AVATAR_VERSION: 1.18.7
           # The real preview graph test uses Remove Mesh In Box as a topology-changing

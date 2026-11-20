@@ -1,6 +1,6 @@
 # CIの出荷状態検証
 
-`test.yml` は出荷時の機能フラグ状態のままUnity 2022.3.22f1と6000.0.67f1でEditMode suiteを実行する（2 job）。無効な次期機能はCIで強制有効化せず、機能構成を分けた追加jobを作らない。機能を正式有効化する判断とは別の方針であり、製品のフラグは変更しない。Library cacheと結果artifactの名前はEditorごとに分ける。cache keyのshipping prefixにより以前の機能構成cacheを再利用しない。
+`test.yml` は出荷時の機能フラグ状態のままUnity 6000.0.67f1でEditMode suiteを実行する（2.x系はUnity 6専用）。無効な次期機能はCIで強制有効化せず、機能構成を分けた追加jobを作らない。機能を正式有効化する判断とは別の方針であり、製品のフラグは変更しない。Library cacheと結果artifactの名前はEditorごとに分ける。cache keyのshipping prefixにより以前の機能構成cacheを再利用しない。
 
 最初のwarmupでVRChat設定が確定し、Editorが終了してから同じ出荷設定で本試験を実行する。ProjectSettingsの機能defineを書き換える手順はない。
 

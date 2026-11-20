@@ -4,7 +4,7 @@
 
 ## プロジェクト概要
 
-Lattice Deformation Tool は Unity 2022.3 以降向けのエディタ拡張で、VRChat アバターやワールドのメッシュに対して非破壊的なラティス変形を提供します。NDMF (Non-Destructive Modular Framework) と連携し、ビルド時にのみ変形を適用します。
+Lattice Deformation Tool は Unity 6 向けのエディタ拡張で（2.x系はUnity 6専用。Unity 2022.3は1.x系）、VRChat アバターやワールドのメッシュに対して非破壊的なラティス変形を提供します。NDMF (Non-Destructive Modular Framework) と連携し、ビルド時にのみ変形を適用します。
 
 ## プロジェクト構造
 
@@ -261,6 +261,10 @@ VRChat アバターの対称ワークフロー向けのレイヤー操作機能�
 
 - プレビュー機能は `IRenderFilter` を実装
 - プレビューはソース BlendShape の Weight だけが変化した場合にプロキシ Mesh を in-place 更新し、終了時は upstream から受け取ったプロキシ Mesh を Renderer に復元する
+- in-place 更新は `EditorUtility.CopySerialized` の直後に `mesh.vertices` を書き戻す。CopySerialized はRendererへ変更を通知しないため、SkinnedMeshRenderer は次のNDMF再構築まで旧形状を描き続ける
+- `PublishInteractiveDeformation` は所有Meshを即時更新し、NDMFへのinteractive revision発行だけを合流させる（連続編集の初回は即時、以降は0.12秒の停止か最大0.5秒ごと）。revision発行はアバター全体の世代再構築（約200ms）を起こすため、drag eventごとに発行しない
+- interactive revisionだけで無効化されたノードは `PreviewNode.Refresh` で再利用する。source mesh・mesh transform・Profileは別の構造用 `ComputeContext` で監視し、それらやupstream入力・検証結果が変わった場合だけ `Instantiate` で作り直す
+- revisionを発行しない編集経路（`Deform` と再描画だけの経路）は `OnFrameGroup` で差分を検出し、`ScheduleInteractiveRevisionSync` で後段フィルタへ伝える
 - ビルドパイプラインは NDMF プラグインとして登録
 - 変形処理は非破壊的に行い、元メッシュは変更しない
 - ボーンウェイト再計算はビルド時に自動実行（オプション）
@@ -296,13 +300,13 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 このプロジェクトは Unity パッケージとして提供されます。テストするには：
 
-1. Unity 2022.3 以降で VCC プロジェクトを開く
+1. Unity 6 (6000.0) 以降で VCC プロジェクトを開く
 2. パッケージを `Packages/` フォルダに配置または VPM 経由でインストール
-3. NDMF 1.14.8 以降が必要
+3. NDMF 1.15.0 以降が必要
 
 ### CI
 
-- `.github/workflows/test.yml` が pull request と master への push で EditMode テストを実行する。GameCI の `unity-test-runner` が Unity 2022.3.22f1 / 6000.0.67f1 の隔離jobで `ci-project/` を組み立て、`net.32ba.lattice-deformation-tool.tests.editor` と `...tests.editor.vrchat` を走らせる
+- `.github/workflows/test.yml` が pull request と master への push で EditMode テストを実行する。GameCI の `unity-test-runner` が Unity 6000.0.67f1 の隔離jobで `ci-project/` を組み立て、`net.32ba.lattice-deformation-tool.tests.editor` と `...tests.editor.vrchat` を走らせる
 - `ci-project/` には vrc-get で VRChat SDK（`com.vrchat.avatars`）、NDMF、Avatar Optimizer（`com.anatawa12.avatar-optimizer`）を VPM から導入し、実際の VCC プロジェクトを再現する。バージョンは workflow 内で固定。VRChat SDK がないと NDMF がプラグインを VRChat アバター専用とみなして bake pass を Incompatible でスキップするため、`MeshDeformerValidatorTests` が失敗する。AAO がないとユーザー環境と plugin set が乖離し、`RealPreviewPipelineEndToEndTests` も AAO 不在で Ignore になる
 - Scripting Define は追加しない。`LATTICE_VRCSDK3_AVATAR` は asmdef の versionDefines 由来なのでクリーン構成のまま有効になる
 - VRChat SDK の `EnvConfig` は初回起動時に API Compatibility Level と Scripting Define Symbols を書き換えてスクリプト再コンパイルを要求する。バッチモードのテスト実行中は assembly reload がロックされているためこの要求は保留のままとなり、`EditorApplication.isCompiling` が実行中ずっと true になって Prefab Mode の退出やシーン切り替えが Unity に拒否される。workflow はこれを避けるため、本番のテスト実行前に軽量なテスト1本だけの warm-up 実行を挟んで ProjectSettings を settled にしている
@@ -450,7 +454,7 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 
 - CIの必須Category検証は `Tools~/Assert-TestResults.ps1` でNUnit suiteからの継承も含めてcase単位に数える。`Tools~/Test-AssertTestResults.ps1` は継承・重複・欠落・Skippedを検査する。Category付きテストを増減した際は `.github/workflows/test.yml` の期待件数を実XMLで照合する。
 
-- CIは出荷時の機能フラグ状態のままUnity 2022.3.22f1 / 6000.0.67f1の2 jobを実行する。無効な次期機能をCIで強制有効化せず、機能構成のmatrix軸やProjectSettingsへのdefine書込みを追加しない。`Tools~/CI/feature_configuration.py` は結果XMLから出荷状態のmarkerだけを読取り検証する。Library cacheとartifactはEditorごとに分け、旧機能構成cacheを再利用しない。Test Frameworkは2022で1.4.6、Unity 6で1.6.0を明示し、組込みpackageの解決差はpackages-lock.jsonへ記録する。Unity 6はpackageの先行互換性検証であり、VRChat SDK制作対応とは区別する。既存利用者projectをUnity 6で開いて移行しない。
+- CIは出荷時の機能フラグ状態のままUnity 6000.0.67f1の1 jobを実行する（2.x系はUnity 6専用。VRChat SDKはUnity 6を宣言する最初の版 3.11.0-beta.1 を固定し、package.jsonの依存には加えない）。無効な次期機能をCIで強制有効化せず、機能構成のmatrix軸やProjectSettingsへのdefine書込みを追加しない。`Tools~/CI/feature_configuration.py` は結果XMLから出荷状態のmarkerだけを読取り検証する。Library cacheとartifactはEditorごとに分け、旧機能構成cacheを再利用しない。Test FrameworkはUnity 6で1.6.0を明示し、組込みpackageの解決差はpackages-lock.jsonへ記録する。過去リリースfixtureの生成は当時のRuntimeを再現するため引き続きUnity 2022.3.22f1を使う。
 
 - CIのwarmup後も機能defineは書き換えない。配布時のGit archiveは呼出し単位で改行変換を固定し、Windowsのcore.autocrlf設定を配布内容へ持ち込まない。
 

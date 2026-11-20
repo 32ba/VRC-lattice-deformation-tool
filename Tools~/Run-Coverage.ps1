@@ -1,6 +1,6 @@
 param(
     [string]$ProjectPath,
-    [string]$UnityPath = "C:\Program Files\Unity\Hub\Editor\2022.3.22f1\Editor\Unity.exe",
+    [string]$UnityPath = "C:\Program Files\Unity\Hub\Editor\6000.0.67f1\Editor\Unity.exe",
     [string]$ResultsPath,
     [string]$TestResultsPath,
     [int]$MinimumTestTotal = 900,

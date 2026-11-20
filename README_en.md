@@ -7,7 +7,7 @@
 
 # Lattice Deformation Tool
 
-A Unity 2022.3+ editor extension for adjusting `MeshRenderer` and `SkinnedMeshRenderer` geometry as layers, with non-destructive NDMF Preview and build-time baking. It brings lattice, brush, vertex selection, masking, and BlendShape I/O into one workflow.
+A Unity 6 editor extension for adjusting `MeshRenderer` and `SkinnedMeshRenderer` geometry as layers, with non-destructive NDMF Preview and build-time baking. It brings lattice, brush, vertex selection, masking, and BlendShape I/O into one workflow.
 
 Use it for fitting clothing, hair, and accessories, manually correcting intersections, or turning a shape adjustment into a BlendShape. The original Mesh asset is never modified.
 
@@ -35,9 +35,9 @@ Existing Profile, Mask, and advanced BlendShape data can still be loaded and eva
 
 ## Supported targets and requirements
 
-- Unity 2022.3 LTS or later
+- Unity 6 (6000.0) or later (the 2.x line supports Unity 6 only; use 1.x on Unity 2022.3)
 - `MeshFilter` + `MeshRenderer`, or `SkinnedMeshRenderer`
-- NDMF (`nadena.dev.ndmf`) 1.14.8 or later
+- NDMF (`nadena.dev.ndmf`) 1.15.0 or later
 - VRChat Creator Companion (recommended when installing through VPM)
 
 ## Installation

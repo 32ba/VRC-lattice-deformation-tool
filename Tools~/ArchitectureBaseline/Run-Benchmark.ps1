@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory)][string]$ProjectPath,
     [Parameter(Mandatory)][string]$OutputPath,
     [Parameter(Mandatory)][string]$Commit,
-    [string]$UnityPath = 'C:\Program Files\Unity\Hub\Editor\2022.3.22f1\Editor\Unity.exe',
+    [string]$UnityPath = 'C:\Program Files\Unity\Hub\Editor\6000.0.67f1\Editor\Unity.exe',
     [int]$Samples = 15,
     [int]$MaxPrivateMb = 6144,
     [int]$TimeoutSeconds = 600,
