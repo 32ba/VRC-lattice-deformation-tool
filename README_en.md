@@ -49,6 +49,17 @@ Existing Profile, Mask, and advanced BlendShape data can still be loaded and eva
 
 To use a source checkout directly, place the repository under the VCC project's `Packages` directory.
 
+## Updating
+
+From version 2, the package is no longer distributed on BOOTH and is available only through VPM. When a new version is released, a notice appears in the `LatticeDeformer` Inspector.
+
+1. Open the project in VCC (or another VPM-compatible tool such as ALCOM).
+2. If you have not added the [VPM repository](https://vpm.32ba.net) yet, add it first.
+3. Select the new version of **Lattice Deformation Tool** in the package list.
+4. To update to a beta, enable Show Pre-release Packages in the VCC settings.
+
+If you installed the BOOTH version from a unitypackage or zip, back up the project, delete `Packages/net.32ba.lattice-deformation-tool`, and reinstall it through VPM, so the package is not installed twice.
+
 ## Basic workflow
 
 1. On the **Simple** tab of the `LatticeDeformer` Inspector, choose what you want to do.

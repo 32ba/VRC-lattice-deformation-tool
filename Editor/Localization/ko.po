@@ -1374,8 +1374,11 @@ msgstr "새 버전을 사용할 수 있습니다"
 msgid "net.32ba.lattice-deformation-tool.localization.update-current-to-latest"
 msgstr "현재: {0}  최신: {1}"
 
-msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
-msgstr "BOOTH 상품 페이지 열기"
+msgid "net.32ba.lattice-deformation-tool.localization.update-via-vpm"
+msgstr "VCC 등 VPM을 지원하는 도구에서 업데이트하세요. 버전 2부터 BOOTH 배포는 종료되었습니다."
+
+msgid "net.32ba.lattice-deformation-tool.localization.update-open-guide"
+msgstr "업데이트 방법 보기"
 
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition"
 msgstr "프레임 합성"

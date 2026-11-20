@@ -49,6 +49,17 @@ English documentation: [README_en.md](README_en.md)
 
 リポジトリを直接利用する場合は、VCC プロジェクトの `Packages` 以下へ配置してください。
 
+## 更新
+
+v2 から BOOTH での配布を終了し、VPM でのみ配布しています。新しいバージョンが出ると、`LatticeDeformer` の Inspector に通知が表示されます。
+
+1. VCC（または ALCOM などの VPM 対応ツール）で対象プロジェクトを開きます。
+2. [VPM リポジトリ](https://vpm.32ba.net) をまだ追加していない場合は、先に追加します。
+3. パッケージ一覧の **Lattice Deformation Tool** で新しいバージョンを選びます。
+4. ベータ版へ更新する場合は、VCC の設定でプレリリース版の表示（Show Pre-release Packages）を有効にします。
+
+BOOTH 版を unitypackage や zip で導入していた場合は、プロジェクトをバックアップしてから `Packages/net.32ba.lattice-deformation-tool` を削除し、VPM で導入し直してください。同じパッケージが二重に入るのを防ぐためです。
+
 ## 基本操作
 
 1. `LatticeDeformer` の Inspector の「かんたん」タブで、やりたいことを選びます。

@@ -1374,8 +1374,11 @@ msgstr "有新版本可用"
 msgid "net.32ba.lattice-deformation-tool.localization.update-current-to-latest"
 msgstr "当前: {0}  最新: {1}"
 
-msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
-msgstr "打开 BOOTH 商品页面"
+msgid "net.32ba.lattice-deformation-tool.localization.update-via-vpm"
+msgstr "请通过 VCC 等支持 VPM 的工具更新。自版本 2 起不再通过 BOOTH 发布。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.update-open-guide"
+msgstr "查看更新方法"
 
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition"
 msgstr "帧合成"

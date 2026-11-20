@@ -841,6 +841,41 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void ReleaseChecker_UpdateGuideUrl_OpensTheReadmeOfTheOfferedVersion()
+        {
+            const string blob = "https://github.com/32ba/VRC-lattice-deformation-tool/blob/";
+            Assert.That(ReleaseChecker.UpdateGuideUrl("2.0.0-beta.3", LatticeLocalization.Language.Japanese),
+                Is.EqualTo(blob + "2.0.0-beta.3/README.md#%E6%9B%B4%E6%96%B0"));
+            foreach (var language in new[] { LatticeLocalization.Language.English, LatticeLocalization.Language.Korean,
+                         LatticeLocalization.Language.ChineseSimplified, LatticeLocalization.Language.ChineseTraditional })
+            {
+                Assert.That(ReleaseChecker.UpdateGuideUrl("2.1.0", language), Is.EqualTo(blob + "2.1.0/README_en.md#updating"));
+            }
+            Assert.That(ReleaseChecker.UpdateGuideUrl("2.1.0", LatticeLocalization.Language.English), Does.Not.Contain("booth"));
+        }
+
+        [TestCase(null)]
+        [TestCase("")]
+        [TestCase("../master")]
+        [TestCase("2.0.0/../../x")]
+        [TestCase("2.0.0?x=1")]
+        [TestCase("latest")]
+        public void ReleaseChecker_UpdateGuideUrl_FallsBackToTheDefaultBranchForUnusableVersions(string version)
+        {
+            Assert.That(ReleaseChecker.UpdateGuideUrl(version, LatticeLocalization.Language.English),
+                Is.EqualTo("https://github.com/32ba/VRC-lattice-deformation-tool/blob/master/README_en.md#updating"));
+        }
+
+        [Test]
+        public void ReleaseChecker_UpdateGuideAnchors_ExistInTheReadmes()
+        {
+            // The notice links to these headings; renaming them would break the link.
+            string root = Path.GetFullPath("Packages/net.32ba.lattice-deformation-tool");
+            Assert.That(File.ReadAllLines(Path.Combine(root, "README.md")), Has.Some.EqualTo("## 更新"));
+            Assert.That(File.ReadAllLines(Path.Combine(root, "README_en.md")), Has.Some.EqualTo("## Updating"));
+        }
+
+        [Test]
         public void ReleaseChecker_PrivateHandlers_UpdateStateAndRaiseEvent()
         {
             var previousState = CaptureReleaseCheckerState();

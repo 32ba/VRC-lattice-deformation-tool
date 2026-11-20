@@ -248,10 +248,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var box = MdUI.HelpBox(string.Format(LatticeLocalization.Tr(LocKey.UpdateCurrentToLatest),
                 VersionUtility.FormatVersion(ReleaseChecker.GetCurrentVersion()),
                 VersionUtility.FormatVersion(ReleaseChecker.LatestVersion)));
-            box.Q<Label>().text = LatticeLocalization.Tr(LocKey.UpdateAvailable) + "\n" + box.Q<Label>().text;
+            box.Q<Label>().text = LatticeLocalization.Tr(LocKey.UpdateAvailable) + "\n" + box.Q<Label>().text
+                + "\n" + LatticeLocalization.Tr(LocKey.UpdateViaVpm);
             _releaseNotification.Add(box);
-            _releaseNotification.Add(MdUI.Button(LatticeLocalization.Tr(LocKey.UpdateOpenBoothPage),
-                ReleaseChecker.OpenReleasePage, "md-button--small"));
+            _releaseNotification.Add(MdUI.Button(LatticeLocalization.Tr(LocKey.UpdateOpenGuide),
+                ReleaseChecker.OpenUpdateGuide, "md-button--small"));
         }
 
         private void RequestRefresh() => _refreshRequested = true;

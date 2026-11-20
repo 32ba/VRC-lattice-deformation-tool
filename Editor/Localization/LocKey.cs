@@ -20,7 +20,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal const string Select = "net.32ba.lattice-deformation-tool.localization.select";
         internal const string UpdateAvailable = "net.32ba.lattice-deformation-tool.localization.update-available";
         internal const string UpdateCurrentToLatest = "net.32ba.lattice-deformation-tool.localization.update-current-to-latest";
-        internal const string UpdateOpenBoothPage = "net.32ba.lattice-deformation-tool.localization.update-open-booth-page";
+        internal const string UpdateViaVpm = "net.32ba.lattice-deformation-tool.localization.update-via-vpm";
+        internal const string UpdateOpenGuide = "net.32ba.lattice-deformation-tool.localization.update-open-guide";
 
         // Guided inspector
         internal const string GuidedQuestion = "net.32ba.lattice-deformation-tool.localization.guided-question";
