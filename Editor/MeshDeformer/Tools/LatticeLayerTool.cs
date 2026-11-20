@@ -1372,7 +1372,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return string.Format(LatticeLocalization.Tr(LocKey.SelectedControlsFormat), s_selectedControls.Count);
         }
 
-        internal static void DrawOverlayGUI(LatticeDeformer deformer) => LatticeToolOverlay.Draw(deformer);
+        internal static UnityEngine.UIElements.VisualElement CreateOverlayGUI(LatticeDeformer deformer, OverlayControls controls) =>
+            LatticeToolOverlay.Create(deformer, controls);
 
     }
 }

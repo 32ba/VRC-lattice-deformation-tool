@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
-using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
@@ -10,151 +11,86 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_showAdvancedSection;
         private static bool s_showVisualizationSection;
 
-        internal static void Draw(LatticeDeformer deformer)
+        internal static readonly string[] ModeIcons = { "op-reshape", "op-shift", "op-smooth" };
+
+        /// <summary>Detailed overlay content for brush layers. Building it never edits the deformer.</summary>
+        internal static VisualElement Create(LatticeDeformer deformer, OverlayControls c)
         {
-            // Brush Mode toolbar (icon + text)
-            var modeContent = new[]
+            var root = MdUI.Element("md-overlay__content");
+            root.Add(c.Segmented(OverlayControls.Tr(LocKey.Normal, LocKey.Move, LocKey.Smooth),
+                () => Mathf.Min((int)BrushToolHandler.CurrentBrushMode, 2),
+                index => BrushToolHandler.CurrentBrushMode = (BrushToolHandler.BrushMode)index,
+                ModeIcons, strong: true, tooltips: OverlayControls.Tooltips(LocKey.Normal, LocKey.Move, LocKey.Smooth)));
+
+            // Radius is world-space meters, shown in cm. Strength is 0-1, shown in %.
+            root.Add(c.Slider(LatticeLocalization.Tr(LocKey.BrushRadius) + " (cm)", 0f, 10f,
+                () => BrushToolHandler.BrushRadius * 100f, value => BrushToolHandler.BrushRadius = value / 100f,
+                LatticeLocalization.Tooltip(LocKey.BrushRadius)));
+            root.Add(c.Slider(LatticeLocalization.Tr(LocKey.BrushStrength) + " (%)", 0f, 100f,
+                () => BrushToolHandler.BrushStrength * 100f, value => BrushToolHandler.BrushStrength = value / 100f,
+                LatticeLocalization.Tooltip(LocKey.BrushStrength)));
+            root.Add(c.Popup(LatticeLocalization.Tr(LocKey.BrushFalloff),
+                OverlayControls.Tr(LocKey.Smooth, LocKey.Linear, LocKey.Constant, LocKey.Sphere, LocKey.Gaussian),
+                () => (int)BrushToolHandler.BrushFalloff,
+                index => BrushToolHandler.BrushFalloff = (BrushFalloffType)index,
+                LatticeLocalization.Tooltip(LocKey.BrushFalloff)));
+            root.Add(c.Switch(LatticeLocalization.Tr(LocKey.InvertBrush),
+                () => BrushToolHandler.InvertBrush, value => BrushToolHandler.InvertBrush = value));
+            root.Add(c.Switch(LatticeLocalization.Tr(LocKey.BackfaceCulling),
+                () => BrushToolHandler.BackfaceCulling, value => BrushToolHandler.BackfaceCulling = value));
+
+            var list = MdUI.Element("md-foldout-list");
+            list.Add(MdUI.Foldout(LatticeLocalization.Tr(LocKey.Advanced),
+                () => s_showAdvancedSection, open => s_showAdvancedSection = open, out var advanced));
+            advanced.Add(c.Switch(LatticeLocalization.Tr(LocKey.ConnectedOnly),
+                () => BrushToolHandler.ConnectedOnly, value => BrushToolHandler.ConnectedOnly = value));
+            advanced.Add(c.Switch(LatticeLocalization.Tr(LocKey.SurfaceDistance),
+                () => BrushToolHandler.UseSurfaceDistance, value => BrushToolHandler.UseSurfaceDistance = value));
+
+            list.Add(MdUI.Foldout(LatticeLocalization.Tr(LocKey.EnableMirror),
+                () => s_showMirrorSection, open => s_showMirrorSection = open, out var mirror));
+            mirror.Add(c.Switch(LatticeLocalization.Tr(LocKey.EnableMirror),
+                () => BrushToolHandler.MirrorEditing, value => BrushToolHandler.MirrorEditing = value));
+            var axis = OverlayControls.Group(LatticeLocalization.Tr(LocKey.MirrorAxis),
+                c.Segmented(OverlayControls.Texts(BrushToolHandler.AxisOptions),
+                    () => (int)BrushToolHandler.CurrentMirrorAxis,
+                    index => BrushToolHandler.CurrentMirrorAxis = (BrushToolHandler.MirrorAxis)index));
+            c.EnabledWhen(axis, () => BrushToolHandler.MirrorEditing);
+            mirror.Add(axis);
+
+            list.Add(MdUI.Foldout(LatticeLocalization.Tr(LocKey.Visualization),
+                () => s_showVisualizationSection, open => s_showVisualizationSection = open, out var visualization));
+            visualization.Add(c.Switch(LatticeLocalization.Tr(LocKey.ShowWireframe),
+                () => BrushToolHandler.ShowWireframe, value => BrushToolHandler.ShowWireframe = value));
+            visualization.Add(c.Switch(LatticeLocalization.Tr(LocKey.ShowAffectedVertices),
+                () => BrushToolHandler.ShowAffectedVertices, value => BrushToolHandler.ShowAffectedVertices = value));
+            visualization.Add(c.Switch(LatticeLocalization.Tr(LocKey.ShowDisplacementHeatmap),
+                () => BrushToolHandler.ShowDisplacementHeatmap, value => BrushToolHandler.ShowDisplacementHeatmap = value));
+            visualization.Add(c.Slider(LatticeLocalization.Tr(LocKey.DotSize), 1f, 8f,
+                () => BrushToolHandler.VertexDotSize, value => BrushToolHandler.VertexDotSize = value,
+                LatticeLocalization.Tooltip(LocKey.DotSize)));
+            visualization.Add(c.Switch(LatticeLocalization.Tr(LocKey.ShowPenetration),
+                () => BrushToolHandler.ShowPenetration, value => BrushToolHandler.ShowPenetration = value));
+            var reference = new ObjectField(LatticeLocalization.Tr(LocKey.ReferenceMesh))
+                { objectType = typeof(Renderer), allowSceneObjects = true, name = "penetration-reference",
+                  tooltip = LatticeLocalization.Tooltip(LocKey.ReferenceMesh) };
+            reference.SetValueWithoutNotify(BrushToolHandler.PenetrationReference);
+            reference.RegisterValueChangedCallback(evt => BrushToolHandler.PenetrationReference = evt.newValue as Renderer);
+            c.Track(() =>
             {
-                ToolIcons.Content(ToolIcons.Normal, LocKey.Normal),
-                ToolIcons.Content(ToolIcons.Move, LocKey.Move),
-                ToolIcons.Content(ToolIcons.Smooth, LocKey.Smooth),
-            };
-            int currentModeIndex = Mathf.Min((int)BrushToolHandler.CurrentBrushMode, modeContent.Length - 1);
-            int modeIndex = GUILayout.Toolbar(currentModeIndex, modeContent);
-            modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
-            BrushToolHandler.CurrentBrushMode = (BrushToolHandler.BrushMode)modeIndex;
+                if (reference.value != BrushToolHandler.PenetrationReference)
+                    reference.SetValueWithoutNotify(BrushToolHandler.PenetrationReference);
+            });
+            c.VisibleWhen(reference, () => BrushToolHandler.ShowPenetration);
+            visualization.Add(reference);
+            root.Add(list);
 
-            GUILayout.Space(2f);
-
-            // Primary parameters (always visible)
-            // Display world-space cm: mesh-local radius * transform scale * 100
-            // s_brushRadius is world-space meters — display as cm directly
-            float radiusCm = BrushToolHandler.BrushRadius * 100f;
-            EditorGUI.BeginChangeCheck();
-            radiusCm = EditorGUILayout.Slider(
-                new GUIContent(LatticeLocalization.Tr(LocKey.BrushRadius) + " (cm)", LatticeLocalization.Tooltip(LocKey.BrushRadius)),
-                radiusCm, 0f, 10f);
-            if (EditorGUI.EndChangeCheck())
-                BrushToolHandler.BrushRadius = radiusCm / 100f;
-
-            // Display strength as 0-100%, store internally as 0-1
-            float strengthPercent = BrushToolHandler.BrushStrength * 100f;
-            strengthPercent = EditorGUILayout.Slider(
-                new GUIContent(LatticeLocalization.Tr(LocKey.BrushStrength) + " (%)", LatticeLocalization.Tooltip(LocKey.BrushStrength)),
-                strengthPercent, 0f, 100f);
-            BrushToolHandler.BrushStrength = strengthPercent / 100f;
-
-            // Falloff type (text only — falloff curves are self-explanatory with names)
-            var falloffContent = new GUIContent[]
+            root.Add(MdUI.Button(LatticeLocalization.Tr(LocKey.ClearAll), () =>
             {
-                LatticeLocalization.Content(LocKey.Smooth),
-                LatticeLocalization.Content(LocKey.Linear),
-                LatticeLocalization.Content(LocKey.Constant),
-                LatticeLocalization.Content(LocKey.Sphere),
-                LatticeLocalization.Content(LocKey.Gaussian)
-            };
-            int falloffIndex = EditorGUILayout.Popup(
-                LatticeLocalization.Content(LocKey.BrushFalloff),
-                (int)BrushToolHandler.BrushFalloff,
-                falloffContent);
-            falloffIndex = Mathf.Clamp(falloffIndex, 0, falloffContent.Length - 1);
-            BrushToolHandler.BrushFalloff = (BrushFalloffType)falloffIndex;
-
-            GUILayout.Space(2f);
-
-            // Compact toggles (horizontal)
-            using (new GUILayout.HorizontalScope())
-            {
-                BrushToolHandler.InvertBrush = GUILayout.Toggle(
-                    BrushToolHandler.InvertBrush,
-                    ToolIcons.Content(ToolIcons.Invert, LocKey.InvertBrush));
-                BrushToolHandler.BackfaceCulling = GUILayout.Toggle(
-                    BrushToolHandler.BackfaceCulling,
-                    ToolIcons.Content(ToolIcons.BackfaceCull, LocKey.BackfaceCulling));
-            }
-
-            // --- Advanced section (foldout) ---
-            s_showAdvancedSection = EditorGUILayout.Foldout(s_showAdvancedSection, LatticeLocalization.Tr(LocKey.Advanced), true);
-            if (s_showAdvancedSection)
-            {
-                EditorGUI.indentLevel++;
-                BrushToolHandler.ConnectedOnly = GUILayout.Toggle(
-                    BrushToolHandler.ConnectedOnly,
-                    ToolIcons.Content(ToolIcons.Connected, LocKey.ConnectedOnly));
-                BrushToolHandler.UseSurfaceDistance = GUILayout.Toggle(
-                    BrushToolHandler.UseSurfaceDistance,
-                    ToolIcons.Content(ToolIcons.SurfaceDistance, LocKey.SurfaceDistance));
-                EditorGUI.indentLevel--;
-            }
-
-            // --- Mirror section (foldout) ---
-            s_showMirrorSection = EditorGUILayout.Foldout(s_showMirrorSection, LatticeLocalization.Tr(LocKey.EnableMirror), true);
-            if (s_showMirrorSection)
-            {
-                EditorGUI.indentLevel++;
-                BrushToolHandler.MirrorEditing = GUILayout.Toggle(
-                    BrushToolHandler.MirrorEditing,
-                    ToolIcons.Content(ToolIcons.Mirror, LocKey.EnableMirror));
-
-                using (new EditorGUI.DisabledScope(!BrushToolHandler.MirrorEditing))
-                {
-                    GUILayout.Label(LatticeLocalization.Content(LocKey.MirrorAxis), EditorStyles.miniLabel);
-                    int axisSelection = GUILayout.Toolbar(
-                        (int)BrushToolHandler.CurrentMirrorAxis,
-                        BrushToolHandler.AxisOptions);
-                    axisSelection = Mathf.Clamp(axisSelection, 0, BrushToolHandler.AxisOptions.Length - 1);
-                    BrushToolHandler.CurrentMirrorAxis = (BrushToolHandler.MirrorAxis)axisSelection;
-                }
-                EditorGUI.indentLevel--;
-            }
-
-            // --- Visualization section (foldout) ---
-            s_showVisualizationSection = EditorGUILayout.Foldout(s_showVisualizationSection, LatticeLocalization.Tr(LocKey.Visualization), true);
-            if (s_showVisualizationSection)
-            {
-                EditorGUI.indentLevel++;
-                BrushToolHandler.ShowWireframe = GUILayout.Toggle(BrushToolHandler.ShowWireframe,
-                    ToolIcons.Content(ToolIcons.Eye, LocKey.ShowWireframe));
-                BrushToolHandler.ShowAffectedVertices = GUILayout.Toggle(
-                    BrushToolHandler.ShowAffectedVertices,
-                    ToolIcons.Content(ToolIcons.Eye, LocKey.ShowAffectedVertices));
-                BrushToolHandler.ShowDisplacementHeatmap = GUILayout.Toggle(
-                    BrushToolHandler.ShowDisplacementHeatmap,
-                    ToolIcons.Content(ToolIcons.Eye, LocKey.ShowDisplacementHeatmap));
-                BrushToolHandler.VertexDotSize = EditorGUILayout.Slider(
-                    LatticeLocalization.Content(LocKey.DotSize),
-                    BrushToolHandler.VertexDotSize, 1f, 8f);
-
-                BrushToolHandler.ShowPenetration = GUILayout.Toggle(
-                    BrushToolHandler.ShowPenetration,
-                    ToolIcons.Content(ToolIcons.Eye, LocKey.ShowPenetration));
-                if (BrushToolHandler.ShowPenetration)
-                {
-                    BrushToolHandler.PenetrationReference = (Renderer)EditorGUILayout.ObjectField(
-                        LatticeLocalization.Content(LocKey.ReferenceMesh),
-                        BrushToolHandler.PenetrationReference,
-                        typeof(Renderer),
-                        true);
-                }
-                EditorGUI.indentLevel--;
-            }
-
-            GUILayout.Space(4f);
-
-            // Action buttons
-            using (new GUILayout.HorizontalScope())
-            {
-                if (GUILayout.Button(ToolIcons.Content(ToolIcons.Clear, LocKey.ClearAll)))
-                {
-                    if (deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush)
-                    {
-                        BrushToolHandler.ClearAllDisplacements(deformer);
-                    }
-                }
-
-            }
-
-            GUILayout.Space(2f);
+                if (deformer != null && deformer.ActiveLayerType == MeshDeformerLayerType.Brush)
+                    BrushToolHandler.ClearAllDisplacements(deformer);
+            }, "md-button--small md-button--danger"));
+            return root;
         }
     }
 }

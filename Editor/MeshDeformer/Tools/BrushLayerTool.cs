@@ -1703,7 +1703,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             set => s_showWireframe = value;
         }
 
-        internal static void DrawOverlayGUI(LatticeDeformer deformer) => BrushToolOverlay.Draw(deformer);
+        internal static UnityEngine.UIElements.VisualElement CreateOverlayGUI(LatticeDeformer deformer, OverlayControls controls) =>
+            BrushToolOverlay.Create(deformer, controls);
 
     }
 }

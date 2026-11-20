@@ -1,6 +1,5 @@
 #if UNITY_EDITOR
-using UnityEditor;
-using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
@@ -8,127 +7,63 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         private static bool s_showVisualizationSection;
 
-        internal static void Draw(LatticeDeformer deformer)
+        /// <summary>Detailed overlay content for vertex selection. Building it never edits the deformer.</summary>
+        internal static VisualElement Create(LatticeDeformer deformer, OverlayControls c)
         {
-            // Transform mode selector (icon + text)
-            var modeContent = new GUIContent[]
-            {
-                ToolIcons.Content(ToolIcons.Move, LocKey.Move),
-                ToolIcons.Content(ToolIcons.Rotate, LocKey.Rotate),
-                ToolIcons.Content(ToolIcons.Scale, LocKey.Scale)
-            };
-            GUILayout.Label(LatticeLocalization.Content(LocKey.TransformMode), EditorStyles.miniLabel);
-            int modeIndex = GUILayout.Toolbar((int)VertexSelectionHandler.CurrentTransformMode, modeContent);
-            modeIndex = Mathf.Clamp(modeIndex, 0, modeContent.Length - 1);
-            VertexSelectionHandler.CurrentTransformMode = (VertexSelectionHandler.TransformMode)modeIndex;
+            var root = MdUI.Element("md-overlay__content");
+            root.Add(OverlayControls.Group(LatticeLocalization.Tr(LocKey.TransformMode),
+                c.Segmented(OverlayControls.Tr(LocKey.Move, LocKey.Rotate, LocKey.Scale),
+                    () => (int)VertexSelectionHandler.CurrentTransformMode,
+                    index => VertexSelectionHandler.CurrentTransformMode = (VertexSelectionHandler.TransformMode)index,
+                    new[] { "move", "rotate", "scale" }, strong: true,
+                    tooltips: OverlayControls.Tooltips(LocKey.Move, LocKey.Rotate, LocKey.Scale))));
+            root.Add(OverlayControls.Group(LatticeLocalization.Tr(LocKey.HandleOrientation),
+                c.Segmented(OverlayControls.Tr(LocKey.Local, LocKey.Global, LocKey.Normal),
+                    () => (int)VertexSelectionHandler.CurrentHandleOrientation,
+                    index => VertexSelectionHandler.CurrentHandleOrientation = (VertexSelectionHandler.HandleOrientation)index,
+                    tooltips: OverlayControls.Tooltips(LocKey.Local, LocKey.Global, LocKey.Normal))));
+            root.Add(OverlayControls.Group(LatticeLocalization.Tr(LocKey.Pivot),
+                c.Segmented(OverlayControls.Tr(LocKey.Center, LocKey.LastSelected),
+                    () => (int)VertexSelectionHandler.CurrentPivotMode,
+                    index => VertexSelectionHandler.CurrentPivotMode = (VertexSelectionHandler.PivotMode)index,
+                    tooltips: OverlayControls.Tooltips(LocKey.Center, LocKey.LastSelected))));
 
-            // Handle orientation selector
-            var orientContent = new GUIContent[]
-            {
-                ToolIcons.Content(ToolIcons.Local, LocKey.Local),
-                ToolIcons.Content(ToolIcons.Global, LocKey.Global),
-                ToolIcons.Content(ToolIcons.Normal, LocKey.Normal)
-            };
-            GUILayout.Label(LatticeLocalization.Content(LocKey.HandleOrientation), EditorStyles.miniLabel);
-            int orientIndex = GUILayout.Toolbar((int)VertexSelectionHandler.CurrentHandleOrientation, orientContent);
-            orientIndex = Mathf.Clamp(orientIndex, 0, orientContent.Length - 1);
-            VertexSelectionHandler.CurrentHandleOrientation = (VertexSelectionHandler.HandleOrientation)orientIndex;
+            // Proportional editing: radius 0 disables it. Shown in cm, stored in mesh-local meters.
+            root.Add(c.Slider(LatticeLocalization.Tr(LocKey.ProportionalRadius) + " (cm)", 0f, 10f,
+                () => VertexSelectionHandler.ProportionalRadius * 100f,
+                value => VertexSelectionHandler.ProportionalRadius = value / 100f,
+                LatticeLocalization.Tooltip(LocKey.ProportionalRadius)));
+            root.Add(c.Popup(LatticeLocalization.Tr(LocKey.Falloff),
+                OverlayControls.Tr(LocKey.Smooth, LocKey.Linear, LocKey.Constant, LocKey.Sphere, LocKey.Gaussian),
+                () => (int)VertexSelectionHandler.ProportionalFalloffType,
+                index => VertexSelectionHandler.ProportionalFalloffType = (VertexSelectionHandler.FalloffType)index,
+                LatticeLocalization.Tooltip(LocKey.Falloff)));
 
-            // Pivot mode selector
-            var pivotContent = new GUIContent[]
-            {
-                ToolIcons.Content(ToolIcons.Pivot, LocKey.Center),
-                LatticeLocalization.Content(LocKey.LastSelected)
-            };
-            GUILayout.Label(LatticeLocalization.Content(LocKey.Pivot), EditorStyles.miniLabel);
-            int pivotIndex = GUILayout.Toolbar((int)VertexSelectionHandler.CurrentPivotMode, pivotContent);
-            pivotIndex = Mathf.Clamp(pivotIndex, 0, pivotContent.Length - 1);
-            VertexSelectionHandler.CurrentPivotMode = (VertexSelectionHandler.PivotMode)pivotIndex;
+            var list = MdUI.Element("md-foldout-list");
+            list.Add(MdUI.Foldout(LatticeLocalization.Tr(LocKey.Visualization),
+                () => s_showVisualizationSection, open => s_showVisualizationSection = open, out var visualization));
+            visualization.Add(c.Switch(LatticeLocalization.Tr(LocKey.ShowWireframe),
+                () => VertexSelectionHandler.ShowWireframe, value => VertexSelectionHandler.ShowWireframe = value));
+            visualization.Add(c.Slider(LatticeLocalization.Tr(LocKey.DotSize), 1f, 8f,
+                () => VertexSelectionHandler.VertexDotSize, value => VertexSelectionHandler.VertexDotSize = value,
+                LatticeLocalization.Tooltip(LocKey.DotSize)));
+            visualization.Add(c.Switch(LatticeLocalization.Tr(LocKey.BackfaceCulling),
+                () => VertexSelectionHandler.BackfaceCulling, value => VertexSelectionHandler.BackfaceCulling = value));
+            root.Add(list);
 
-            GUILayout.Space(4f);
-
-            // --- Proportional Editing (radius 0 = disabled, no separate toggle) ---
-            // Display in cm, store internally in meters (mesh-local)
-            float propCm = VertexSelectionHandler.ProportionalRadius * 100f;
-            EditorGUI.BeginChangeCheck();
-            propCm = EditorGUILayout.Slider(
-                new GUIContent(LatticeLocalization.Tr(LocKey.ProportionalRadius) + " (cm)", LatticeLocalization.Tooltip(LocKey.ProportionalRadius)),
-                propCm, 0f, 10f);
-            if (EditorGUI.EndChangeCheck())
-                VertexSelectionHandler.ProportionalRadius = propCm / 100f;
-
-            var falloffContent = new GUIContent[]
-            {
-                LatticeLocalization.Content(LocKey.Smooth),
-                LatticeLocalization.Content(LocKey.Linear),
-                LatticeLocalization.Content(LocKey.Constant),
-                LatticeLocalization.Content(LocKey.Sphere),
-                LatticeLocalization.Content(LocKey.Gaussian)
-            };
-            int falloffIndex = EditorGUILayout.Popup(
-                LatticeLocalization.Content(LocKey.Falloff),
-                (int)VertexSelectionHandler.ProportionalFalloffType,
-                falloffContent);
-            falloffIndex = Mathf.Clamp(falloffIndex, 0, falloffContent.Length - 1);
-            VertexSelectionHandler.ProportionalFalloffType = (VertexSelectionHandler.FalloffType)falloffIndex;
-
-            // --- Visualization section (foldout) ---
-            s_showVisualizationSection = EditorGUILayout.Foldout(s_showVisualizationSection, LatticeLocalization.Tr(LocKey.Visualization), true);
-            if (s_showVisualizationSection)
-            {
-                EditorGUI.indentLevel++;
-                VertexSelectionHandler.ShowWireframe = GUILayout.Toggle(VertexSelectionHandler.ShowWireframe,
-                    ToolIcons.Content(ToolIcons.Eye, LocKey.ShowWireframe));
-                VertexSelectionHandler.VertexDotSize = EditorGUILayout.Slider(
-                    LatticeLocalization.Content(LocKey.DotSize),
-                    VertexSelectionHandler.VertexDotSize, 1f, 8f);
-                VertexSelectionHandler.BackfaceCulling = GUILayout.Toggle(
-                    VertexSelectionHandler.BackfaceCulling,
-                    ToolIcons.Content(ToolIcons.BackfaceCull, LocKey.BackfaceCulling));
-                EditorGUI.indentLevel--;
-            }
-
-            GUILayout.Space(2f);
-
-            // Selection info and actions
-            GUILayout.Label(VertexSelectionHandler.GetSelectionLabel(), EditorStyles.miniLabel);
-
-            using (new GUILayout.HorizontalScope())
-            {
-                if (GUILayout.Button(LatticeLocalization.Content(LocKey.SelectAll)))
-                {
-                    VertexSelectionHandler.SelectAll(deformer);
-                }
-
-                if (GUILayout.Button(LatticeLocalization.Content(LocKey.SelectNone)))
-                {
-                    VertexSelectionHandler.ClearSelection();
-                }
-
-                if (GUILayout.Button(ToolIcons.Content(ToolIcons.Invert, LocKey.Invert)))
-                {
-                    VertexSelectionHandler.InvertSelection(deformer);
-                }
-            }
-
-            using (new GUILayout.HorizontalScope())
-            {
-                using (new EditorGUI.DisabledScope(VertexSelectionHandler.SelectedVertexCount == 0))
-                {
-                    if (GUILayout.Button(ToolIcons.Content(ToolIcons.Reset, LocKey.ResetSelectedVertices)))
-                    {
-                        VertexSelectionHandler.ResetSelectedVertices(deformer);
-                    }
-                }
-
-                if (GUILayout.Button(ToolIcons.Content(ToolIcons.Reset, LocKey.ResetAllVertices)))
-                {
-                    VertexSelectionHandler.ResetAllVertices(deformer);
-                }
-            }
-
-            GUILayout.Space(2f);
-            GUILayout.Label(LatticeLocalization.Tr(LocKey.ShiftClickHint), EditorStyles.miniLabel);
+            root.Add(c.LiveText(VertexSelectionHandler.GetSelectionLabel));
+            root.Add(OverlayControls.Row(
+                MdUI.Button(LatticeLocalization.Tr(LocKey.SelectAll), () => VertexSelectionHandler.SelectAll(deformer), "md-button--small"),
+                MdUI.Button(LatticeLocalization.Tr(LocKey.SelectNone), VertexSelectionHandler.ClearSelection, "md-button--small"),
+                MdUI.Button(LatticeLocalization.Tr(LocKey.Invert), () => VertexSelectionHandler.InvertSelection(deformer), "md-button--small")));
+            var resetSelected = MdUI.Button(LatticeLocalization.Tr(LocKey.ResetSelectedVertices),
+                () => VertexSelectionHandler.ResetSelectedVertices(deformer), "md-button--small md-button--danger");
+            c.EnabledWhen(resetSelected, () => VertexSelectionHandler.SelectedVertexCount > 0);
+            root.Add(OverlayControls.Row(resetSelected,
+                MdUI.Button(LatticeLocalization.Tr(LocKey.ResetAllVertices),
+                    () => VertexSelectionHandler.ResetAllVertices(deformer), "md-button--small md-button--danger")));
+            root.Add(OverlayControls.Hint(LatticeLocalization.Tr(LocKey.ShiftClickHint)));
+            return root;
         }
     }
 }

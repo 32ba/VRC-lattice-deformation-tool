@@ -27,7 +27,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         {
             if (_window != null)
             {
-                _window.Draw = null;
                 _window.Close();
                 _window = null;
             }
@@ -45,13 +44,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
 
         private sealed class OverlayWindow : EditorWindow
         {
-            internal Action Draw;
-            internal int Repaints;
-            private void OnGUI()
-            {
-                Draw?.Invoke();
-                if (Event.current.type == EventType.Repaint) Repaints++;
-            }
         }
 
         [UnityTest]
@@ -91,19 +83,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             try
             {
                 window.position = new Rect(0, 0, 420, 900);
-                window.Draw = () => BrushToolHandler.DrawOverlayGUI(owner);
                 window.Show();
+                MeshDeformerStyles.Apply(window.rootVisualElement);
                 foreach (int tool in new[] { 0, 1, 2 })
                 {
                     owner.ActiveLayerIndex = tool == 2 ? 0 : 1;
                     string before = EditorJsonUtility.ToJson(owner);
                     int dirty = EditorUtility.GetDirtyCount(owner);
-                    window.Draw = () =>
-                    {
-                        if (tool == 2) LatticeToolHandler.DrawOverlayGUI(owner);
-                        else if (tool == 1) VertexSelectionHandler.DrawOverlayGUI(owner);
-                        else BrushToolHandler.DrawOverlayGUI(owner);
-                    };
                     foreach (LatticeLocalization.Language language in Enum.GetValues(typeof(LatticeLocalization.Language)))
                     {
                         LatticeLocalization.CurrentLanguage = language;
@@ -113,13 +99,20 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                             if (tool == 2) LatticeToolHandler.CurrentMirrorBehavior = (LatticeToolHandler.MirrorBehavior)mode;
                             else if (tool == 1) VertexSelectionHandler.CurrentTransformMode = (VertexSelectionHandler.TransformMode)mode;
                             else BrushToolHandler.CurrentBrushMode = (BrushToolHandler.BrushMode)mode;
-                            int repaint = window.Repaints;
-                            for (int frame = 0; frame < 60 && window.Repaints == repaint; frame++)
+                            var controls = new OverlayControls();
+                            var view = tool == 2 ? LatticeToolHandler.CreateOverlayGUI(owner, controls)
+                                : tool == 1 ? VertexSelectionHandler.CreateOverlayGUI(owner, controls)
+                                : BrushToolHandler.CreateOverlayGUI(owner, controls);
+                            window.rootVisualElement.Clear();
+                            window.rootVisualElement.Add(view);
+                            for (int frame = 0; frame < 2; frame++)
                             {
+                                controls.Sync();
                                 window.Repaint();
                                 yield return null;
                             }
-                            Assert.That(window.Repaints, Is.GreaterThan(repaint), language + "/" + mode);
+                            Assert.That(view.childCount, Is.GreaterThan(0), language + "/" + mode);
+                            Assert.That(view.layout.height, Is.GreaterThan(0), language + "/" + mode);
                             Assert.That(EditorJsonUtility.ToJson(owner), Is.EqualTo(before));
                             Assert.That(EditorUtility.GetDirtyCount(owner), Is.EqualTo(dirty));
                         }
