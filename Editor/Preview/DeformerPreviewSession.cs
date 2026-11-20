@@ -61,10 +61,24 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
+        internal bool IsDisposed => _disposed;
+        internal Mesh OutputMesh => _mesh.Mesh;
+
         internal void OnFrame(Renderer original, Renderer proxy)
         {
             if (_disposed || original == null || proxy == null) return;
             _mesh.AssignTo(proxy);
+        }
+
+        /// <summary>
+        /// Binds the existing output to the proxies of a new NDMF generation which reuses this
+        /// session, so downstream filters of that generation read the current output immediately.
+        /// </summary>
+        internal void Rebind(IEnumerable<(Renderer original, Renderer proxy)> proxyPairs)
+        {
+            if (_disposed) return;
+            UpdateIfChanged();
+            foreach (var (original, proxy) in proxyPairs) OnFrame(original, proxy);
         }
 
         internal void UpdateIfChanged()
@@ -92,7 +106,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             int dataRevision = _deformer != null ? _deformer.DeformationDataRevision : 0;
             int meshRevision = _deformer != null ? _deformer.RuntimeMeshRevision : 0;
             if (dataRevision != _lastDeformationDataRevision || meshRevision != _lastRuntimeMeshRevision)
+            {
                 UpdateAndPublish();
+                // This change did not arrive through PublishInteractiveDeformation, so NDMF has
+                // not been told about it. Without this, filters downstream of this node keep
+                // showing the previous result until some unrelated rebuild happens.
+                LatticePreviewUtility.ScheduleInteractiveRevisionSync(_deformer);
+            }
         }
 
         private void OnInteractiveDeformationPublished(LatticeDeformer deformer)
@@ -118,6 +138,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 {
                     EditorUtility.CopySerialized(evaluated, _mesh.Mesh);
                     _mesh.Mesh.hideFlags = HideFlags.HideAndDontSave;
+                    // CopySerialized replaces the data without notifying renderers that use
+                    // this Mesh, so a SkinnedMeshRenderer keeps drawing the previous result
+                    // until something reassigns it (an NDMF rebuild). Writing through the Mesh
+                    // API raises that notification and makes the edit visible this frame.
+                    _mesh.Mesh.vertices = _mesh.Mesh.vertices;
                 }
             }
             finally

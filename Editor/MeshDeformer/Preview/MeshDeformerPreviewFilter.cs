@@ -185,12 +185,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             IEnumerable<(Renderer, Renderer)> proxyPairs,
             ComputeContext context)
         {
-            var pairList = proxyPairs
-                .Select(pair => (original: pair.Item1, proxy: pair.Item2))
-                .Where(p => p.original != null && p.proxy != null)
-                .GroupBy(p => (p.original.GetInstanceID(), p.proxy.GetInstanceID()))
-                .Select(grouped => grouped.First())
-                .ToList();
+            var pairList = NormalizeProxyPairs(proxyPairs);
 
             if (pairList.Count == 0)
             {
@@ -254,7 +249,34 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // Only structural changes should replace the node. Interactive layer
             // changes are applied to the existing preview mesh in OnFrameGroup so
             // the proxy is never restored to its upstream mesh between drag frames.
-            _ = context.Observe(
+            // Structural inputs are watched through a separate context so Refresh can
+            // tell them apart from the interactive revision observed above.
+            var structure = ObserveStructure(deformer);
+
+            var previewMesh = GeneratePreviewMeshFromInput(deformer, evaluationTarget);
+            if (previewMesh == null)
+            {
+                structure.Invalidates(context);
+                return Task.FromResult<IRenderFilterNode>(new NoOpNode());
+            }
+
+            try
+            {
+                return Task.FromResult<IRenderFilterNode>(
+                    new PreviewNode(this, deformer, pairList, previewMesh, evaluationTarget, context, structure));
+            }
+            catch
+            {
+                structure.Invalidates(context);
+                if (previewMesh != null) UnityEngine.Object.DestroyImmediate(previewMesh);
+                throw;
+            }
+        }
+
+        private static ComputeContext ObserveStructure(LatticeDeformer deformer)
+        {
+            var structure = new ComputeContext("MeshDeformer preview structure for " + deformer.name);
+            _ = structure.Observe(
                 deformer,
                 LatticePreviewState.Create,
                 LatticePreviewState.Equals);
@@ -262,34 +284,30 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             var meshTransform = deformer.MeshTransform;
             if (meshTransform != null)
             {
-                _ = context.Observe(meshTransform, TransformSnapshot.Create, TransformSnapshot.Equals);
+                _ = structure.Observe(meshTransform, TransformSnapshot.Create, TransformSnapshot.Equals);
             }
 
             if (deformer.DataSource == DeformerDataSource.Profile && deformer.Profile != null)
-                _ = context.Observe(deformer.Profile);
+                _ = structure.Observe(deformer.Profile);
 
             var sourceMesh = deformer.SourceMesh;
             if (sourceMesh != null)
             {
-                _ = context.Observe(sourceMesh);
+                _ = structure.Observe(sourceMesh);
             }
 
-            var previewMesh = GeneratePreviewMeshFromInput(deformer, evaluationTarget);
-            if (previewMesh == null)
-            {
-                return Task.FromResult<IRenderFilterNode>(new NoOpNode());
-            }
+            return structure;
+        }
 
-            try
-            {
-                return Task.FromResult<IRenderFilterNode>(
-                    new PreviewNode(deformer, pairList, previewMesh, evaluationTarget));
-            }
-            catch
-            {
-                if (previewMesh != null) UnityEngine.Object.DestroyImmediate(previewMesh);
-                throw;
-            }
+        private static List<(Renderer original, Renderer proxy)> NormalizeProxyPairs(
+            IEnumerable<(Renderer, Renderer)> proxyPairs)
+        {
+            return proxyPairs
+                .Select(pair => (original: pair.Item1, proxy: pair.Item2))
+                .Where(p => p.original != null && p.proxy != null)
+                .GroupBy(p => (p.original.GetInstanceID(), p.proxy.GetInstanceID()))
+                .Select(grouped => grouped.First())
+                .ToList();
         }
 
         private bool MatchesPlacement(LatticeDeformer deformer)
@@ -360,7 +378,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private sealed class PreviewNode : IRenderFilterNode
         {
+            private readonly LatticeDeformerPreviewFilter _filter;
+            private readonly LatticeDeformer _deformer;
+            private readonly Mesh _evaluationTarget;
             private readonly DeformerPreviewSession _session;
+            private ComputeContext _context;
+            private ComputeContext _structure;
+            private bool _disposed;
 
             public PreviewNode(
                 LatticeDeformer deformer,
@@ -368,13 +392,121 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Mesh previewMesh,
                 Mesh upstreamMesh = null)
             {
+                _deformer = deformer;
+                _evaluationTarget = upstreamMesh;
                 _session = new DeformerPreviewSession(deformer, proxyPairs, previewMesh, upstreamMesh);
+            }
+
+            public PreviewNode(
+                LatticeDeformerPreviewFilter filter,
+                LatticeDeformer deformer,
+                IEnumerable<(Renderer original, Renderer proxy)> proxyPairs,
+                Mesh previewMesh,
+                Mesh upstreamMesh,
+                ComputeContext context,
+                ComputeContext structure)
+            {
+                _filter = filter;
+                _deformer = deformer;
+                _evaluationTarget = upstreamMesh;
+                _session = new DeformerPreviewSession(deformer, proxyPairs, previewMesh, upstreamMesh);
+                BindContext(context, structure);
             }
 
             public RenderAspects WhatChanged => RenderAspects.Mesh;
             public void OnFrame(Renderer original, Renderer proxy) => _session.OnFrame(original, proxy);
             public void OnFrameGroup() => _session.UpdateIfChanged();
-            public void Dispose() => _session.Dispose();
+
+            /// <summary>
+            /// Interactive edits publish a revision which invalidates this node every drag frame.
+            /// The session already applied that edit to its output in place, so re-running
+            /// Instantiate (validation plus a full re-evaluation of every blend shape frame)
+            /// only delays the new generation and therefore every downstream filter. Reuse the
+            /// node when nothing but that revision changed; anything else falls back to Instantiate.
+            /// </summary>
+            public Task<IRenderFilterNode> Refresh(
+                IEnumerable<(Renderer, Renderer)> proxyPairs,
+                ComputeContext context,
+                RenderAspects updatedAspects)
+            {
+                return Task.FromResult<IRenderFilterNode>(
+                    TryReuse(proxyPairs, context, updatedAspects) ? this : null);
+            }
+
+            private bool TryReuse(
+                IEnumerable<(Renderer, Renderer)> proxyPairs,
+                ComputeContext context,
+                RenderAspects updatedAspects)
+            {
+                if (_filter == null || _disposed || _session.IsDisposed || _session.OutputMesh == null) return false;
+                // Upstream filters changed the input: the output must be rebuilt from it.
+                if (updatedAspects != 0) return false;
+                // Source mesh, mesh transform or preview structure changed.
+                if (_structure == null || _structure.IsInvalidated) return false;
+                if (_deformer == null || !_deformer.enabled) return false;
+                if (!_filter.MatchesPlacement(_deformer)) return false;
+
+                var pairList = NormalizeProxyPairs(proxyPairs);
+                if (pairList.Count == 0) return false;
+
+                var evaluationPair = pairList.FirstOrDefault(pair =>
+                    pair.original != null && pair.original.GetComponent<LatticeDeformer>() == _deformer);
+                Mesh evaluationTarget = GetRendererMesh(evaluationPair.proxy);
+                if (!ReferenceEquals(evaluationTarget, _evaluationTarget)) return false;
+
+                var diagnostics = ValidateBeforePreview(
+                    _deformer,
+                    evaluationTarget,
+                    _filter._placement == Placement.AfterTopologyChanges &&
+                    _deformer.CanPreviewAfterTopologyChanges());
+                // Instantiate reports errors and produces the disabled node.
+                if (MeshDeformerValidator.HasErrors(diagnostics)) return false;
+                MeshDeformerValidator.Log(diagnostics);
+
+                var interactiveRevision = LatticePreviewUtility.GetInteractiveRevision(_deformer);
+                if (interactiveRevision != null)
+                {
+                    _ = context.Observe(interactiveRevision);
+                }
+
+                BindContext(context, ObserveStructure(_deformer));
+                _session.Rebind(pairList);
+                return true;
+            }
+
+            private void BindContext(ComputeContext context, ComputeContext structure)
+            {
+                var previous = _structure;
+                _context = context;
+                _structure = structure;
+                structure.InvokeOnInvalidate(this, node => node.OnStructureInvalidated(structure));
+                // Release the previous generation's object listeners. Its callback is ignored
+                // because it is no longer the current structure context.
+                if (previous != null && !ReferenceEquals(previous, structure)) previous.Invalidate();
+            }
+
+            private void OnStructureInvalidated(ComputeContext structure)
+            {
+                if (_disposed || !ReferenceEquals(structure, _structure)) return;
+                if (_context != null) _context.Invalidate();
+            }
+
+            public void Dispose()
+            {
+                if (_disposed) return;
+                _disposed = true;
+                try
+                {
+                    _session.Dispose();
+                }
+                finally
+                {
+                    var structure = _structure;
+                    _structure = null;
+                    if (structure != null) structure.Invalidate();
+                    _context = null;
+                }
+            }
         }
 
         private static Mesh GeneratePreviewMesh(LatticeDeformer deformer)

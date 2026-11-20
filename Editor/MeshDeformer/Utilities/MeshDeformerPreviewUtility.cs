@@ -295,9 +295,114 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // The synchronous event above still updates our currently-owned mesh
             // during the drag; the published revision carries the edit through
             // arbitrary later NDMF filters without resetting unrelated previews.
+            // Each published revision makes NDMF rebuild the whole preview generation
+            // (~200 ms on an avatar), which throttles the editor loop if done for every
+            // drag event. The owned mesh above is already visible, so the first edit of a
+            // burst publishes at once and the rest are coalesced: they publish once the
+            // edit pauses, or at a bounded interval while it continues so downstream
+            // filters still catch up during a long drag.
+            ScheduleInteractiveRevisionPublish(deformer);
+            RequestSceneRepaint();
+        }
+
+        private const double k_RevisionPublishIdleSeconds = 0.12;
+        private const double k_RevisionPublishMaxDelaySeconds = 0.5;
+        private static readonly Dictionary<LatticeDeformer, (double First, double Last)> s_pendingRevisionPublish = new();
+        private static readonly Dictionary<LatticeDeformer, double> s_lastRevisionPublish = new();
+        private static bool s_revisionPublishPumpRegistered;
+
+        private static void ScheduleInteractiveRevisionPublish(LatticeDeformer deformer)
+        {
+            double now = EditorApplication.timeSinceStartup;
+            bool isPending = s_pendingRevisionPublish.TryGetValue(deformer, out var pending);
+            if (!isPending &&
+                (!s_lastRevisionPublish.TryGetValue(deformer, out double last) ||
+                 now - last >= k_RevisionPublishMaxDelaySeconds))
+            {
+                PublishInteractiveRevisionNow(deformer, now);
+                return;
+            }
+
+            s_pendingRevisionPublish[deformer] = isPending ? (pending.First, now) : (now, now);
+            if (s_revisionPublishPumpRegistered) return;
+            s_revisionPublishPumpRegistered = true;
+            EditorApplication.update += PumpInteractiveRevisionPublish;
+        }
+
+        private static void PublishInteractiveRevisionNow(LatticeDeformer deformer, double now)
+        {
+            s_lastRevisionPublish[deformer] = now;
             var revision = GetInteractiveRevision(deformer);
             revision.Value = deformer.DeformationDataRevision;
-            RequestSceneRepaint();
+        }
+
+        private static void PumpInteractiveRevisionPublish()
+        {
+            double now = EditorApplication.timeSinceStartup;
+            List<LatticeDeformer> due = null;
+            foreach (var pair in s_pendingRevisionPublish)
+            {
+                if (pair.Key == null ||
+                    now - pair.Value.Last >= k_RevisionPublishIdleSeconds ||
+                    now - pair.Value.First >= k_RevisionPublishMaxDelaySeconds)
+                {
+                    (due ??= new List<LatticeDeformer>()).Add(pair.Key);
+                }
+            }
+
+            if (due != null)
+            {
+                foreach (var deformer in due)
+                {
+                    s_pendingRevisionPublish.Remove(deformer);
+                    if (deformer != null) PublishInteractiveRevisionNow(deformer, now);
+                }
+            }
+
+            if (s_pendingRevisionPublish.Count > 0) return;
+            EditorApplication.update -= PumpInteractiveRevisionPublish;
+            s_revisionPublishPumpRegistered = false;
+            // Forget owners whose burst has ended so destroyed components are not retained.
+            var stale = new List<LatticeDeformer>();
+            foreach (var pair in s_lastRevisionPublish)
+                if (pair.Key == null || now - pair.Value >= k_RevisionPublishMaxDelaySeconds) stale.Add(pair.Key);
+            foreach (var deformer in stale) s_lastRevisionPublish.Remove(deformer);
+        }
+
+        private static readonly HashSet<LatticeDeformer> s_pendingRevisionSync = new();
+        private static bool s_revisionSyncScheduled;
+
+        /// <summary>
+        /// Fallback for edits that call <see cref="LatticeDeformer.Deform(bool)"/> and only repaint
+        /// (tool-local undo handlers and similar). The preview node updates its own mesh in place,
+        /// but filters downstream of it only see the change once NDMF recomputes the graph.
+        /// No-op when the revision has already been published or is pending publication.
+        /// </summary>
+        internal static void ScheduleInteractiveRevisionSync(LatticeDeformer deformer)
+        {
+            if (deformer == null || s_pendingRevisionPublish.ContainsKey(deformer)) return;
+            var revision = GetInteractiveRevision(deformer);
+            if (revision == null || revision.Value == deformer.DeformationDataRevision) return;
+            if (!s_pendingRevisionSync.Add(deformer) || s_revisionSyncScheduled) return;
+
+            // Called from the render callback; defer the graph invalidation out of it.
+            s_revisionSyncScheduled = true;
+            EditorApplication.delayCall += FlushInteractiveRevisionSync;
+        }
+
+        private static void FlushInteractiveRevisionSync()
+        {
+            s_revisionSyncScheduled = false;
+            if (s_pendingRevisionSync.Count == 0) return;
+            var deformers = new List<LatticeDeformer>(s_pendingRevisionSync);
+            s_pendingRevisionSync.Clear();
+            foreach (var deformer in deformers)
+            {
+                if (deformer == null || s_pendingRevisionPublish.ContainsKey(deformer)) continue;
+                var revision = GetInteractiveRevision(deformer);
+                int current = deformer.DeformationDataRevision;
+                if (revision != null && revision.Value != current) revision.Value = current;
+            }
         }
 
         /// <summary>
