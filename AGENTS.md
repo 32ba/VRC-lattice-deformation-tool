@@ -13,6 +13,7 @@ Lattice Deformation Tool は Unity 6 向けのエディタ拡張で（2.x系はU
 │   ├── MeshDeformer/    # Authoring / Tools / UI / Validation / Build / Preview
 │   │   └── WeightTransfer/ # ボーンウェイト転写とBurst solver
 │   ├── Preview/         # Preview sessionとMeshの所有・終了処理
+│   ├── UI/              # デザインシステムのUSS（Styles/）、白一色のアイコン（Icons/）、MeshDeformerStyles
 │   ├── Legacy/          # 旧Brushの検出とEditor移行
 │   ├── Localization/    # 5言語のUIテキスト
 │   ├── Support/         # 診断と更新情報
@@ -256,6 +257,15 @@ VRChat アバターの対称ワークフロー向けのレイヤー操作機能�
 - `Editor/` フォルダ内のコードは Unity Editor でのみ動作
 - `Runtime/` フォルダ内のコードはビルド後も含まれる
 - Editor 専用 API (`UnityEditor` 名前空間) は Editor フォルダ内でのみ使用可能
+
+### Editor UI（デザインシステム）
+
+- 見た目と言葉の基準は Mesh Deformer Design System（claude.ai の Design System artifact）にある。トークン、部品、用語集はそちらで決め、`Editor/UI/Styles/` へ移す
+- `Tokens.uss`（寸法・余白・角丸・文字サイズ）、`Tokens.Dark.uss`／`Tokens.Light.uss`（色）はデザインシステムの tokens.json から生成する。変数名は `--md-<トークン名>`。手で値を足さず、デザインシステムを直してから生成し直す
+- `Components.uss` はデザインシステムの components/bundle.css を元にした部品のクラス（`.md-button`、`.md-segmented`、`.md-switch` など）。USS にない `gap`、`:first-child`／`:last-child`、`::after`、`:focus-visible`、`box-shadow` は使わず、子要素の margin、子要素、`:focus` で置き換える
+- UI Toolkit の画面は `MeshDeformerStyles.Apply(root)` で、共通トークン、Editor テーマ（`EditorGUIUtility.isProSkin`）の色トークン、部品をまとめて当てる。テーマ切り替えで呼び直してもシートは重複しない
+- アイコンは `Editor/UI/Icons/` の白一色の 64px PNG（24px グリッド、線幅 1.75 の線画）。USS の `.md-icon--<名前>` で読み込み、`-unity-background-image-tint-color` で文脈の色に染める
+- 状態の見分け（セグメントの選択中、トグルのオン／オフ、フォーカス、入力欄の枠）は両テーマで 3:1 以上、文字は 4.5:1 以上。色を変えたら組み合わせを計算し直す
 
 ### NDMF 連携
 

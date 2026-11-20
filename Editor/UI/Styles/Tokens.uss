@@ -1,0 +1,26 @@
+/* Generated from the Mesh Deformer Design System tokens.json. Edit the design system, then regenerate. */
+.md-root {
+    --md-space-2: 2px;
+    --md-space-4: 4px;
+    --md-space-6: 6px;
+    --md-space-8: 8px;
+    --md-space-10: 10px;
+    --md-space-12: 12px;
+    --md-space-16: 16px;
+    --md-radius-sm: 3px;
+    --md-radius-md: 4px;
+    --md-radius-lg: 6px;
+    --md-radius-xl: 8px;
+    --md-radius-pill: 9px;
+    --md-control-sm: 20px;
+    --md-control-md: 26px;
+    --md-control-lg: 30px;
+    --md-icon-tile: 44px;
+    --md-overlay-width: 312px;
+    --md-text-title-size: 14px;
+    --md-text-card-title-size: 13px;
+    --md-text-section-size: 12px;
+    --md-text-body-size: 12px;
+    --md-text-small-size: 11px;
+    --md-text-value-size: 11px;
+}

@@ -1,0 +1,48 @@
+/* Generated from the Mesh Deformer Design System tokens.json. Edit the design system, then regenerate. */
+.md-root {
+    --md-bg-window: #c8c8c8;
+    --md-bg-toolbar: #b6b6b6;
+    --md-bg-header: #cbcbcb;
+    --md-bg-section: #d6d6d6;
+    --md-bg-section-header: #cfcfcf;
+    --md-bg-field: #f0f0f0;
+    --md-bg-inset: #cdcdcd;
+    --md-bg-button: #e4e4e4;
+    --md-bg-button-hover: #ececec;
+    --md-bg-card: #dedede;
+    --md-bg-overlay: #d9d9d9;
+    --md-bg-overlay-footer: #d0d0d0;
+    --md-bg-hint: rgba(28, 28, 28, 0.88);
+    --md-bg-key: #3d3d3d;
+    --md-border: #999999;
+    --md-border-subtle: #b3b3b3;
+    --md-text: #111111;
+    --md-text-strong: #000000;
+    --md-text-muted: #474747;
+    --md-text-on-key: #f0f0f0;
+    --md-accent: #2e6db4;
+    --md-accent-border: #245a96;
+    --md-text-on-accent: #ffffff;
+    --md-accent-selected: #2e6db4;
+    --md-segment-track: #e4e4e4;
+    --md-segment-selected: #6e6e6e;
+    --md-text-on-selected: #ffffff;
+    --md-border-control: #6b6b6b;
+    --md-toggle-on: #2e6db4;
+    --md-toggle-knob-on: #ffffff;
+    --md-row-selected: #bcd2ec;
+    --md-row-selected-edge: #2e6db4;
+    --md-danger: #8f2c20;
+    --md-info-bg: #d6e3f2;
+    --md-info-text: #1f3a5c;
+    --md-warning-bg: #f1e6bf;
+    --md-warning-text: #5c4700;
+    --md-success: #2d7a43;
+    --md-mode-lattice-bg: #c9dcf5;
+    --md-mode-lattice-ink: #1d4a80;
+    --md-mode-brush-bg: #f6dcc1;
+    --md-mode-brush-ink: #7a4510;
+    --md-mode-brush-edge: #b8813f;
+    --md-mode-vertex-bg: #cfeedd;
+    --md-mode-vertex-ink: #1e5e33;
+}
