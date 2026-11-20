@@ -56,7 +56,9 @@ namespace Net._32Ba.LatticeDeformationTool
             "1.4.5-beta.5",
             "1.4.5",
             "1.4.6-beta.1",
-            "2.0.0-beta.1"
+            // Index 43 is the 2.0 beta data schema. Its label follows package.json while
+            // the 2.0 betas share that schema (2.0.0-beta.1 and later betas need no step).
+            "2.0.0-beta.2"
         };
         internal static IReadOnlyList<string> Releases { get; } = Array.AsReadOnly(s_releases);
 
