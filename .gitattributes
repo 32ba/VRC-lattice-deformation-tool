@@ -1,2 +1,3 @@
 Tests/Editor/Fixtures/HistoricalReleases/** text eol=lf whitespace=-trailing-space
+Tests/Editor/Fixtures/LaterReleases/** text eol=lf whitespace=-trailing-space
 Tools~/HistoricalFixtures/** text eol=lf

@@ -1,0 +1,118 @@
+{
+    "schemaVersion": 1,
+    "tag": "1.4.5",
+    "commitSha": "41f5033658741858b273a0833467a3abee620ee8",
+    "packageVersion": "1.4.5",
+    "unityVersion": "2022.3.22f1",
+    "generationMode": "unity-batchmode-tag-checkout",
+    "goldenOutputSource": "historical-runtime-deform",
+    "metaGuidScheme": "sha256-v1:tag/relative-asset-path",
+    "prefabFileIdScheme": "sha256-v1:tag/relative-prefab/class/ordinal",
+    "tools": [
+        {
+            "path": "Tools~/HistoricalFixtures/HistoricalFixtureGenerator.cs",
+            "sha256": "48a4fa7bd9ce776e1a53052c7916f33284d940eeeb134ecc15757cddb9fc1d22"
+        },
+        {
+            "path": "Tools~/HistoricalFixtures/LaterReleases/LaterReleaseMeshCapture.cs",
+            "sha256": "9b19dbb02ce04364448b76366324d0207cabccc56fcadf8b4a0dba8836ee5451"
+        },
+        {
+            "path": "Tools~/HistoricalFixtures/LaterReleases/LaterReleaseFixtureGenerator.cs",
+            "sha256": "ba85a6825d397bd035075cd2f2c0b61c1fb724f73b5b0a9673c56d62c94b12f6"
+        },
+        {
+            "path": "Tools~/HistoricalFixtures/LaterReleases/Generate-LaterReleaseFixtures.ps1",
+            "sha256": "f7fb51849f3e8a063ae914f5d1de89ed4881ed317b4bac7272c97c8aac00e712"
+        }
+    ],
+    "files": [
+        {
+            "path": "embedded-preserve.json",
+            "sha256": "2c22031b96bd2fb839169607adb3d6c3f689fd607cacfdf3258a01c416ce53a9"
+        },
+        {
+            "path": "embedded-preserve.json.meta",
+            "sha256": "01a61b54050637ed48cbaa70b1356652fc42c091a547855064fed28f74e27ccf"
+        },
+        {
+            "path": "embedded-preserve.prefab",
+            "sha256": "f8128df2ead8ec17fbaf444c87672e60792f065f029d7132ae73010c0f4856cf"
+        },
+        {
+            "path": "embedded-preserve.prefab.meta",
+            "sha256": "f02f50bbf414400077b61ed2cf31742f66d4a3479718c92db4e5f1dbf99f6b04"
+        },
+        {
+            "path": "embedded-rebuild.json",
+            "sha256": "fdc8be20458f5c66d5ad4132e23b8df7a1e39b4342c80bac7e70e19df8af48c6"
+        },
+        {
+            "path": "embedded-rebuild.json.meta",
+            "sha256": "749fc51d670f36dac8ff9dc1609980ced4fc2eebecc5701c520a14fbb1227196"
+        },
+        {
+            "path": "embedded-rebuild.prefab",
+            "sha256": "f11a6b623f03ceb24722b7fe6edc9ccb8b7db37b64f13113e1d493704a7c1c9b"
+        },
+        {
+            "path": "embedded-rebuild.prefab.meta",
+            "sha256": "ff31054f316d47d41d10216f353e79d510f4d3fb34f9c0b9130d4d6f83d51345"
+        },
+        {
+            "path": "profile.asset",
+            "sha256": "2f4b08996cd6b1ed5c25db90c066d08e3f96445557e5aa64e89db67ac1c73143"
+        },
+        {
+            "path": "profile.asset.meta",
+            "sha256": "958c161c15eecb960d4e0f6be995597729f79ed68b5b1ee697e4ee709f63ac9f"
+        },
+        {
+            "path": "profile.json",
+            "sha256": "5c9bab62e7e9f2f95fd7eb95e1090a27455a27d1d78ee2e6bb2c829cc02f6d1e"
+        },
+        {
+            "path": "profile.json.meta",
+            "sha256": "e33c8e5fc45569f185487994ac1c00199dbda1a91ce94914c32c9fa2df3e73bf"
+        },
+        {
+            "path": "profile.prefab",
+            "sha256": "e3a71d099a081a224a12fef967f3f8355cfd59a02f70935332b1d38cbeae7e1c"
+        },
+        {
+            "path": "profile.prefab.meta",
+            "sha256": "58dd0945da8522a4ddba9840a0d217c59ca325f5d2cdd4be69ce122737542462"
+        },
+        {
+            "path": "source.asset",
+            "sha256": "cb10fc911ffbbecfdc1cac85003f7722bd23f40017b35ddc6d74b01a0681a8d4"
+        },
+        {
+            "path": "source.asset.meta",
+            "sha256": "3723eab160ef840d00f27409fe4000efb363349a9738b96b4a4cae898c5256bd"
+        }
+    ],
+    "fixtures": [
+        {
+            "kind": "embedded-preserve",
+            "prefab": "embedded-preserve.prefab",
+            "expected": "embedded-preserve.json",
+            "source": "source.asset",
+            "profile": ""
+        },
+        {
+            "kind": "embedded-rebuild",
+            "prefab": "embedded-rebuild.prefab",
+            "expected": "embedded-rebuild.json",
+            "source": "source.asset",
+            "profile": ""
+        },
+        {
+            "kind": "profile",
+            "prefab": "profile.prefab",
+            "expected": "profile.json",
+            "source": "source.asset",
+            "profile": "profile.asset"
+        }
+    ]
+}

@@ -25,6 +25,92 @@ msgstr "非破壊メッシュ変形のメインコンポーネントです。"
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-deformer-overview"
 msgstr "Mesh / SkinnedMesh の形状を Lattice・Brush・Vertex Selection のレイヤーで調整します。元の Mesh は変更せず、NDMF Preview とビルド時に非破壊で結果を適用します。"
 
+# Guided inspector
+msgid "net.32ba.lattice-deformation-tool.localization.guided-question"
+msgstr "何をしたいですか？"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-intro"
+msgstr "やりたいことを選ぶと、すぐに編集を始められます。元のメッシュデータは変更しません。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-target"
+msgstr "対象メッシュ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-no-target"
+msgstr "対象メッシュが見つかりません。このコンポーネントを編集したい Renderer と同じ GameObject に追加するか、下で対象を指定してください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-current-edit"
+msgstr "現在の編集内容: {0}"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape"
+msgstr "形をまとめて変える"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape-description"
+msgstr "衣装や身体の広い範囲を、囲んでまとめて変形します。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface"
+msgstr "ブラシでなぞって整える"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface-description"
+msgstr "ブラシで表面を押す・動かす・滑らかにします。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices"
+msgstr "点をつかんで細かく動かす"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices-description"
+msgstr "頂点を選択し、ハンドルで細かく位置を調整します。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-preview-note"
+msgstr "編集を始めると、結果を Scene ビューで確認できるようになります。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-single-selection-required"
+msgstr "かんたん画面から編集するには、Mesh Deformer を1つだけ選択してください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-profile-read-only"
+msgstr "共有 Profile の内容はこの画面から直接編集できません。詳細編集で内蔵データへコピーしてください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-unable-to-start"
+msgstr "編集を開始できませんでした。詳細編集で対象メッシュと編集内容を確認してください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-detailed-inspector"
+msgstr "詳細編集..."
+
+msgid "net.32ba.lattice-deformation-tool.localization.return-to-guided-inspector"
+msgstr "かんたん画面へ戻る"
+
+# Guided Scene View overlay
+msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-adjust-shape-hint"
+msgstr "水色の点をドラッグして、全体の形を整えます。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-sculpt-surface-hint"
+msgstr "表面をドラッグして調整します。ブラシの働きと大きさ、強さを選べます。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-move-vertices-hint"
+msgstr "頂点を選び、表示されたハンドルで動かします。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-push-pull"
+msgstr "形を変える"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-move"
+msgstr "ずらす"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-smooth"
+msgstr "なめらかに"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-raise"
+msgstr "盛る"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-brush-indent"
+msgstr "へこませる"
+
+msgid "net.32ba.lattice-deformation-tool.localization.open-detailed-overlay"
+msgstr "詳細"
+
+msgid "net.32ba.lattice-deformation-tool.localization.return-to-simple-overlay"
+msgstr "かんたん"
+
+msgid "net.32ba.lattice-deformation-tool.localization.finish-editing"
+msgstr "完了"
+
 msgid "net.32ba.lattice-deformation-tool.localization.yes"
 msgstr "はい"
 
@@ -56,7 +142,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.settings.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy"
-msgstr "コピー"
+msgstr "同じ向き"
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy.tooltip"
 msgstr ""
@@ -94,7 +180,7 @@ msgstr "変形対象の MeshFilter を設定します。"
 
 # Groups & Layers
 msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups"
-msgstr "変形グループ"
+msgstr "グループ（上級者向け）"
 
 msgid "net.32ba.lattice-deformation-tool.localization.deformation-groups.tooltip"
 msgstr "複数の独立したグループで変形を管理できます。各グループは別々のShapeKeyとして出力可能です。"
@@ -118,7 +204,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.add-brush-layer.tooltip"
 msgstr "ペイントレイヤーを追加。ブラシで描いてメッシュの形状を変更できます。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer"
-msgstr "アクティブレイヤー"
+msgstr "編集するレイヤー"
 
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer.tooltip"
 msgstr "現在編集中のレイヤーを選択します。"
@@ -172,7 +258,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.delete-group.tooltip"
 msgstr "選択中のグループとその全レイヤーを削除します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer"
-msgstr "アクティブレイヤーをリセット"
+msgstr "箱を元の形に戻す"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-active-layer.tooltip"
 msgstr "アクティブレイヤーの全変形データをクリアします。"
@@ -276,103 +362,103 @@ msgid "net.32ba.lattice-deformation-tool.localization.reset-lattice-cage.tooltip
 msgstr "すべての制御点をデフォルト位置に戻します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.control-point-scope"
-msgstr "制御点の範囲"
+msgstr "動かせる点"
 
 msgid "net.32ba.lattice-deformation-tool.localization.control-point-scope.tooltip"
 msgstr "表示・選択する制御点の範囲をフィルタリングします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.all-controls"
-msgstr "全制御点"
+msgstr "内側も"
 
 msgid "net.32ba.lattice-deformation-tool.localization.all-controls.tooltip"
 msgstr "内部の制御点を含むすべてを表示します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.boundary-only"
-msgstr "境界のみ"
+msgstr "外側だけ"
 
 msgid "net.32ba.lattice-deformation-tool.localization.boundary-only.tooltip"
 msgstr "ケージ外面上の制御点のみ表示します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.keep-control-points-visible"
-msgstr "オブジェクトで制御点を隠さない"
+msgstr "物の裏にある点も表示"
 
 msgid "net.32ba.lattice-deformation-tool.localization.keep-control-points-visible.tooltip"
 msgstr "制御点をシーンジオメトリの手前に描画します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-control-ids"
-msgstr "制御IDを表示"
+msgstr "点の番号を表示"
 
 msgid "net.32ba.lattice-deformation-tool.localization.show-control-ids.tooltip"
 msgstr "各制御点の横にインデックス番号を表示します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.handle-orientation"
-msgstr "ハンドル方向"
+msgstr "矢印の向き"
 
 msgid "net.32ba.lattice-deformation-tool.localization.handle-orientation.tooltip"
 msgstr "移動ハンドルをローカル空間またはワールド空間に合わせます。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.local"
-msgstr "ローカル"
+msgstr "オブジェクト"
 
 msgid "net.32ba.lattice-deformation-tool.localization.local.tooltip"
 msgstr "ハンドルをオブジェクトのローカル座標に合わせます。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.global"
-msgstr "グローバル"
+msgstr "ワールド"
 
 msgid "net.32ba.lattice-deformation-tool.localization.global.tooltip"
 msgstr "ハンドルをワールド座標に合わせます。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-symmetry-editing"
-msgstr "対称編集を有効化"
+msgstr "反対側も一緒に動かす"
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-symmetry-editing.tooltip"
 msgstr "軸を基準に制御点のミラー編集を有効にします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-axis"
-msgstr "対称軸"
+msgstr "軸"
 
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-axis.tooltip"
 msgstr "対称編集に使用する軸を設定します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-mode"
-msgstr "対称モード"
+msgstr "動き方"
 
 msgid "net.32ba.lattice-deformation-tool.localization.symmetry-mode.tooltip"
 msgstr "ミラーまたは反対称の反転方法を選択します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.antisymmetric"
-msgstr "反対称"
+msgstr "逆向き"
 
 msgid "net.32ba.lattice-deformation-tool.localization.antisymmetric.tooltip"
 msgstr "移動をミラーしつつ軸成分の符号を反転します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.mirror"
-msgstr "ミラー"
+msgstr "鏡写し"
 
 msgid "net.32ba.lattice-deformation-tool.localization.mirror.tooltip"
 msgstr "移動をそのまま反対側の制御点にコピーします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.x"
-msgstr "X"
+msgstr "左右（X）"
 
 msgid "net.32ba.lattice-deformation-tool.localization.x.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.y"
-msgstr "Y"
+msgstr "上下（Y）"
 
 msgid "net.32ba.lattice-deformation-tool.localization.y.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.z"
-msgstr "Z"
+msgstr "前後（Z）"
 
 msgid "net.32ba.lattice-deformation-tool.localization.z.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.shift-click-hint"
-msgstr "Shift/Ctrl を押しながら制御点を追加または削除します。"
+msgstr "Shift/Ctrl を押しながらクリックすると、点を追加・削除できます。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.shift-click-hint.tooltip"
 msgstr "Shiftで追加選択、Ctrlで個別トグルします。"
@@ -403,13 +489,13 @@ msgstr "複数選択時はグローバル空間での編集を使用できませ
 
 # Lattice Grid
 msgid "net.32ba.lattice-deformation-tool.localization.current-grid-divisions"
-msgstr "現在のグリッド分割数"
+msgstr "現在の点の数"
 
 msgid "net.32ba.lattice-deformation-tool.localization.current-grid-divisions.tooltip"
 msgstr "各軸の現在の分割数を表示します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.pending-grid-divisions"
-msgstr "変更後のグリッド分割数"
+msgstr "変更後の点の数"
 
 msgid "net.32ba.lattice-deformation-tool.localization.pending-grid-divisions.tooltip"
 msgstr "ラティスグリッドに適用する新しい分割数を設定します。"
@@ -452,25 +538,25 @@ msgid "net.32ba.lattice-deformation-tool.localization.brush-layer-info.tooltip"
 msgstr "ペイント結果を保存するレイヤーです。描いたストロークはすべて保存されます。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-radius"
-msgstr "ブラシ半径"
+msgstr "大きさ"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-radius.tooltip"
 msgstr "ブラシの影響範囲の大きさを調整します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-strength"
-msgstr "ブラシ強度"
+msgstr "強さ"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-strength.tooltip"
 msgstr "各ストロークで適用される変位量を調整します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-falloff"
-msgstr "ブラシ減衰"
+msgstr "落ち方"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-falloff.tooltip"
 msgstr "ブラシの端がどれくらい柔らかくぼやけるかを選択します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.normal"
-msgstr "法線"
+msgstr "表面に沿う"
 
 msgid "net.32ba.lattice-deformation-tool.localization.normal.tooltip"
 msgstr "メッシュの表面を外側に押し出します。"
@@ -500,13 +586,13 @@ msgid "net.32ba.lattice-deformation-tool.localization.brush-deform.tooltip"
 msgstr "ブラシの動作を選択：押す、移動、滑らかに、またはロック。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.smooth"
-msgstr "スムーズ"
+msgstr "なめらか"
 
 msgid "net.32ba.lattice-deformation-tool.localization.smooth.tooltip"
 msgstr "中心から端に向けて優しく減衰します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.linear"
-msgstr "リニア"
+msgstr "まっすぐ"
 
 msgid "net.32ba.lattice-deformation-tool.localization.linear.tooltip"
 msgstr "均等に減衰します。中心から端に向けて一定に弱くなります。"
@@ -518,43 +604,43 @@ msgid "net.32ba.lattice-deformation-tool.localization.constant.tooltip"
 msgstr "ブラシ範囲全体に同じ強さを適用。端は急に切れます。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.sphere"
-msgstr "球体"
+msgstr "丸く"
 
 msgid "net.32ba.lattice-deformation-tool.localization.sphere.tooltip"
 msgstr "柔らかい円形の減衰。滑らかなぼやけです。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.gaussian"
-msgstr "ガウシアン"
+msgstr "ふんわり"
 
 msgid "net.32ba.lattice-deformation-tool.localization.gaussian.tooltip"
 msgstr "鐘型の減衰。有機的な形状変更に最適です。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.falloff"
-msgstr "減衰"
+msgstr "落ち方"
 
 msgid "net.32ba.lattice-deformation-tool.localization.falloff.tooltip"
 msgstr "ブラシ効果が中心から端にかけてどう薄れるか。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.invert"
-msgstr "選択反転"
+msgstr "反転"
 
 msgid "net.32ba.lattice-deformation-tool.localization.invert.tooltip"
 msgstr "ブラシの効果を反転（押す代わりに引く）。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.invert-brush"
-msgstr "ブラシ反転"
+msgstr "向きを反転（へこませる）"
 
 msgid "net.32ba.lattice-deformation-tool.localization.invert-brush.tooltip"
 msgstr "押す/引くを切り替えます。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-mirror"
-msgstr "ミラーを有効化"
+msgstr "左右対称に塗る"
 
 msgid "net.32ba.lattice-deformation-tool.localization.enable-mirror.tooltip"
 msgstr "一度に両側に描画します（左右対称）。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.mirror-axis"
-msgstr "ミラー軸"
+msgstr "軸"
 
 msgid "net.32ba.lattice-deformation-tool.localization.mirror-axis.tooltip"
 msgstr "対称の軸を選択：左右、上下、前後。"
@@ -572,7 +658,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.clear-all-displacements.to
 msgstr "すべてのレイヤーの変更をリセットします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements"
-msgstr "アクティブレイヤーの変位をクリア"
+msgstr "このレイヤーをすべて元に戻す"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-active-layer-displacements.tooltip"
 msgstr "現在のレイヤーの変更のみをリセットします。"
@@ -602,13 +688,13 @@ msgid "net.32ba.lattice-deformation-tool.localization.clear-mask.tooltip"
 msgstr "すべてのマスクデータを削除し、全頂点を編集可能にします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-all"
-msgstr "すべてクリア"
+msgstr "このレイヤーをすべて元に戻す"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-all.tooltip"
 msgstr "アクティブレイヤーの全変位とマスクを削除します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.visualization"
-msgstr "可視化"
+msgstr "表示オプション"
 
 msgid "net.32ba.lattice-deformation-tool.localization.visualization.tooltip"
 msgstr "Sceneビューでの編集フィードバック表示オプションです。"
@@ -864,7 +950,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool.tooltip"
 msgstr "頂点選択・変換エディターを起動します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection"
-msgstr "頂点選択"
+msgstr "点を動かす"
 
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection.tooltip"
 msgstr "クリックで頂点を選択。ドラッグで複数選択できます。"
@@ -894,7 +980,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.vertex-transform.tooltip"
 msgstr "選択した頂点を移動、回転、またはリサイズします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.transform-mode"
-msgstr "変換モード"
+msgstr "動かし方"
 
 msgid "net.32ba.lattice-deformation-tool.localization.transform-mode.tooltip"
 msgstr "移動・回転・スケール操作を切り替えます。"
@@ -906,25 +992,25 @@ msgid "net.32ba.lattice-deformation-tool.localization.rotate.tooltip"
 msgstr "選択中の頂点の回転モードを有効にします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.scale"
-msgstr "スケール"
+msgstr "拡大縮小"
 
 msgid "net.32ba.lattice-deformation-tool.localization.scale.tooltip"
 msgstr "選択中の頂点のスケールモードを有効にします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.select-all"
-msgstr "すべて選択"
+msgstr "すべて"
 
 msgid "net.32ba.lattice-deformation-tool.localization.select-all.tooltip"
 msgstr "アクティブブラシレイヤーの全頂点を選択します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.select-none"
-msgstr "選択解除"
+msgstr "選択を解除"
 
 msgid "net.32ba.lattice-deformation-tool.localization.select-none.tooltip"
 msgstr "現在選択中のすべての頂点を選択解除します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-selection"
-msgstr "選択をクリア"
+msgstr "選択を解除"
 
 msgid "net.32ba.lattice-deformation-tool.localization.clear-selection.tooltip"
 msgstr "現在の選択からすべての頂点を除外します。"
@@ -936,25 +1022,25 @@ msgid "net.32ba.lattice-deformation-tool.localization.connected-only.tooltip"
 msgstr "矩形選択をメッシュ接続された頂点のみに制限します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-selected-vertices"
-msgstr "選択した頂点をリセット"
+msgstr "選んだ点だけ元に戻す"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-selected-vertices.tooltip"
 msgstr "選択中の頂点の変位データのみをクリアします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-all-vertices"
-msgstr "すべての頂点をリセット"
+msgstr "このレイヤーをすべて元に戻す"
 
 msgid "net.32ba.lattice-deformation-tool.localization.reset-all-vertices.tooltip"
 msgstr "レイヤー内のすべての頂点の変位データをクリアします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-editing"
-msgstr "プロポーショナル編集"
+msgstr "まわりもなめらかに動かす"
 
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-editing.tooltip"
 msgstr "近くの選択していない頂点も一緒に影響を受けます。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-radius"
-msgstr "プロポーショナル半径"
+msgstr "範囲"
 
 msgid "net.32ba.lattice-deformation-tool.localization.proportional-radius.tooltip"
 msgstr "影響が周囲の頂点に広がる範囲を調整します。"
@@ -1119,7 +1205,7 @@ msgstr "このレイヤーに変更があるかを表示します。"
 
 # BlendShape
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-output"
-msgstr "BlendShape 出力"
+msgstr "BlendShapeとして出力"
 
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-output.tooltip"
 msgstr "メッシュを直接変形する代わりにShapeKeyを作成します。"
@@ -1161,7 +1247,7 @@ msgid "net.32ba.lattice-deformation-tool.localization.test-weight.tooltip"
 msgstr "プレビューの強さを0～100%で調整します。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape"
-msgstr "BlendShape のインポート"
+msgstr "BlendShapeから読み込む"
 
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape.tooltip"
 msgstr "既存のShapeKeyをペイントレイヤーとして読み込み編集します。"
@@ -1174,13 +1260,13 @@ msgstr "全フレーム"
 
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
-msgstr "(NDMF) ラティスプレビューを無効化"
+msgstr "プレビューを止める"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview.tooltip"
 msgstr "NDMFのリアルタイム変形プレビューをオフにします。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview"
-msgstr "(NDMF) ラティスプレビューを有効化"
+msgstr "プレビューを表示する"
 
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-enable-mesh-preview.tooltip"
 msgstr "Sceneビューでの NDMFリアルタイム変形プレビューをオンにします。"
@@ -1288,8 +1374,11 @@ msgstr "新しいバージョンがあります"
 msgid "net.32ba.lattice-deformation-tool.localization.update-current-to-latest"
 msgstr "現在: {0}  最新: {1}"
 
-msgid "net.32ba.lattice-deformation-tool.localization.update-open-booth-page"
-msgstr "BOOTH 商品ページを開く"
+msgid "net.32ba.lattice-deformation-tool.localization.update-via-vpm"
+msgstr "VCC などの VPM 対応ツールから更新してください。v2 から BOOTH での配布は終了しました。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.update-open-guide"
+msgstr "更新方法を見る"
 
 msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition"
 msgstr "フレーム合成"
@@ -1352,3 +1441,84 @@ msgstr "検証"
 
 msgid "net.32ba.lattice-deformation-tool.localization.validation-fix"
 msgstr "修正"
+
+msgid "net.32ba.lattice-deformation-tool.localization.support-information"
+msgstr "サポート情報"
+
+msgid "net.32ba.lattice-deformation-tool.localization.support-information-description"
+msgstr "問題の調査に必要な技術情報を、エンコードしたPNG画像として保存します。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.copy-support-information"
+msgstr "サポート情報画像を保存"
+
+msgid "net.32ba.lattice-deformation-tool.localization.support-information-copied"
+msgstr "サポート情報画像を保存しました。お問い合わせメッセージに添付してください。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.invalid-migration-journal"
+msgstr "保存データの移行情報が未対応または不正なため、データを変更せずに処理を停止しました。"
+
+msgid "net.32ba.lattice-deformation-tool.localization.profile-operation-failed"
+msgstr "Profile を変更できませんでした。保存データと保存先を確認してください。新規作成時は未使用のファイル名を指定してください。"
+
+# Editor UI (design system)
+msgid "net.32ba.lattice-deformation-tool.localization.guided-inspector-tab"
+msgstr "かんたん"
+
+msgid "net.32ba.lattice-deformation-tool.localization.detailed-inspector-tab"
+msgstr "詳細"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-adjust-shape-example"
+msgstr "例：胸・袖・スカートのサイズ合わせ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-sculpt-surface-example"
+msgstr "例：貫通の修正・へこみをならす"
+
+msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices-example"
+msgstr "例：一部の点だけを手で微調整"
+
+msgid "net.32ba.lattice-deformation-tool.localization.mesh-source"
+msgstr "対象メッシュ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.deformation-layers"
+msgstr "変形レイヤー"
+
+msgid "net.32ba.lattice-deformation-tool.localization.selected-layer-settings"
+msgstr "選択中のレイヤー"
+
+msgid "net.32ba.lattice-deformation-tool.localization.tool-preferences"
+msgstr "言語と表示"
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-group"
+msgstr "グループを追加"
+
+msgid "net.32ba.lattice-deformation-tool.localization.add-layer"
+msgstr "レイヤーを追加"
+
+msgid "net.32ba.lattice-deformation-tool.localization.group-layer-count"
+msgstr "{0} レイヤー"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-visible"
+msgstr "このレイヤーを適用する"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-editing"
+msgstr "編集中"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-badge-lattice"
+msgstr "ラティス"
+
+msgid "net.32ba.lattice-deformation-tool.localization.layer-badge-brush"
+msgstr "ブラシ"
+
+msgid "net.32ba.lattice-deformation-tool.localization.scale-linked"
+msgstr "XYZ を連動中（クリックで解除）"
+
+msgid "net.32ba.lattice-deformation-tool.localization.scale-unlinked"
+msgstr "XYZ を個別に設定（クリックで連動）"
+
+# Editor UI glossary
+msgid "net.32ba.lattice-deformation-tool.localization.select-mirror-partners"
+msgstr "反対側の点も選ぶ"
+
+# Editor UI glossary
+msgid "net.32ba.lattice-deformation-tool.localization.layer-influence"
+msgstr "効き具合"

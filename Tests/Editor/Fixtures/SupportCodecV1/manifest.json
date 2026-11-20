@@ -1,0 +1,33 @@
+{
+  "sourceCommit": "691723bbf64832db5ef6420cb9b89e99f3a34542",
+  "supportReportGitBlob": "4fcb1f3962534ceb208e68af92fe8a3814861cfa",
+  "packageVersion": "1.4.6-beta.1",
+  "unityVersion": "2022.3.22f1",
+  "capture": "Original report Generate/Decode, GeneratePng/DecodePng, GeneratePlainText/ConvertPlainTextToJson in the existing Playground Editor before switching package.",
+  "files": [
+    {
+      "path": "encoded.txt",
+      "sha256": "1c78cd3ae5241bd25140399a894bb9817833c34a0f485de1f8173952a1de00d8"
+    },
+    {
+      "path": "expected-decoded.txt",
+      "sha256": "e625f035f4eb3f5d63b52596dd714f7eeb343d4df29a4d57a05c91380052bfc3"
+    },
+    {
+      "path": "expected-json.txt",
+      "sha256": "e32ed2a13c01e9b1b478f3ff88f804e0b25ef7136cc7a04b987eec2461406ce2"
+    },
+    {
+      "path": "expected-png.txt",
+      "sha256": "e0cf2ae8d3470b2e8e9b19262669d83d880bdc0e57d0e9929a3ca10e54beed39"
+    },
+    {
+      "path": "image.bytes",
+      "sha256": "f907623acc4878075f17d501c9b9c4375bf4dd9c3e70149a6bc42e1b6fa77ff2"
+    },
+    {
+      "path": "plain.txt",
+      "sha256": "8a22135fce08b1283f439a5a942ba3232ff427bfd5485de4deaac08c3fddb646"
+    }
+  ]
+}

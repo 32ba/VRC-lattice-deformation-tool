@@ -24,9 +24,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     VersionUtility.FormatVersion(ReleaseChecker.GetCurrentVersion()),
                     VersionUtility.FormatVersion(ReleaseChecker.LatestVersion)));
 
-                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.UpdateOpenBoothPage)))
+                EditorGUILayout.LabelField(LatticeLocalization.Tr(LocKey.UpdateViaVpm), EditorStyles.wordWrappedLabel);
+
+                if (GUILayout.Button(LatticeLocalization.Tr(LocKey.UpdateOpenGuide)))
                 {
-                    ReleaseChecker.OpenReleasePage();
+                    ReleaseChecker.OpenUpdateGuide();
                 }
             }
 

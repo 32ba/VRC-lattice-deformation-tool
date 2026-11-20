@@ -8,7 +8,8 @@ using UnityEngine;
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
     /// <summary>
-    /// Loads tool icons from Editor/Icons/ PNG files (Tabler Icons, MIT license).
+    /// Loads tool icons from Editor/Icons/ PNG files (converted from Tabler Icons, MIT license;
+    /// see THIRD_PARTY_NOTICES.md).
     /// Falls back to Unity built-in icons if the PNG file is not found.
     /// </summary>
     internal static class ToolIcons

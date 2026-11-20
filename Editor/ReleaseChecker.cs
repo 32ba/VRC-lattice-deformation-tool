@@ -14,7 +14,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     internal static class ReleaseChecker
     {
         private const string PackageId = "net.32ba.lattice-deformation-tool";
-        private const string ReleasePageUrl = "https://booth.pm/ja/items/7488375";
+        // From version 2 the package is distributed only through VPM, so the update notice opens
+        // the documentation, which explains how to update.
+        internal const string UpdateGuideUrl = "https://vrc.32ba.net/docs/packages/vrc-lattice-deformation-tool/overview/";
         private const string LastCheckKeyPrefix = "Net32Ba.LatticeDeformationTool.LastVersionCheck";
         private const double CheckIntervalHours = 24.0;
 
@@ -64,9 +66,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
 
         [ExcludeFromCodeCoverage]
-        internal static void OpenReleasePage()
+        internal static void OpenUpdateGuide()
         {
-            Application.OpenURL(ReleasePageUrl);
+            Application.OpenURL(UpdateGuideUrl);
         }
 
         [ExcludeFromCodeCoverage]

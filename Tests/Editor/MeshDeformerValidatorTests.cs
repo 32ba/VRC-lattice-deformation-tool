@@ -19,7 +19,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         [TearDown]
         public void TearDown()
         {
-            SkinnedVertexHelper.StoreMovesInRestSpace = false;
             Undo.ClearAll();
         }
 
@@ -114,12 +113,14 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             }
         }
 
-        [Test]
-        public void ImportedNonReadableSource_DeformUsesTemporaryReadableCopy()
+        [TestCase(true)]
+        [TestCase(false)]
+        public void ImportedNonReadableSource_DeformUsesTemporaryReadableCopy(bool initializedCache)
         {
             const string testDirectory = "Assets/LatticeDeformerReadWriteDisabledTest";
             const string meshPath = testDirectory + "/source.obj";
             var gameObject = new GameObject("Imported Non-readable Source");
+            if (!initializedCache) gameObject.SetActive(false);
             Mesh result = null;
             try
             {
@@ -159,7 +160,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 var sourceMeshField = typeof(LatticeDeformer).GetField(
                     "_sourceMesh", BindingFlags.Instance | BindingFlags.NonPublic);
                 Assert.That(sourceMeshField, Is.Not.Null);
-                sourceMeshField.SetValue(deformer, mesh);
+                sourceMeshField.SetValue(deformer, initializedCache ? mesh : null);
 
                 Assert.That(mesh.isReadable, Is.False);
                 Assert.DoesNotThrow(() => result = deformer.Deform(false));
@@ -176,33 +177,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     Object.DestroyImmediate(result);
                 }
                 AssetDatabase.DeleteAsset(testDirectory);
-            }
-        }
-
-        [Test]
-        public void NonReadableSkinnedMesh_RestSpaceValidationStillRuns()
-        {
-            var gameObject = new GameObject("Non-readable Skinned Source");
-            var mesh = CreateMesh("Non-readable Skinned Mesh");
-            mesh.UploadMeshData(true);
-            try
-            {
-                gameObject.AddComponent<SkinnedMeshRenderer>().sharedMesh = mesh;
-                var deformer = gameObject.AddComponent<LatticeDeformer>();
-                SkinnedVertexHelper.StoreMovesInRestSpace = true;
-
-                Assert.DoesNotThrow(deformer.Reset);
-                IReadOnlyList<MeshDeformerDiagnostic> diagnostics = null;
-                Assert.DoesNotThrow(() => diagnostics = MeshDeformerValidator.Validate(deformer));
-                Assert.That(diagnostics.Any(d => d.Code == MeshDeformerValidator.SourceMeshNotReadable), Is.False);
-                Assert.That(diagnostics.Any(d => d.Code == MeshDeformerValidator.RestSpaceConversionUnsafe), Is.True);
-                Assert.That(LatticeDeformerBakePass.ValidateBeforeBake(deformer), Is.True);
-                Assert.That(deformer.Deform(false), Is.Not.Null);
-            }
-            finally
-            {
-                Object.DestroyImmediate(gameObject);
-                Object.DestroyImmediate(mesh);
             }
         }
 
@@ -264,12 +238,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
-        public void NdmfPreviewInstantiate_ProxyTopologyMismatchWarnsAndRestoresProxy()
+        public void NdmfPreviewInstantiate_ProxyTopologyMismatchWarnsWithoutMutatingUpstream()
         {
             using var fixture = CreateFixture("NDMF Preview Topology");
             var proxyObject = new GameObject("NDMF Preview Mismatched Proxy");
             Mesh proxyMesh = CreateMesh("Mismatched Proxy Mesh");
             proxyMesh.triangles = new[] { 0, 2, 1, 1, 2, 3 };
+            int[] upstreamTriangles = proxyMesh.triangles;
             IRenderFilterNode node = null;
             try
             {
@@ -289,7 +264,9 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Assert.That(proxyRenderer.GetComponent<MeshFilter>().sharedMesh, Is.Not.SameAs(proxyMesh));
                 node.Dispose();
                 node = null;
-                Assert.That(proxyRenderer.GetComponent<MeshFilter>().sharedMesh, Is.SameAs(proxyMesh));
+                Assert.That(proxyMesh.triangles, Is.EqualTo(upstreamTriangles),
+                    "Disposal must not rewrite the upstream mesh owned by the preceding NDMF node.");
+                Assert.That(fixture.Filter.sharedMesh, Is.SameAs(fixture.Mesh));
             }
             finally
             {
@@ -504,7 +481,24 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(diagnostics.Count(d => d.Code == MeshDeformerValidator.ExistingBlendShapeCollision), Is.EqualTo(2));
 
             first.BlendShapeName = "";
+            Assert.That(MeshDeformerValidator.Validate(fixture.Deformer)
+                .Any(d => d.Code == MeshDeformerValidator.EmptyBlendShapeName), Is.False,
+                "An empty stored name must use the same object-name fallback as Deform().");
+            fixture.Deformer.gameObject.name = "";
             AssertCode(fixture.Deformer, MeshDeformerValidator.EmptyBlendShapeName);
+        }
+
+        [Test]
+        public void EmptyLayerBlendShapeName_UsesLayerNameFallback()
+        {
+            using var fixture = CreateFixture("Layer BlendShape Fallback");
+            LatticeLayer layer = fixture.Deformer.Groups[0].Layers[0];
+            layer.BlendShapeOutput = BlendShapeOutputMode.OutputAsBlendShape;
+            layer.BlendShapeName = "";
+
+            Assert.That(layer.EffectiveBlendShapeName, Is.Not.Empty);
+            Assert.That(MeshDeformerValidator.Validate(fixture.Deformer)
+                .Any(d => d.Code == MeshDeformerValidator.EmptyBlendShapeName), Is.False);
         }
 
         [Test]
@@ -525,33 +519,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(MeshDeformerValidator.Validate(fixture.Deformer), Is.Empty);
         }
 
-        [Test]
-        public void ClearanceReferences_ReportMissingSelfAndInactiveAsWarningOnly()
-        {
-            using var fixture = CreateFixture("Clearance");
-            fixture.Deformer.ShowClearanceHeatmap = true;
-            AssertWarning(fixture.Deformer, MeshDeformerValidator.InvalidClearanceReference);
 
-            fixture.Deformer.ClearanceReferenceRenderer = fixture.Renderer;
-            AssertWarning(fixture.Deformer, MeshDeformerValidator.InvalidClearanceReference);
-
-            var reference = new GameObject("Inactive Reference");
-            var referenceMesh = CreateMesh("Reference");
-            try
-            {
-                reference.AddComponent<MeshFilter>().sharedMesh = referenceMesh;
-                var referenceRenderer = reference.AddComponent<MeshRenderer>();
-                reference.SetActive(false);
-                fixture.Deformer.ClearanceReferenceRenderer = referenceRenderer;
-                AssertWarning(fixture.Deformer, MeshDeformerValidator.InvalidClearanceReference);
-                Assert.That(LatticeDeformerBakePass.ValidateBeforeBake(fixture.Deformer), Is.True);
-            }
-            finally
-            {
-                Object.DestroyImmediate(reference);
-                Object.DestroyImmediate(referenceMesh);
-            }
-        }
 
         [Test]
         public void PreviewTargetMismatch_IsWarningAndBakeCanContinue()
@@ -569,6 +537,29 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             finally
             {
                 Object.DestroyImmediate(other);
+            }
+        }
+
+        [Test]
+        public void IntentionalLateLatticePreview_DoesNotReportPreviewBakeTargetMismatch()
+        {
+            using var fixture = CreateFixture("Intentional Late Preview Target");
+            var reduced = CreateMesh("Reduced Proxy Topology");
+            reduced.triangles = new[] { 0, 2, 1 };
+            try
+            {
+                Assert.That(fixture.Deformer.CanPreviewAfterTopologyChanges(), Is.True);
+                var diagnostics = LatticeDeformerPreviewFilter.ValidateBeforePreview(
+                    fixture.Deformer,
+                    reduced,
+                    intentionalTopologyChangedInput: true);
+
+                Assert.That(diagnostics.Any(d =>
+                    d.Code == MeshDeformerValidator.PreviewBakeTargetMismatch), Is.False);
+            }
+            finally
+            {
+                Object.DestroyImmediate(reduced);
             }
         }
 
@@ -623,28 +614,6 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 Object.DestroyImmediate(legacy);
                 Object.DestroyImmediate(mismatch);
                 Object.DestroyImmediate(incompatibleMesh);
-            }
-        }
-
-        [Test]
-        public void UnsafeRestSpaceConversion_IsWarningOnly()
-        {
-            var gameObject = new GameObject("Unsafe Rest Space");
-            var renderer = gameObject.AddComponent<SkinnedMeshRenderer>();
-            var mesh = CreateMesh("Unskinned");
-            renderer.sharedMesh = mesh;
-            var deformer = gameObject.AddComponent<LatticeDeformer>();
-            deformer.Reset();
-            try
-            {
-                SkinnedVertexHelper.StoreMovesInRestSpace = true;
-                AssertWarning(deformer, MeshDeformerValidator.RestSpaceConversionUnsafe);
-                Assert.That(LatticeDeformerBakePass.ValidateBeforeBake(deformer), Is.True);
-            }
-            finally
-            {
-                Object.DestroyImmediate(gameObject);
-                Object.DestroyImmediate(mesh);
             }
         }
 

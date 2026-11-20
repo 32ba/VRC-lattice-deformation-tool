@@ -1,6 +1,8 @@
 #if UNITY_EDITOR
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using nadena.dev.ndmf.preview;
 using UnityEditor;
 using UnityEngine;
@@ -15,8 +17,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private const string k_DebugAlignKey = "Net32Ba.LatticeDeformer.DebugAlignLogs";
         private static readonly Dictionary<Renderer, ProxyRegistration> s_latestProxyMap = new();
         private static readonly Dictionary<Renderer, PreviewMeshRegistration> s_previewMeshMap = new();
+        private static readonly ConditionalWeakTable<LatticeDeformer, PublishedValue<int>>
+            s_interactiveRevisions = new();
+        private static readonly Dictionary<LatticeDeformer, int> s_previewUndoTargets = new();
+        internal static event Action<LatticeDeformer> InteractiveDeformationPublished;
+        internal static event Action<Renderer, Mesh, long> PreviewMeshUpdated;
         private static long s_nextProxyRegistrationGeneration;
         private static int s_proxyMappingRevision;
+
+        static LatticePreviewUtility()
+        {
+            Undo.undoRedoPerformed += OnUndoRedoPerformed;
+        }
 
         private readonly struct ProxyRegistration
         {
@@ -102,9 +114,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
 
         /// <summary>
-        /// Determines whether the runtime mesh should be assigned back to the renderer.
-        /// When the NDMF preview pipeline is active we leave the original mesh untouched
-        /// and rely on proxy renderers instead.
+        /// Determines whether an editor operation may assign the generated runtime mesh
+        /// back to the source renderer. Editor preview is always non-destructive: the
+        /// original renderer keeps its authored mesh and visible results are provided by
+        /// the NDMF preview proxy.
         /// </summary>
         public static bool ShouldAssignRuntimeMesh()
         {
@@ -116,17 +129,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static bool ShouldAssignRuntimeMesh(int disablePreviewDepth, bool enablePreview, bool previewToggleEnabled)
         {
-            if (disablePreviewDepth != 0)
-            {
-                return true;
-            }
-
-            if (!enablePreview)
-            {
-                return true;
-            }
-
-            return !previewToggleEnabled;
+            return false;
         }
 
         /// <summary>
@@ -196,31 +199,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         }
 
         /// <summary>
-        /// Returns the bounds to use for editing handles. When preview alignment is enabled and a proxy
-        /// renderer exists, this returns the proxy's bounds converted into the editing transform's local space;
-        /// otherwise it returns the source bounds unchanged.
+        /// Returns the authored lattice domain used for editing handles.
+        /// Preview output bounds are deliberately excluded: they already contain this
+        /// deformer's result and feeding them back would make the cage grow after a drag.
         /// </summary>
         public static Bounds GetEditingBounds(LatticeDeformer deformer, Bounds sourceBounds, Transform editingTransform)
         {
-            if (!UsePreviewAlignedCage || deformer == null)
-            {
-                return sourceBounds;
-            }
-
-            var renderer = deformer.GetComponent<Renderer>();
-            if (renderer == null)
-            {
-                return sourceBounds;
-            }
-
-            if (!TryGetPreviewProxy(renderer, out var proxy) || proxy == null)
-            {
-                return sourceBounds;
-            }
-
-            var targetTransform = editingTransform != null ? editingTransform : proxy.transform;
-            var worldBounds = GetRendererWorldBounds(proxy);
-            return ToLocalBounds(targetTransform, worldBounds);
+            return sourceBounds;
         }
 
         private static Bounds GetRendererWorldBounds(Renderer proxy)
@@ -286,6 +271,201 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         public static void RequestSceneRepaint()
         {
             SceneView.RepaintAll();
+        }
+
+        internal static void PublishInteractiveDeformation(LatticeDeformer deformer)
+        {
+            if (deformer == null)
+            {
+                return;
+            }
+
+            // Interactive editing updates only an active NDMF preview graph. With
+            // global preview disabled the authored renderer must be restored and left
+            // untouched; an editor-only fallback would survive the toggle and display
+            // stale or duplicate meshes.
+            // Publish that
+            // runtime mesh synchronously so every preview stage can update before
+            // the current Scene View GUI event returns.
+            InteractiveDeformationPublished?.Invoke(deformer);
+            // Let NDMF invalidate the computation which observed this exact
+            // deformer. Unlike PreviewSession.ForceRebuild(), this preserves the
+            // active generation while NDMF recomputes this node and every actual
+            // downstream consumer, then swaps the completed generation normally.
+            // The synchronous event above still updates our currently-owned mesh
+            // during the drag; the published revision carries the edit through
+            // arbitrary later NDMF filters without resetting unrelated previews.
+            // Each published revision makes NDMF rebuild the whole preview generation
+            // (~200 ms on an avatar), which throttles the editor loop if done for every
+            // drag event. The owned mesh above is already visible, so the first edit of a
+            // burst publishes at once and the rest are coalesced: they publish once the
+            // edit pauses, or at a bounded interval while it continues so downstream
+            // filters still catch up during a long drag.
+            ScheduleInteractiveRevisionPublish(deformer);
+            RequestSceneRepaint();
+        }
+
+        private const double k_RevisionPublishIdleSeconds = 0.12;
+        private const double k_RevisionPublishMaxDelaySeconds = 0.5;
+        private static readonly Dictionary<LatticeDeformer, (double First, double Last)> s_pendingRevisionPublish = new();
+        private static readonly Dictionary<LatticeDeformer, double> s_lastRevisionPublish = new();
+        private static bool s_revisionPublishPumpRegistered;
+
+        private static void ScheduleInteractiveRevisionPublish(LatticeDeformer deformer)
+        {
+            double now = EditorApplication.timeSinceStartup;
+            bool isPending = s_pendingRevisionPublish.TryGetValue(deformer, out var pending);
+            if (!isPending &&
+                (!s_lastRevisionPublish.TryGetValue(deformer, out double last) ||
+                 now - last >= k_RevisionPublishMaxDelaySeconds))
+            {
+                PublishInteractiveRevisionNow(deformer, now);
+                return;
+            }
+
+            s_pendingRevisionPublish[deformer] = isPending ? (pending.First, now) : (now, now);
+            if (s_revisionPublishPumpRegistered) return;
+            s_revisionPublishPumpRegistered = true;
+            EditorApplication.update += PumpInteractiveRevisionPublish;
+        }
+
+        private static void PublishInteractiveRevisionNow(LatticeDeformer deformer, double now)
+        {
+            s_lastRevisionPublish[deformer] = now;
+            var revision = GetInteractiveRevision(deformer);
+            revision.Value = deformer.DeformationDataRevision;
+        }
+
+        private static void PumpInteractiveRevisionPublish()
+        {
+            double now = EditorApplication.timeSinceStartup;
+            List<LatticeDeformer> due = null;
+            foreach (var pair in s_pendingRevisionPublish)
+            {
+                if (pair.Key == null ||
+                    now - pair.Value.Last >= k_RevisionPublishIdleSeconds ||
+                    now - pair.Value.First >= k_RevisionPublishMaxDelaySeconds)
+                {
+                    (due ??= new List<LatticeDeformer>()).Add(pair.Key);
+                }
+            }
+
+            if (due != null)
+            {
+                foreach (var deformer in due)
+                {
+                    s_pendingRevisionPublish.Remove(deformer);
+                    if (deformer != null) PublishInteractiveRevisionNow(deformer, now);
+                }
+            }
+
+            if (s_pendingRevisionPublish.Count > 0) return;
+            EditorApplication.update -= PumpInteractiveRevisionPublish;
+            s_revisionPublishPumpRegistered = false;
+            // Forget owners whose burst has ended so destroyed components are not retained.
+            var stale = new List<LatticeDeformer>();
+            foreach (var pair in s_lastRevisionPublish)
+                if (pair.Key == null || now - pair.Value >= k_RevisionPublishMaxDelaySeconds) stale.Add(pair.Key);
+            foreach (var deformer in stale) s_lastRevisionPublish.Remove(deformer);
+        }
+
+        private static readonly HashSet<LatticeDeformer> s_pendingRevisionSync = new();
+        private static bool s_revisionSyncScheduled;
+
+        /// <summary>
+        /// Fallback for edits that call <see cref="LatticeDeformer.Deform(bool)"/> and only repaint
+        /// (tool-local undo handlers and similar). The preview node updates its own mesh in place,
+        /// but filters downstream of it only see the change once NDMF recomputes the graph.
+        /// No-op when the revision has already been published or is pending publication.
+        /// </summary>
+        internal static void ScheduleInteractiveRevisionSync(LatticeDeformer deformer)
+        {
+            if (deformer == null || s_pendingRevisionPublish.ContainsKey(deformer)) return;
+            var revision = GetInteractiveRevision(deformer);
+            if (revision == null || revision.Value == deformer.DeformationDataRevision) return;
+            if (!s_pendingRevisionSync.Add(deformer) || s_revisionSyncScheduled) return;
+
+            // Called from the render callback; defer the graph invalidation out of it.
+            s_revisionSyncScheduled = true;
+            EditorApplication.delayCall += FlushInteractiveRevisionSync;
+        }
+
+        private static void FlushInteractiveRevisionSync()
+        {
+            s_revisionSyncScheduled = false;
+            if (s_pendingRevisionSync.Count == 0) return;
+            var deformers = new List<LatticeDeformer>(s_pendingRevisionSync);
+            s_pendingRevisionSync.Clear();
+            foreach (var deformer in deformers)
+            {
+                if (deformer == null || s_pendingRevisionPublish.ContainsKey(deformer)) continue;
+                var revision = GetInteractiveRevision(deformer);
+                int current = deformer.DeformationDataRevision;
+                if (revision != null && revision.Value != current) revision.Value = current;
+            }
+        }
+
+        /// <summary>
+        /// Re-evaluates an interactive edit in the current preview generation and invalidates only
+        /// the NDMF node that owns this deformer. Brush and vertex tools must use this path rather
+        /// than repainting after <see cref="LatticeDeformer.Deform(bool)"/>: their preview node can
+        /// be upstream of other filters, so changing only its local runtime mesh does not reach the
+        /// final displayed proxy.
+        /// </summary>
+        internal static void RefreshInteractiveDeformation(LatticeDeformer deformer)
+        {
+            if (deformer == null) return;
+
+            deformer.NotifyDeformationDataChanged();
+            deformer.Deform(ShouldAssignRuntimeMesh());
+            PublishInteractiveDeformation(deformer);
+        }
+
+        internal static PublishedValue<int> GetInteractiveRevision(LatticeDeformer deformer)
+        {
+            if (deformer == null) return null;
+            return s_interactiveRevisions.GetValue(
+                deformer,
+                instance => new PublishedValue<int>(
+                    instance.DeformationDataRevision,
+                    $"MeshDeformer/{instance.GetInstanceID()}/InteractiveRevision"));
+        }
+
+        internal static void RegisterPreviewUndoTarget(LatticeDeformer deformer)
+        {
+            if (deformer == null) return;
+            s_previewUndoTargets.TryGetValue(deformer, out int count);
+            s_previewUndoTargets[deformer] = count + 1;
+        }
+
+        internal static void UnregisterPreviewUndoTarget(LatticeDeformer deformer)
+        {
+            if (ReferenceEquals(deformer, null)) return;
+            if (!s_previewUndoTargets.TryGetValue(deformer, out int count)) return;
+            if (count <= 1)
+                s_previewUndoTargets.Remove(deformer);
+            else
+                s_previewUndoTargets[deformer] = count - 1;
+        }
+
+        private static void OnUndoRedoPerformed()
+        {
+            // Preview generations may overlap while NDMF prepares an atomic swap,
+            // so nodes register with a reference count. Publish each live deformer
+            // only once regardless of how many old/new generation nodes coexist.
+            var deformers = new List<LatticeDeformer>(s_previewUndoTargets.Keys);
+            foreach (var deformer in deformers)
+            {
+                if (deformer == null)
+                {
+                    s_previewUndoTargets.Remove(deformer);
+                    continue;
+                }
+
+                deformer.NotifyDeformationDataChanged();
+                deformer.Deform(ShouldAssignRuntimeMesh());
+                PublishInteractiveDeformation(deformer);
+            }
         }
 
         internal static long RegisterProxy(Renderer original, Renderer proxy)
@@ -367,6 +547,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 registration.Mesh,
                 registration.Generation,
                 nextRevision);
+            PreviewMeshUpdated?.Invoke(original, previewMesh, nextRevision);
             return true;
         }
 
@@ -674,20 +855,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static bool TryGetPreviewProxy(Renderer original, out Renderer proxy)
         {
-            if (TryGetRegisteredProxy(original, out proxy) && proxy != null)
-            {
-                return true;
-            }
-
-            // A registered downstream candidate deliberately suppresses the NDMF
-            // fallback until it is committed; otherwise a fresh lookup could expose
-            // the candidate before the cached revision changes.
-            if (HasRegisteredProxy(original))
-            {
-                proxy = null;
-                return false;
-            }
-
+            // Only NDMF knows which replacement generation is currently visible.
+            // Never expose a locally registered setup proxy to Scene View tools.
             return NDMFPreviewProxyUtility.TryGetProxyRenderer(original, out proxy);
         }
 
@@ -771,57 +940,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return CalculateReferencedMeshBounds(mesh, vertices, mesh.bounds);
         }
 
-        private static Vector3[] EvaluateBlendShapeVertexDelta(Mesh mesh, int shapeIndex, float weight)
-        {
-            int frameCount = mesh.GetBlendShapeFrameCount(shapeIndex);
-            if (frameCount <= 0)
-            {
-                return null;
-            }
-
-            int vertexCount = mesh.vertexCount;
-            var lower = new Vector3[vertexCount];
-            var upper = new Vector3[vertexCount];
-            var normals = new Vector3[vertexCount];
-            var tangents = new Vector3[vertexCount];
-
-            float firstWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, 0);
-            if (weight <= firstWeight || frameCount == 1)
-            {
-                mesh.GetBlendShapeFrameVertices(shapeIndex, 0, lower, normals, tangents);
-                float scale = Mathf.Abs(firstWeight) > Mathf.Epsilon ? weight / firstWeight : 0f;
-                for (int i = 0; i < lower.Length; i++)
-                {
-                    lower[i] *= scale;
-                }
-
-                return lower;
-            }
-
-            for (int frame = 1; frame < frameCount; frame++)
-            {
-                float upperWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, frame);
-                if (weight <= upperWeight)
-                {
-                    float lowerWeight = mesh.GetBlendShapeFrameWeight(shapeIndex, frame - 1);
-                    mesh.GetBlendShapeFrameVertices(shapeIndex, frame - 1, lower, normals, tangents);
-                    mesh.GetBlendShapeFrameVertices(shapeIndex, frame, upper, normals, tangents);
-
-                    float t = Mathf.Abs(upperWeight - lowerWeight) > Mathf.Epsilon
-                        ? Mathf.InverseLerp(lowerWeight, upperWeight, weight)
-                        : 0f;
-                    for (int i = 0; i < lower.Length; i++)
-                    {
-                        lower[i] = Vector3.LerpUnclamped(lower[i], upper[i], t);
-                    }
-
-                    return lower;
-                }
-            }
-
-            mesh.GetBlendShapeFrameVertices(shapeIndex, frameCount - 1, lower, normals, tangents);
-            return lower;
-        }
+        private static Vector3[] EvaluateBlendShapeVertexDelta(Mesh mesh, int shapeIndex, float weight) =>
+            mesh.GetBlendShapeFrameCount(shapeIndex) <= 0 ? null :
+                SourceBlendShapeEvaluator.EvaluateDelta(mesh, shapeIndex, weight,
+                    SourceBlendShapeExtrapolation.ClampLastFrame);
 
         private static Bounds CalculateReferencedMeshBounds(Mesh mesh, Vector3[] vertices, Bounds fallback)
         {

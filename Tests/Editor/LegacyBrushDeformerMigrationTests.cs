@@ -4,6 +4,7 @@ using System.Collections;
 using System.Linq;
 using System.Reflection;
 using Net._32Ba.LatticeDeformationTool.Editor;
+using Net._32Ba.LatticeDeformationTool.Tests.Editor;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -16,10 +17,20 @@ namespace Net._32Ba.LatticeDeformationTool.Tests
     [TestFixture]
     public class LegacyBrushDeformerMigrationTests
     {
+        private Action _restorePrefabStage;
+
+        private void RestorePrefabStage()
+        {
+            var restore = _restorePrefabStage;
+            _restorePrefabStage = null;
+            restore?.Invoke();
+        }
+
         [TearDown]
         public void TearDown()
         {
-            Undo.ClearAll();
+            try { RestorePrefabStage(); }
+            finally { Undo.ClearAll(); }
         }
 
         [Test]
@@ -276,6 +287,23 @@ namespace Net._32Ba.LatticeDeformationTool.Tests
             string copy = folder + "/legacy-brush.prefab";
             IDisposable scope = null;
             IDisposable sceneViews = CloseSceneViews();
+            var inspectors = new InspectorPresentationScope();
+            _restorePrefabStage = () =>
+            {
+                try
+                {
+                    scope?.Dispose();
+                    if (PrefabStageUtility.GetCurrentPrefabStage() != null)
+                        StageUtility.GoBackToPreviousStage();
+                    AssetDatabase.DeleteAsset(folder);
+                    AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+                }
+                finally
+                {
+                    inspectors.Dispose();
+                    sceneViews.Dispose();
+                }
+            };
             try
             {
                 AssetDatabase.CreateFolder("Assets", folder.Substring("Assets/".Length));
@@ -309,17 +337,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests
                         stage.prefabContentsRoot.GetComponentInChildren<LatticeDeformer>(true)),
                     Is.EqualTo(1));
             }
-            finally
-            {
-                scope?.Dispose();
-                if (PrefabStageUtility.GetCurrentPrefabStage() != null)
-                {
-                    StageUtility.GoBackToPreviousStage();
-                }
-                AssetDatabase.DeleteAsset(folder);
-                AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
-                sceneViews.Dispose();
-            }
+            finally { RestorePrefabStage(); }
         }
 
         [UnityTest]

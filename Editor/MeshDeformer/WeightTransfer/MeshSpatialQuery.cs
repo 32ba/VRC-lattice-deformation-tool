@@ -449,6 +449,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         /// <summary>
         /// Finds the closest point on a triangle to a given point.
         /// Returns barycentric coordinates in the output parameter.
+        /// Region-based test after Christer Ericson, "Real-Time Collision Detection" (2005), section 5.1.5.
         /// </summary>
         private static Vector3 ClosestPointOnTriangle(
             Vector3 p, Vector3 a, Vector3 b, Vector3 c, out Vector3 barycentricCoords)
