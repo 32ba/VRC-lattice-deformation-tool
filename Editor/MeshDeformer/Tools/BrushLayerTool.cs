@@ -1359,9 +1359,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // ClearanceQueryCache uses to decide whether its baked BVH is reusable,
             // together with the target-side inputs Deform reads outside the layered
             // payload. When that key is unavailable, re-evaluate on every update.
-            bool skinnedReference = s_penetrationReference is SkinnedMeshRenderer;
+            bool isSkinnedReference = s_penetrationReference is SkinnedMeshRenderer;
             int dynamicStateHash = 0;
-            bool canCache = !skinnedReference ||
+            bool canCache = !isSkinnedReference ||
                             TryComputeSkinnedReferenceDynamicHash(
                                 deformer, sourceMesh, s_penetrationReference, out dynamicStateHash);
             var nextKey = new PenetrationDetectionCacheKey(
@@ -1398,7 +1398,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             // renderer). Store the post-evaluation dynamic state so that the next
             // comparison only reports changes made after this result was produced.
             // If it cannot be read any more, do not cache this result.
-            if (skinnedReference)
+            if (isSkinnedReference)
             {
                 canCache = TryComputeSkinnedReferenceDynamicHash(
                     deformer, sourceMesh, s_penetrationReference, out dynamicStateHash);
