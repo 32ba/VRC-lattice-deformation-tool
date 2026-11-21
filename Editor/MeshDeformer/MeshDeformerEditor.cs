@@ -188,10 +188,9 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             page.Add(source);
 
             // Groups > Layers nested structure
-            _groupsContainer = _stackInspector.Root;
             var stack = MdUI.Section(LatticeLocalization.Tr(LocKey.DeformationLayers), out var stackBody);
             stack.name = "deformer-stack";
-            stackBody.Add(_groupsContainer);
+            stackBody.Add(_stackInspector.Root);
             page.Add(stack);
             RebuildGroupList();
 
@@ -277,6 +276,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _guidedInspector?.Refresh();
             if (!DetailedInspectorEnabled) return;
             AutoAssignLocalRendererReferences();
+            // The rest of this pass only reads, so the full-vertex preflight runs once per owner.
+            using var preflight = AuthoringPreflightScope.Begin();
             serializedObject.Update();
             ResolveActiveGroupProperties();
             _layerSettingsInspector?.Refresh();
@@ -301,6 +302,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void RefreshMultiObjectLayerSettings()
         {
             if (target == null) return;
+            using var preflight = AuthoringPreflightScope.Begin();
             bool editable = true;
             foreach (var owner in EnumerateTargets()) editable &= LayerSettingsEdit.Capture(owner) != null;
             _layerSettingsInspector?.Refresh();
@@ -361,7 +363,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal static int EnsureGuidedLayer(LatticeDeformer deformer, MeshDeformerLayerType requiredType)
             => GuidedAuthoringService.EnsureLayer(deformer, requiredType, LatticeLocalization.Tr(LocKey.MeshDeformer));
 
-        private VisualElement _groupsContainer; // Existing Inspector test seam; the section owns this element.
         private void OnStackStructureChanged()
         {
             ResolveActiveGroupProperties();
@@ -395,8 +396,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             => _blendShapeInspector?.EnterTestMode(deformer, renderer);
         private void ExitBlendShapeTestMode() => _blendShapeInspector?.ExitTestMode();
         internal BlendShapeInspectorSection BlendShapeInspector => _blendShapeInspector;
-
-        private bool ProfileReadOnly => _stackInspector?.ProfileReadOnly == true;
 
         private void NotifyPropertyChanges()
         {
@@ -536,11 +535,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     yield return deformer;
                 }
             }
-        }
-
-        private void TogglePreviewForTargets(bool enabled)
-        {
-            LatticeDeformerPreviewFilter.ForcePreviewState(enabled);
         }
 
         private MeshDeformerLayerType GetSerializedActiveLayerType() =>

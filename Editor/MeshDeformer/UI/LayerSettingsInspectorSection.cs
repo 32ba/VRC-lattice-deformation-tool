@@ -49,6 +49,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         internal void Refresh()
         {
             if (_disposed || Target == null) return;
+            // Read-only pass: the full-vertex preflight runs once per owner instead of per query.
+            using var preflight = AuthoringPreflightScope.Begin();
             if (!LayerSettingsEdit.TryReadActive(Target, out var raw, out var layer))
             {
                 if (_signature != string.Empty) { _root.Clear(); _signature = string.Empty; }

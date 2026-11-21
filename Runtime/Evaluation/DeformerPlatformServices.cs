@@ -11,6 +11,9 @@ namespace Net._32Ba.LatticeDeformationTool
         internal static Func<Component, int> AssignedMeshInstanceId;
         internal static Action<UnityEngine.Object> RecordLegacyMigration;
         internal static Func<UnityEngine.Object, Action> CaptureLegacyMigrationRecordRollback;
+        // Editor-only change signal (EditorUtility.GetDirtyCount). Without it no
+        // ObjectChangeToken is valid and every token-keyed cache recomputes.
+        internal static Func<UnityEngine.Object, int> DirtyCountReader;
 
         internal static bool CanReadMesh(Mesh mesh) =>
             mesh != null && (mesh.isReadable || EditorMeshDataReader != null);

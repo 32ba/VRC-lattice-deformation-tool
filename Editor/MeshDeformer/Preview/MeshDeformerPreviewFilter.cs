@@ -7,7 +7,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using nadena.dev.ndmf.preview;
 using UnityEditor;
-using Unity.Profiling;
 using UnityEngine;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
@@ -22,11 +21,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             AfterTopologyChanges,
         }
 
-        private static readonly ProfilerMarker s_copyBlendShapesMarker =
-            new ProfilerMarker("Preview.CopyBlendShapes");
-        private static readonly ProfilerMarker s_bakeBlendShapeSurfaceMarker =
-            new ProfilerMarker("Preview.BakeBlendShapeSurfaceDeltas");
-        internal static int BlendShapeCopyCount { get; set; }
         private readonly Dictionary<Renderer, LatticeDeformer> _rendererToDeformer = new Dictionary<Renderer, LatticeDeformer>();
         private readonly Placement _placement;
         internal Placement FilterPlacement => _placement;
@@ -323,30 +317,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return context.Observe(s_previewToggle.IsEnabled);
         }
 
-        internal static bool RequiresDownstreamMeshRefresh(Renderer renderer)
-        {
-            if (renderer == null)
-            {
-                return false;
-            }
-
-            foreach (var component in renderer.GetComponents<Component>())
-            {
-                if (component == null)
-                {
-                    continue;
-                }
-
-                Type type = component.GetType();
-                if (IsAvatarOptimizerMeshRemovalType(type.Namespace, type.Name))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
         internal static bool IsAvatarOptimizerMeshRemovalType(
             string typeNamespace,
             string typeName)
@@ -384,6 +354,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             private readonly DeformerPreviewSession _session;
             private ComputeContext _context;
             private ComputeContext _structure;
+            private string _lastLoggedDiagnostics;
             private bool _disposed;
 
             public PreviewNode(
@@ -461,7 +432,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     _deformer.CanPreviewAfterTopologyChanges());
                 // Instantiate reports errors and produces the disabled node.
                 if (MeshDeformerValidator.HasErrors(diagnostics)) return false;
-                MeshDeformerValidator.Log(diagnostics);
+                // Reuse runs every interactive revision; report each distinct result once.
+                string diagnosticsSignature = DiagnosticsSignature(diagnostics);
+                if (!string.Equals(diagnosticsSignature, _lastLoggedDiagnostics, StringComparison.Ordinal))
+                {
+                    MeshDeformerValidator.Log(diagnostics);
+                    _lastLoggedDiagnostics = diagnosticsSignature;
+                }
 
                 var interactiveRevision = LatticePreviewUtility.GetInteractiveRevision(_deformer);
                 if (interactiveRevision != null)
@@ -472,6 +449,20 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 BindContext(context, ObserveStructure(_deformer));
                 _session.Rebind(pairList);
                 return true;
+            }
+
+            private static string DiagnosticsSignature(IReadOnlyList<MeshDeformerDiagnostic> diagnostics)
+            {
+                if (diagnostics == null || diagnostics.Count == 0) return string.Empty;
+                var builder = new System.Text.StringBuilder();
+                foreach (var diagnostic in diagnostics)
+                {
+                    var target = diagnostic.Target;
+                    builder.Append((int)diagnostic.Severity).Append('|')
+                        .Append(!ReferenceEquals(target, null) ? target.GetInstanceID() : 0).Append('|')
+                        .Append(diagnostic.FormatForLog()).Append('\n');
+                }
+                return builder.ToString();
             }
 
             private void BindContext(ComputeContext context, ComputeContext structure)
@@ -552,234 +543,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 .Where(diagnostic =>
                     diagnostic.Code != MeshDeformerValidator.PreviewBakeTargetMismatch)
                 .ToArray();
-        }
-
-        internal sealed class BlendShapeCopyBuffers
-        {
-            internal Vector3[] DeltaVertices = Array.Empty<Vector3>();
-            internal Vector3[] DeltaNormals = Array.Empty<Vector3>();
-            internal Vector3[] DeltaTangents = Array.Empty<Vector3>();
-            internal Vector3[] UpperVertices = Array.Empty<Vector3>();
-            internal Vector3[] UpperNormals = Array.Empty<Vector3>();
-            internal Vector3[] UpperTangents = Array.Empty<Vector3>();
-
-            internal void EnsureCapacity(int vertexCount)
-            {
-                if (DeltaVertices.Length == vertexCount) return;
-                DeltaVertices = new Vector3[vertexCount];
-                DeltaNormals = new Vector3[vertexCount];
-                DeltaTangents = new Vector3[vertexCount];
-                UpperVertices = new Vector3[vertexCount];
-                UpperNormals = new Vector3[vertexCount];
-                UpperTangents = new Vector3[vertexCount];
-            }
-        }
-
-        private static float[] CaptureBlendShapeWeights(Renderer renderer)
-        {
-            if (renderer is not SkinnedMeshRenderer skinned || skinned.sharedMesh == null)
-                return Array.Empty<float>();
-            int count = skinned.sharedMesh.blendShapeCount;
-            var weights = new float[count];
-            for (int shape = 0; shape < count; shape++)
-                weights[shape] = skinned.GetBlendShapeWeight(shape);
-            return weights;
-        }
-
-        private static void RestoreProxyBlendShapeWeights(
-            Renderer renderer,
-            float[] capturedWeights,
-            SkinnedMeshRenderer original,
-            Mesh sourceMesh)
-        {
-            if (renderer is not SkinnedMeshRenderer skinned || skinned.sharedMesh == null ||
-                capturedWeights == null)
-                return;
-            int count = Mathf.Min(capturedWeights.Length, skinned.sharedMesh.blendShapeCount);
-            for (int shape = 0; shape < count; shape++)
-                skinned.SetBlendShapeWeight(shape, capturedWeights[shape]);
-
-            if (original == null || sourceMesh == null) return;
-            for (int sourceShape = 0; sourceShape < sourceMesh.blendShapeCount; sourceShape++)
-            {
-                string shapeName = sourceMesh.GetBlendShapeName(sourceShape);
-                int restoredShape = skinned.sharedMesh.GetBlendShapeIndex(shapeName);
-                if (restoredShape < 0) continue;
-                skinned.SetBlendShapeWeight(
-                    restoredShape,
-                    original.GetBlendShapeWeight(sourceShape));
-            }
-        }
-
-        internal static void BakeCurrentSourceBlendShapeSurfaceDeltas(
-            Mesh source,
-            SkinnedMeshRenderer renderer,
-            List<Vector3> normals,
-            List<Vector4> tangents,
-            BlendShapeCopyBuffers buffers)
-        {
-            if (source == null || renderer == null || buffers == null) return;
-            int vertexCount = source.vertexCount;
-            bool bakeNormals = normals != null && normals.Count == vertexCount;
-            bool bakeTangents = tangents != null && tangents.Count == vertexCount;
-            if (!bakeNormals && !bakeTangents) return;
-
-            buffers.EnsureCapacity(vertexCount);
-            using var bakeScope = s_bakeBlendShapeSurfaceMarker.Auto();
-            int shapeCount = Mathf.Min(source.blendShapeCount, renderer.sharedMesh != null
-                ? renderer.sharedMesh.blendShapeCount
-                : 0);
-            for (int shape = 0; shape < shapeCount; shape++)
-            {
-                float weight = renderer.GetBlendShapeWeight(shape);
-                if (Mathf.Abs(weight) <= 1e-5f) continue;
-                int frameCount = source.GetBlendShapeFrameCount(shape);
-                if (frameCount <= 0) continue;
-
-                int lowerFrame = 0;
-                int upperFrame = 0;
-                float scale = 0f;
-                float firstWeight = source.GetBlendShapeFrameWeight(shape, 0);
-                if (frameCount == 1 || weight <= firstWeight)
-                {
-                    scale = Mathf.Abs(firstWeight) > Mathf.Epsilon ? weight / firstWeight : 0f;
-                }
-                else
-                {
-                    lowerFrame = frameCount - 1;
-                    upperFrame = lowerFrame;
-                    scale = 1f;
-                    for (int frame = 1; frame < frameCount; frame++)
-                    {
-                        float upperWeight = source.GetBlendShapeFrameWeight(shape, frame);
-                        if (weight > upperWeight) continue;
-                        lowerFrame = frame - 1;
-                        upperFrame = frame;
-                        float lowerWeight = source.GetBlendShapeFrameWeight(shape, lowerFrame);
-                        scale = Mathf.Abs(upperWeight - lowerWeight) > Mathf.Epsilon
-                            ? Mathf.InverseLerp(lowerWeight, upperWeight, weight)
-                            : 0f;
-                        break;
-                    }
-                }
-
-                source.GetBlendShapeFrameVertices(
-                    shape,
-                    lowerFrame,
-                    buffers.DeltaVertices,
-                    buffers.DeltaNormals,
-                    buffers.DeltaTangents);
-                if (upperFrame != lowerFrame)
-                {
-                    source.GetBlendShapeFrameVertices(
-                        shape,
-                        upperFrame,
-                        buffers.UpperVertices,
-                        buffers.UpperNormals,
-                        buffers.UpperTangents);
-                }
-
-                for (int vertex = 0; vertex < vertexCount; vertex++)
-                {
-                    Vector3 normalDelta = upperFrame == lowerFrame
-                        ? buffers.DeltaNormals[vertex] * scale
-                        : Vector3.LerpUnclamped(
-                            buffers.DeltaNormals[vertex], buffers.UpperNormals[vertex], scale);
-                    Vector3 tangentDelta = upperFrame == lowerFrame
-                        ? buffers.DeltaTangents[vertex] * scale
-                        : Vector3.LerpUnclamped(
-                            buffers.DeltaTangents[vertex], buffers.UpperTangents[vertex], scale);
-                    if (bakeNormals) normals[vertex] += normalDelta;
-                    if (bakeTangents)
-                    {
-                        Vector4 tangent = tangents[vertex];
-                        tangent.x += tangentDelta.x;
-                        tangent.y += tangentDelta.y;
-                        tangent.z += tangentDelta.z;
-                        tangents[vertex] = tangent;
-                    }
-                }
-            }
-        }
-
-        internal static void CopyBlendShapes(
-            Mesh source,
-            Mesh destination,
-            BlendShapeCopyBuffers buffers)
-        {
-            if (source == null || destination == null || source.vertexCount != destination.vertexCount)
-            {
-                return;
-            }
-
-            using var copyScope = s_copyBlendShapesMarker.Auto();
-            BlendShapeCopyCount++;
-            destination.ClearBlendShapes();
-
-            int shapeCount = source.blendShapeCount;
-            int vertexCount = source.vertexCount;
-            buffers ??= new BlendShapeCopyBuffers();
-            buffers.EnsureCapacity(vertexCount);
-            for (int shape = 0; shape < shapeCount; shape++)
-            {
-                string shapeName = source.GetBlendShapeName(shape);
-                int frameCount = source.GetBlendShapeFrameCount(shape);
-                for (int frame = 0; frame < frameCount; frame++)
-                {
-                    float frameWeight = source.GetBlendShapeFrameWeight(shape, frame);
-                    source.GetBlendShapeFrameVertices(
-                        shape,
-                        frame,
-                        buffers.DeltaVertices,
-                        buffers.DeltaNormals,
-                        buffers.DeltaTangents);
-                    destination.AddBlendShapeFrame(
-                        shapeName,
-                        frameWeight,
-                        buffers.DeltaVertices,
-                        buffers.DeltaNormals,
-                        buffers.DeltaTangents);
-                }
-            }
-        }
-
-        internal static void AppendMissingBlendShapes(
-            Mesh source,
-            Mesh destination,
-            BlendShapeCopyBuffers buffers)
-        {
-            if (source == null || destination == null ||
-                source.vertexCount != destination.vertexCount)
-                return;
-
-            var existingNames = new HashSet<string>(StringComparer.Ordinal);
-            for (int shape = 0; shape < destination.blendShapeCount; shape++)
-                existingNames.Add(destination.GetBlendShapeName(shape));
-
-            buffers ??= new BlendShapeCopyBuffers();
-            buffers.EnsureCapacity(source.vertexCount);
-            for (int shape = 0; shape < source.blendShapeCount; shape++)
-            {
-                string name = source.GetBlendShapeName(shape);
-                if (!existingNames.Add(name)) continue;
-
-                int frameCount = source.GetBlendShapeFrameCount(shape);
-                for (int frame = 0; frame < frameCount; frame++)
-                {
-                    source.GetBlendShapeFrameVertices(
-                        shape,
-                        frame,
-                        buffers.DeltaVertices,
-                        buffers.DeltaNormals,
-                        buffers.DeltaTangents);
-                    destination.AddBlendShapeFrame(
-                        name,
-                        source.GetBlendShapeFrameWeight(shape, frame),
-                        buffers.DeltaVertices,
-                        buffers.DeltaNormals,
-                        buffers.DeltaTangents);
-                }
-            }
         }
 
         private readonly struct LatticePreviewState : IEquatable<LatticePreviewState>

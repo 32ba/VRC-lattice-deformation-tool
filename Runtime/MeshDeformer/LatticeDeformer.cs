@@ -135,6 +135,10 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private RuntimeMeshAssignment _runtimeMeshAssignment;
         [NonSerialized] private Mesh _sourceMesh;
         [NonSerialized] private Mesh _readableSourceMeshOverride;
+        // Readable copies of non-readable meshes, reused while their change token holds.
+        // Source evaluation and NDMF preview input use separate slots so they never evict each other.
+        [NonSerialized] private ReadableSourceCache _readableSourceCache;
+        [NonSerialized] private ReadableSourceCache _readablePreviewInputCache;
         [NonSerialized] private int _lastBlendShapeHash;
         [NonSerialized] private readonly Dictionary<int, int> _generatedGroupBlendShapeIndices = new();
 
@@ -350,8 +354,9 @@ namespace Net._32Ba.LatticeDeformationTool
             if (targetProfile == null) return ProfileCompatibilityStatus.InsufficientMetadata;
             Mesh compatibilitySource = GetCompatibilitySourceMesh();
             // A Mesh can be mutated in place without changing its reference or vertex count.
-            // Re-evaluate its exact vertex/index fingerprint so stale compatibility results
-            // can never authorize vertex-indexed profile data for a changed topology.
+            // The exact vertex/index fingerprint is reused only while the Mesh's change
+            // token (dirty count, structure, import/Undo generation) is unchanged, so a
+            // stale result can never authorize vertex-indexed data for a changed topology.
             return targetProfile.EvaluateCompatibility(
                 compatibilitySource,
                 assetGuid ?? "",
@@ -613,8 +618,6 @@ namespace Net._32Ba.LatticeDeformationTool
         internal int DeformationDataRevision => _deformationDataRevision;
 
         public Mesh SourceMesh => _sourceMesh;
-
-        internal Mesh CompatibilitySourceMesh => GetCompatibilitySourceMesh();
 
         public Renderer TargetRenderer
         {
@@ -1056,8 +1059,6 @@ namespace Net._32Ba.LatticeDeformationTool
                     return;
                 }
 #line default
-                var displacements = layer.BrushDisplacements;
-
                 for (int i = 0; i < vertices.Length; i++)
                 {
                     float coord = SymmetryVertexMapCache.GetSignedDistance(vertices[i], axis);
@@ -1221,82 +1222,6 @@ namespace Net._32Ba.LatticeDeformationTool
                     }
                 }
             }
-        }
-
-        private static int[] BuildBrushMirrorMap(Vector3[] vertices, int axis)
-        {
-            int vertexCount = vertices?.Length ?? 0;
-            var mirrorMap = new int[vertexCount];
-            for (int i = 0; i < vertexCount; i++)
-            {
-                mirrorMap[i] = -1;
-            }
-
-            const float tolerance = 0.001f;
-            const float toleranceSq = tolerance * tolerance;
-
-            for (int i = 0; i < vertexCount; i++)
-            {
-                if (mirrorMap[i] >= 0)
-                {
-                    continue;
-                }
-
-                var position = vertices[i];
-                float axisPosition = axis == 0 ? position.x : axis == 1 ? position.y : position.z;
-                if (Mathf.Abs(axisPosition) <= tolerance)
-                {
-                    mirrorMap[i] = i;
-                    continue;
-                }
-
-                var mirroredPosition = position;
-                if (axis == 0) mirroredPosition.x = -mirroredPosition.x;
-                else if (axis == 1) mirroredPosition.y = -mirroredPosition.y;
-                else mirroredPosition.z = -mirroredPosition.z;
-
-                int bestIndex = -1;
-                float bestDistanceSq = float.MaxValue;
-                for (int j = i + 1; j < vertexCount; j++)
-                {
-                    if (mirrorMap[j] >= 0)
-                    {
-                        continue;
-                    }
-
-                    var candidate = vertices[j];
-                    float candidateAxisPosition = axis == 0 ? candidate.x : axis == 1 ? candidate.y : candidate.z;
-                    if (Mathf.Abs(candidateAxisPosition) <= tolerance ||
-                        (axisPosition > 0f) == (candidateAxisPosition > 0f))
-                    {
-                        continue;
-                    }
-
-                    float distanceSq = (candidate - mirroredPosition).sqrMagnitude;
-                    if (distanceSq > toleranceSq)
-                    {
-                        continue;
-                    }
-
-                    if (bestIndex < 0 || distanceSq < bestDistanceSq ||
-                        (distanceSq == bestDistanceSq && j < bestIndex))
-                    {
-                        bestIndex = j;
-                        bestDistanceSq = distanceSq;
-                    }
-                }
-
-                if (bestIndex < 0)
-                {
-                    mirrorMap[i] = i;
-                    continue;
-                }
-
-                mirrorMap[i] = bestIndex;
-                mirrorMap[bestIndex] = i;
-            }
-
-            return mirrorMap;
         }
 
         public string[] GetSourceBlendShapeNames()
@@ -1555,6 +1480,7 @@ namespace Net._32Ba.LatticeDeformationTool
         private void OnDisable()
         {
             ReleaseDeformationNativeBuffers();
+            ReleaseReadableSourceCopies();
             if (Application.isPlaying)
             {
                 return;
@@ -1572,6 +1498,7 @@ namespace Net._32Ba.LatticeDeformationTool
         private void OnDestroy()
         {
             ReleaseDeformationNativeBuffers();
+            ReleaseReadableSourceCopies();
             if (SuppressRestoreOnDisable || _meshRestorationSuppressionDepth > 0)
             {
                 ReleaseRuntimeMeshWithoutRestoration();
@@ -1590,7 +1517,7 @@ namespace Net._32Ba.LatticeDeformationTool
             // Resolve it before acquiring (and later restoring) the readable lease.
             if (_sourceMesh == null && !EnsureLayerModelReady()) return null;
             Mesh originalSourceMesh = _sourceMesh;
-            using var sourceLease = SourceMeshAccess.Acquire(originalSourceMesh);
+            using var sourceLease = (_readableSourceCache ??= new ReadableSourceCache()).Acquire(originalSourceMesh);
             if (sourceLease.OwnsMesh)
             {
                 _readableSourceMeshOverride = sourceLease.Mesh;
@@ -1765,7 +1692,7 @@ namespace Net._32Ba.LatticeDeformationTool
             if (!EnsureLayerModelReady() || inputMesh == null ||
                 _sourceMesh == null)
                 return null;
-            using var inputLease = SourceMeshAccess.Acquire(inputMesh);
+            using var inputLease = (_readablePreviewInputCache ??= new ReadableSourceCache()).Acquire(inputMesh);
             inputMesh = inputLease.Mesh;
             if (inputMesh == null || !inputMesh.isReadable) return null;
             bool sourceTopologyMatches = inputMesh.vertexCount == _sourceMesh.vertexCount;
@@ -1997,11 +1924,6 @@ namespace Net._32Ba.LatticeDeformationTool
             ApplyMigrationState(runner.State);
             if (succeeded && runner.State.CommitRequested) MarkMigrationCommitted();
             return succeeded;
-        }
-
-        private void RecoverStaleCurrentStructureVersionIfNeeded()
-        {
-            if (NeedsStaleCurrentStructureRecovery()) TryUpgradePublishedDeformationDataOneRelease();
         }
 
         // The normal current-model path does not allocate a migration state.
@@ -2240,6 +2162,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
             _evaluationWorkspace?.Lattice.Cache.Clear();
             ReleaseDeformationNativeBuffers();
+            ReleaseReadableSourceCopies();
             _lastBlendShapeHash = 0;
             _blendShapeOutputDirty = true;
         }
@@ -2316,7 +2239,6 @@ namespace Net._32Ba.LatticeDeformationTool
 #endif
         }
 
-        internal List<DeformerGroup> SerializedGroupsForEditor => _groups;
         internal int SerializedActiveGroupIndexForEditor => _activeGroupIndex;
 
         internal float[] InitialBlendShapeWeightsForEditor =>
@@ -2434,7 +2356,7 @@ namespace Net._32Ba.LatticeDeformationTool
             return _profileGroups;
         }
 
-        // Legacy compat — still called from EnsureLayerModelReady before group migration
+        // Legacy compat entry point. No production caller remains; RuntimeCoreTests invokes it by name.
         private void EnsureLayers()
         {
             EnsureGroups();
@@ -2856,6 +2778,16 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private void ReleaseDeformationNativeBuffers() => _evaluationWorkspace?.Lattice.Dispose();
 
+        // A copy still borrowed by the running evaluation is destroyed when its lease ends.
+        private void ReleaseReadableSourceCopies()
+        {
+            _readableSourceCache?.Release();
+            _readablePreviewInputCache?.Release();
+        }
+
+        internal Mesh CachedReadableSourceCopyForTests => _readableSourceCache?.CachedCopy;
+        internal Mesh CachedReadablePreviewInputCopyForTests => _readablePreviewInputCache?.CachedCopy;
+
         // Never-active objects and loaded Prefab assets cannot rely on OnDestroy.
         // Their synchronous evaluations borrow native scratch only for this call.
         private readonly struct InactiveEvaluationScope : IDisposable
@@ -2865,7 +2797,11 @@ namespace Net._32Ba.LatticeDeformationTool
             public void Dispose()
             {
                 if (_owner != null && !_owner.isActiveAndEnabled)
+                {
+                    // Never-active owners get no OnDestroy, so they keep no readable copy either.
                     _owner.ReleaseDeformationNativeBuffers();
+                    _owner.ReleaseReadableSourceCopies();
+                }
             }
         }
 

@@ -24,6 +24,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private float[] _lastSourceWeights = Array.Empty<float>();
         private bool _registered;
         private bool _disposed;
+        private bool _publishingEvaluatedOutput;
 
         internal DeformerPreviewSession(
             LatticeDeformer deformer,
@@ -101,7 +102,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (_deformer != null && (profileChanged || outputChanged))
             {
                 _deformer.NotifyDeformationDataChanged();
-                LatticePreviewUtility.PublishInteractiveDeformation(_deformer);
+                // When outputChanged, UpdateAndPublish above already evaluated these exact
+                // inputs into the owned mesh. The synchronous publish would re-run the same
+                // evaluation from our own handler; only the revision capture is still needed.
+                _publishingEvaluatedOutput = outputChanged;
+                try
+                {
+                    LatticePreviewUtility.PublishInteractiveDeformation(_deformer);
+                }
+                finally
+                {
+                    _publishingEvaluatedOutput = false;
+                }
             }
             int dataRevision = _deformer != null ? _deformer.DeformationDataRevision : 0;
             int meshRevision = _deformer != null ? _deformer.RuntimeMeshRevision : 0;
@@ -117,7 +129,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private void OnInteractiveDeformationPublished(LatticeDeformer deformer)
         {
-            if (!_disposed && ReferenceEquals(deformer, _deformer)) UpdateAndPublish();
+            if (_disposed || !ReferenceEquals(deformer, _deformer)) return;
+            if (_publishingEvaluatedOutput)
+            {
+                // Same state UpdateAndPublish would record after its identical evaluation.
+                CaptureRevision();
+                return;
+            }
+            UpdateAndPublish();
         }
 
         private bool UpdateAndPublish(bool detectWeightOutputChange = false)

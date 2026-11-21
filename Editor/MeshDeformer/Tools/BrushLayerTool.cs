@@ -22,6 +22,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private readonly int _referenceVertexCount;
         private readonly Matrix4x4 _targetLocalToWorld;
         private readonly Matrix4x4 _referenceWorldToLocal;
+        // State that can change without touching the shared mesh or transforms:
+        // a skinned reference's pose/BlendShape weights and the target-side inputs
+        // that Deform reads outside the layered payload. Zero when not tracked.
+        private readonly int _dynamicStateHash;
 
         internal PenetrationDetectionCacheKey(
             int layeredStateHash,
@@ -33,8 +37,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             int targetVertexCount,
             int referenceVertexCount,
             Matrix4x4 targetLocalToWorld,
-            Matrix4x4 referenceWorldToLocal)
+            Matrix4x4 referenceWorldToLocal,
+            int dynamicStateHash = 0)
         {
+            _dynamicStateHash = dynamicStateHash;
             _layeredStateHash = layeredStateHash;
             _settingsRevision = settingsRevision;
             _referenceRendererId = referenceRendererId;
@@ -58,7 +64,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                    _targetVertexCount == other._targetVertexCount &&
                    _referenceVertexCount == other._referenceVertexCount &&
                    _targetLocalToWorld.Equals(other._targetLocalToWorld) &&
-                   _referenceWorldToLocal.Equals(other._referenceWorldToLocal);
+                   _referenceWorldToLocal.Equals(other._referenceWorldToLocal) &&
+                   _dynamicStateHash == other._dynamicStateHash;
         }
 
         public override bool Equals(object obj)
@@ -77,7 +84,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _runtimeMeshId,
                 _targetVertexCount,
                 _referenceVertexCount);
-            return HashCode.Combine(first, _targetLocalToWorld, _referenceWorldToLocal);
+            return HashCode.Combine(first, _targetLocalToWorld, _referenceWorldToLocal, _dynamicStateHash);
         }
     }
 
@@ -98,7 +105,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Z = 2
         }
 
-        private static GUIContent s_icon;
         private static float s_brushRadius = 0.02f; // world-space units (meters)
         private static float s_brushStrength = 0.5f;
         private static BrushFalloffType s_brushFalloff = BrushFalloffType.Smooth;
@@ -118,7 +124,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static int s_penetrationSettingsRevision;
 
         private LatticeDeformer _activeDeformer;
-        private LatticeLayer _cachedActiveBrushLayer;
 
         private Mesh _cachedMesh;
         private Vector3[] _meshVertices;
@@ -129,7 +134,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Vector3[] _distanceWorldPositions;
         private Vector3[] _wireframeVertices;
         private MeshAdjacency _adjacency;
-        private Vector2 _lastMousePosition;
         private Vector3 _lastMoveBrushLocalDelta;
         private bool _hasLastMoveBrushLocalDelta;
         private HashSet<int> _connectedVerticesCache;
@@ -204,11 +208,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static void OnLanguageChanged()
         {
-            if (s_icon != null)
-            {
-                s_icon.tooltip = LatticeLocalization.Tr(LocKey.BrushTool);
-            }
-
             SceneView.RepaintAll();
         }
 
@@ -393,7 +392,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             _activeDeformer = deformer;
             deformer?.EnsureDisplacementCapacity();
-            TryGetActiveLayer(deformer, out _cachedActiveBrushLayer);
+            TryGetActiveLayer(deformer, out _);
             Undo.undoRedoPerformed += OnUndoRedo;
             SceneView.RepaintAll();
         }
@@ -404,7 +403,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EndStroke();
             InvalidateCache();
             _activeDeformer = null;
-            _cachedActiveBrushLayer = null;
         }
 
         private void OnUndoRedo()
@@ -514,7 +512,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             RebuildCacheIfNeeded(sourceMesh, deformer);
-            _cachedActiveBrushLayer = activeBrushLayer;
             if (!TryGetBrushBuffers(
                     deformer, out _, out var activeDisplacements, out _)) return;
 
@@ -546,7 +543,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             // Draw displacement heatmap (always visible when enabled)
-            if (s_showDisplacementHeatmap && deformer.HasDisplacements())
+            // HasDisplacements is still evaluated for every event as before; only the
+            // GL drawing, which has no visible effect outside Repaint, is skipped.
+            if (s_showDisplacementHeatmap && deformer.HasDisplacements() &&
+                evt.type == EventType.Repaint)
             {
                 using (s_visualizationMarker.Auto())
                     DrawDisplacementHeatmap(deformer, meshTransform);
@@ -557,8 +557,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 using (s_visualizationMarker.Auto())
                 {
+                    // Detection may call Deform, so it keeps running for every event.
                     UpdatePenetrationDetection(deformer);
-                    DrawPenetrationHighlight(meshTransform);
+                    if (evt.type == EventType.Repaint)
+                        DrawPenetrationHighlight(meshTransform);
                 }
             }
             else
@@ -654,7 +656,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                 UpdateGeodesicDistanceCache(hit.point);
                             }
 
-                            DrawAffectedVertices(deformer, hit.point, meshTransform);
+                            if (evt.type == EventType.Repaint)
+                                DrawAffectedVertices(deformer, hit.point, meshTransform);
                         }
                     }
                 }
@@ -677,8 +680,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
                 else if (evt.type == EventType.MouseDown && evt.button == 0 && !evt.alt)
                 {
-                    _lastMousePosition = evt.mousePosition;
-
                     // Build connected vertices cache at stroke start
                     UpdateConnectedVerticesCache(hit.point);
 
@@ -755,8 +756,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 using (s_deformMarker.Auto())
                     LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
             }
-
-            _lastMousePosition = evt.mousePosition;
         }
 
         private bool ApplyNormalBrush(LatticeDeformer deformer, Vector3 worldHitPoint, float worldRadius, float strength, float direction)
@@ -895,8 +894,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return false;
             }
 
-            if (ReferenceEquals(deformer, _activeDeformer))
-                _cachedActiveBrushLayer = layer;
             return true;
         }
 
@@ -1210,11 +1207,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
         }
 
-        private Vector3 VertexToWorld(int index, Vector3 localVertex, Matrix4x4 localToWorld)
-        {
-            return SkinnedVertexHelper.LocalToWorld(index, _worldPositions, null, localToWorld);
-        }
-
         private void InvalidateCache()
         {
             _poseSnapshot.Reset();
@@ -1359,8 +1351,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             var sourceMesh = deformer.SourceMesh;
             var runtimeMesh = deformer.RuntimeMesh;
+            // The layered payload hash walks every displacement, so compute it once.
+            int layeredStateHash = deformer.ComputeLayeredStateHash();
+
+            // A skinned reference can change pose without changing its shared mesh or
+            // transform. Track that with the same lightweight pose key that
+            // ClearanceQueryCache uses to decide whether its baked BVH is reusable,
+            // together with the target-side inputs Deform reads outside the layered
+            // payload. When that key is unavailable, re-evaluate on every update.
+            bool isSkinnedReference = s_penetrationReference is SkinnedMeshRenderer;
+            int dynamicStateHash = 0;
+            bool canCache = !isSkinnedReference ||
+                            TryComputeSkinnedReferenceDynamicHash(
+                                deformer, sourceMesh, s_penetrationReference, out dynamicStateHash);
             var nextKey = new PenetrationDetectionCacheKey(
-                deformer.ComputeLayeredStateHash(),
+                layeredStateHash,
                 s_penetrationSettingsRevision,
                 s_penetrationReference.GetInstanceID(),
                 refMesh.GetInstanceID(),
@@ -1369,12 +1374,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 _meshVertices.Length,
                 refMesh.vertexCount,
                 deformerTransform.localToWorldMatrix,
-                refTransform.worldToLocalMatrix);
+                refTransform.worldToLocalMatrix,
+                dynamicStateHash);
 
-            // A skinned reference can change pose without changing its shared mesh or transform.
-            // Let ClearanceQueryCache inspect its baked geometry on every update in that case.
-            if (!(s_penetrationReference is SkinnedMeshRenderer) &&
-                _hasPenetrationCacheKey && _penetrationCacheKey.Equals(nextKey))
+            if (canCache && _hasPenetrationCacheKey && _penetrationCacheKey.Equals(nextKey))
             {
                 return;
             }
@@ -1389,8 +1392,22 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             var deformedVertices = runtimeMesh.vertices;
+
+            // Evaluation can itself touch dirty counts (for example a readable source
+            // copy or an in-place runtime mesh write when the reference is the target
+            // renderer). Store the post-evaluation dynamic state so that the next
+            // comparison only reports changes made after this result was produced.
+            // If it cannot be read any more, do not cache this result.
+            if (isSkinnedReference)
+            {
+                canCache = TryComputeSkinnedReferenceDynamicHash(
+                    deformer, sourceMesh, s_penetrationReference, out dynamicStateHash);
+            }
+
+            // Reuses the layered hash read above. If Deform normalized the payload,
+            // the next update sees a different hash and evaluates once more.
             nextKey = new PenetrationDetectionCacheKey(
-                deformer.ComputeLayeredStateHash(),
+                layeredStateHash,
                 s_penetrationSettingsRevision,
                 s_penetrationReference.GetInstanceID(),
                 refMesh.GetInstanceID(),
@@ -1399,7 +1416,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 deformedVertices.Length,
                 refMesh.vertexCount,
                 deformerTransform.localToWorldMatrix,
-                refTransform.worldToLocalMatrix);
+                refTransform.worldToLocalMatrix,
+                dynamicStateHash);
 
             var detected = PenetrationDetector.DetectPenetration(
                 deformedVertices,
@@ -1408,7 +1426,54 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _penetratingVertices = detected;
             _penetrationDeformedVertices = deformedVertices;
             _penetrationCacheKey = nextKey;
-            _hasPenetrationCacheKey = true;
+            _hasPenetrationCacheKey = canCache;
+        }
+
+        /// <summary>
+        /// Cheap key for state that changes penetration results with a skinned
+        /// reference while the shared mesh and transforms stay the same: the
+        /// reference pose (renderer, root bone and bone matrices, BlendShape
+        /// weights, mesh identity/dirty count) and the target-side Deform inputs
+        /// that the layered payload hash does not cover (source BlendShape weights
+        /// on the target renderer and the source mesh / component dirty counts).
+        /// </summary>
+        internal static bool TryComputeSkinnedReferenceDynamicHash(
+            LatticeDeformer deformer,
+            Mesh sourceMesh,
+            Renderer reference,
+            out int hash)
+        {
+            hash = 0;
+            if (deformer == null ||
+                !ClearanceQueryCache.TryGetRendererLightweightStateHash(reference, out int referenceHash))
+            {
+                return false;
+            }
+
+            unchecked
+            {
+                hash = 17;
+                hash = hash * 31 + referenceHash;
+                hash = hash * 31 + EditorUtility.GetDirtyCount(deformer);
+                hash = hash * 31 + (sourceMesh != null ? EditorUtility.GetDirtyCount(sourceMesh) : 0);
+                if (sourceMesh != null && deformer.TryGetComponent(out SkinnedMeshRenderer targetRenderer))
+                {
+                    // Matches the weights Deform captures for source BlendShape evaluation.
+                    int blendShapeCount = sourceMesh.blendShapeCount;
+                    hash = hash * 31 + blendShapeCount;
+                    for (int i = 0; i < blendShapeCount; i++)
+                        hash = hash * 31 + targetRenderer.GetBlendShapeWeight(i).GetHashCode();
+                }
+
+                // Runtime initialization can replace this baseline without dirtying
+                // the component, so hash its values directly.
+                float[] initialWeights = deformer.InitialBlendShapeWeightsForEditor;
+                hash = hash * 31 + initialWeights.Length;
+                for (int i = 0; i < initialWeights.Length; i++)
+                    hash = hash * 31 + initialWeights[i].GetHashCode();
+            }
+
+            return true;
         }
 
         private void InvalidatePenetrationCache()

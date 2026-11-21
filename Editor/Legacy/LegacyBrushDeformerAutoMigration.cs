@@ -27,6 +27,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool s_scheduled;
         private static bool s_allowBatchExecution;
         private static bool s_hooksSubscribed;
+        private static string s_scanLegacyScriptPath;
         private const int k_ProjectDiscoveryBatchSize = 25;
         private const string k_ProjectScanSessionKey =
             "net.32ba.lattice-deformation-tool.legacy-brush-project-scan.v1";
@@ -207,8 +208,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static void ProcessProjectPrefabDiscoveryBatch(string scriptPath = null)
         {
-            scriptPath ??= ResolveLegacyScriptPath();
+            // Enumerating every runtime MonoScript is costly; resolve once per scan pass.
+            scriptPath ??= s_scanLegacyScriptPath ?? ResolveLegacyScriptPath();
             if (string.IsNullOrEmpty(scriptPath)) return;
+            s_scanLegacyScriptPath = scriptPath;
 
             int remaining = k_ProjectDiscoveryBatchSize;
             while (remaining-- > 0 && s_projectPrefabDiscoveryQueue.Count > 0)
@@ -227,7 +230,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (s_projectPrefabDiscoveryQueue.Count == 0)
             {
                 SessionState.SetBool(k_ProjectScanSessionKey, true);
+                s_scanLegacyScriptPath = null;
             }
+        }
+
+        // A script import, move or deletion may change the resolved path mid-scan.
+        internal static void InvalidateLegacyScriptPath(IEnumerable<string> changedPaths)
+        {
+            if (s_scanLegacyScriptPath == null || changedPaths == null) return;
+            if (changedPaths.Any(path => path != null &&
+                    path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)))
+                s_scanLegacyScriptPath = null;
         }
 
         private static string ResolveLegacyScriptPath()
@@ -274,10 +287,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (s_scanLoadedScenes)
             {
                 s_scanLoadedScenes = false;
+                // hierarchyChanged fires constantly. Resources.FindObjectsOfTypeAll returns every
+                // loaded BrushDeformer (inactive, DontSave, preview scenes and in-memory assets),
+                // a superset of what the per-root walk can find, so zero means no loaded scene can
+                // hold a candidate. Unloaded scenes still go through TryMigrateScene unchanged.
+                bool anyLegacyLoaded = Resources.FindObjectsOfTypeAll<BrushDeformer>().Length > 0;
                 for (int index = 0; index < SceneManager.sceneCount; index++)
                 {
                     Scene scene = SceneManager.GetSceneAt(index);
                     if (EditorSceneManager.IsPreviewScene(scene)) continue;
+                    if (!anyLegacyLoaded && scene.IsValid() && scene.isLoaded) continue;
                     if (!TryMigrateScene(scene, out int migrated, out string error))
                     {
                         ReportFailure($"scene:{scene.handle}:{error}", error, null);
@@ -386,6 +405,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             s_scanLoadedScenes = false;
             s_scanProjectPrefabs = false;
             s_scheduled = false;
+            s_scanLegacyScriptPath = null;
         }
 
         private sealed class TestExecutionScope : IDisposable
@@ -406,6 +426,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             string[] movedAssets,
             string[] movedFromAssetPaths)
         {
+            LegacyBrushDeformerAutoMigration.InvalidateLegacyScriptPath(
+                (importedAssets ?? Array.Empty<string>())
+                .Concat(deletedAssets ?? Array.Empty<string>())
+                .Concat(movedAssets ?? Array.Empty<string>())
+                .Concat(movedFromAssetPaths ?? Array.Empty<string>()));
             LegacyBrushDeformerAutoMigration.QueueImportedPrefabs(
                 (importedAssets ?? Array.Empty<string>())
                 .Concat(movedAssets ?? Array.Empty<string>()));

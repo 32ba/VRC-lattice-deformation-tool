@@ -20,6 +20,9 @@ namespace Net._32Ba.LatticeDeformationTool
         public Vector3Int GridSize => _gridSize;
         public LatticeInterpolationMode Interpolation => _interpolation;
         public float[] BernsteinWeights => _bernsteinWeights;
+        internal Bounds LocalBounds => _localBounds;
+        internal int VertexCount => _vertexCount;
+        internal int RestVerticesHash => _restVerticesHash;
 
         public bool IsCompatibleWith(LatticeAsset asset, Mesh mesh, int restVerticesHash)
         {
@@ -138,7 +141,7 @@ namespace Net._32Ba.LatticeDeformationTool
             _restVerticesHash = 0;
         }
 
-        private static bool ApproximatelyEquals(Bounds lhs, Bounds rhs)
+        internal static bool ApproximatelyEquals(Bounds lhs, Bounds rhs)
         {
             const float epsilon = 1e-5f;
             return (lhs.center - rhs.center).sqrMagnitude <= epsilon * epsilon &&

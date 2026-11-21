@@ -6,6 +6,13 @@ namespace Net._32Ba.LatticeDeformationTool
     {
         internal static LatticeAsset CloneSettings(LatticeAsset source)
         {
+            // Same resulting state without the discarded neutral-grid resample.
+            var direct = LatticeAsset.TryCloneWellFormed(source);
+            if (direct != null)
+            {
+                return direct;
+            }
+
             var cloned = new LatticeAsset();
             if (source == null)
             {

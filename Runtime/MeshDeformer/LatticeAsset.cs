@@ -308,6 +308,47 @@ namespace Net._32Ba.LatticeDeformationTool
             return true;
         }
 
+        // DeformationModelCopy.CloneSettings for a source whose grid axes are all
+        // valid and whose control point array matches the grid exactly. There the
+        // published sequence (GridSize setter on a fresh asset, which populates
+        // and resamples a neutral 3x3x3 grid; LocalBounds; Interpolation;
+        // EnsureInitialized; per-point copy; legacy state copy) overwrites every
+        // resampled point, leaves the grid unchanged and sets the serialization
+        // version to the current one, so the result is this direct field copy.
+        // Any other source returns null and takes the published sequence.
+        internal static LatticeAsset TryCloneWellFormed(LatticeAsset source)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            var grid = source._gridSize;
+            var points = source._controlPointsLocal;
+            if (grid.x < k_MinAxisResolution || grid.y < k_MinAxisResolution || grid.z < k_MinAxisResolution ||
+                points == null)
+            {
+                return null;
+            }
+
+            long expected = (long)grid.x * grid.y * grid.z;
+            if (expected > int.MaxValue || points.Length != expected)
+            {
+                return null;
+            }
+
+            return new LatticeAsset
+            {
+                _gridSize = grid,
+                _localBounds = source._localBounds,
+                _controlPointsLocal = (Vector3[])points.Clone(),
+                _interpolation = source._interpolation,
+                _legacyTrilinearInterpolation = source._legacyTrilinearInterpolation,
+                _applySpace = source._applySpace,
+                _serializationVersion = k_CurrentSerializationVersion
+            };
+        }
+
         internal void CopyLegacySerializationStateFrom(LatticeAsset source)
         {
             if (source == null)

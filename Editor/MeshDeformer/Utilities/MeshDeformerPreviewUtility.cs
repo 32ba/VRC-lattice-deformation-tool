@@ -21,7 +21,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             s_interactiveRevisions = new();
         private static readonly Dictionary<LatticeDeformer, int> s_previewUndoTargets = new();
         internal static event Action<LatticeDeformer> InteractiveDeformationPublished;
-        internal static event Action<Renderer, Mesh, long> PreviewMeshUpdated;
         private static long s_nextProxyRegistrationGeneration;
         private static int s_proxyMappingRevision;
 
@@ -206,26 +205,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         public static Bounds GetEditingBounds(LatticeDeformer deformer, Bounds sourceBounds, Transform editingTransform)
         {
             return sourceBounds;
-        }
-
-        private static Bounds GetRendererWorldBounds(Renderer proxy)
-        {
-            // Prefer mesh local bounds to avoid inflated SkinnedMeshRenderer.bounds
-            if (proxy is SkinnedMeshRenderer skinned && skinned.sharedMesh != null)
-            {
-                return TransformMeshBounds(skinned.sharedMesh.bounds, proxy.transform);
-            }
-
-            if (proxy is MeshRenderer meshRenderer)
-            {
-                var mf = meshRenderer.GetComponent<MeshFilter>();
-                if (mf != null && mf.sharedMesh != null)
-                {
-                    return TransformMeshBounds(mf.sharedMesh.bounds, proxy.transform);
-                }
-            }
-
-            return proxy.bounds;
         }
 
         private static Bounds TransformMeshBounds(Bounds localBounds, Transform transform)
@@ -522,33 +501,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             s_previewMeshMap.Remove(original);
             previewMesh = null;
             return false;
-        }
-
-        internal static bool MarkPreviewMeshUpdated(
-            Renderer original,
-            Mesh previewMesh,
-            long generation)
-        {
-            if (object.ReferenceEquals(original, null) || generation == 0 ||
-                !s_previewMeshMap.TryGetValue(original, out var registration) ||
-                registration.Generation != generation ||
-                !object.ReferenceEquals(registration.Mesh, previewMesh))
-            {
-                return false;
-            }
-
-            long nextRevision;
-            unchecked
-            {
-                nextRevision = registration.ContentRevision + 1;
-            }
-
-            s_previewMeshMap[original] = new PreviewMeshRegistration(
-                registration.Mesh,
-                registration.Generation,
-                nextRevision);
-            PreviewMeshUpdated?.Invoke(original, previewMesh, nextRevision);
-            return true;
         }
 
         internal static bool ClearPreviewMesh(

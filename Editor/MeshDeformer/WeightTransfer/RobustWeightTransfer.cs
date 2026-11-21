@@ -179,8 +179,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             var sw = Stopwatch.StartNew();
 
             // Stage 1: Initial transfer
+            // Mesh.vertices/normals return full copies; reuse the validated arrays in Stage 1.
             Stage1Transfer(
                 sourceMesh,
+                sourceVertices,
+                sourceNormals,
                 sourceWeights,
                 targetVertices,
                 targetNormals,
@@ -252,6 +255,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
         [ExcludeFromCodeCoverage]
         private static void Stage1Transfer(
             Mesh sourceMesh,
+            Vector3[] sourceVertices,
+            Vector3[] sourceNormals,
             BoneWeight[] sourceWeights,
             Vector3[] targetVertices,
             Vector3[] targetNormals,
@@ -261,8 +266,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             int boneCount,
             ref int transferredCount)
         {
-            var sourceVertices = sourceMesh.vertices;
-            var sourceNormals = sourceMesh.normals;
             var sourceTriangles = GetAllTriangles(sourceMesh);
 
             // Build spatial query structure for source mesh
@@ -588,69 +591,87 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             return !float.IsNaN(value) && !float.IsInfinity(value);
         }
 
+        private const int MaxInterpolatedInfluences = 12;
+
         /// <summary>
         /// Interpolates bone weights using barycentric coordinates.
+        /// Uses fixed-size stack scratch instead of a per-vertex Dictionary/List. Contributions
+        /// are accumulated per bone in the same order the original Dictionary received them, and
+        /// the (weight desc, bone index asc) ordering is a strict total order over unique bones,
+        /// so the selected influences and normalization are bit-identical to the original.
         /// </summary>
-        private static BoneWeight InterpolateBoneWeight(
+        internal static BoneWeight InterpolateBoneWeight(
             BoneWeight w0,
             BoneWeight w1,
             BoneWeight w2,
             Vector3 bary)
         {
-            // Collect all bone indices and weights
-            var boneWeights = new System.Collections.Generic.Dictionary<int, float>();
+            Span<int> bones = stackalloc int[MaxInterpolatedInfluences];
+            Span<float> values = stackalloc float[MaxInterpolatedInfluences];
+            int influenceCount = 0;
 
-            AddBoneWeight(boneWeights, w0.boneIndex0, w0.weight0 * bary.x);
-            AddBoneWeight(boneWeights, w0.boneIndex1, w0.weight1 * bary.x);
-            AddBoneWeight(boneWeights, w0.boneIndex2, w0.weight2 * bary.x);
-            AddBoneWeight(boneWeights, w0.boneIndex3, w0.weight3 * bary.x);
+            AccumulateInfluence(bones, values, ref influenceCount, w0.boneIndex0, w0.weight0 * bary.x);
+            AccumulateInfluence(bones, values, ref influenceCount, w0.boneIndex1, w0.weight1 * bary.x);
+            AccumulateInfluence(bones, values, ref influenceCount, w0.boneIndex2, w0.weight2 * bary.x);
+            AccumulateInfluence(bones, values, ref influenceCount, w0.boneIndex3, w0.weight3 * bary.x);
 
-            AddBoneWeight(boneWeights, w1.boneIndex0, w1.weight0 * bary.y);
-            AddBoneWeight(boneWeights, w1.boneIndex1, w1.weight1 * bary.y);
-            AddBoneWeight(boneWeights, w1.boneIndex2, w1.weight2 * bary.y);
-            AddBoneWeight(boneWeights, w1.boneIndex3, w1.weight3 * bary.y);
+            AccumulateInfluence(bones, values, ref influenceCount, w1.boneIndex0, w1.weight0 * bary.y);
+            AccumulateInfluence(bones, values, ref influenceCount, w1.boneIndex1, w1.weight1 * bary.y);
+            AccumulateInfluence(bones, values, ref influenceCount, w1.boneIndex2, w1.weight2 * bary.y);
+            AccumulateInfluence(bones, values, ref influenceCount, w1.boneIndex3, w1.weight3 * bary.y);
 
-            AddBoneWeight(boneWeights, w2.boneIndex0, w2.weight0 * bary.z);
-            AddBoneWeight(boneWeights, w2.boneIndex1, w2.weight1 * bary.z);
-            AddBoneWeight(boneWeights, w2.boneIndex2, w2.weight2 * bary.z);
-            AddBoneWeight(boneWeights, w2.boneIndex3, w2.weight3 * bary.z);
+            AccumulateInfluence(bones, values, ref influenceCount, w2.boneIndex0, w2.weight0 * bary.z);
+            AccumulateInfluence(bones, values, ref influenceCount, w2.boneIndex1, w2.weight1 * bary.z);
+            AccumulateInfluence(bones, values, ref influenceCount, w2.boneIndex2, w2.weight2 * bary.z);
+            AccumulateInfluence(bones, values, ref influenceCount, w2.boneIndex3, w2.weight3 * bary.z);
 
-            // Sort by weight descending and take top 4
-            var sortedWeights = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, float>>(boneWeights);
-            sortedWeights.Sort((a, b) =>
+            // Insertion sort by weight descending, then bone index ascending.
+            for (int sortIndex = 1; sortIndex < influenceCount; sortIndex++)
             {
-                int weightComparison = b.Value.CompareTo(a.Value);
-                return weightComparison != 0 ? weightComparison : a.Key.CompareTo(b.Key);
-            });
+                int bone = bones[sortIndex];
+                float value = values[sortIndex];
+                int insertAt = sortIndex - 1;
+                while (insertAt >= 0 && ComesBefore(bone, value, bones[insertAt], values[insertAt]))
+                {
+                    bones[insertAt + 1] = bones[insertAt];
+                    values[insertAt + 1] = values[insertAt];
+                    insertAt--;
+                }
+
+                bones[insertAt + 1] = bone;
+                values[insertAt + 1] = value;
+            }
 
             var result = new BoneWeight();
             float totalWeight = 0f;
 
-            for (int i = 0; i < Mathf.Min(4, sortedWeights.Count); i++)
+            int selectedCount = Mathf.Min(4, influenceCount);
+            for (int i = 0; i < selectedCount; i++)
             {
-                var kv = sortedWeights[i];
-                if (kv.Value <= 0f) continue;
+                int bone = bones[i];
+                float value = values[i];
+                if (value <= 0f) continue;
 
                 switch (i)
                 {
                     case 0:
-                        result.boneIndex0 = kv.Key;
-                        result.weight0 = kv.Value;
+                        result.boneIndex0 = bone;
+                        result.weight0 = value;
                         break;
                     case 1:
-                        result.boneIndex1 = kv.Key;
-                        result.weight1 = kv.Value;
+                        result.boneIndex1 = bone;
+                        result.weight1 = value;
                         break;
                     case 2:
-                        result.boneIndex2 = kv.Key;
-                        result.weight2 = kv.Value;
+                        result.boneIndex2 = bone;
+                        result.weight2 = value;
                         break;
                     case 3:
-                        result.boneIndex3 = kv.Key;
-                        result.weight3 = kv.Value;
+                        result.boneIndex3 = bone;
+                        result.weight3 = value;
                         break;
                 }
-                totalWeight += kv.Value;
+                totalWeight += value;
             }
 
             // Normalize weights
@@ -665,6 +686,37 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             return result;
         }
 
+        private static bool ComesBefore(int bone, float value, int otherBone, float otherValue)
+        {
+            // Same comparison as the original List.Sort comparator.
+            int weightComparison = otherValue.CompareTo(value);
+            return weightComparison != 0 ? weightComparison < 0 : bone < otherBone;
+        }
+
+        private static void AccumulateInfluence(
+            Span<int> bones,
+            Span<float> values,
+            ref int influenceCount,
+            int boneIndex,
+            float weight)
+        {
+            if (!IsFinite(weight) || weight <= 0f || boneIndex < 0) return;
+            for (int i = 0; i < influenceCount; i++)
+            {
+                if (bones[i] == boneIndex)
+                {
+                    values[i] += weight;
+                    return;
+                }
+            }
+
+            bones[influenceCount] = boneIndex;
+            values[influenceCount] = weight;
+            influenceCount++;
+        }
+
+        // Original Dictionary accumulation rule. Production code uses AccumulateInfluence; this
+        // overload-free helper is kept because existing reflection tests pin its contract.
         private static void AddBoneWeight(System.Collections.Generic.Dictionary<int, float> dict, int boneIndex, float weight)
         {
             if (!IsFinite(weight) || weight <= 0f || boneIndex < 0) return;

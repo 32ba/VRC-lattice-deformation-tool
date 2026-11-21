@@ -171,6 +171,49 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
         }
 
         [Test]
+        public void LatticeLocalization_TooltipKey_IsCachedPerKey()
+        {
+            string first = LatticeLocalization.GetTooltipKey("cache.probe");
+            // A distinct, equal key instance must still reuse the cached tooltip key string.
+            string second = LatticeLocalization.GetTooltipKey(new string("cache.probe".ToCharArray()));
+
+            Assert.That(first, Is.EqualTo("cache.probe.tooltip"));
+            Assert.That(second, Is.SameAs(first));
+            Assert.That(LatticeLocalization.GetTooltipKey("other.probe"), Is.EqualTo("other.probe.tooltip"));
+        }
+
+        [Test]
+        public void DeformerStackDetailHit_MatchesQueryBasedSearch()
+        {
+            var root = new UnityEngine.UIElements.VisualElement { name = "root" };
+            var row = new UnityEngine.UIElements.VisualElement { name = "deformer-layer-row" };
+            var weight = new UnityEngine.UIElements.VisualElement { name = "layer-weight" };
+            var detail = new UnityEngine.UIElements.VisualElement();
+            detail.AddToClassList(DeformerStackInspectorSection.DetailClass);
+            var hidden = new UnityEngine.UIElements.VisualElement { name = "group-name", visible = false };
+            row.Add(weight);
+            row.Add(detail);
+            root.Add(row);
+            root.Add(hidden);
+
+            var names = new[] { "layer-weight", "layer-name", "layer-enabled", "group-name" };
+            foreach (var position in new[] { Vector2.zero, new Vector2(5f, 5f), new Vector2(-10f, 3f) })
+            {
+                bool expected = UnityEngine.UIElements.UQueryExtensions
+                    .Query<UnityEngine.UIElements.VisualElement>(root).ToList()
+                    .Any(element =>
+                        (element.ClassListContains(DeformerStackInspectorSection.DetailClass) ||
+                         names.Contains(element.name)) &&
+                        element.visible && element.worldBound.Contains(position));
+                Assert.That(DeformerStackInspectorSection.ContainsDetailHit(root, position), Is.EqualTo(expected));
+            }
+
+            var empty = new UnityEngine.UIElements.VisualElement();
+            empty.Add(new UnityEngine.UIElements.VisualElement { name = "deformer-layer-row" });
+            Assert.That(DeformerStackInspectorSection.ContainsDetailHit(empty, Vector2.zero), Is.False);
+        }
+
+        [Test]
         public void LatticeLocalization_Tr_LoadsCatalogAndFallsBackToEnglish()
         {
             var previousLanguage = LatticeLocalization.CurrentLanguage;

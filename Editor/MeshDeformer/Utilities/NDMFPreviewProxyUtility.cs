@@ -17,6 +17,17 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         private const BindingFlags k_BindingFlags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
 
+        // Reflection metadata is immutable for a loaded Type, so each lookup is cached
+        // per Type (including "not found" results) and reused for every Scene View event.
+        private static readonly Dictionary<Type, MethodInfo> s_proxyLookupMethods = new Dictionary<Type, MethodInfo>();
+        private static readonly Dictionary<Type, MethodInfo[]> s_proxyMapMethods = new Dictionary<Type, MethodInfo[]>();
+        private static readonly Dictionary<Type, MemberInfo[]> s_proxyMapMembers = new Dictionary<Type, MemberInfo[]>();
+        private static readonly Dictionary<Type, (PropertyInfo key, PropertyInfo value)> s_keyValueProperties =
+            new Dictionary<Type, (PropertyInfo key, PropertyInfo value)>();
+        private static Type s_previewSessionType;
+        private static PropertyInfo s_previewSessionCurrentProperty;
+        private static bool s_previewSessionCurrentPropertyResolved;
+
         [ExcludeFromCodeCoverage]
         public static bool TryGetProxyRenderer(Renderer original, out Renderer proxy)
         {
@@ -57,7 +68,30 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return false;
             }
 
-            var type = session.GetType();
+            var method = GetProxyLookupMethod(session.GetType());
+            if (method == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                proxy = method.Invoke(session, new object[] { original }) as Renderer;
+                return proxy != null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static MethodInfo GetProxyLookupMethod(Type type)
+        {
+            if (s_proxyLookupMethods.TryGetValue(type, out var cached))
+            {
+                return cached;
+            }
+
             var method = type.GetMethod("GetProxyRenderer", k_BindingFlags, null, new[] { typeof(Renderer) }, null);
             if (method == null)
             {
@@ -79,20 +113,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
             }
 
-            if (method == null)
-            {
-                return false;
-            }
-
-            try
-            {
-                proxy = method.Invoke(session, new object[] { original }) as Renderer;
-                return proxy != null;
-            }
-            catch
-            {
-                return false;
-            }
+            s_proxyLookupMethods[type] = method;
+            return method;
         }
 
         [ExcludeFromCodeCoverage]
@@ -150,21 +172,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 yield break;
             }
 
-            var type = session.GetType();
-            foreach (var method in type.GetMethods(k_BindingFlags))
+            foreach (var method in GetProxyMapMethods(session.GetType()))
             {
-                if (!method.Name.Contains("GetOriginalToProxy", StringComparison.OrdinalIgnoreCase) &&
-                    !method.Name.Contains("OriginalToProxy", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                // Expect zero-arg returning dictionary-like object.
-                if (method.GetParameters().Length != 0)
-                {
-                    continue;
-                }
-
                 object value = null;
                 try
                 {
@@ -185,6 +194,36 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     yield return pair;
                 }
             }
+        }
+
+        private static MethodInfo[] GetProxyMapMethods(Type type)
+        {
+            if (s_proxyMapMethods.TryGetValue(type, out var cached))
+            {
+                return cached;
+            }
+
+            var methods = new List<MethodInfo>();
+            foreach (var method in type.GetMethods(k_BindingFlags))
+            {
+                if (!method.Name.Contains("GetOriginalToProxy", StringComparison.OrdinalIgnoreCase) &&
+                    !method.Name.Contains("OriginalToProxy", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                // Expect zero-arg returning dictionary-like object.
+                if (method.GetParameters().Length != 0)
+                {
+                    continue;
+                }
+
+                methods.Add(method);
+            }
+
+            var result = methods.ToArray();
+            s_proxyMapMethods[type] = result;
+            return result;
         }
 
         internal static IEnumerable<(Renderer original, Renderer proxy)> ExtractPairs(object value)
@@ -211,8 +250,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     }
 
                     var type = item.GetType();
-                    var keyProp = type.GetProperty("Key");
-                    var valueProp = type.GetProperty("Value");
+                    if (!s_keyValueProperties.TryGetValue(type, out var properties))
+                    {
+                        properties = (type.GetProperty("Key"), type.GetProperty("Value"));
+                        s_keyValueProperties[type] = properties;
+                    }
+
+                    var keyProp = properties.key;
+                    var valueProp = properties.value;
                     if (keyProp == null || valueProp == null)
                     {
                         continue;
@@ -274,15 +319,27 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 yield break;
             }
 
-            var type = session.GetType();
+            foreach (var member in GetProxyMapMembers(session.GetType()))
+            {
+                yield return member;
+            }
+        }
+
+        private static MemberInfo[] GetProxyMapMembers(Type type)
+        {
+            if (s_proxyMapMembers.TryGetValue(type, out var cached))
+            {
+                return cached;
+            }
 
             bool IsCandidate(string name) => name.IndexOf("OriginalToProxy", StringComparison.OrdinalIgnoreCase) >= 0;
 
+            var members = new List<MemberInfo>();
             foreach (var prop in type.GetProperties(k_BindingFlags))
             {
                 if (IsCandidate(prop.Name))
                 {
-                    yield return prop;
+                    members.Add(prop);
                 }
             }
 
@@ -290,9 +347,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 if (IsCandidate(field.Name))
                 {
-                    yield return field;
+                    members.Add(field);
                 }
             }
+
+            var result = members.ToArray();
+            s_proxyMapMembers[type] = result;
+            return result;
         }
 
         [ExcludeFromCodeCoverage]
@@ -304,7 +365,14 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return null;
             }
 
-            var prop = type.GetProperty("Current", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            if (!s_previewSessionCurrentPropertyResolved)
+            {
+                s_previewSessionCurrentProperty = type.GetProperty(
+                    "Current", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                s_previewSessionCurrentPropertyResolved = true;
+            }
+
+            var prop = s_previewSessionCurrentProperty;
             if (prop == null)
             {
                 return null;
@@ -322,6 +390,19 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         [ExcludeFromCodeCoverage]
         private static Type FindPreviewSessionType()
+        {
+            // Only a found type is cached; a miss is searched again as before.
+            if (s_previewSessionType != null)
+            {
+                return s_previewSessionType;
+            }
+
+            s_previewSessionType = FindPreviewSessionTypeUncached();
+            return s_previewSessionType;
+        }
+
+        [ExcludeFromCodeCoverage]
+        private static Type FindPreviewSessionTypeUncached()
         {
             var type = Type.GetType("nadena.dev.ndmf.preview.PreviewSession, nadena.dev.ndmf.preview");
             if (type != null)

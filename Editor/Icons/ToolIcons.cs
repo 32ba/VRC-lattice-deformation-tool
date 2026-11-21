@@ -28,14 +28,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         public const string Normal = "normal";
         public const string Mirror = "mirror";
         public const string Eye = "eye";
-        public const string EyeOff = "eye-off";
         public const string Settings = "settings";
         public const string Invert = "invert";
-        public const string BackfaceCull = "backface-cull";
         public const string Proportional = "proportional";
         public const string Clear = "clear";
         public const string Reset = "reset";
-        public const string Connected = "connected";
         public const string SurfaceDistance = "surface-distance";
         public const string Pivot = "pivot";
         public const string Global = "global";

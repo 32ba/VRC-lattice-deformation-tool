@@ -12,6 +12,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             DeformerPlatformServices.AssignedMeshInstanceId = AssignedMeshInstanceId;
             DeformerPlatformServices.RecordLegacyMigration = RecordLegacyMigration;
             DeformerPlatformServices.CaptureLegacyMigrationRecordRollback = CaptureLegacyMigrationRecordRollback;
+            DeformerPlatformServices.DirtyCountReader = target => EditorUtility.GetDirtyCount(target);
+            // Undo/Redo restores serialized state wholesale; never let a cached token
+            // survive it, whatever happens to the restored objects' dirty counts.
+            Undo.undoRedoPerformed += DeformerChangeTokens.AdvanceGeneration;
+            // Instances re-merged from their Prefab asset (apply, asset save) are rewritten
+            // by the Prefab system; treat that like a restore as well.
+            PrefabUtility.prefabInstanceUpdated += _ => DeformerChangeTokens.AdvanceGeneration();
+            // Readable source copies are HideAndDontSave meshes owned by managed caches.
+            AssemblyReloadEvents.beforeAssemblyReload += ReadableSourceCache.ReleaseAll;
         }
 
         private static int AssignedMeshInstanceId(Component target)
@@ -62,6 +71,21 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
                 }
             }
+        }
+    }
+
+    /// <summary>Any import, deletion or move can replace asset contents in place.</summary>
+    internal sealed class DeformerChangeTokenAssetPostprocessor : AssetPostprocessor
+    {
+        private static void OnPostprocessAllAssets(
+            string[] importedAssets,
+            string[] deletedAssets,
+            string[] movedAssets,
+            string[] movedFromAssetPaths)
+        {
+            if ((importedAssets?.Length ?? 0) + (deletedAssets?.Length ?? 0) +
+                (movedAssets?.Length ?? 0) + (movedFromAssetPaths?.Length ?? 0) > 0)
+                DeformerChangeTokens.AdvanceGeneration();
         }
     }
 }

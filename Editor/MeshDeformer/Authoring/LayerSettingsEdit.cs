@@ -33,7 +33,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             out LatticeLayer layer)
         {
             raw = default; layer = null;
-            if (owner == null || !owner.HasValidSerializedAuthoringData) return false;
+            if (owner == null || !AuthoringPreflightScope.HasValidSerializedAuthoringData(owner)) return false;
             raw = SerializedDeformerReader.Read(owner);
             if (raw.DataSource != DeformerDataSource.Embedded || raw.ActiveLayers == null ||
                 raw.ActiveLayerIndex < 0 || raw.ActiveLayerIndex >= raw.ActiveLayers.Count) return false;

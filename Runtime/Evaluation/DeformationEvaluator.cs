@@ -14,6 +14,27 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             if (sourceVertices == null || finalVertices == null || sourceVertices.Length != finalVertices.Length)
                 throw new ArgumentException("Source and output vertex counts must match.");
+            // Every Lattice layer below reads the same unchanged source vertices;
+            // finalVertices is written only after the last layer. A source that
+            // aliases a per-layer scratch buffer keeps per-layer hashing.
+            bool sourceIsScratch = ReferenceEquals(sourceVertices, workspace.GroupVertices) ||
+                                   ReferenceEquals(sourceVertices, workspace.LayerVertices) ||
+                                   ReferenceEquals(sourceVertices, workspace.DirectDeltas);
+            workspace.Lattice.BeginSourceScope(sourceIsScratch ? null : sourceVertices);
+            try
+            {
+                EvaluateLayers(input, sourceVertices, finalVertices, workspace, generatedBlendShapes);
+            }
+            finally
+            {
+                workspace.Lattice.EndSourceScope();
+            }
+        }
+
+        private static void EvaluateLayers(in DeformationEvaluationInput input, Vector3[] sourceVertices,
+            Vector3[] finalVertices, EvaluationWorkspace workspace,
+            List<GeneratedBlendShapeOutput> generatedBlendShapes)
+        {
             int vertexCount = sourceVertices.Length;
             workspace.EnsureCapacity(vertexCount);
             // Accumulate direct-deform deltas across all groups
@@ -124,6 +145,61 @@ namespace Net._32Ba.LatticeDeformationTool
             for (int v = 0; v < vertexCount; v++)
                 finalVertices[v] = sourceVertices[v] + directDeltas[v];
 
+        }
+
+        // Produces, for vertices indices[0..count), exactly the values that
+        // Evaluate(input, positions, final, workspace, null) writes to final at
+        // those indices: compactOutput[i] == final[indices[i]] bit for bit. Every
+        // contribution is per-vertex (Brush/Mask by index, Lattice by position),
+        // and each arithmetic step below repeats Evaluate's order per vertex.
+        // Output groups and individually output layers are skipped as Evaluate
+        // skips them without a generated list. compactOutput is caller-owned.
+        internal static void EvaluateSubset(in DeformationEvaluationInput input, Vector3[] positions,
+            int[] indices, int count, Vector3[] compactOutput, EvaluationWorkspace workspace)
+        {
+            if (positions == null || indices == null || compactOutput == null)
+                throw new ArgumentNullException(positions == null ? nameof(positions) :
+                    indices == null ? nameof(indices) : nameof(compactOutput));
+            if (count < 0 || count > indices.Length || count > compactOutput.Length)
+                throw new ArgumentOutOfRangeException(nameof(count));
+            int vertexCount = positions.Length;
+            workspace.EnsureSubsetCapacity(count);
+            var source = workspace.SubsetSource;
+            for (int i = 0; i < count; i++) source[i] = positions[indices[i]];
+            var directDeltas = workspace.SubsetDirect;
+            Array.Clear(directDeltas, 0, count);
+            workspace.Lattice.BeginSubset();
+            var groups = input.Groups;
+
+            for (int g = 0; g < groups.Count; g++)
+            {
+                var group = groups[g];
+                if (group == null || !group.Enabled) continue;
+                if (group.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape) continue;
+
+                var groupVertices = workspace.SubsetGroup;
+                Array.Copy(source, groupVertices, count);
+                var layers = group.SerializedLayers;
+                for (int l = 0; l < layers.Count; l++)
+                {
+                    var layer = layers[l];
+                    if (layer == null || !layer.Enabled || layer.Weight <= 0f) continue;
+                    if (!input.Semantics.PublishedBlendShapeSemantics &&
+                        layer.BlendShapeOutput == BlendShapeOutputMode.OutputAsBlendShape) continue;
+
+                    if (layer.Type == MeshDeformerLayerType.Brush)
+                        BrushEvaluator.ApplySubset(layer, vertexCount, indices, count, groupVertices);
+                    else
+                        workspace.Lattice.ApplySubset(layer.SerializedSettings, layer.Weight, input.Semantics,
+                            source, count, groupVertices);
+                }
+
+                for (int i = 0; i < count; i++)
+                    directDeltas[i] += groupVertices[i] - source[i];
+            }
+
+            for (int i = 0; i < count; i++)
+                compactOutput[i] = source[i] + directDeltas[i];
         }
 
         private static void ApplyLayer(LatticeLayer layer, Vector3[] sourceVertices, Vector3[] outputVertices,

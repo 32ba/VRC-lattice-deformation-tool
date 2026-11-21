@@ -347,6 +347,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
             NativeArray<double> knownWeightsArray = default;
             NativeArray<double> rhsArray = default;
             NativeArray<double> solutionArray = default;
+            BiCGStabWorkspace solverWorkspace = null;
 
             try
             {
@@ -358,6 +359,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 knownWeightsArray = new NativeArray<double>(nk, Allocator.TempJob);
                 rhsArray = new NativeArray<double>(nu, Allocator.TempJob);
                 solutionArray = new NativeArray<double>(nu, Allocator.TempJob);
+
+                // L_uu has the same dimension for every bone: allocate the solver work buffers
+                // and the norm scalar once per Inpaint and reuse them across all bone solves.
+                solverWorkspace = new BiCGStabWorkspace(nu);
 
                 // Solve for each bone
                 var boneWeightResults = new double[nu, boneList.Count];
@@ -380,7 +385,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                     }
 
                     // Skip if RHS is essentially zero (bone not used in known vertices)
-                    double rhsNorm = BurstLinearAlgebra.Norm(rhsArray);
+                    double rhsNorm = BurstLinearAlgebra.Norm(rhsArray, solverWorkspace.ScalarResult);
                     if (rhsNorm < 1e-10)
                     {
                         // No contribution from this bone - leave as zero
@@ -391,7 +396,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                     BurstLinearAlgebra.Zero(solutionArray);
 
                     // Solve L_uu * x = rhs using Burst BiCGStab
-                    var result = BurstBiCGStab.Solve(ref L_uu, rhsArray, solutionArray, _maxIterations, _tolerance);
+                    var result = BurstBiCGStab.Solve(
+                        ref L_uu,
+                        rhsArray,
+                        solutionArray,
+                        _maxIterations,
+                        _tolerance,
+                        solverWorkspace);
 
                     if (result.Converged)
                     {
@@ -418,6 +429,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer
                 if (knownWeightsArray.IsCreated) knownWeightsArray.Dispose();
                 if (rhsArray.IsCreated) rhsArray.Dispose();
                 if (solutionArray.IsCreated) solutionArray.Dispose();
+                solverWorkspace?.Dispose();
             }
         }
 

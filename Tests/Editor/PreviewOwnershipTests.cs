@@ -115,7 +115,13 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                     writer.Deformer.SaveToProfile(profile);
                     Undo.FlushUndoRecordObjects();
                 }
-                else profile.Groups[0].Layers[0].Settings.SetControlPointLocal(0, Vector3.one * 0.4f);
+                else
+                {
+                    // Script edits of the public payload must mark the asset dirty (as
+                    // saving requires); the cross-frame fingerprint cache keys on that.
+                    profile.Groups[0].Layers[0].Settings.SetControlPointLocal(0, Vector3.one * 0.4f);
+                    EditorUtility.SetDirty(profile);
+                }
                 string profileAfter = EditorJsonUtility.ToJson(profile);
                 int dirty = EditorUtility.GetDirtyCount(profile);
                 firstNode.OnFrameGroup(); secondNode.OnFrameGroup();

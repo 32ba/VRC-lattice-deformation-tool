@@ -103,10 +103,25 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         internal static string Tooltip(string key) => ResolveTooltip(key);
 
+        // Localization keys are a fixed set; cache the derived tooltip key so
+        // each Content/Tooltip call does not allocate a new concatenated string.
+        private static readonly Dictionary<string, string> s_tooltipKeys = new(StringComparer.Ordinal);
+
+        internal static string GetTooltipKey(string key)
+        {
+            if (!s_tooltipKeys.TryGetValue(key, out string tooltipKey))
+            {
+                tooltipKey = key + k_TooltipSuffix;
+                s_tooltipKeys[key] = tooltipKey;
+            }
+
+            return tooltipKey;
+        }
+
         private static string ResolveTooltip(string key)
         {
             if (!ShowTooltips || string.IsNullOrEmpty(key)) return null;
-            string tooltipKey = key + k_TooltipSuffix;
+            string tooltipKey = GetTooltipKey(key);
             string tooltip = Tr(tooltipKey);
             // If Tr returns the key itself (no translation found), return null
             return tooltip == tooltipKey ? null : tooltip;

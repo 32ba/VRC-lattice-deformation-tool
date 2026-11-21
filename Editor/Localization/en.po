@@ -59,9 +59,6 @@ msgstr "Move vertices"
 msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices-description"
 msgstr "Select vertices and adjust their positions precisely with a handle."
 
-msgid "net.32ba.lattice-deformation-tool.localization.guided-preview-note"
-msgstr "When editing starts, the result becomes visible in the Scene view."
-
 msgid "net.32ba.lattice-deformation-tool.localization.guided-single-selection-required"
 msgstr "Select one Mesh Deformer to edit it from the guided screen."
 
@@ -73,9 +70,6 @@ msgstr "Editing could not be started. Check the target Mesh and edit data in det
 
 msgid "net.32ba.lattice-deformation-tool.localization.open-detailed-inspector"
 msgstr "Detailed editing..."
-
-msgid "net.32ba.lattice-deformation-tool.localization.return-to-guided-inspector"
-msgstr "Back to guided screen"
 
 # Guided Scene View overlay
 msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-adjust-shape-hint"
@@ -145,18 +139,6 @@ msgid "net.32ba.lattice-deformation-tool.localization.copy"
 msgstr "Same direction"
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy.tooltip"
-msgstr ""
-
-msgid "net.32ba.lattice-deformation-tool.localization.paste"
-msgstr "Paste"
-
-msgid "net.32ba.lattice-deformation-tool.localization.paste.tooltip"
-msgstr ""
-
-msgid "net.32ba.lattice-deformation-tool.localization.duplicate"
-msgstr "Duplicate"
-
-msgid "net.32ba.lattice-deformation-tool.localization.duplicate.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.select"
@@ -512,19 +494,7 @@ msgstr "No Lattice Deformer selected."
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected.tooltip"
 msgstr "Select a GameObject with a Mesh Deformer component."
 
-msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-asset-assigned"
-msgstr "No Lattice Asset assigned to this deformer."
-
-msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-asset-assigned.tooltip"
-msgstr "Assign a mesh source to begin using the deformer."
-
 # Brush Tool
-msgid "net.32ba.lattice-deformation-tool.localization.brush-tool"
-msgstr "Brush Tool"
-
-msgid "net.32ba.lattice-deformation-tool.localization.brush-tool.tooltip"
-msgstr "Activates the brush-based vertex painting editor."
-
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-brush"
 msgstr "Active layer is not a Brush layer."
 
@@ -572,12 +542,6 @@ msgstr "Brush Smooth"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-smooth.tooltip"
 msgstr "Blend the edges to smooth out sharp changes."
-
-msgid "net.32ba.lattice-deformation-tool.localization.brush-mask"
-msgstr "Brush Mask"
-
-msgid "net.32ba.lattice-deformation-tool.localization.brush-mask.tooltip"
-msgstr "Mark areas you don't want to change. These stay locked."
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deform"
 msgstr "Brush Deform"
@@ -669,24 +633,6 @@ msgstr "Backface Culling"
 msgid "net.32ba.lattice-deformation-tool.localization.backface-culling.tooltip"
 msgstr "Don't paint on the back side (hidden from camera)."
 
-msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-hint"
-msgstr "Alt+Scroll: Radius / Shift+Scroll: Strength"
-
-msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-hint.tooltip"
-msgstr "Keyboard shortcuts to quickly adjust brush parameters."
-
-msgid "net.32ba.lattice-deformation-tool.localization.mask"
-msgstr "Mask"
-
-msgid "net.32ba.lattice-deformation-tool.localization.mask.tooltip"
-msgstr "Protects painted vertices from further deformation."
-
-msgid "net.32ba.lattice-deformation-tool.localization.clear-mask"
-msgstr "Clear Mask"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clear-mask.tooltip"
-msgstr "Removes all mask data, making all vertices editable again."
-
 msgid "net.32ba.lattice-deformation-tool.localization.clear-all"
 msgstr "Revert this layer"
 
@@ -735,220 +681,7 @@ msgstr "Dot Size"
 msgid "net.32ba.lattice-deformation-tool.localization.dot-size.tooltip"
 msgstr "Controls the display size of vertex indicator dots."
 
-# Clearance Heatmap
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-heatmap"
-msgstr "Clearance Heatmap"
-
-msgid "net.32ba.lattice-deformation-tool.localization.show-clearance-heatmap"
-msgstr "Show Clearance Heatmap"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-reference-renderer"
-msgstr "Reference Renderer"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-query-mode"
-msgstr "Query Mode"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-display-mode"
-msgstr "Display Mode"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-warning-threshold-mm"
-msgstr "Warning Threshold (mm)"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-distance-mm"
-msgstr "Target Clearance (mm)"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-display-stride"
-msgstr "Display Stride"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-update-interval"
-msgstr "Update Interval (s)"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-minimum"
-msgstr "Minimum Clearance"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-maximum-penetration"
-msgstr "Maximum Penetration"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-violation-vertices"
-msgstr "Violation Vertices"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-evaluated-vertices"
-msgstr "Evaluated Vertices"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-actual-query-mode"
-msgstr "Actual Query Mode"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-reference-normal"
-msgstr "Reference Normal"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-closed-mesh"
-msgstr "Closed Mesh"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-penetration-only"
-msgstr "Penetration Only"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-include-warning"
-msgstr "Include Warning Range"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-full-distribution"
-msgstr "Full Distribution"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-evaluation-target"
-msgstr "Evaluation Target"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-preview"
-msgstr "NDMF Preview Mesh"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-rendered"
-msgstr "Rendered Mesh"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-invalid-reference"
-msgstr "The reference Renderer is missing, disabled, or has no valid triangles."
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-invalid-target"
-msgstr "The evaluation target is missing, disabled, or has no readable vertices."
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-sign-fallback"
-msgstr "The reference is open, so the query fell back to reference-normal clearance."
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-result-age"
-msgstr "Result Age"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan"
-msgstr "Clearance Scan"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-set"
-msgstr "Scan Set"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-avatar-root"
-msgstr "Avatar Root"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-run"
-msgstr "Run Clearance Scan"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-cancel"
-msgstr "Cancel Scan"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-progress-format"
-msgstr "{0}/{1}  {2}"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-summary-format"
-msgstr "Successful: {0}/{1}, worst condition index: {2}"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-apply-condition"
-msgstr "Apply Condition to Scene"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-restore-scene"
-msgstr "Restore Scene State"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-success-format"
-msgstr "{0}: minimum {1:0.###} mm, violations {2}, target {3}"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-error-format"
-msgstr "{0}: Error - {1}"
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction"
-msgstr "Fit Correction"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-scope"
-msgstr "Correction Scope"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-penetration-only"
-msgstr "Penetration Only"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-warning-threshold"
-msgstr "Warning Threshold"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-target-clearance"
-msgstr "Below Target Clearance"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-move-mm"
-msgstr "Maximum Move (mm)"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-candidate-vertices"
-msgstr "Candidate Vertices"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-planned-move"
-msgstr "Maximum Planned Move"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-unresolved-estimate"
-msgstr "Estimated Unresolved Vertices"
-
-msgid "net.32ba.lattice-deformation-tool.localization.create-fit-correction-layer"
-msgstr "Create Fit Correction Layer"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-posed-skinned-blocked"
-msgstr "Correction is blocked because the SkinnedMesh is posed or has active BlendShapes. Return it to rest pose first."
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-stale"
-msgstr "The clearance evaluation is stale. Re-evaluate before generating a correction."
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-topology-mismatch"
-msgstr "The evaluated mesh topology does not match the source mesh."
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-no-candidates"
-msgstr "No vertices match the selected correction scope."
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format"
-msgstr "Correction created. Improved: {0}, unresolved: {1}."
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-constraints"
-msgstr "Shape Protection Constraints"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-vertex-mask"
-msgstr "Use Active Layer Mask"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-pin-open-boundaries"
-msgstr "Pin Open Boundaries"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-isolate-components"
-msgstr "Isolate Connected Components"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smooth-surface"
-msgstr "Surface-aware Smoothing"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-iterations"
-msgstr "Smoothing Iterations"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-strength"
-msgstr "Smoothing Strength"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preserve-clearance"
-msgstr "Preserve Solved Clearance"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-symmetry"
-msgstr "Use Symmetry"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-axis"
-msgstr "Symmetry Axis"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-tolerance-mm"
-msgstr "Symmetry Tolerance (mm)"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preview"
-msgstr "Preview Planned Correction"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-report"
-msgstr "Clearance QA Report"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-current"
-msgstr "Export Current Result (JSON + Markdown)"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-scan"
-msgstr "Export Scan Result (JSON + Markdown)"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-success"
-msgstr "JSON and Markdown reports were saved."
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-failure"
-msgstr "The report could not be saved: {0}"
-
 # Vertex Selection Tool
-msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
-msgstr "Vertex Tool"
-
-msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool.tooltip"
-msgstr "Activates the vertex selection and transform editor."
-
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection"
 msgstr "Move points"
 
@@ -1068,30 +801,6 @@ msgstr "Selected: {0} vertices"
 
 msgid "net.32ba.lattice-deformation-tool.localization.selected-vertices-format.tooltip"
 msgstr "Shows how many vertices are currently selected."
-
-msgid "net.32ba.lattice-deformation-tool.localization.wer-hint"
-msgstr "W/E/R: Move/Rotate/Scale"
-
-msgid "net.32ba.lattice-deformation-tool.localization.wer-hint.tooltip"
-msgstr "Keyboard shortcuts to switch transform modes."
-
-msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-proportional-hint"
-msgstr "Alt+Scroll: Proportional Radius"
-
-msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-proportional-hint.tooltip"
-msgstr "Quickly adjust proportional radius with the scroll wheel."
-
-msgid "net.32ba.lattice-deformation-tool.localization.shift-drag-precision"
-msgstr "Shift+Drag: Precision Mode"
-
-msgid "net.32ba.lattice-deformation-tool.localization.shift-drag-precision.tooltip"
-msgstr "Enables fine-grained control while dragging handles."
-
-msgid "net.32ba.lattice-deformation-tool.localization.z-toggle-pivot"
-msgstr "Z: Toggle Pivot"
-
-msgid "net.32ba.lattice-deformation-tool.localization.z-toggle-pivot.tooltip"
-msgstr "Switches pivot between Center and Last Selected."
 
 # Mesh Rebuild Options
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-rebuild-options"
@@ -1252,12 +961,6 @@ msgstr "Import from BlendShape"
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape.tooltip"
 msgstr "Load an existing ShapeKey as a paint layer to edit."
 
-msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-single-frame"
-msgstr "Single Frame"
-
-msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-all-frames"
-msgstr "All Frames"
-
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
 msgstr "Turn off preview"
@@ -1331,12 +1034,6 @@ msgid "net.32ba.lattice-deformation-tool.localization.advanced.tooltip"
 msgstr "Shows additional settings for fine-tuning behavior."
 
 # Legacy Brush Deformer
-msgid "net.32ba.lattice-deformation-tool.localization.brush-deformer"
-msgstr "Brush Deformer"
-
-msgid "net.32ba.lattice-deformation-tool.localization.brush-deformer.tooltip"
-msgstr "Legacy standalone brush deformation component."
-
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation"
 msgstr "Brush Deformation"
 
@@ -1380,67 +1077,8 @@ msgstr "Update through VCC or another VPM-compatible tool. From version 2, the p
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-guide"
 msgstr "View Update Instructions"
 
-msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition"
-msgstr "Frame Composition"
-
-msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-single"
-msgstr "Single"
-
-msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-progressive"
-msgstr "Progressive"
-
-msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade"
-msgstr "Crossfade"
-msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
-msgstr "Store Move in Rest Space"
-
-msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
-msgstr "Converts Move edits made on a posed Skinned Mesh back into reusable rest-space displacements. Invalid skinning data safely falls back to the existing local-space behavior."
-# Deformer Profile
-msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
-msgstr "Deformer Profile"
-
-msgid "net.32ba.lattice-deformation-tool.localization.data-source"
-msgstr "Data Source"
-
-msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
-msgstr "Embedded"
-
-msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
-msgstr "Profile"
-
-msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
-msgstr "Create Profile"
-
-msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
-msgstr "Save to Profile"
-
-msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
-msgstr "Copy to Instance"
-
-msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
-msgstr "Select a profile when Profile is the data source."
-
 msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
 msgstr "Profile data is previewed as an independent instance copy. Copy it to the component to edit groups and layers."
-
-msgid "net.32ba.lattice-deformation-tool.localization.profile-exact-match"
-msgstr "Exact match: this profile was saved for the selected source mesh."
-
-msgid "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs"
-msgstr "Compatible: the topology matches, but the source asset differs or cannot be identified."
-
-msgid "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked"
-msgstr "Topology mismatch: this profile was not applied because it is incompatible with the source mesh."
-
-msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
-msgstr "Legacy profile: compatibility metadata is unavailable. Application is allowed with caution; save the profile again to add metadata."
-
-msgid "net.32ba.lattice-deformation-tool.localization.validation"
-msgstr "Validation"
-
-msgid "net.32ba.lattice-deformation-tool.localization.validation-fix"
-msgstr "Fix"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information"
 msgstr "Support Information"
@@ -1456,9 +1094,6 @@ msgstr "The support information image was saved. Attach it to your support messa
 
 msgid "net.32ba.lattice-deformation-tool.localization.invalid-migration-journal"
 msgstr "The saved migration information is unsupported or invalid. Processing was stopped without changing the saved data."
-
-msgid "net.32ba.lattice-deformation-tool.localization.profile-operation-failed"
-msgstr "The Profile could not be changed. Check the saved data and destination. Choose a new filename when creating a Profile."
 
 # Editor UI (design system)
 msgid "net.32ba.lattice-deformation-tool.localization.guided-inspector-tab"
