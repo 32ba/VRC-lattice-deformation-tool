@@ -18,7 +18,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         // the documentation, which explains how to update.
         internal const string UpdateGuideUrl = "https://vrc.32ba.net/docs/packages/vrc-lattice-deformation-tool/overview/";
         private const string LastCheckKeyPrefix = "Net32Ba.LatticeDeformationTool.LastVersionCheck";
+        private const string LatestVersionKeyPrefix = "Net32Ba.LatticeDeformationTool.LatestVersion";
         private const double CheckIntervalHours = 24.0;
+        // A failed check retries sooner than the success interval, but not on every compile.
+        internal const double FailureRetryHours = 1.0;
 
         private static readonly VpmApiClient Api = new(PackageId);
 
@@ -32,7 +35,36 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         [ExcludeFromCodeCoverage]
         static ReleaseChecker()
         {
-            EditorApplication.delayCall += () => CheckForUpdates();
+            EditorApplication.delayCall += () =>
+            {
+                RestorePersistedResult();
+                CheckForUpdates();
+            };
+        }
+
+        /// <summary>
+        /// The last check time survives a domain reload, so the result it produced must survive too;
+        /// otherwise the notice disappears until the next check is due.
+        /// </summary>
+        [ExcludeFromCodeCoverage]
+        private static void RestorePersistedResult()
+        {
+            if (IsChecking || !string.IsNullOrEmpty(LatestVersion)) return;
+            if (!TryRestoreLatestVersion(EditorPrefs.GetString(GetLatestVersionKey(), ""), GetCurrentVersion(),
+                    out string latest, out bool hasNewVersion)) return;
+            LatestVersion = latest;
+            HasNewVersion = hasNewVersion;
+            if (hasNewVersion) NotifyUpdateCheckCompleted();
+        }
+
+        internal static bool TryRestoreLatestVersion(string storedLatest, string currentVersion,
+            out string latest, out bool hasNewVersion)
+        {
+            latest = null; hasNewVersion = false;
+            if (string.IsNullOrWhiteSpace(storedLatest)) return false;
+            latest = storedLatest.Trim();
+            hasNewVersion = VersionUtility.IsNewerVersion(currentVersion, latest);
+            return true;
         }
 
         [ExcludeFromCodeCoverage]
@@ -45,12 +77,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
             if (!forceCheck && !ShouldCheckForUpdates())
             {
-                Debug.Log($"[LatticeDeformationTool] Skipping update check: checked within the last {CheckIntervalHours:0} hours for this project.");
                 return;
             }
 
+            // Keep the last known result visible while checking; a failed check must not hide it.
             IsChecking = true;
-            HasNewVersion = false;
             CheckError = null;
             try
             {
@@ -104,16 +135,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (string.IsNullOrEmpty(latest))
                 {
                     CheckError = "Empty version response";
+                    RecordFailedCheck();
                     return;
                 }
 
                 LatestVersion = latest;
                 string current = GetCurrentVersion();
+                EditorPrefs.SetString(GetLatestVersionKey(), latest);
                 EditorPrefs.SetString(GetLastCheckKey(), DateTime.Now.ToBinary().ToString());
 
-                if (VersionUtility.IsNewerVersion(current, latest))
+                HasNewVersion = VersionUtility.IsNewerVersion(current, latest);
+                if (HasNewVersion)
                 {
-                    HasNewVersion = true;
                     Debug.Log($"[LatticeDeformationTool] New version available: {current} -> {latest}");
                 }
                 else
@@ -140,6 +173,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 CheckError = error;
                 Debug.LogWarning($"[LatticeDeformationTool] Update check failed: {error}");
+                RecordFailedCheck();
             }
 #line hidden
             catch (Exception ex)
@@ -162,6 +196,18 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 Debug.LogException(exception);
             }
+
+            try
+            {
+                RecordFailedCheck();
+            }
+            // EditorPrefs writes do not expose injectable failures.
+#line hidden
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+            }
+#line default
 
             NotifyUpdateCheckCompleted();
         }
@@ -212,6 +258,42 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Stores a check time that makes the next automatic check due after the failure backoff,
+        /// so offline projects do not hit the network on every compile. It never brings a check
+        /// that is already due later (after a recent success) forward.
+        /// </summary>
+        private static void RecordFailedCheck()
+        {
+            string key = GetLastCheckKey();
+            EditorPrefs.SetString(key, BuildFailedCheckRecord(EditorPrefs.GetString(key, ""), DateTime.Now));
+        }
+
+        internal static string BuildFailedCheckRecord(string stored, DateTime now)
+        {
+            var retryRecord = now.AddHours(FailureRetryHours - CheckIntervalHours);
+            if (!string.IsNullOrEmpty(stored) && long.TryParse(stored, out long binary))
+            {
+                DateTime last;
+                try { last = DateTime.FromBinary(binary); }
+                catch (ArgumentException) { return retryRecord.ToBinary().ToString(); }
+                // A later record keeps its later next-check time; a future record (clock change) is replaced.
+                if (last > retryRecord && last <= now) return stored;
+            }
+
+            return retryRecord.ToBinary().ToString();
+        }
+
+        internal static string GetLatestVersionKey()
+        {
+            return BuildLatestVersionKey(GetProjectScopeSuffix());
+        }
+
+        internal static string BuildLatestVersionKey(string projectScopeSuffix)
+        {
+            return $"{LatestVersionKeyPrefix}.{projectScopeSuffix}";
         }
 
         internal static string GetLastCheckKey()

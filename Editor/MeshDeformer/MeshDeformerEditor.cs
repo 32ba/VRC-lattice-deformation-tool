@@ -276,6 +276,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             _guidedInspector?.Refresh();
             if (!DetailedInspectorEnabled) return;
             AutoAssignLocalRendererReferences();
+            // The rest of this pass only reads, so the full-vertex preflight runs once per owner.
+            using var preflight = AuthoringPreflightScope.Begin();
             serializedObject.Update();
             ResolveActiveGroupProperties();
             _layerSettingsInspector?.Refresh();
@@ -300,6 +302,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private void RefreshMultiObjectLayerSettings()
         {
             if (target == null) return;
+            using var preflight = AuthoringPreflightScope.Begin();
             bool editable = true;
             foreach (var owner in EnumerateTargets()) editable &= LayerSettingsEdit.Capture(owner) != null;
             _layerSettingsInspector?.Refresh();

@@ -400,7 +400,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     skinningTarget,
                     sourceBounds,
                     sourceToWorld,
-                    worldToSource);
+                    worldToSource,
+                    settings);
 
                 if (useProxy && proxyRenderer != null)
                 {
@@ -913,7 +914,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             SkinnedMeshRenderer renderer,
             Bounds sourceBounds,
             Matrix4x4 sourceToWorld,
-            Matrix4x4 worldToSource)
+            Matrix4x4 worldToSource,
+            LatticeAsset editingSettings = null)
         {
             if (renderer == null)
             {
@@ -956,7 +958,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 hash = hash * 31 + sourceBounds.GetHashCode();
                 hash = hash * 31 + sourceToWorld.GetHashCode();
                 hash = hash * 31 + worldToSource.GetHashCode();
-                hash = hash * 31 + (deformer != null ? EditorUtility.GetDirtyCount(deformer) : 0);
+                // With the caller's editing settings, key the snapshot on the exact
+                // deformer-side inputs of _controlPointSkinning.Update below instead of
+                // the component dirty count. Control-point writes during a drag dirty
+                // the component but do not change any of those inputs (the cage binds
+                // neutral points derived only from bounds and grid size).
+                hash = hash * 31 + (deformer == null
+                    ? 0
+                    : editingSettings != null
+                        ? ComputeSkinningDeformerInputHash(deformer, editingSettings)
+                        : EditorUtility.GetDirtyCount(deformer));
                 int boneCount = _cachedSkinningBones?.Length ?? 0;
                 hash = hash * 31 + boneCount;
                 for (int i = 0; i < boneCount; i++)
@@ -973,8 +984,13 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 Mesh bindingMesh = deformer != null && deformer.SourceMesh != null
                     ? deformer.SourceMesh
                     : mesh;
-                Vector3Int gridSize = deformer != null && deformer.EditingSettings != null
-                    ? deformer.EditingSettings.GridSize
+                // The caller's settings are the active layer's EditingSettings read in
+                // the same OnToolGUI pass; use the same object the key was built from.
+                LatticeAsset gridSettings = deformer == null
+                    ? null
+                    : editingSettings ?? deformer.EditingSettings;
+                Vector3Int gridSize = gridSettings != null
+                    ? gridSettings.GridSize
                     : new Vector3Int(2, 2, 2);
                 // No BakeMesh bounds are captured here: the cage never applies bounds
                 // normalization or a bounds fallback.
@@ -989,6 +1005,50 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     deformer != null ? deformer.InitialBlendShapeWeightsForEditor : null);
                 _skinningSnapshotHash = hash;
                 _skinningSnapshotValid = true;
+            }
+        }
+
+        /// <summary>
+        /// Hash of every deformer-side value that LatticeControlPointSkinning.Update
+        /// reads: the binding source mesh (identity and dirty count), the active
+        /// layer's grid size, the deformer's SkinnedMeshRenderer used as the
+        /// BlendShape weight source (identity, mesh mapping and current weights), and
+        /// the initial BlendShape weight baseline. Control-point positions are not
+        /// inputs of the skinning snapshot.
+        /// </summary>
+        internal static int ComputeSkinningDeformerInputHash(
+            LatticeDeformer deformer,
+            LatticeAsset editingSettings)
+        {
+            unchecked
+            {
+                int hash = 17;
+                Mesh sourceMesh = deformer.SourceMesh;
+                hash = hash * 31 + (sourceMesh != null ? sourceMesh.GetInstanceID() : 0);
+                hash = hash * 31 + (sourceMesh != null ? EditorUtility.GetDirtyCount(sourceMesh) : 0);
+                hash = hash * 31 + (editingSettings != null ? editingSettings.GridSize.GetHashCode() : 0);
+
+                if (deformer.TryGetComponent(out SkinnedMeshRenderer weightSource))
+                {
+                    hash = hash * 31 + weightSource.GetInstanceID();
+                    Mesh weightMesh = weightSource.sharedMesh;
+                    hash = hash * 31 + (weightMesh != null ? weightMesh.GetInstanceID() : 0);
+                    hash = hash * 31 + (weightMesh != null ? EditorUtility.GetDirtyCount(weightMesh) : 0);
+                    int weightCount = weightMesh != null ? weightMesh.blendShapeCount : 0;
+                    hash = hash * 31 + weightCount;
+                    for (int i = 0; i < weightCount; i++)
+                        hash = hash * 31 + weightSource.GetBlendShapeWeight(i).GetHashCode();
+                }
+                else
+                {
+                    hash = hash * 31;
+                }
+
+                float[] initialWeights = deformer.InitialBlendShapeWeightsForEditor;
+                hash = hash * 31 + initialWeights.Length;
+                for (int i = 0; i < initialWeights.Length; i++)
+                    hash = hash * 31 + initialWeights[i].GetHashCode();
+                return hash;
             }
         }
 

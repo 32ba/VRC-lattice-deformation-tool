@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Net._32Ba.LatticeDeformationTool.Editor
 {
@@ -93,6 +94,12 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (mesh == null || mesh.vertexCount == 0) return false;
             try
             {
+                // A readable mesh returns either an empty normals array or one entry per
+                // vertex, so the attribute query is equivalent without copying the
+                // normals. Non-readable meshes keep the original copy-based check.
+                if (mesh.isReadable)
+                    return mesh.HasVertexAttribute(VertexAttribute.Normal);
+
                 Vector3[] normals = mesh.normals;
                 return normals != null && normals.Length == mesh.vertexCount;
             }

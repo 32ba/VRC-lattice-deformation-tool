@@ -138,7 +138,7 @@ namespace Net._32Ba.LatticeDeformationTool
             _restVerticesHash = 0;
         }
 
-        private static bool ApproximatelyEquals(Bounds lhs, Bounds rhs)
+        internal static bool ApproximatelyEquals(Bounds lhs, Bounds rhs)
         {
             const float epsilon = 1e-5f;
             return (lhs.center - rhs.center).sqrMagnitude <= epsilon * epsilon &&

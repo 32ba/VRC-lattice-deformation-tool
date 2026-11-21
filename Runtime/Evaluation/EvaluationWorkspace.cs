@@ -16,8 +16,26 @@ namespace Net._32Ba.LatticeDeformationTool
         internal readonly LatticeEvaluator Lattice = new LatticeEvaluator();
         internal readonly MeshOutputWorkspace MeshOutput = new MeshOutputWorkspace();
         internal readonly PreviewFrameWorkspace PreviewFrames = new PreviewFrameWorkspace();
+        // Compact scratch for sparse evaluation; grow-only so repeated frames
+        // with different subset sizes reuse the same storage.
+        internal Vector3[] SubsetSource = Array.Empty<Vector3>();
+        internal Vector3[] SubsetGroup = Array.Empty<Vector3>();
+        internal Vector3[] SubsetDirect = Array.Empty<Vector3>();
 
         public void Dispose() => Lattice.Dispose();
+
+        internal void EnsureSubsetCapacity(int count)
+        {
+            if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
+            Grow(ref SubsetSource, count);
+            Grow(ref SubsetGroup, count);
+            Grow(ref SubsetDirect, count);
+        }
+
+        internal static void Grow(ref Vector3[] buffer, int count)
+        {
+            if (buffer.Length < count) buffer = new Vector3[Math.Max(count, buffer.Length + (buffer.Length >> 1))];
+        }
 
         internal void EnsureCapacity(int count)
         {
@@ -44,6 +62,8 @@ namespace Net._32Ba.LatticeDeformationTool
         internal Vector3[] Combined = Array.Empty<Vector3>();
         internal Vector3[] DeformedCombined = Array.Empty<Vector3>();
         internal Vector3[] OutputDelta = Array.Empty<Vector3>();
+        internal int[] ChangedIndices = Array.Empty<int>();
+        internal Vector3[] ChangedOutput = Array.Empty<Vector3>();
 
         internal void EnsureCapacity(int count)
         {
@@ -53,6 +73,14 @@ namespace Net._32Ba.LatticeDeformationTool
             EvaluationWorkspace.Resize(ref Combined, count);
             EvaluationWorkspace.Resize(ref DeformedCombined, count);
             EvaluationWorkspace.Resize(ref OutputDelta, count);
+        }
+
+        // Sparse frame evaluation records at most `count` changed vertices.
+        internal void EnsureChangedCapacity(int count)
+        {
+            if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
+            if (ChangedIndices.Length != count) ChangedIndices = count == 0 ? Array.Empty<int>() : new int[count];
+            EvaluationWorkspace.Resize(ref ChangedOutput, count);
         }
     }
 }

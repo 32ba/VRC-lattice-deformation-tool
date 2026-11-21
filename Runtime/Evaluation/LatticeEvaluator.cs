@@ -25,6 +25,23 @@ namespace Net._32Ba.LatticeDeformationTool
         private LatticeDeformerCache _cache = new LatticeDeformerCache();
         private readonly Action _beforeNativeAllocation;
 
+        // Subset scratch is independent of the interpolation cache above, so a
+        // sparse upstream-frame evaluation never invalidates the base cache.
+        private NativeArray<float3> _subsetRestNative;
+        private NativeArray<LatticeCacheEntry> _subsetEntriesNative;
+        private NativeArray<float> _subsetBernsteinWeightsNative;
+        private NativeArray<float3> _subsetControlNative;
+        private NativeArray<float3> _subsetOutputNative;
+        private Vector3[] _subsetResultBuffer = Array.Empty<Vector3>();
+        // Mirrors LatticeDeformerCache.IsCompatibleWith across the layers of one
+        // subset evaluation: a later layer with the same grid/interpolation and
+        // approximately equal bounds reuses the earlier entries, as Apply does.
+        private bool _subsetKeyValid;
+        private Vector3Int _subsetKeyGrid;
+        private Bounds _subsetKeyBounds;
+        private LatticeInterpolationMode _subsetKeyInterpolation;
+        private int _subsetKeyCount;
+
         // Optional fault injection verifies cleanup without requesting an OOM.
         internal LatticeEvaluator(Action beforeNativeAllocation = null)
         {
@@ -33,7 +50,10 @@ namespace Net._32Ba.LatticeDeformationTool
 
         internal LatticeDeformerCache Cache => _cache;
         internal bool HasNativeResources => _deformControlNative.IsCreated || _deformEntriesNative.IsCreated ||
-            _deformOutputNative.IsCreated || _deformBernsteinWeightsNative.IsCreated;
+            _deformOutputNative.IsCreated || _deformBernsteinWeightsNative.IsCreated ||
+            _subsetRestNative.IsCreated || _subsetEntriesNative.IsCreated ||
+            _subsetBernsteinWeightsNative.IsCreated || _subsetControlNative.IsCreated ||
+            _subsetOutputNative.IsCreated;
 
         // Allows an explicit cache fixture to exercise invalid or stale entries.
         internal void BindCache(LatticeDeformerCache cache) => _cache = cache ?? throw new ArgumentNullException(nameof(cache));
@@ -89,6 +109,231 @@ namespace Net._32Ba.LatticeDeformationTool
                     deformedVertices[vertex] += layerOffsets[vertex] * weight;
                 }
             }
+        }
+
+        // Adds the same per-vertex contribution that Apply adds for a cache built
+        // from these positions, for compactSource[0..count) only. Cache entries,
+        // Bernstein bases and interpolation are produced by the same per-index
+        // Burst jobs as Apply/RebuildCache and the managed accumulation repeats
+        // Apply's expressions, so each element is bit-identical to Apply's result
+        // at the corresponding vertex. The main cache and its buffers are untouched.
+        internal void ApplySubset(LatticeAsset layerSettings, float weight, in EvaluationSemantics semantics,
+            Vector3[] compactSource, int count, Vector3[] compactDeformed)
+        {
+            if (layerSettings == null || compactSource == null || compactDeformed == null)
+            {
+                return;
+            }
+
+            if (count < 0 || count > compactSource.Length || count > compactDeformed.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count));
+            }
+
+            // RebuildCache rejects an empty input and degenerate grids without
+            // touching the cache.
+            if (count == 0)
+            {
+                return;
+            }
+
+            var gridSize = layerSettings.GridSize;
+            if (gridSize.x < 2 || gridSize.y < 2 || gridSize.z < 2)
+            {
+                return;
+            }
+
+            LatticeInterpolationMode effectiveInterpolation = GetEffectiveInterpolation(layerSettings);
+            var bounds = layerSettings.LocalBounds;
+            bool reuseEntries = _subsetKeyValid &&
+                                _subsetKeyCount == count &&
+                                _subsetKeyGrid == gridSize &&
+                                _subsetKeyInterpolation == effectiveInterpolation &&
+                                LatticeDeformerCache.ApproximatelyEquals(_subsetKeyBounds, bounds);
+            bool useBernstein = effectiveInterpolation == LatticeInterpolationMode.CubicBernstein;
+            var grid = new int3(gridSize.x, gridSize.y, gridSize.z);
+
+            // Apply resolves the cache before reading control points, so the
+            // entry key advances even when the control points are rejected below.
+            if (!reuseEntries)
+            {
+                int stride = checked(gridSize.x + gridSize.y + gridSize.z);
+                int weightCount = useBernstein ? checked(count * stride) : 0;
+                _subsetKeyValid = false;
+                try
+                {
+                    EnsureSubsetEntryBuffers(count, weightCount);
+                    NativeArray<Vector3>.Copy(compactSource, 0, _subsetRestNative.Reinterpret<Vector3>(), 0, count);
+                    var buildJob = new BuildCacheEntriesJob
+                    {
+                        Grid = grid,
+                        BoundsMin = new float3(bounds.min.x, bounds.min.y, bounds.min.z),
+                        BoundsSize = new float3(bounds.size.x, bounds.size.y, bounds.size.z),
+                        RestVertices = _subsetRestNative,
+                        Entries = _subsetEntriesNative
+                    };
+                    buildJob.Schedule(count, 64).Complete();
+
+                    if (useBernstein)
+                    {
+                        var weightsJob = new BuildBernsteinWeightsJob
+                        {
+                            Entries = _subsetEntriesNative,
+                            Grid = grid,
+                            Weights = _subsetBernsteinWeightsNative
+                        };
+                        weightsJob.Schedule(count, 64).Complete();
+                    }
+                }
+                catch
+                {
+                    Dispose();
+                    throw;
+                }
+
+                _subsetKeyValid = true;
+                _subsetKeyCount = count;
+                _subsetKeyGrid = gridSize;
+                _subsetKeyBounds = bounds;
+                _subsetKeyInterpolation = effectiveInterpolation;
+            }
+
+            int cpCount = layerSettings.ControlPointCount;
+            EnsureControlBuffer(cpCount);
+
+            bool absolute = semantics.AbsoluteLatticeEvaluation;
+            if (absolute)
+            {
+                if (!layerSettings.TryCopyLegacyEvaluationControlPoints(
+                        semantics.OwnerWorldToLocal,
+                        _controlBuffer.AsSpan()))
+                {
+                    return;
+                }
+            }
+            else
+            {
+                CollectControlPointOffsetsLocal(layerSettings, _controlBuffer.AsSpan());
+            }
+
+            if (_controlBuffer.Length == 0)
+            {
+                throw new ArgumentException("Control points are required for deformation.");
+            }
+
+            if (_subsetResultBuffer.Length < count)
+            {
+                _subsetResultBuffer = new Vector3[GrowCapacity(_subsetResultBuffer.Length, count)];
+            }
+
+            try
+            {
+                EnsureSubsetControlBuffer(_controlBuffer.Length);
+                _subsetControlNative.CopyFromManaged(_controlBuffer);
+                if (useBernstein)
+                {
+                    var bernsteinJob = new DeformBernsteinVerticesJob
+                    {
+                        ControlPoints = _subsetControlNative,
+                        Weights = _subsetBernsteinWeightsNative,
+                        Grid = grid,
+                        Result = _subsetOutputNative
+                    };
+                    bernsteinJob.Schedule(count, 64).Complete();
+                }
+                else
+                {
+                    var job = new DeformVerticesJob
+                    {
+                        ControlPoints = _subsetControlNative,
+                        Entries = _subsetEntriesNative,
+                        Result = _subsetOutputNative
+                    };
+                    job.Schedule(count, 64).Complete();
+                }
+
+                NativeArray<Vector3>.Copy(_subsetOutputNative.Reinterpret<Vector3>(), 0, _subsetResultBuffer, 0, count);
+            }
+            catch
+            {
+                Dispose();
+                throw;
+            }
+
+            var layerResult = _subsetResultBuffer;
+            if (absolute)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    compactDeformed[i] +=
+                        (layerResult[i] - compactSource[i]) * weight;
+                }
+            }
+            else
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    compactDeformed[i] += layerResult[i] * weight;
+                }
+            }
+        }
+
+        private void EnsureSubsetEntryBuffers(int count, int weightCount)
+        {
+            if (!_subsetRestNative.IsCreated || _subsetRestNative.Length < count)
+            {
+                int capacity = GrowCapacity(_subsetRestNative.IsCreated ? _subsetRestNative.Length : 0, count);
+                if (_subsetRestNative.IsCreated) _subsetRestNative.Dispose();
+                _beforeNativeAllocation?.Invoke();
+                _subsetRestNative = LatticeNativeArrayUtility.CreateFloat3Array(capacity, Allocator.Persistent);
+            }
+
+            if (!_subsetEntriesNative.IsCreated || _subsetEntriesNative.Length < count)
+            {
+                int capacity = GrowCapacity(_subsetEntriesNative.IsCreated ? _subsetEntriesNative.Length : 0, count);
+                if (_subsetEntriesNative.IsCreated) _subsetEntriesNative.Dispose();
+                _beforeNativeAllocation?.Invoke();
+                _subsetEntriesNative = new NativeArray<LatticeCacheEntry>(capacity, Allocator.Persistent,
+                    NativeArrayOptions.UninitializedMemory);
+            }
+
+            if (!_subsetOutputNative.IsCreated || _subsetOutputNative.Length < count)
+            {
+                int capacity = GrowCapacity(_subsetOutputNative.IsCreated ? _subsetOutputNative.Length : 0, count);
+                if (_subsetOutputNative.IsCreated) _subsetOutputNative.Dispose();
+                _beforeNativeAllocation?.Invoke();
+                _subsetOutputNative = LatticeNativeArrayUtility.CreateFloat3Array(capacity, Allocator.Persistent);
+            }
+
+            if (weightCount > 0 &&
+                (!_subsetBernsteinWeightsNative.IsCreated || _subsetBernsteinWeightsNative.Length < weightCount))
+            {
+                int capacity = GrowCapacity(
+                    _subsetBernsteinWeightsNative.IsCreated ? _subsetBernsteinWeightsNative.Length : 0,
+                    weightCount);
+                if (_subsetBernsteinWeightsNative.IsCreated) _subsetBernsteinWeightsNative.Dispose();
+                _beforeNativeAllocation?.Invoke();
+                _subsetBernsteinWeightsNative = new NativeArray<float>(capacity, Allocator.Persistent,
+                    NativeArrayOptions.UninitializedMemory);
+            }
+        }
+
+        // Jobs index control points by absolute corner index, so the length
+        // equals the authored count exactly (as in DeformWithJobs).
+        private void EnsureSubsetControlBuffer(int controlPointCount)
+        {
+            if (_subsetControlNative.IsCreated && _subsetControlNative.Length == controlPointCount) return;
+            if (_subsetControlNative.IsCreated) _subsetControlNative.Dispose();
+            _beforeNativeAllocation?.Invoke();
+            _subsetControlNative = LatticeNativeArrayUtility.CreateFloat3Array(
+                controlPointCount,
+                Allocator.Persistent);
+        }
+
+        private static int GrowCapacity(int current, int required)
+        {
+            long grown = (long)current + (current >> 1);
+            return (int)Math.Min(int.MaxValue, Math.Max(required, grown));
         }
 
         internal void EnsureControlBuffer(int controlPointCount)
@@ -288,9 +533,19 @@ namespace Net._32Ba.LatticeDeformationTool
             if (_deformEntriesNative.IsCreated) _deformEntriesNative.Dispose();
             if (_deformOutputNative.IsCreated) _deformOutputNative.Dispose();
             if (_deformBernsteinWeightsNative.IsCreated) _deformBernsteinWeightsNative.Dispose();
+            if (_subsetRestNative.IsCreated) _subsetRestNative.Dispose();
+            if (_subsetEntriesNative.IsCreated) _subsetEntriesNative.Dispose();
+            if (_subsetBernsteinWeightsNative.IsCreated) _subsetBernsteinWeightsNative.Dispose();
+            if (_subsetControlNative.IsCreated) _subsetControlNative.Dispose();
+            if (_subsetOutputNative.IsCreated) _subsetOutputNative.Dispose();
             _deformEntriesSource = null;
             _deformBernsteinWeightsSource = null;
+            _subsetKeyValid = false;
         }
+
+        // Starts a subset evaluation over new positions. Entries computed for
+        // earlier positions are never reused.
+        internal void BeginSubset() => _subsetKeyValid = false;
 
         internal static LatticeCacheEntry[] BuildCacheWithJobs(Vector3Int gridSize, Bounds bounds, Vector3[] restVertices)
         {

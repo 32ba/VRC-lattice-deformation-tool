@@ -154,7 +154,15 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool Commit(LatticeDeformer[] targets, string undoLabel,
             Func<LatticeDeformer, bool> edit)
         {
+            // A refresh-pass memo must never outlive a write.
+            AuthoringPreflightScope.Invalidate();
+            try { return CommitCore(targets, undoLabel, edit); }
+            finally { AuthoringPreflightScope.Invalidate(); }
+        }
 
+        private static bool CommitCore(LatticeDeformer[] targets, string undoLabel,
+            Func<LatticeDeformer, bool> edit)
+        {
             Undo.IncrementCurrentGroup();
             int undoGroup = Undo.GetCurrentGroup();
             Undo.SetCurrentGroupName(undoLabel);
