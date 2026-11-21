@@ -507,7 +507,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EventCallback<ChangeEvent<T>> changed = evt =>
             {
                 if (!IsCurrent(generation) || target is not LatticeDeformer d ||
-                    !DeformerAuthoringSource.TryRead(d, out _, out _, out _) ||
+                    !DeformerAuthoringSource.TryReadForRowInput(d) ||
                     (evt.newValue is float number && (float.IsNaN(number) || float.IsInfinity(number))))
                 {
                     field.SetValueWithoutNotify(evt.previousValue);

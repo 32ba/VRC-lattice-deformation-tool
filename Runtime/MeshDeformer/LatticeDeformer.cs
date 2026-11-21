@@ -135,6 +135,10 @@ namespace Net._32Ba.LatticeDeformationTool
         [NonSerialized] private RuntimeMeshAssignment _runtimeMeshAssignment;
         [NonSerialized] private Mesh _sourceMesh;
         [NonSerialized] private Mesh _readableSourceMeshOverride;
+        // Readable copies of non-readable meshes, reused while their change token holds.
+        // Source evaluation and NDMF preview input use separate slots so they never evict each other.
+        [NonSerialized] private ReadableSourceCache _readableSourceCache;
+        [NonSerialized] private ReadableSourceCache _readablePreviewInputCache;
         [NonSerialized] private int _lastBlendShapeHash;
         [NonSerialized] private readonly Dictionary<int, int> _generatedGroupBlendShapeIndices = new();
 
@@ -350,8 +354,9 @@ namespace Net._32Ba.LatticeDeformationTool
             if (targetProfile == null) return ProfileCompatibilityStatus.InsufficientMetadata;
             Mesh compatibilitySource = GetCompatibilitySourceMesh();
             // A Mesh can be mutated in place without changing its reference or vertex count.
-            // Re-evaluate its exact vertex/index fingerprint so stale compatibility results
-            // can never authorize vertex-indexed profile data for a changed topology.
+            // The exact vertex/index fingerprint is reused only while the Mesh's change
+            // token (dirty count, structure, import/Undo generation) is unchanged, so a
+            // stale result can never authorize vertex-indexed data for a changed topology.
             return targetProfile.EvaluateCompatibility(
                 compatibilitySource,
                 assetGuid ?? "",
@@ -1475,6 +1480,7 @@ namespace Net._32Ba.LatticeDeformationTool
         private void OnDisable()
         {
             ReleaseDeformationNativeBuffers();
+            ReleaseReadableSourceCopies();
             if (Application.isPlaying)
             {
                 return;
@@ -1492,6 +1498,7 @@ namespace Net._32Ba.LatticeDeformationTool
         private void OnDestroy()
         {
             ReleaseDeformationNativeBuffers();
+            ReleaseReadableSourceCopies();
             if (SuppressRestoreOnDisable || _meshRestorationSuppressionDepth > 0)
             {
                 ReleaseRuntimeMeshWithoutRestoration();
@@ -1510,7 +1517,7 @@ namespace Net._32Ba.LatticeDeformationTool
             // Resolve it before acquiring (and later restoring) the readable lease.
             if (_sourceMesh == null && !EnsureLayerModelReady()) return null;
             Mesh originalSourceMesh = _sourceMesh;
-            using var sourceLease = SourceMeshAccess.Acquire(originalSourceMesh);
+            using var sourceLease = (_readableSourceCache ??= new ReadableSourceCache()).Acquire(originalSourceMesh);
             if (sourceLease.OwnsMesh)
             {
                 _readableSourceMeshOverride = sourceLease.Mesh;
@@ -1685,7 +1692,7 @@ namespace Net._32Ba.LatticeDeformationTool
             if (!EnsureLayerModelReady() || inputMesh == null ||
                 _sourceMesh == null)
                 return null;
-            using var inputLease = SourceMeshAccess.Acquire(inputMesh);
+            using var inputLease = (_readablePreviewInputCache ??= new ReadableSourceCache()).Acquire(inputMesh);
             inputMesh = inputLease.Mesh;
             if (inputMesh == null || !inputMesh.isReadable) return null;
             bool sourceTopologyMatches = inputMesh.vertexCount == _sourceMesh.vertexCount;
@@ -2155,6 +2162,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
             _evaluationWorkspace?.Lattice.Cache.Clear();
             ReleaseDeformationNativeBuffers();
+            ReleaseReadableSourceCopies();
             _lastBlendShapeHash = 0;
             _blendShapeOutputDirty = true;
         }
@@ -2770,6 +2778,16 @@ namespace Net._32Ba.LatticeDeformationTool
 
         private void ReleaseDeformationNativeBuffers() => _evaluationWorkspace?.Lattice.Dispose();
 
+        // A copy still borrowed by the running evaluation is destroyed when its lease ends.
+        private void ReleaseReadableSourceCopies()
+        {
+            _readableSourceCache?.Release();
+            _readablePreviewInputCache?.Release();
+        }
+
+        internal Mesh CachedReadableSourceCopyForTests => _readableSourceCache?.CachedCopy;
+        internal Mesh CachedReadablePreviewInputCopyForTests => _readablePreviewInputCache?.CachedCopy;
+
         // Never-active objects and loaded Prefab assets cannot rely on OnDestroy.
         // Their synchronous evaluations borrow native scratch only for this call.
         private readonly struct InactiveEvaluationScope : IDisposable
@@ -2779,7 +2797,11 @@ namespace Net._32Ba.LatticeDeformationTool
             public void Dispose()
             {
                 if (_owner != null && !_owner.isActiveAndEnabled)
+                {
+                    // Never-active owners get no OnDestroy, so they keep no readable copy either.
                     _owner.ReleaseDeformationNativeBuffers();
+                    _owner.ReleaseReadableSourceCopies();
+                }
             }
         }
 

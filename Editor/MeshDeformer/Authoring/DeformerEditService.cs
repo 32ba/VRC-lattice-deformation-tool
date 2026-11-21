@@ -154,10 +154,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static bool Commit(LatticeDeformer[] targets, string undoLabel,
             Func<LatticeDeformer, bool> edit)
         {
-            // A refresh-pass memo must never outlive a write.
+            // A refresh-pass memo must never outlive a write. The token-keyed row
+            // memo would observe the commit's dirty marking; clear it as well.
             AuthoringPreflightScope.Invalidate();
+            DeformerAuthoringSource.InvalidateRowInputMemo();
             try { return CommitCore(targets, undoLabel, edit); }
-            finally { AuthoringPreflightScope.Invalidate(); }
+            finally
+            {
+                AuthoringPreflightScope.Invalidate();
+                DeformerAuthoringSource.InvalidateRowInputMemo();
+            }
         }
 
         private static bool CommitCore(LatticeDeformer[] targets, string undoLabel,

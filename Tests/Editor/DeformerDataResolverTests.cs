@@ -320,14 +320,19 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
             Assert.That(original, Is.Not.Null);
             var layer = fixture.Profile.Groups[0].Layers[0];
             var originalDelta = layer.BrushDisplacements[0];
+            // Script edits of the public Profile payload mark the asset dirty; the
+            // fingerprint cache reuses results only while the Profile token is unchanged.
             layer.SetBrushDisplacement(0, originalDelta + Vector3.up);
+            EditorUtility.SetDirty(fixture.Profile);
             var edited = Evaluate();
             Assert.That(Vector3.Distance(edited[0], original[0] + Vector3.up), Is.LessThan(1e-5f));
 
             // An early return must close the same scope as a successful evaluation.
             layer.BrushDisplacements[0] = new Vector3(float.NaN, 0f, 0f);
+            EditorUtility.SetDirty(fixture.Profile);
             Assert.That(Evaluate(), Is.Null);
             layer.SetBrushDisplacement(0, originalDelta);
+            EditorUtility.SetDirty(fixture.Profile);
             Assert.That(Evaluate(), Is.EqualTo(original));
 
             var source = fixture.Mesh.vertices;
@@ -356,6 +361,7 @@ namespace Net._32Ba.LatticeDeformationTool.Tests.Editor
                 throw new InvalidOperationException("Evaluation aborted");
             });
             fixture.Profile.Groups[0].Layers[0].SetBrushDisplacement(0, Vector3.one * 4f);
+            EditorUtility.SetDirty(fixture.Profile);
             using var nextScope = resolver.BeginEvaluation();
             var next = resolver.Resolve(DeformerDataSource.Profile, null, 0, fixture.Profile, fixture.Mesh);
             Assert.That(next.ProfileRevision, Is.GreaterThan(first.ProfileRevision));

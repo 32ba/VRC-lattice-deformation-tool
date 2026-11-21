@@ -71,7 +71,8 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             if (!IsAvailable || mesh == null) return ProfileCompatibilityStatus.InsufficientMetadata;
 
-            var current = Capture(mesh, assetGuid, assetLocalId);
+            // Identity is compared from the arguments below; the cached capture holds geometry only.
+            var current = CaptureForComparison(mesh);
             if (_vertexCount != current._vertexCount ||
                 _indexCount != current._indexCount ||
                 _triangleCount != current._triangleCount ||
@@ -91,6 +92,33 @@ namespace Net._32Ba.LatticeDeformationTool
             return sameIdentity
                 ? ProfileCompatibilityStatus.ExactMatch
                 : ProfileCompatibilityStatus.CompatibleSourceDiffers;
+        }
+
+        // Mesh geometry captures reused while the Mesh's change token is unchanged.
+        // The SHA-256 topology hash reads every vertex and index, so evaluating it on
+        // every Deform/preview frame dominated Profile mode. Bounded and identity-free.
+        private static readonly Dictionary<int, (ObjectChangeToken Token, MeshCompatibilityMetadata Capture)> s_captures =
+            new Dictionary<int, (ObjectChangeToken, MeshCompatibilityMetadata)>();
+
+        // Test probe: geometry captures computed for compatibility comparison.
+        internal static int ComparisonCapturesComputed { get; private set; }
+
+        internal static MeshCompatibilityMetadata CaptureForComparison(Mesh mesh)
+        {
+            int id = mesh.GetInstanceID();
+            if (s_captures.TryGetValue(id, out var cached) && DeformerChangeTokens.Capture(mesh).Equals(cached.Token))
+                return cached.Capture;
+            var capture = Capture(mesh);
+            unchecked { ComparisonCapturesComputed++; }
+            var token = DeformerChangeTokens.Capture(mesh);
+            if (!token.IsValid)
+            {
+                s_captures.Remove(id);
+                return capture;
+            }
+            if (s_captures.Count >= 64) s_captures.Clear();
+            s_captures[id] = (token, capture);
+            return capture;
         }
 
         internal void SetSourceAssetIdentity(string assetGuid, long assetLocalId)
@@ -189,6 +217,17 @@ namespace Net._32Ba.LatticeDeformationTool
         [SerializeField, TextArea] private string _notes = "";
         [NonSerialized] private List<DeformerGroup> _readOnlyGroupSource;
         [NonSerialized] private ReadOnlyCollection<DeformerGroup> _readOnlyGroups;
+        // Advanced by the API writes that do not mark the asset dirty themselves.
+        [NonSerialized] private int _contentRevision;
+        [NonSerialized] private string _contentFingerprint;
+        [NonSerialized] private ObjectChangeToken _contentFingerprintToken;
+        [NonSerialized] private int _contentFingerprintRevision;
+        [NonSerialized] private string _compatibilityFingerprint;
+        [NonSerialized] private ObjectChangeToken _compatibilityFingerprintToken;
+        [NonSerialized] private int _compatibilityFingerprintRevision;
+
+        // Test probe: content fingerprints computed (not served from the token cache).
+        internal static int ContentFingerprintsComputed { get; private set; }
 
         internal IReadOnlyList<DeformerGroup> SerializedGroups => _groups;
         internal int SerializedActiveGroupIndex => _activeGroupIndex;
@@ -229,6 +268,7 @@ namespace Net._32Ba.LatticeDeformationTool
             _groups = copy.Groups;
             _activeGroupIndex = copy.ActiveGroupIndex;
             if (sourceMesh != null) _compatibility = MeshCompatibilityMetadata.Capture(sourceMesh);
+            unchecked { _contentRevision++; }
         }
 
         public ProfileCompatibilityStatus EvaluateCompatibility(Mesh mesh, string assetGuid = "", long assetLocalId = 0)
@@ -241,6 +281,7 @@ namespace Net._32Ba.LatticeDeformationTool
         public void SetSourceAssetIdentity(string assetGuid, long assetLocalId)
         {
             _compatibility?.SetSourceAssetIdentity(assetGuid, assetLocalId);
+            unchecked { _contentRevision++; }
         }
 
         internal DeformerProfilePayload CreateIndependentPayload()
@@ -248,14 +289,32 @@ namespace Net._32Ba.LatticeDeformationTool
             return DeformerProfilePayload.Clone(DeformerProfilePayload.From(_groups, _activeGroupIndex));
         }
 
+        // Fingerprints are recomputed only when this asset's change token or API
+        // revision moved: Inspector/SerializedObject edits, SetDirty, Undo/Redo,
+        // reimport, Capture/SaveToProfile and SetSourceAssetIdentity all do so.
         internal string GetContentFingerprint()
         {
-            return ProfileContentFingerprint.Capture(_groups, _activeGroupIndex);
+            if (_contentFingerprint != null && _contentFingerprintRevision == _contentRevision &&
+                DeformerChangeTokens.Capture(this).Equals(_contentFingerprintToken))
+                return _contentFingerprint;
+            string fingerprint = ProfileContentFingerprint.Capture(_groups, _activeGroupIndex);
+            unchecked { ContentFingerprintsComputed++; }
+            _contentFingerprintToken = DeformerChangeTokens.Capture(this);
+            _contentFingerprintRevision = _contentRevision;
+            _contentFingerprint = _contentFingerprintToken.IsValid ? fingerprint : null;
+            return fingerprint;
         }
 
         internal string GetCompatibilityFingerprint()
         {
-            return _compatibility == null ? "" : JsonUtility.ToJson(_compatibility);
+            if (_compatibilityFingerprint != null && _compatibilityFingerprintRevision == _contentRevision &&
+                DeformerChangeTokens.Capture(this).Equals(_compatibilityFingerprintToken))
+                return _compatibilityFingerprint;
+            string fingerprint = _compatibility == null ? "" : JsonUtility.ToJson(_compatibility);
+            _compatibilityFingerprintToken = DeformerChangeTokens.Capture(this);
+            _compatibilityFingerprintRevision = _contentRevision;
+            _compatibilityFingerprint = _compatibilityFingerprintToken.IsValid ? fingerprint : null;
+            return fingerprint;
         }
     }
 

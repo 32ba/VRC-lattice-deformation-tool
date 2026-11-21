@@ -47,9 +47,10 @@ namespace Net._32Ba.LatticeDeformationTool
             new DeformerGroup { Name = "Incompatible Profile", Enabled = false }
         };
 
-        // Only synchronous evaluation may share a compatibility check. The last
-        // scope releases its borrowed result, so the next evaluation observes
-        // external Profile edits and in-place source Mesh changes again.
+        // Synchronous evaluation shares one resolved result per scope. Across scopes
+        // the Profile's fingerprints and the source Mesh's compatibility capture are
+        // reused by ObjectChangeToken, so dirty-marked/Undo/reimported Profile edits
+        // and in-place source Mesh changes are still observed on the next evaluation.
         internal EvaluationScope BeginEvaluation()
         {
             _evaluationDepth++;
