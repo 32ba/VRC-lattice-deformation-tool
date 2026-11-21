@@ -42,7 +42,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             LastSelected = 1
         }
 
-        private static GUIContent s_icon;
         private static TransformMode s_transformMode = TransformMode.Move;
         private static float s_proportionalRadius = 0f;
         private static FalloffType s_proportionalFalloff = FalloffType.Smooth;
@@ -96,8 +95,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             new VertexProportionalInfluenceCache();
         private int _transformInfluenceRevision;
 
-        private static readonly Color k_ProportionalRadiusColor = new Color(0.5f, 1f, 0.5f, 0.4f);
-
         static VertexSelectionHandler()
         {
             LatticeLocalization.LanguageChanged += OnLanguageChanged;
@@ -105,11 +102,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static void OnLanguageChanged()
         {
-            if (s_icon != null)
-            {
-                s_icon.tooltip = LatticeLocalization.Tr(LocKey.VertexTool);
-            }
-
             SceneView.RepaintAll();
         }
 
@@ -796,49 +788,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 s_selectedVertices, s_proportionalRadius, s_proportionalFalloff,
                 s_selectionRevision, s_proportionalSettingsRevision,
                 _preTransformWorldPositionsValid ? _transformInfluenceRevision : RefreshCountForTests);
-        }
-
-        private void DrawProportionalRadius(LatticeDeformer deformer, Transform meshTransform)
-        {
-            // Draw a wire sphere around the pivot position
-            var matrix = meshTransform.localToWorldMatrix;
-
-            Vector3 pivotWorld;
-            if (s_pivotMode == PivotMode.LastSelected && s_lastSelectedVertex >= 0
-                && _deformedVertices != null && s_lastSelectedVertex < _deformedVertices.Length
-                && s_selectedVertices.Contains(s_lastSelectedVertex))
-            {
-                pivotWorld = DeformedToWorld(s_lastSelectedVertex, matrix);
-            }
-            else
-            {
-                Vector3 centroid = Vector3.zero;
-                int count = 0;
-                foreach (int i in s_selectedVertices)
-                {
-                    if (_deformedVertices == null || i < 0 || i >= _deformedVertices.Length) continue;
-                    centroid += DeformedToWorld(i, matrix);
-                    count++;
-                }
-                if (count == 0) return;
-                pivotWorld = centroid / count;
-            }
-
-            // s_proportionalRadius is world-space — draw directly
-            var prevMatrix = Handles.matrix;
-            try
-            {
-                Handles.matrix = Matrix4x4.identity;
-
-                Handles.color = k_ProportionalRadiusColor;
-                Handles.DrawWireDisc(pivotWorld, Vector3.up, s_proportionalRadius);
-                Handles.DrawWireDisc(pivotWorld, Vector3.right, s_proportionalRadius);
-                Handles.DrawWireDisc(pivotWorld, Vector3.forward, s_proportionalRadius);
-            }
-            finally
-            {
-                Handles.matrix = prevMatrix;
-            }
         }
 
         private static readonly Func<Vector3, Vector2> s_projectVertex = HandleUtility.WorldToGUIPoint;

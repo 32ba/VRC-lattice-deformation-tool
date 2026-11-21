@@ -98,7 +98,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Z = 2
         }
 
-        private static GUIContent s_icon;
         private static float s_brushRadius = 0.02f; // world-space units (meters)
         private static float s_brushStrength = 0.5f;
         private static BrushFalloffType s_brushFalloff = BrushFalloffType.Smooth;
@@ -118,7 +117,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private static int s_penetrationSettingsRevision;
 
         private LatticeDeformer _activeDeformer;
-        private LatticeLayer _cachedActiveBrushLayer;
 
         private Mesh _cachedMesh;
         private Vector3[] _meshVertices;
@@ -129,7 +127,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         private Vector3[] _distanceWorldPositions;
         private Vector3[] _wireframeVertices;
         private MeshAdjacency _adjacency;
-        private Vector2 _lastMousePosition;
         private Vector3 _lastMoveBrushLocalDelta;
         private bool _hasLastMoveBrushLocalDelta;
         private HashSet<int> _connectedVerticesCache;
@@ -204,11 +201,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
 
         private static void OnLanguageChanged()
         {
-            if (s_icon != null)
-            {
-                s_icon.tooltip = LatticeLocalization.Tr(LocKey.BrushTool);
-            }
-
             SceneView.RepaintAll();
         }
 
@@ -393,7 +385,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
         {
             _activeDeformer = deformer;
             deformer?.EnsureDisplacementCapacity();
-            TryGetActiveLayer(deformer, out _cachedActiveBrushLayer);
+            TryGetActiveLayer(deformer, out _);
             Undo.undoRedoPerformed += OnUndoRedo;
             SceneView.RepaintAll();
         }
@@ -404,7 +396,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             EndStroke();
             InvalidateCache();
             _activeDeformer = null;
-            _cachedActiveBrushLayer = null;
         }
 
         private void OnUndoRedo()
@@ -514,7 +505,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             RebuildCacheIfNeeded(sourceMesh, deformer);
-            _cachedActiveBrushLayer = activeBrushLayer;
             if (!TryGetBrushBuffers(
                     deformer, out _, out var activeDisplacements, out _)) return;
 
@@ -546,7 +536,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             // Draw displacement heatmap (always visible when enabled)
-            if (s_showDisplacementHeatmap && deformer.HasDisplacements())
+            // HasDisplacements is still evaluated for every event as before; only the
+            // GL drawing, which has no visible effect outside Repaint, is skipped.
+            if (s_showDisplacementHeatmap && deformer.HasDisplacements() &&
+                evt.type == EventType.Repaint)
             {
                 using (s_visualizationMarker.Auto())
                     DrawDisplacementHeatmap(deformer, meshTransform);
@@ -557,8 +550,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 using (s_visualizationMarker.Auto())
                 {
+                    // Detection may call Deform, so it keeps running for every event.
                     UpdatePenetrationDetection(deformer);
-                    DrawPenetrationHighlight(meshTransform);
+                    if (evt.type == EventType.Repaint)
+                        DrawPenetrationHighlight(meshTransform);
                 }
             }
             else
@@ -654,7 +649,8 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                                 UpdateGeodesicDistanceCache(hit.point);
                             }
 
-                            DrawAffectedVertices(deformer, hit.point, meshTransform);
+                            if (evt.type == EventType.Repaint)
+                                DrawAffectedVertices(deformer, hit.point, meshTransform);
                         }
                     }
                 }
@@ -677,8 +673,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 }
                 else if (evt.type == EventType.MouseDown && evt.button == 0 && !evt.alt)
                 {
-                    _lastMousePosition = evt.mousePosition;
-
                     // Build connected vertices cache at stroke start
                     UpdateConnectedVerticesCache(hit.point);
 
@@ -755,8 +749,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 using (s_deformMarker.Auto())
                     LatticePreviewUtility.RefreshInteractiveDeformation(deformer);
             }
-
-            _lastMousePosition = evt.mousePosition;
         }
 
         private bool ApplyNormalBrush(LatticeDeformer deformer, Vector3 worldHitPoint, float worldRadius, float strength, float direction)
@@ -895,8 +887,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 return false;
             }
 
-            if (ReferenceEquals(deformer, _activeDeformer))
-                _cachedActiveBrushLayer = layer;
             return true;
         }
 
@@ -1208,11 +1198,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             {
                 _distanceGeometryRevision++;
             }
-        }
-
-        private Vector3 VertexToWorld(int index, Vector3 localVertex, Matrix4x4 localToWorld)
-        {
-            return SkinnedVertexHelper.LocalToWorld(index, _worldPositions, null, localToWorld);
         }
 
         private void InvalidateCache()

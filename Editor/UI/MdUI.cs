@@ -170,14 +170,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return row;
         }
 
-        internal static VisualElement KeyHint(params (string key, string action)[] items)
-        {
-            var root = Element("md-key-hint");
-            foreach (var (key, action) in items)
-                root.Add(Element("md-key-hint__item", Text(key, "md-key"), Text(action)));
-            return root;
-        }
-
         internal static void SetVisible(VisualElement element, bool visible)
         {
             if (element != null) element.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;

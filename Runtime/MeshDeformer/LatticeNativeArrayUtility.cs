@@ -17,11 +17,8 @@ namespace Net._32Ba.LatticeDeformationTool
                 return array;
             }
 
-            for (int i = 0; i < length; i++)
-            {
-                Vector3 value = source[i];
-                array[i] = new float3(value.x, value.y, value.z);
-            }
+            // Vector3 and float3 are both three sequential floats (12 bytes).
+            array.Reinterpret<Vector3>().CopyFrom(source);
 
             return array;
         }
@@ -37,10 +34,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 return array;
             }
 
-            for (int i = 0; i < length; i++)
-            {
-                array[i] = source[i];
-            }
+            array.CopyFrom(source);
 
             return array;
         }
@@ -59,11 +53,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
             EnsureCopyLength(destination.Length, source.Length);
 
-            for (int i = 0; i < source.Length; i++)
-            {
-                Vector3 value = source[i];
-                destination[i] = new float3(value.x, value.y, value.z);
-            }
+            destination.Reinterpret<Vector3>().CopyFrom(source);
         }
 
         public static void CopyToManaged(this NativeArray<float3> source, Vector3[] destination)
@@ -75,11 +65,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
             EnsureCopyLength(source.Length, destination.Length);
 
-            for (int i = 0; i < destination.Length; i++)
-            {
-                float3 value = source[i];
-                destination[i] = new Vector3(value.x, value.y, value.z);
-            }
+            source.Reinterpret<Vector3>().CopyTo(destination);
         }
 
         public static void CopyToManaged<T>(this NativeArray<T> source, T[] destination)
@@ -92,10 +78,7 @@ namespace Net._32Ba.LatticeDeformationTool
 
             EnsureCopyLength(source.Length, destination.Length);
 
-            for (int i = 0; i < destination.Length; i++)
-            {
-                destination[i] = source[i];
-            }
+            source.CopyTo(destination);
         }
 
         private static void EnsureCopyLength(int sourceLength, int destinationLength)

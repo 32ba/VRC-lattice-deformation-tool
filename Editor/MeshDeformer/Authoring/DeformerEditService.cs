@@ -151,15 +151,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             return true;
         }
 
-        // Profile assignment/copy changes the data source itself. Layer commands
-        // continue to reject Profile mode; these commands validate the raw owner.
-        internal static bool ExecuteDataSourceChange(LatticeDeformer deformer, string undoLabel,
-            Func<LatticeDeformer, bool> edit)
-        {
-            if (deformer == null || edit == null || !deformer.HasValidSerializedAuthoringData) return false;
-            return Commit(new[] { deformer }, undoLabel, edit);
-        }
-
         private static bool Commit(LatticeDeformer[] targets, string undoLabel,
             Func<LatticeDeformer, bool> edit)
         {

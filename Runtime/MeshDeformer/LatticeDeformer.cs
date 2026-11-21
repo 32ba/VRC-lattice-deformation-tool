@@ -614,8 +614,6 @@ namespace Net._32Ba.LatticeDeformationTool
 
         public Mesh SourceMesh => _sourceMesh;
 
-        internal Mesh CompatibilitySourceMesh => GetCompatibilitySourceMesh();
-
         public Renderer TargetRenderer
         {
             get
@@ -1056,8 +1054,6 @@ namespace Net._32Ba.LatticeDeformationTool
                     return;
                 }
 #line default
-                var displacements = layer.BrushDisplacements;
-
                 for (int i = 0; i < vertices.Length; i++)
                 {
                     float coord = SymmetryVertexMapCache.GetSignedDistance(vertices[i], axis);
@@ -1221,82 +1217,6 @@ namespace Net._32Ba.LatticeDeformationTool
                     }
                 }
             }
-        }
-
-        private static int[] BuildBrushMirrorMap(Vector3[] vertices, int axis)
-        {
-            int vertexCount = vertices?.Length ?? 0;
-            var mirrorMap = new int[vertexCount];
-            for (int i = 0; i < vertexCount; i++)
-            {
-                mirrorMap[i] = -1;
-            }
-
-            const float tolerance = 0.001f;
-            const float toleranceSq = tolerance * tolerance;
-
-            for (int i = 0; i < vertexCount; i++)
-            {
-                if (mirrorMap[i] >= 0)
-                {
-                    continue;
-                }
-
-                var position = vertices[i];
-                float axisPosition = axis == 0 ? position.x : axis == 1 ? position.y : position.z;
-                if (Mathf.Abs(axisPosition) <= tolerance)
-                {
-                    mirrorMap[i] = i;
-                    continue;
-                }
-
-                var mirroredPosition = position;
-                if (axis == 0) mirroredPosition.x = -mirroredPosition.x;
-                else if (axis == 1) mirroredPosition.y = -mirroredPosition.y;
-                else mirroredPosition.z = -mirroredPosition.z;
-
-                int bestIndex = -1;
-                float bestDistanceSq = float.MaxValue;
-                for (int j = i + 1; j < vertexCount; j++)
-                {
-                    if (mirrorMap[j] >= 0)
-                    {
-                        continue;
-                    }
-
-                    var candidate = vertices[j];
-                    float candidateAxisPosition = axis == 0 ? candidate.x : axis == 1 ? candidate.y : candidate.z;
-                    if (Mathf.Abs(candidateAxisPosition) <= tolerance ||
-                        (axisPosition > 0f) == (candidateAxisPosition > 0f))
-                    {
-                        continue;
-                    }
-
-                    float distanceSq = (candidate - mirroredPosition).sqrMagnitude;
-                    if (distanceSq > toleranceSq)
-                    {
-                        continue;
-                    }
-
-                    if (bestIndex < 0 || distanceSq < bestDistanceSq ||
-                        (distanceSq == bestDistanceSq && j < bestIndex))
-                    {
-                        bestIndex = j;
-                        bestDistanceSq = distanceSq;
-                    }
-                }
-
-                if (bestIndex < 0)
-                {
-                    mirrorMap[i] = i;
-                    continue;
-                }
-
-                mirrorMap[i] = bestIndex;
-                mirrorMap[bestIndex] = i;
-            }
-
-            return mirrorMap;
         }
 
         public string[] GetSourceBlendShapeNames()
@@ -1999,11 +1919,6 @@ namespace Net._32Ba.LatticeDeformationTool
             return succeeded;
         }
 
-        private void RecoverStaleCurrentStructureVersionIfNeeded()
-        {
-            if (NeedsStaleCurrentStructureRecovery()) TryUpgradePublishedDeformationDataOneRelease();
-        }
-
         // The normal current-model path does not allocate a migration state.
         private bool NeedsStaleCurrentStructureRecovery() =>
             _deformationDataVersion == DeformationDataVersion.CurrentDevelopment &&
@@ -2316,7 +2231,6 @@ namespace Net._32Ba.LatticeDeformationTool
 #endif
         }
 
-        internal List<DeformerGroup> SerializedGroupsForEditor => _groups;
         internal int SerializedActiveGroupIndexForEditor => _activeGroupIndex;
 
         internal float[] InitialBlendShapeWeightsForEditor =>
@@ -2434,7 +2348,7 @@ namespace Net._32Ba.LatticeDeformationTool
             return _profileGroups;
         }
 
-        // Legacy compat — still called from EnsureLayerModelReady before group migration
+        // Legacy compat entry point. No production caller remains; RuntimeCoreTests invokes it by name.
         private void EnsureLayers()
         {
             EnsureGroups();

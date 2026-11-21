@@ -69,7 +69,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
     {
         private static readonly ProfilerMarker s_validateMarker =
             new ProfilerMarker("Validator.Validate");
-        internal static int ValidateCount { get; set; }
         internal const string MissingRenderer = "MDV001";
         internal const string MissingSourceMesh = "MDV002";
         internal const string SourceMeshChanged = "MDV003";
@@ -102,7 +101,6 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             Mesh evaluationTargetMesh = null)
         {
             using var validateScope = s_validateMarker.Auto();
-            ValidateCount++;
             var results = new List<MeshDeformerDiagnostic>();
             if (deformer == null || !deformer.enabled) return results;
 

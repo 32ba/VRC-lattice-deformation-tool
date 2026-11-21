@@ -59,9 +59,6 @@ msgstr "抓住点精细移动"
 msgid "net.32ba.lattice-deformation-tool.localization.guided-move-vertices-description"
 msgstr "选择顶点并使用操作手柄精细调整位置。"
 
-msgid "net.32ba.lattice-deformation-tool.localization.guided-preview-note"
-msgstr "开始编辑后，可以在 Scene 视图中查看结果。"
-
 msgid "net.32ba.lattice-deformation-tool.localization.guided-single-selection-required"
 msgstr "要从简易界面编辑，请只选择一个 Mesh Deformer。"
 
@@ -73,9 +70,6 @@ msgstr "无法开始编辑。请在详细编辑中检查目标网格和编辑内
 
 msgid "net.32ba.lattice-deformation-tool.localization.open-detailed-inspector"
 msgstr "详细编辑..."
-
-msgid "net.32ba.lattice-deformation-tool.localization.return-to-guided-inspector"
-msgstr "返回简易界面"
 
 # Guided Scene View overlay
 msgid "net.32ba.lattice-deformation-tool.localization.guided-overlay-adjust-shape-hint"
@@ -145,18 +139,6 @@ msgid "net.32ba.lattice-deformation-tool.localization.copy"
 msgstr "同向"
 
 msgid "net.32ba.lattice-deformation-tool.localization.copy.tooltip"
-msgstr ""
-
-msgid "net.32ba.lattice-deformation-tool.localization.paste"
-msgstr "粘贴"
-
-msgid "net.32ba.lattice-deformation-tool.localization.paste.tooltip"
-msgstr ""
-
-msgid "net.32ba.lattice-deformation-tool.localization.duplicate"
-msgstr "复制"
-
-msgid "net.32ba.lattice-deformation-tool.localization.duplicate.tooltip"
 msgstr ""
 
 msgid "net.32ba.lattice-deformation-tool.localization.select"
@@ -512,19 +494,7 @@ msgstr "未选择 Lattice Deformer。"
 msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-deformer-selected.tooltip"
 msgstr "选择带有网格变形器组件的游戏对象。"
 
-msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-asset-assigned"
-msgstr "此变形器未分配晶格资产。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.no-lattice-asset-assigned.tooltip"
-msgstr "分配网格源以开始使用变形器。"
-
 # Brush Tool
-msgid "net.32ba.lattice-deformation-tool.localization.brush-tool"
-msgstr "笔刷工具"
-
-msgid "net.32ba.lattice-deformation-tool.localization.brush-tool.tooltip"
-msgstr "激活基于画笔的顶点绘制编辑器。"
-
 msgid "net.32ba.lattice-deformation-tool.localization.active-layer-not-brush"
 msgstr "活动层不是画笔层。"
 
@@ -572,12 +542,6 @@ msgstr "笔刷平滑"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-smooth.tooltip"
 msgstr "混合边缘以平滑急剧的变化。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.brush-mask"
-msgstr "笔刷遮罩"
-
-msgid "net.32ba.lattice-deformation-tool.localization.brush-mask.tooltip"
-msgstr "标记您不想更改的区域。这些保持锁定状态。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deform"
 msgstr "笔刷变形"
@@ -669,24 +633,6 @@ msgstr "背面剔除"
 msgid "net.32ba.lattice-deformation-tool.localization.backface-culling.tooltip"
 msgstr "不要在背面绘画（对相机来说是隐藏的）。"
 
-msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-hint"
-msgstr "Alt+滚轮: 半径 / Shift+滚轮: 强度"
-
-msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-hint.tooltip"
-msgstr "键盘快捷键可快速调整画笔参数。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.mask"
-msgstr "遮罩"
-
-msgid "net.32ba.lattice-deformation-tool.localization.mask.tooltip"
-msgstr "保护绘制的顶点免遭进一步变形。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clear-mask"
-msgstr "清除遮罩"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clear-mask.tooltip"
-msgstr "删除所有蒙版数据，使所有顶点再次可编辑。"
-
 msgid "net.32ba.lattice-deformation-tool.localization.clear-all"
 msgstr "还原整个图层"
 
@@ -735,220 +681,7 @@ msgstr "点大小"
 msgid "net.32ba.lattice-deformation-tool.localization.dot-size.tooltip"
 msgstr "控制顶点指示点的显示大小。"
 
-# Clearance Heatmap
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-heatmap"
-msgstr "间隙热图"
-
-msgid "net.32ba.lattice-deformation-tool.localization.show-clearance-heatmap"
-msgstr "显示间隙热图"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-reference-renderer"
-msgstr "参考Renderer"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-query-mode"
-msgstr "查询模式"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-display-mode"
-msgstr "显示模式"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-warning-threshold-mm"
-msgstr "警告阈值 (mm)"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-distance-mm"
-msgstr "目标间隙 (mm)"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-display-stride"
-msgstr "显示步长"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-update-interval"
-msgstr "更新间隔（秒）"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-minimum"
-msgstr "最小间隙"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-maximum-penetration"
-msgstr "最大穿透深度"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-violation-vertices"
-msgstr "违规顶点数"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-evaluated-vertices"
-msgstr "已评估顶点数"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-actual-query-mode"
-msgstr "实际查询模式"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-reference-normal"
-msgstr "参考法线"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-closed-mesh"
-msgstr "闭合网格"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-penetration-only"
-msgstr "仅穿透"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-include-warning"
-msgstr "包含警告范围"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-full-distribution"
-msgstr "完整分布"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-evaluation-target"
-msgstr "评估目标"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-preview"
-msgstr "NDMF预览网格"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-target-rendered"
-msgstr "显示网格"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-invalid-reference"
-msgstr "参考Renderer缺失、已禁用或没有有效三角形。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-invalid-target"
-msgstr "评估目标缺失、已禁用或没有可读顶点。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-sign-fallback"
-msgstr "参考对象是开放网格，已回退到参考法线间隙。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-result-age"
-msgstr "结果经过时间"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan"
-msgstr "间隙扫描"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-set"
-msgstr "扫描集"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-avatar-root"
-msgstr "Avatar根节点"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-run"
-msgstr "运行间隙扫描"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-cancel"
-msgstr "取消扫描"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-progress-format"
-msgstr "{0}/{1}  {2}"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-summary-format"
-msgstr "成功：{0}/{1}，最差条件索引：{2}"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-apply-condition"
-msgstr "将条件应用到场景"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-restore-scene"
-msgstr "恢复场景状态"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-success-format"
-msgstr "{0}：最小 {1:0.###} mm，违规 {2}，目标 {3}"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-scan-condition-error-format"
-msgstr "{0}：错误 - {1}"
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction"
-msgstr "贴合校正"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-scope"
-msgstr "校正范围"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-penetration-only"
-msgstr "仅穿透顶点"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-warning-threshold"
-msgstr "警告阈值以下"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-target-clearance"
-msgstr "目标间隙以下"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-move-mm"
-msgstr "最大移动距离 (mm)"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-candidate-vertices"
-msgstr "候选顶点数"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-maximum-planned-move"
-msgstr "最大计划移动量"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-unresolved-estimate"
-msgstr "预计未解决顶点数"
-
-msgid "net.32ba.lattice-deformation-tool.localization.create-fit-correction-layer"
-msgstr "创建Fit Correction图层"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-posed-skinned-blocked"
-msgstr "SkinnedMesh处于姿势状态或应用了BlendShape，无法生成校正。请先恢复rest pose。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-stale"
-msgstr "间隙评估已过期，请重新评估后生成校正。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-topology-mismatch"
-msgstr "评估网格的Topology与Source Mesh不一致。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-no-candidates"
-msgstr "没有顶点符合所选校正范围。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-result-format"
-msgstr "已创建校正。改善：{0}，未解决：{1}。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-constraints"
-msgstr "形状保护约束"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-vertex-mask"
-msgstr "使用当前图层遮罩"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-pin-open-boundaries"
-msgstr "固定开放边界"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-isolate-components"
-msgstr "隔离连通分量"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smooth-surface"
-msgstr "沿表面平滑"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-iterations"
-msgstr "平滑迭代次数"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-smoothing-strength"
-msgstr "平滑强度"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preserve-clearance"
-msgstr "保持已解决间隙"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-use-symmetry"
-msgstr "使用对称"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-axis"
-msgstr "对称轴"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-symmetry-tolerance-mm"
-msgstr "对称容差 (mm)"
-
-msgid "net.32ba.lattice-deformation-tool.localization.fit-correction-preview"
-msgstr "预览计划修正"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-report"
-msgstr "间隙QA报告"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-current"
-msgstr "导出当前结果 (JSON + Markdown)"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-scan"
-msgstr "导出扫描结果 (JSON + Markdown)"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-success"
-msgstr "已保存JSON和Markdown报告。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.clearance-report-export-failure"
-msgstr "无法保存报告：{0}"
-
 # Vertex Selection Tool
-msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool"
-msgstr "顶点工具"
-
-msgid "net.32ba.lattice-deformation-tool.localization.vertex-tool.tooltip"
-msgstr "激活顶点选择和变换编辑器。"
-
 msgid "net.32ba.lattice-deformation-tool.localization.vertex-selection"
 msgstr "移动点"
 
@@ -1068,30 +801,6 @@ msgstr "选中: {0} 个顶点"
 
 msgid "net.32ba.lattice-deformation-tool.localization.selected-vertices-format.tooltip"
 msgstr "显示当前选择了多少个顶点。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.wer-hint"
-msgstr "W/E/R: 移动/旋转/缩放"
-
-msgid "net.32ba.lattice-deformation-tool.localization.wer-hint.tooltip"
-msgstr "用于切换变换模式的键盘快捷键。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-proportional-hint"
-msgstr "Alt+滚轮: 比例半径"
-
-msgid "net.32ba.lattice-deformation-tool.localization.alt-scroll-proportional-hint.tooltip"
-msgstr "使用滚轮快速调整比例半径。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.shift-drag-precision"
-msgstr "Shift+拖拽: 精确模式"
-
-msgid "net.32ba.lattice-deformation-tool.localization.shift-drag-precision.tooltip"
-msgstr "拖动手柄时启用细粒度控制。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.z-toggle-pivot"
-msgstr "Z: 切换枢轴"
-
-msgid "net.32ba.lattice-deformation-tool.localization.z-toggle-pivot.tooltip"
-msgstr "在“中心”和“最后选择”之间切换枢轴。"
 
 # Mesh Rebuild Options
 msgid "net.32ba.lattice-deformation-tool.localization.mesh-rebuild-options"
@@ -1252,12 +961,6 @@ msgstr "从 BlendShape 导入"
 msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape.tooltip"
 msgstr "加载现有的 ShapeKey 作为绘画层进行编辑。"
 
-msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-single-frame"
-msgstr "单帧"
-
-msgid "net.32ba.lattice-deformation-tool.localization.import-blendshape-all-frames"
-msgstr "所有帧"
-
 # NDMF Preview
 msgid "net.32ba.lattice-deformation-tool.localization.ndmf-disable-mesh-preview"
 msgstr "关闭预览"
@@ -1331,12 +1034,6 @@ msgid "net.32ba.lattice-deformation-tool.localization.advanced.tooltip"
 msgstr "显示微调行为的附加设置。"
 
 # Legacy Brush Deformer
-msgid "net.32ba.lattice-deformation-tool.localization.brush-deformer"
-msgstr "笔刷变形器"
-
-msgid "net.32ba.lattice-deformation-tool.localization.brush-deformer.tooltip"
-msgstr "旧版独立画笔变形组件。"
-
 msgid "net.32ba.lattice-deformation-tool.localization.brush-deformation"
 msgstr "笔刷变形"
 
@@ -1380,67 +1077,8 @@ msgstr "请通过 VCC 等支持 VPM 的工具更新。自版本 2 起不再通�
 msgid "net.32ba.lattice-deformation-tool.localization.update-open-guide"
 msgstr "查看更新方法"
 
-msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition"
-msgstr "帧合成"
-
-msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-single"
-msgstr "单一"
-
-msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-progressive"
-msgstr "逐步累积"
-
-msgid "net.32ba.lattice-deformation-tool.localization.blendshape-composition-crossfade"
-msgstr "交叉淡化"
-msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space"
-msgstr "以 Rest Space 保存移动"
-
-msgid "net.32ba.lattice-deformation-tool.localization.store-move-in-rest-space.tooltip"
-msgstr "将在已摆姿势的 Skinned Mesh 上进行的移动编辑转换为可复用的 rest-space 位移。Skinning 数据无效时会安全回退到原有 local-space 行为。"
-# Deformer Profile
-msgid "net.32ba.lattice-deformation-tool.localization.deformer-profile"
-msgstr "变形配置文件"
-
-msgid "net.32ba.lattice-deformation-tool.localization.data-source"
-msgstr "数据源"
-
-msgid "net.32ba.lattice-deformation-tool.localization.embedded-data"
-msgstr "内置数据"
-
-msgid "net.32ba.lattice-deformation-tool.localization.profile-data"
-msgstr "配置文件引用"
-
-msgid "net.32ba.lattice-deformation-tool.localization.create-profile"
-msgstr "创建配置文件"
-
-msgid "net.32ba.lattice-deformation-tool.localization.save-to-profile"
-msgstr "保存到配置文件"
-
-msgid "net.32ba.lattice-deformation-tool.localization.copy-profile-to-instance"
-msgstr "复制到实例"
-
-msgid "net.32ba.lattice-deformation-tool.localization.profile-required"
-msgstr "使用配置文件作为数据源时，请选择一个配置文件。"
-
 msgid "net.32ba.lattice-deformation-tool.localization.profile-read-only-info"
 msgstr "配置文件数据会以独立实例副本进行预览。要编辑组和图层，请先复制到组件。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.profile-exact-match"
-msgstr "完全匹配：此配置文件是为当前所选源网格保存的。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.profile-compatible-source-differs"
-msgstr "兼容：拓扑一致，但源资源不同或无法识别。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.profile-topology-mismatch-blocked"
-msgstr "拓扑不匹配：此配置文件与源网格不兼容，因此未应用。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.profile-insufficient-metadata"
-msgstr "旧版配置文件：没有兼容性元数据。可谨慎应用；重新保存即可添加元数据。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.validation"
-msgstr "验证"
-
-msgid "net.32ba.lattice-deformation-tool.localization.validation-fix"
-msgstr "修复"
 
 msgid "net.32ba.lattice-deformation-tool.localization.support-information"
 msgstr "支持信息"
@@ -1456,9 +1094,6 @@ msgstr "支持信息图像已保存。请将其附加到支持消息中。"
 
 msgid "net.32ba.lattice-deformation-tool.localization.invalid-migration-journal"
 msgstr "保存数据的迁移信息不受支持或无效，已停止处理，未更改保存的数据。"
-
-msgid "net.32ba.lattice-deformation-tool.localization.profile-operation-failed"
-msgstr "无法修改 Profile。请检查保存的数据和保存位置。新建时请使用尚未使用的文件名。"
 
 # Editor UI (design system)
 msgid "net.32ba.lattice-deformation-tool.localization.guided-inspector-tab"
