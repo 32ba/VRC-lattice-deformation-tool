@@ -80,15 +80,29 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                 if (hit.ClassListContains(DetailClass)) return true;
             // The animated dragger may already have retargeted this event to the
             // ListView. Use panel coordinates to identify the original detail hit.
-            foreach (var detail in list.Query<VisualElement>(className: DetailClass).ToList())
-                if (detail.visible && detail.worldBound.Contains(evt.position)) return true;
             // Field manipulators capture their own release. They edit values,
             // not list order, and must not suspend later structural refreshes.
-            foreach (var field in list.Query<VisualElement>().ToList())
-                if ((field.name == "layer-weight" || field.name == "layer-name" ||
-                     field.name == "layer-enabled" || field.name == "group-name") &&
-                    field.visible && field.worldBound.Contains(evt.position)) return true;
+            // One non-allocating walk over the same hierarchy (root included) as UQuery.
+            return ContainsDetailHit(list, evt.position);
+        }
+
+        internal static bool ContainsDetailHit(VisualElement element, Vector2 position)
+        {
+            if (IsDetailHitCandidate(element) && element.visible && element.worldBound.Contains(position))
+                return true;
+            var children = element.hierarchy;
+            int childCount = children.childCount;
+            for (int i = 0; i < childCount; i++)
+                if (ContainsDetailHit(children[i], position)) return true;
             return false;
+        }
+
+        private static bool IsDetailHitCandidate(VisualElement element)
+        {
+            if (element.ClassListContains(DetailClass)) return true;
+            string elementName = element.name;
+            return elementName == "layer-weight" || elementName == "layer-name" ||
+                   elementName == "layer-enabled" || elementName == "group-name";
         }
 
         /// <summary>Marks detail controls inside list rows; their input never reorders or selects rows.</summary>

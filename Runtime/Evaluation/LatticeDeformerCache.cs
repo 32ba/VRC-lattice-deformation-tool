@@ -20,6 +20,9 @@ namespace Net._32Ba.LatticeDeformationTool
         public Vector3Int GridSize => _gridSize;
         public LatticeInterpolationMode Interpolation => _interpolation;
         public float[] BernsteinWeights => _bernsteinWeights;
+        internal Bounds LocalBounds => _localBounds;
+        internal int VertexCount => _vertexCount;
+        internal int RestVerticesHash => _restVerticesHash;
 
         public bool IsCompatibleWith(LatticeAsset asset, Mesh mesh, int restVerticesHash)
         {

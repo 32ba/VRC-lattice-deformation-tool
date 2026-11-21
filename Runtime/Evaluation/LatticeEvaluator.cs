@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -42,6 +44,23 @@ namespace Net._32Ba.LatticeDeformationTool
         private LatticeInterpolationMode _subsetKeyInterpolation;
         private int _subsetKeyCount;
 
+        // Interpolation caches displaced from _cache, keyed by the exact inputs
+        // they were built from. _cache keeps the published reuse rule (approximate
+        // bounds); a stashed cache is consulted only where that rule would rebuild,
+        // and only when its grid, effective interpolation, bounds bits and rest
+        // vertex bits equal the request, so restoring it is indistinguishable
+        // from the rebuild it replaces. Managed only; Dispose drops the stash.
+        internal const int DefaultStashCapacity = 8;
+        internal int StashCapacity = DefaultStashCapacity;
+        private readonly List<StashedLatticeCache> _stashedCaches = new List<StashedLatticeCache>();
+        // Describes _cache while it holds what this evaluator last built or restored.
+        private StashedLatticeCache _cacheRecord;
+
+        // One synchronous evaluation hashes its unchanged source vertices once.
+        private Vector3[] _scopeVertices;
+        private int _scopeVerticesHash;
+        private bool _scopeVerticesHashValid;
+
         // Optional fault injection verifies cleanup without requesting an OOM.
         internal LatticeEvaluator(Action beforeNativeAllocation = null)
         {
@@ -49,6 +68,50 @@ namespace Net._32Ba.LatticeDeformationTool
         }
 
         internal LatticeDeformerCache Cache => _cache;
+        internal int StashedCacheCount => _stashedCaches.Count;
+
+        private sealed class StashedLatticeCache
+        {
+            internal Vector3Int GridSize;
+            internal Bounds Bounds;
+            internal LatticeInterpolationMode Interpolation;
+            internal int VertexCount;
+            internal int RestVerticesHash;
+            internal LatticeCacheEntry[] Entries;
+            internal float[] BernsteinWeights;
+            // Private copy of the rest vertices the entries were built from.
+            internal Vector3[] RestVertices;
+        }
+
+        // The caller guarantees that sourceVertices is not written until
+        // EndSourceScope. Nested scopes fall back to hashing per call.
+        internal void BeginSourceScope(Vector3[] sourceVertices)
+        {
+            _scopeVertices = sourceVertices;
+            _scopeVerticesHashValid = false;
+        }
+
+        internal void EndSourceScope()
+        {
+            _scopeVertices = null;
+            _scopeVerticesHashValid = false;
+        }
+
+        private int HashRestVertices(Vector3[] restVertices)
+        {
+            if (restVertices == null || !ReferenceEquals(restVertices, _scopeVertices))
+            {
+                return DeformationEvaluationMath.HashVertices(restVertices);
+            }
+
+            if (!_scopeVerticesHashValid)
+            {
+                _scopeVerticesHash = DeformationEvaluationMath.HashVertices(restVertices);
+                _scopeVerticesHashValid = true;
+            }
+
+            return _scopeVerticesHash;
+        }
         internal bool HasNativeResources => _deformControlNative.IsCreated || _deformEntriesNative.IsCreated ||
             _deformOutputNative.IsCreated || _deformBernsteinWeightsNative.IsCreated ||
             _subsetRestNative.IsCreated || _subsetEntriesNative.IsCreated ||
@@ -56,7 +119,11 @@ namespace Net._32Ba.LatticeDeformationTool
             _subsetOutputNative.IsCreated;
 
         // Allows an explicit cache fixture to exercise invalid or stale entries.
-        internal void BindCache(LatticeDeformerCache cache) => _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+        internal void BindCache(LatticeDeformerCache cache)
+        {
+            _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+            _cacheRecord = null;
+        }
 
         internal void Apply(LatticeAsset layerSettings, float weight, in EvaluationSemantics semantics,
             Vector3[] sourceVertices, Vector3[] deformedVertices)
@@ -541,6 +608,7 @@ namespace Net._32Ba.LatticeDeformationTool
             _deformEntriesSource = null;
             _deformBernsteinWeightsSource = null;
             _subsetKeyValid = false;
+            _stashedCaches.Clear();
         }
 
         // Starts a subset evaluation over new positions. Entries computed for
@@ -615,9 +683,10 @@ namespace Net._32Ba.LatticeDeformationTool
             if (_cache == null)
             {
                 _cache = new LatticeDeformerCache();
+                _cacheRecord = null;
             }
 
-            int restVerticesHash = DeformationEvaluationMath.HashVertices(restVertices);
+            int restVerticesHash = HashRestVertices(restVertices);
             LatticeInterpolationMode effectiveInterpolation = GetEffectiveInterpolation(settings);
             if (_cache.IsCompatibleWith(
                     settings,
@@ -628,11 +697,163 @@ namespace Net._32Ba.LatticeDeformationTool
                 return true;
             }
 
-            return RebuildCache(
-                settings,
-                restVertices,
-                restVerticesHash,
-                effectiveInterpolation);
+            // Only reached where the published rule rebuilds _cache.
+            var displaced = CaptureCurrentCacheRecord();
+            if (TryRestoreStashedCache(settings, restVertices, restVerticesHash, effectiveInterpolation))
+            {
+                StashCacheRecord(displaced);
+                return true;
+            }
+
+            if (!RebuildCache(
+                    settings,
+                    restVertices,
+                    restVerticesHash,
+                    effectiveInterpolation))
+            {
+                return false;
+            }
+
+            StashCacheRecord(displaced);
+            return true;
+        }
+
+        // Returns the record only while _cache still holds exactly what it describes.
+        private StashedLatticeCache CaptureCurrentCacheRecord()
+        {
+            var record = _cacheRecord;
+            if (record == null || _cache == null || record.Entries == null || record.Entries.Length == 0 ||
+                !ReferenceEquals(_cache.Entries, record.Entries) ||
+                !ReferenceEquals(_cache.BernsteinWeights, record.BernsteinWeights) ||
+                _cache.GridSize != record.GridSize ||
+                _cache.Interpolation != record.Interpolation ||
+                _cache.VertexCount != record.VertexCount ||
+                _cache.RestVerticesHash != record.RestVerticesHash ||
+                !HaveSameBits(_cache.LocalBounds, record.Bounds))
+            {
+                return null;
+            }
+
+            return record;
+        }
+
+        private bool TryRestoreStashedCache(
+            LatticeAsset settings,
+            Vector3[] restVertices,
+            int restVerticesHash,
+            LatticeInterpolationMode effectiveInterpolation)
+        {
+            var requestedGrid = settings.GridSize;
+            var requestedBounds = settings.LocalBounds;
+            for (int index = _stashedCaches.Count - 1; index >= 0; index--)
+            {
+                var stashed = _stashedCaches[index];
+                if (stashed.VertexCount != restVertices.Length ||
+                    stashed.RestVerticesHash != restVerticesHash ||
+                    stashed.GridSize != requestedGrid ||
+                    stashed.Interpolation != effectiveInterpolation ||
+                    !HaveSameBits(stashed.Bounds, requestedBounds) ||
+                    !HaveSameBits(stashed.RestVertices, restVertices))
+                {
+                    continue;
+                }
+
+                _stashedCaches.RemoveAt(index);
+                _cache.Populate(
+                    stashed.GridSize,
+                    stashed.Bounds,
+                    stashed.Interpolation,
+                    stashed.VertexCount,
+                    stashed.RestVerticesHash,
+                    stashed.Entries,
+                    restVertices,
+                    stashed.BernsteinWeights);
+                _cacheRecord = stashed;
+                return true;
+            }
+
+            return false;
+        }
+
+        private void StashCacheRecord(StashedLatticeCache record)
+        {
+            if (record == null || StashCapacity <= 0)
+            {
+                return;
+            }
+
+            for (int index = _stashedCaches.Count - 1; index >= 0; index--)
+            {
+                var existing = _stashedCaches[index];
+                if (ReferenceEquals(existing, record) ||
+                    (existing.VertexCount == record.VertexCount &&
+                     existing.RestVerticesHash == record.RestVerticesHash &&
+                     existing.GridSize == record.GridSize &&
+                     existing.Interpolation == record.Interpolation &&
+                     HaveSameBits(existing.Bounds, record.Bounds) &&
+                     HaveSameBits(existing.RestVertices, record.RestVertices)))
+                {
+                    _stashedCaches.RemoveAt(index);
+                }
+            }
+
+            _stashedCaches.Add(record);
+            while (_stashedCaches.Count > StashCapacity)
+            {
+                _stashedCaches.RemoveAt(0);
+            }
+        }
+
+        // Rest vertex copies are shared by every cache built from the same bits.
+        private Vector3[] ShareRestVerticesCopy(Vector3[] restVertices, int restVerticesHash)
+        {
+            var current = _cacheRecord;
+            if (current != null && current.RestVerticesHash == restVerticesHash &&
+                HaveSameBits(current.RestVertices, restVertices))
+            {
+                return current.RestVertices;
+            }
+
+            for (int index = _stashedCaches.Count - 1; index >= 0; index--)
+            {
+                var stashed = _stashedCaches[index];
+                if (stashed.RestVerticesHash == restVerticesHash && HaveSameBits(stashed.RestVertices, restVertices))
+                {
+                    return stashed.RestVertices;
+                }
+            }
+
+            return (Vector3[])restVertices.Clone();
+        }
+
+        private static bool HaveSameBits(Bounds left, Bounds right)
+        {
+            Vector3 leftCenter = left.center;
+            Vector3 rightCenter = right.center;
+            Vector3 leftExtents = left.extents;
+            Vector3 rightExtents = right.extents;
+            return BitConverter.SingleToInt32Bits(leftCenter.x) == BitConverter.SingleToInt32Bits(rightCenter.x) &&
+                   BitConverter.SingleToInt32Bits(leftCenter.y) == BitConverter.SingleToInt32Bits(rightCenter.y) &&
+                   BitConverter.SingleToInt32Bits(leftCenter.z) == BitConverter.SingleToInt32Bits(rightCenter.z) &&
+                   BitConverter.SingleToInt32Bits(leftExtents.x) == BitConverter.SingleToInt32Bits(rightExtents.x) &&
+                   BitConverter.SingleToInt32Bits(leftExtents.y) == BitConverter.SingleToInt32Bits(rightExtents.y) &&
+                   BitConverter.SingleToInt32Bits(leftExtents.z) == BitConverter.SingleToInt32Bits(rightExtents.z);
+        }
+
+        private static bool HaveSameBits(Vector3[] left, Vector3[] right)
+        {
+            if (left == null || right == null || left.Length != right.Length)
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(left, right))
+            {
+                return true;
+            }
+
+            return MemoryMarshal.AsBytes(new ReadOnlySpan<Vector3>(left))
+                .SequenceEqual(MemoryMarshal.AsBytes(new ReadOnlySpan<Vector3>(right)));
         }
 
         internal bool RebuildCache(
@@ -660,6 +881,7 @@ namespace Net._32Ba.LatticeDeformationTool
                 if (vertexCount <= 0)
                 {
                     _cache.Clear();
+                    _cacheRecord = null;
                     return false;
                 }
 
@@ -671,6 +893,9 @@ namespace Net._32Ba.LatticeDeformationTool
                     ? BuildBernsteinWeightsWithJobs(gridSize, entries)
                     : Array.Empty<float>();
 
+                var restVerticesCopy = StashCapacity > 0
+                    ? ShareRestVerticesCopy(restVertices, restVerticesHash)
+                    : null;
                 _cache.Populate(
                     gridSize,
                     bounds,
@@ -680,6 +905,19 @@ namespace Net._32Ba.LatticeDeformationTool
                     entries,
                     restVertices,
                     bernsteinWeights);
+                _cacheRecord = restVerticesCopy == null
+                    ? null
+                    : new StashedLatticeCache
+                    {
+                        GridSize = gridSize,
+                        Bounds = bounds,
+                        Interpolation = effectiveInterpolation,
+                        VertexCount = vertexCount,
+                        RestVerticesHash = restVerticesHash,
+                        Entries = entries,
+                        BernsteinWeights = bernsteinWeights,
+                        RestVertices = restVerticesCopy
+                    };
                 return true;
             }
             finally

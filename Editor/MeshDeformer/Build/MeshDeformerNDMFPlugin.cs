@@ -106,7 +106,11 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             }
 
             // Recalculate bone weights if enabled and using SkinnedMeshRenderer
-            if (deformer.RecalculateBoneWeights && skinnedMesh != null && sourceMesh.boneWeights != null && sourceMesh.boneWeights.Length > 0)
+            // Mesh.boneWeights returns a full copy on every access; read it once and reuse it.
+            BoneWeight[] sourceBoneWeights = deformer.RecalculateBoneWeights && skinnedMesh != null
+                ? sourceMesh.boneWeights
+                : null;
+            if (sourceBoneWeights != null && sourceBoneWeights.Length > 0)
             {
                 var settingsData = deformer.WeightTransferSettings;
                 var settings = new WeightTransferSettings
@@ -118,7 +122,7 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     tolerance = settingsData.tolerance
                 };
 
-                var result = RobustWeightTransfer.Transfer(sourceMesh, sourceMesh.boneWeights, exportMesh, settings);
+                var result = RobustWeightTransfer.Transfer(sourceMesh, sourceBoneWeights, exportMesh, settings);
                 if (result.success)
                 {
                     exportMesh.boneWeights = result.weights;

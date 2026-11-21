@@ -40,83 +40,85 @@ namespace Net._32Ba.LatticeDeformationTool
             bool recomputeComposedSurfaceDeltas = !options.LegacyPublishedBlendShapes &&
                 generated.Composition != BlendShapeCompositionMode.Single &&
                 (options.RecalculateNormals || options.RecalculateTangents);
-            if ((outputsCandidateWeightsDirectly || !recomputeComposedSurfaceDeltas) &&
-                !options.LegacyPublishedBlendShapes &&
-                (options.RecalculateNormals || options.RecalculateTangents))
+            // One base surface and one reusable target mesh serve every candidate
+            // and frame of this shape; see GeneratedSurfaceDeltas.
+            GeneratedSurfaceDeltas surfaceDeltas = null;
+            try
             {
-                candidateDeltaNormals = options.RecalculateNormals ? new Vector3[candidates.Length][] : null;
-                candidateDeltaTangents = options.RecalculateTangents ? new Vector3[candidates.Length][] : null;
-                for (int candidate = 0; candidate < candidates.Length; candidate++)
+                if ((outputsCandidateWeightsDirectly || !recomputeComposedSurfaceDeltas) &&
+                    !options.LegacyPublishedBlendShapes &&
+                    (options.RecalculateNormals || options.RecalculateTangents))
                 {
-                    CalculateGeneratedSurfaceDeltasWithNormalsMode(
-                        mesh,
-                        baseVertices,
-                        candidates[candidate],
-                        options.NormalsMode,
-                        options.RecalculateNormals,
-                        options.RecalculateTangents,
-                        out var normals,
-                        out var tangents);
-                    if (candidateDeltaNormals != null) candidateDeltaNormals[candidate] = normals;
-                    if (candidateDeltaTangents != null) candidateDeltaTangents[candidate] = tangents;
+                    candidateDeltaNormals = options.RecalculateNormals ? new Vector3[candidates.Length][] : null;
+                    candidateDeltaTangents = options.RecalculateTangents ? new Vector3[candidates.Length][] : null;
+                    surfaceDeltas = new GeneratedSurfaceDeltas(mesh, baseVertices, options.NormalsMode,
+                        options.RecalculateNormals, options.RecalculateTangents);
+                    for (int candidate = 0; candidate < candidates.Length; candidate++)
+                    {
+                        surfaceDeltas.Calculate(candidates[candidate], out var normals, out var tangents);
+                        if (candidateDeltaNormals != null) candidateDeltaNormals[candidate] = normals;
+                        if (candidateDeltaTangents != null) candidateDeltaTangents[candidate] = tangents;
+                    }
+                }
+
+                if (outputsCandidateWeightsDirectly)
+                {
+                    for (int candidate = 0; candidate < candidates.Length; candidate++)
+                    {
+                        mesh.AddBlendShapeFrame(
+                            shapeName,
+                            generated.CandidateWeights[candidate],
+                            candidates[candidate],
+                            candidateDeltaNormals?[candidate],
+                            candidateDeltaTangents?[candidate]);
+                    }
+                    return;
+                }
+
+                if (recomputeComposedSurfaceDeltas && surfaceDeltas == null)
+                {
+                    surfaceDeltas = new GeneratedSurfaceDeltas(mesh, baseVertices, options.NormalsMode,
+                        options.RecalculateNormals, options.RecalculateTangents);
+                }
+
+                workspace.EnsureFrameCapacity(vertexCount, candidateDeltaNormals != null, candidateDeltaTangents != null);
+                const int sampleCount = 100;
+                for (int f = 0; f < sampleCount; f++)
+                {
+                    float t = (f + 1f) / sampleCount;
+                    float frameWeight = t * 100f;
+                    float curveValue = curve.Evaluate(t);
+                    if (generated.Composition != BlendShapeCompositionMode.Single)
+                    {
+                        curveValue = Mathf.Clamp01(curveValue);
+                    }
+
+                    var frameDeltas = BlendShapeComposer.Compose(
+                        candidates, generated.Composition, curveValue, workspace.FrameVertices);
+                    Vector3[] frameNormals;
+                    Vector3[] frameTangents;
+                    if (recomputeComposedSurfaceDeltas)
+                    {
+                        surfaceDeltas.Calculate(frameDeltas, out frameNormals, out frameTangents);
+                    }
+                    else
+                    {
+                        frameNormals = candidateDeltaNormals != null
+                            ? BlendShapeComposer.Compose(
+                                candidateDeltaNormals, generated.Composition, curveValue, workspace.FrameNormals)
+                            : null;
+                        frameTangents = candidateDeltaTangents != null
+                            ? BlendShapeComposer.Compose(
+                                candidateDeltaTangents, generated.Composition, curveValue, workspace.FrameTangents)
+                            : null;
+                    }
+
+                    mesh.AddBlendShapeFrame(shapeName, frameWeight, frameDeltas, frameNormals, frameTangents);
                 }
             }
-
-            if (outputsCandidateWeightsDirectly)
+            finally
             {
-                for (int candidate = 0; candidate < candidates.Length; candidate++)
-                {
-                    mesh.AddBlendShapeFrame(
-                        shapeName,
-                        generated.CandidateWeights[candidate],
-                        candidates[candidate],
-                        candidateDeltaNormals?[candidate],
-                        candidateDeltaTangents?[candidate]);
-                }
-                return;
-            }
-
-            workspace.EnsureFrameCapacity(vertexCount, candidateDeltaNormals != null, candidateDeltaTangents != null);
-            const int sampleCount = 100;
-            for (int f = 0; f < sampleCount; f++)
-            {
-                float t = (f + 1f) / sampleCount;
-                float frameWeight = t * 100f;
-                float curveValue = curve.Evaluate(t);
-                if (generated.Composition != BlendShapeCompositionMode.Single)
-                {
-                    curveValue = Mathf.Clamp01(curveValue);
-                }
-
-                var frameDeltas = BlendShapeComposer.Compose(
-                    candidates, generated.Composition, curveValue, workspace.FrameVertices);
-                Vector3[] frameNormals;
-                Vector3[] frameTangents;
-                if (recomputeComposedSurfaceDeltas)
-                {
-                    CalculateGeneratedSurfaceDeltasWithNormalsMode(
-                        mesh,
-                        baseVertices,
-                        frameDeltas,
-                        options.NormalsMode,
-                        options.RecalculateNormals,
-                        options.RecalculateTangents,
-                        out frameNormals,
-                        out frameTangents);
-                }
-                else
-                {
-                    frameNormals = candidateDeltaNormals != null
-                        ? BlendShapeComposer.Compose(
-                            candidateDeltaNormals, generated.Composition, curveValue, workspace.FrameNormals)
-                        : null;
-                    frameTangents = candidateDeltaTangents != null
-                        ? BlendShapeComposer.Compose(
-                            candidateDeltaTangents, generated.Composition, curveValue, workspace.FrameTangents)
-                        : null;
-                }
-
-                mesh.AddBlendShapeFrame(shapeName, frameWeight, frameDeltas, frameNormals, frameTangents);
+                surfaceDeltas?.Dispose();
             }
         }
 
@@ -130,76 +132,166 @@ namespace Net._32Ba.LatticeDeformationTool
             out Vector3[] deltaNormals,
             out Vector3[] deltaTangents)
         {
-            deltaNormals = null;
-            deltaTangents = null;
+            using var surfaceDeltas = new GeneratedSurfaceDeltas(
+                template, baseVertices, normalsMode, includeNormals, includeTangents);
+            surfaceDeltas.Calculate(deltas, out deltaNormals, out deltaTangents);
+        }
 
-            if (template == null || baseVertices == null || deltas == null || baseVertices.Length != deltas.Length)
+        // Normal/tangent deltas of generated frames against one fixed base.
+        //
+        // The published rule instantiated the template twice per candidate (and
+        // per recomputed frame), recalculated both surfaces and, with tangents,
+        // recalculated the normals a second time. RecalculateNormals,
+        // RecalculateTangents and SeamAwareMeshNormalCalculator read positions,
+        // indices/topology, the just-recalculated normals and uv0 of the work
+        // mesh, plus the template's positions and normals in the seam-aware
+        // mode. None of them reads BlendShapes or the work mesh's previous
+        // normals/tangents, and each is deterministic. Hence:
+        // - the base surface depends only on (template, baseVertices) and is
+        //   computed once per instance,
+        // - the repeated normal recalculation reproduced the first and is skipped,
+        // - one target mesh is reused: each delta overwrites its positions and
+        //   recalculates every channel that is read back,
+        // - work meshes are Instantiate copies of the template, so vertex and
+        //   index formats (and therefore stored precision) are unchanged; their
+        //   BlendShapes are cleared because nothing reads them.
+        // Callers only append BlendShape frames to the template while an
+        // instance is alive; its positions and normals must not change.
+        private sealed class GeneratedSurfaceDeltas : IDisposable
+        {
+            private readonly Mesh _template;
+            private readonly Vector3[] _baseVertices;
+            private readonly NormalsRecalculationMode _normalsMode;
+            private readonly bool _includeNormals;
+            private readonly bool _includeTangents;
+            private Mesh _targetMesh;
+            private Vector3[] _baseNormals;
+            private Vector4[] _baseTangents;
+            private Vector3[] _targetVertices;
+            private bool _prepared;
+
+            internal GeneratedSurfaceDeltas(
+                Mesh template,
+                Vector3[] baseVertices,
+                NormalsRecalculationMode normalsMode,
+                bool includeNormals,
+                bool includeTangents)
             {
-                return;
+                _template = template;
+                _baseVertices = baseVertices;
+                _normalsMode = normalsMode;
+                _includeNormals = includeNormals;
+                _includeTangents = includeTangents;
             }
 
-            Mesh baseMesh = null;
-            Mesh targetMesh = null;
-            try
+            internal void Calculate(Vector3[] deltas, out Vector3[] deltaNormals, out Vector3[] deltaTangents)
             {
-                baseMesh = UnityEngine.Object.Instantiate(template);
-                targetMesh = UnityEngine.Object.Instantiate(template);
+                deltaNormals = null;
+                deltaTangents = null;
 
-                int vertexCount = baseVertices.Length;
-                var targetVertices = new Vector3[vertexCount];
-                for (int i = 0; i < vertexCount; i++)
+                if (_template == null || _baseVertices == null || deltas == null ||
+                    _baseVertices.Length != deltas.Length)
                 {
-                    targetVertices[i] = baseVertices[i] + deltas[i];
+                    return;
                 }
 
-                baseMesh.vertices = baseVertices;
-                targetMesh.vertices = targetVertices;
+                Prepare();
 
-                if (includeNormals)
+                int vertexCount = _baseVertices.Length;
+                if (_targetVertices == null || _targetVertices.Length != vertexCount)
                 {
-                    RecalculateSurfaceNormals(baseMesh, template, normalsMode);
-                    RecalculateSurfaceNormals(targetMesh, template, normalsMode);
+                    _targetVertices = new Vector3[vertexCount];
+                }
 
-                    var baseNormals = baseMesh.normals;
-                    var targetNormals = targetMesh.normals;
-                    if (baseNormals != null && targetNormals != null &&
-                        baseNormals.Length == vertexCount && targetNormals.Length == vertexCount)
+                for (int i = 0; i < vertexCount; i++)
+                {
+                    _targetVertices[i] = _baseVertices[i] + deltas[i];
+                }
+
+                _targetMesh.vertices = _targetVertices;
+                if (!_includeNormals && !_includeTangents)
+                {
+                    return;
+                }
+
+                RecalculateSurfaceNormals(_targetMesh, _template, _normalsMode);
+                if (_includeNormals)
+                {
+                    var targetNormals = _targetMesh.normals;
+                    if (_baseNormals != null && targetNormals != null &&
+                        _baseNormals.Length == vertexCount && targetNormals.Length == vertexCount)
                     {
                         deltaNormals = new Vector3[vertexCount];
                         for (int i = 0; i < vertexCount; i++)
                         {
-                            deltaNormals[i] = targetNormals[i] - baseNormals[i];
+                            deltaNormals[i] = targetNormals[i] - _baseNormals[i];
                         }
                     }
                 }
 
-                if (includeTangents)
+                if (_includeTangents)
                 {
-                    RecalculateSurfaceNormals(baseMesh, template, normalsMode);
-                    RecalculateSurfaceNormals(targetMesh, template, normalsMode);
-                    baseMesh.RecalculateTangents();
-                    targetMesh.RecalculateTangents();
-
-                    var baseTangents = baseMesh.tangents;
-                    var targetTangents = targetMesh.tangents;
-                    if (baseTangents != null && targetTangents != null &&
-                        baseTangents.Length == vertexCount && targetTangents.Length == vertexCount)
+                    _targetMesh.RecalculateTangents();
+                    var targetTangents = _targetMesh.tangents;
+                    if (_baseTangents != null && targetTangents != null &&
+                        _baseTangents.Length == vertexCount && targetTangents.Length == vertexCount)
                     {
                         deltaTangents = new Vector3[vertexCount];
                         for (int i = 0; i < vertexCount; i++)
                         {
                             deltaTangents[i] = new Vector3(
-                                targetTangents[i].x - baseTangents[i].x,
-                                targetTangents[i].y - baseTangents[i].y,
-                                targetTangents[i].z - baseTangents[i].z);
+                                targetTangents[i].x - _baseTangents[i].x,
+                                targetTangents[i].y - _baseTangents[i].y,
+                                targetTangents[i].z - _baseTangents[i].z);
                         }
                     }
                 }
             }
-            finally
+
+            private void Prepare()
             {
-                DestroyTemporaryMesh(baseMesh);
-                DestroyTemporaryMesh(targetMesh);
+                if (_prepared)
+                {
+                    return;
+                }
+
+                // A Prepare that threw earlier may have left a target mesh behind.
+                DestroyTemporaryMesh(_targetMesh);
+                _targetMesh = null;
+                Mesh baseMesh = null;
+                try
+                {
+                    baseMesh = UnityEngine.Object.Instantiate(_template);
+                    baseMesh.ClearBlendShapes();
+                    _targetMesh = UnityEngine.Object.Instantiate(baseMesh);
+                    baseMesh.vertices = _baseVertices;
+                    if (_includeNormals || _includeTangents)
+                    {
+                        RecalculateSurfaceNormals(baseMesh, _template, _normalsMode);
+                        if (_includeNormals)
+                        {
+                            _baseNormals = baseMesh.normals;
+                        }
+
+                        if (_includeTangents)
+                        {
+                            baseMesh.RecalculateTangents();
+                            _baseTangents = baseMesh.tangents;
+                        }
+                    }
+
+                    _prepared = true;
+                }
+                finally
+                {
+                    DestroyTemporaryMesh(baseMesh);
+                }
+            }
+
+            public void Dispose()
+            {
+                DestroyTemporaryMesh(_targetMesh);
+                _targetMesh = null;
             }
         }
 

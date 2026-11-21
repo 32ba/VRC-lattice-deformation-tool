@@ -51,61 +51,72 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
                 };
             }
 
-            NativeArray<double> r = default;
-            NativeArray<double> rtilde = default;
-            NativeArray<double> p = default;
-            NativeArray<double> v = default;
-            NativeArray<double> s = default;
-            NativeArray<double> t = default;
-            NativeArray<double> phat = default;
-            NativeArray<double> shat = default;
-            NativeArray<double> temp = default;
-            NativeArray<double> scalarResult = default;
+            // The workspace allocates inside its own guarded constructor so a failure partway
+            // through allocation cannot leak any previously-created TempJob buffers.
+            using (var workspace = new BiCGStabWorkspace(n))
+            {
+                return SolveWithWorkspace(ref A, b, x, maxIterations, tolerance, workspace);
+            }
+        }
 
-            try
+        /// <summary>
+        /// Same solve as the public allocating overload, but reuses caller-owned work buffers so repeated
+        /// solves of one system size (one per bone in inpainting) do not reallocate them.
+        /// Every work buffer is fully written before it is read, so results are identical.
+        /// </summary>
+        internal static BiCGStabResult Solve(
+            ref NativeSparseMatrixCSR A,
+            NativeArray<double> b,
+            NativeArray<double> x,
+            int maxIterations,
+            double tolerance,
+            BiCGStabWorkspace workspace)
+        {
+            ValidateInputs(ref A, b, x, maxIterations, tolerance);
+            int n = A.RowCount;
+
+            if (n == 0)
             {
-                // Allocate inside the guarded region so a failure partway through allocation
-                // cannot leak any previously-created TempJob buffers.
-                r = new NativeArray<double>(n, Allocator.TempJob);
-                rtilde = new NativeArray<double>(n, Allocator.TempJob);
-                p = new NativeArray<double>(n, Allocator.TempJob);
-                v = new NativeArray<double>(n, Allocator.TempJob);
-                s = new NativeArray<double>(n, Allocator.TempJob);
-                t = new NativeArray<double>(n, Allocator.TempJob);
-                phat = new NativeArray<double>(n, Allocator.TempJob);
-                shat = new NativeArray<double>(n, Allocator.TempJob);
-                temp = new NativeArray<double>(n, Allocator.TempJob);
-                scalarResult = new NativeArray<double>(1, Allocator.TempJob);
-                return SolveInternal(
-                    ref A,
-                    b,
-                    x,
-                    r,
-                    rtilde,
-                    p,
-                    v,
-                    s,
-                    t,
-                    phat,
-                    shat,
-                    temp,
-                    scalarResult,
-                    maxIterations,
-                    tolerance);
+                return new BiCGStabResult
+                {
+                    Converged = true,
+                    Iterations = 0,
+                    FinalResidual = 0
+                };
             }
-            finally
-            {
-                if (r.IsCreated) r.Dispose();
-                if (rtilde.IsCreated) rtilde.Dispose();
-                if (p.IsCreated) p.Dispose();
-                if (v.IsCreated) v.Dispose();
-                if (s.IsCreated) s.Dispose();
-                if (t.IsCreated) t.Dispose();
-                if (phat.IsCreated) phat.Dispose();
-                if (shat.IsCreated) shat.Dispose();
-                if (temp.IsCreated) temp.Dispose();
-                if (scalarResult.IsCreated) scalarResult.Dispose();
-            }
+
+            if (workspace == null)
+                throw new ArgumentNullException(nameof(workspace));
+            if (!workspace.IsCreated || workspace.Length != n)
+                throw new ArgumentException("Workspace length must match the matrix dimension.", nameof(workspace));
+
+            return SolveWithWorkspace(ref A, b, x, maxIterations, tolerance, workspace);
+        }
+
+        private static BiCGStabResult SolveWithWorkspace(
+            ref NativeSparseMatrixCSR A,
+            NativeArray<double> b,
+            NativeArray<double> x,
+            int maxIterations,
+            double tolerance,
+            BiCGStabWorkspace workspace)
+        {
+            return SolveInternal(
+                ref A,
+                b,
+                x,
+                workspace.R,
+                workspace.RTilde,
+                workspace.P,
+                workspace.V,
+                workspace.S,
+                workspace.T,
+                workspace.PHat,
+                workspace.SHat,
+                workspace.Temp,
+                workspace.ScalarResult,
+                maxIterations,
+                tolerance);
         }
 
         private static void ValidateInputs(
@@ -312,6 +323,83 @@ namespace Net._32Ba.LatticeDeformationTool.Editor.WeightTransfer.BurstSolver
         private static bool IsFinite(double value)
         {
             return !double.IsNaN(value) && !double.IsInfinity(value);
+        }
+    }
+
+    /// <summary>
+    /// Reusable BiCGStab work buffers for one system dimension. Owned and disposed by the caller.
+    /// </summary>
+    internal sealed class BiCGStabWorkspace : IDisposable
+    {
+        internal NativeArray<double> R;
+        internal NativeArray<double> RTilde;
+        internal NativeArray<double> P;
+        internal NativeArray<double> V;
+        internal NativeArray<double> S;
+        internal NativeArray<double> T;
+        internal NativeArray<double> PHat;
+        internal NativeArray<double> SHat;
+        internal NativeArray<double> Temp;
+        internal NativeArray<double> ScalarResult;
+
+        internal BiCGStabWorkspace(int length)
+        {
+            if (length < 0)
+                throw new ArgumentOutOfRangeException(nameof(length), length, "Workspace length cannot be negative.");
+
+            Length = length;
+            try
+            {
+                R = new NativeArray<double>(length, Allocator.TempJob);
+                RTilde = new NativeArray<double>(length, Allocator.TempJob);
+                P = new NativeArray<double>(length, Allocator.TempJob);
+                V = new NativeArray<double>(length, Allocator.TempJob);
+                S = new NativeArray<double>(length, Allocator.TempJob);
+                T = new NativeArray<double>(length, Allocator.TempJob);
+                PHat = new NativeArray<double>(length, Allocator.TempJob);
+                SHat = new NativeArray<double>(length, Allocator.TempJob);
+                Temp = new NativeArray<double>(length, Allocator.TempJob);
+                ScalarResult = new NativeArray<double>(1, Allocator.TempJob);
+            }
+            // Native allocation failure cannot be induced deterministically without
+            // destabilizing the Unity process; keep the cleanup path out of the line gate.
+#line hidden
+            catch
+            {
+                Dispose();
+                throw;
+            }
+#line default
+        }
+
+        internal int Length { get; }
+
+        internal bool IsCreated =>
+            R.IsCreated && RTilde.IsCreated && P.IsCreated && V.IsCreated && S.IsCreated &&
+            T.IsCreated && PHat.IsCreated && SHat.IsCreated && Temp.IsCreated && ScalarResult.IsCreated;
+
+        public void Dispose()
+        {
+            if (R.IsCreated) R.Dispose();
+            if (RTilde.IsCreated) RTilde.Dispose();
+            if (P.IsCreated) P.Dispose();
+            if (V.IsCreated) V.Dispose();
+            if (S.IsCreated) S.Dispose();
+            if (T.IsCreated) T.Dispose();
+            if (PHat.IsCreated) PHat.Dispose();
+            if (SHat.IsCreated) SHat.Dispose();
+            if (Temp.IsCreated) Temp.Dispose();
+            if (ScalarResult.IsCreated) ScalarResult.Dispose();
+            R = default;
+            RTilde = default;
+            P = default;
+            V = default;
+            S = default;
+            T = default;
+            PHat = default;
+            SHat = default;
+            Temp = default;
+            ScalarResult = default;
         }
     }
 }

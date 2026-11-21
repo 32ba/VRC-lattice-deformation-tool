@@ -14,6 +14,27 @@ namespace Net._32Ba.LatticeDeformationTool
         {
             if (sourceVertices == null || finalVertices == null || sourceVertices.Length != finalVertices.Length)
                 throw new ArgumentException("Source and output vertex counts must match.");
+            // Every Lattice layer below reads the same unchanged source vertices;
+            // finalVertices is written only after the last layer. A source that
+            // aliases a per-layer scratch buffer keeps per-layer hashing.
+            bool sourceIsScratch = ReferenceEquals(sourceVertices, workspace.GroupVertices) ||
+                                   ReferenceEquals(sourceVertices, workspace.LayerVertices) ||
+                                   ReferenceEquals(sourceVertices, workspace.DirectDeltas);
+            workspace.Lattice.BeginSourceScope(sourceIsScratch ? null : sourceVertices);
+            try
+            {
+                EvaluateLayers(input, sourceVertices, finalVertices, workspace, generatedBlendShapes);
+            }
+            finally
+            {
+                workspace.Lattice.EndSourceScope();
+            }
+        }
+
+        private static void EvaluateLayers(in DeformationEvaluationInput input, Vector3[] sourceVertices,
+            Vector3[] finalVertices, EvaluationWorkspace workspace,
+            List<GeneratedBlendShapeOutput> generatedBlendShapes)
+        {
             int vertexCount = sourceVertices.Length;
             workspace.EnsureCapacity(vertexCount);
             // Accumulate direct-deform deltas across all groups

@@ -297,6 +297,9 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 **パフォーマンス最適化:**
 - `MeshSpatialQuery.cs`: Burst Jobs (`IJobParallelFor`) による並列空間クエリ
 - `WeightInpainting.cs`: Burst 実装の疎行列 (CSR) + BiCGStab 反復法ソルバー。反復中のscalar scratchを再利用し、NativeArrayは確保途中の例外を含め必ず解放する
+- `BiCGStabWorkspace` は解く系の次元ごとの作業buffer（9本のvectorとscalar 1個）を所有し、`WeightInpainting.Inpaint` は1回の呼出しで1つ確保して全boneの `Solve` とRHSの `Norm` に再利用する。各bufferは読む前に必ず書かれるため結果はbit単位で同じ。public `Solve` は従来どおり自前で確保する。dot/normは単一thread `IJob` の逐次和だが、managedの要素ループをBurstへ移すと演算の同一性を証明できないため、1つのjobへの統合は行わない
+- `RobustWeightTransfer.InterpolateBoneWeight` は12要素のstackalloc scratchでbone別に加算する。加算順は旧Dictionaryと同じで、(weight降順, bone index昇順) は一意なboneに対する全順序なので、選択・正規化はbit単位で一致する。`WeightTransferScratchEquivalenceTests` が旧実装の複製と乱数・同値・0/負/NaN/Infinity・12影響で照合する。旧 `AddBoneWeight(Dictionary)` は既存reflection試験のために残している
+- `Mesh.vertices`／`normals`／`boneWeights` は呼ぶたびに全体をコピーする。Weight TransferとNDMF Bakeでは1回だけ取得し、変更しない配列を使い回す
 - O(1) ルックアップ用の Dictionary インデックスマップ
 - 処理時間: ~48秒 → ~400ms (100倍以上高速化)
 
@@ -527,3 +530,12 @@ SIGGRAPH Asia 2023 論文 "Robust Skin Weights Transfer via Weight Inpainting" �
 - Inspectorの読取り専用な更新処理（`RefreshInspector` の自動参照割当て後、`LayerSettingsInspectorSection.Refresh`、複数選択のLayer設定更新）は `AuthoringPreflightScope` の中で行い、`HasValidSerializedAuthoringData` とsource topologyを対象ごとに1回だけ評価する。結果は最も外側のscopeの終了と `DeformerEditService.Commit` の前後で破棄し、frameや編集をまたいで再利用しない。scope外の呼出しは従来どおり毎回評価する。
 - Brushの貫通表示はSkinnedMeshRenderer参照でもcacheを使い、参照のlightweight pose hashと対象のsource BlendShape weight・dirty countをkeyへ含める。Latticeの制御点skinning snapshotは、編集中のsettingsが渡された場合だけdeformerのdirty countの代わりにsource/grid/SMR weightのhashをkeyにする（制御点位置はbindingの入力ではない）。proxy snapshot hashのdirty countは維持する。
 - `ReleaseChecker` は最新版の文字列をproject単位のEditorPrefsへ保存し、domain reload後に復元して通知を維持する。確認失敗時は1時間後に再試行するよう確認時刻を記録し、成功時の24時間間隔は変えない。
+
+- 頂点選択ツールはhover位置に依存する描画を持たないため、MouseMoveでSceneView.RepaintAllを呼ばない（handleのhover更新はUnityが行う）。矩形選択のMouseDragでは従来どおり再描画する。
+- 旧BrushDeformerのScene自動走査は、`Resources.FindObjectsOfTypeAll<BrushDeformer>()`（非active・DontSave・preview scene・メモリ上assetを含む上位集合）が0件のときだけ読込み済みSceneのroot走査を省略する。未読込みSceneの診断とPrefab Stageの経路は変更しない。
+- `DeformerStackInspectorSection.IsDetailInput` はUQueryと同じhierarchy（root含む）を割当てなしの再帰で1回走査する。`LatticeLocalization` はtooltip keyの連結結果をkeyごとにcacheする。表示言語はテストがEditorPrefsへ直接書くためcacheしない。
+
+- 生成BlendShapeの法線/接線deltaは `DeformedMeshWriter.GeneratedSurfaceDeltas` が1 shapeにつき1回だけtemplateをInstantiateしてBlendShapeを外したwork meshを作り、base面の法線/接線を1回計算し、target meshを全candidate・全frameで使い回す。RecalculateNormals/Tangentsと `SeamAwareMeshNormalCalculator` はBlendShapeやwork meshの旧法線/接線を読まず決定的なので結果はbit単位で同じ。Instantiate以外の方法（MeshData複製など）へ置き換えると頂点/index形式と保存精度が変わり得るため使わない。templateはインスタンス使用中に位置・法線を変えない（frame追加だけ）。
+- `LatticeEvaluator` は `_cache` の公開済み再利用規則（boundsの1e-5近似一致を含む）をそのまま先に判定し、その規則で再構築になる場合だけ、置き換えたcacheの退避先（最大 `DefaultStashCapacity`=8件）からgrid・実効補間・boundsのbit・rest頂点のbit（非公開コピーで照合）が完全一致するものを戻す。戻した内容は再構築結果と区別できない。退避は管理memoryのみで、`Dispose`（Invalidate・OnDisable・非active評価の終了・例外時）で破棄する。`BindCache` や外部の `Cache.Clear` 後は退避しない。`DeformationEvaluator.Evaluate` は `BeginSourceScope`/`EndSourceScope` でsource頂点のhashを1評価1回にする（scratch bufferと同一参照のsourceは従来どおり毎回hash）。
+- `DeformationModelCopy.CloneSettings` は全軸2以上でcontrol point数がgridと一致するsourceだけ `LatticeAsset.TryCloneWellFormed` で直接複製する（version=1、legacy flag複製）。それ以外は旧手順（GridSize setterによるresample後の上書き）のまま。`EvaluationReuseEquivalenceTests` が上記3件を旧実装の複製とbit単位で照合する。
+- 生成BlendShapeの再構築key（`LatticeDeformer` の `blendShapeHash`）の `HashVertices(finalVertices)` は外さない。法線/接線の再計算が無効でも、同じMesh instanceのまま中身が変わるsource（再importなど、`InvalidateCache` を通らない）でコピー済みsource BlendShapeを更新する契機になっているため。

@@ -287,10 +287,16 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
             if (s_scanLoadedScenes)
             {
                 s_scanLoadedScenes = false;
+                // hierarchyChanged fires constantly. Resources.FindObjectsOfTypeAll returns every
+                // loaded BrushDeformer (inactive, DontSave, preview scenes and in-memory assets),
+                // a superset of what the per-root walk can find, so zero means no loaded scene can
+                // hold a candidate. Unloaded scenes still go through TryMigrateScene unchanged.
+                bool anyLegacyLoaded = Resources.FindObjectsOfTypeAll<BrushDeformer>().Length > 0;
                 for (int index = 0; index < SceneManager.sceneCount; index++)
                 {
                     Scene scene = SceneManager.GetSceneAt(index);
                     if (EditorSceneManager.IsPreviewScene(scene)) continue;
+                    if (!anyLegacyLoaded && scene.IsValid() && scene.isLoaded) continue;
                     if (!TryMigrateScene(scene, out int migrated, out string error))
                     {
                         ReportFailure($"scene:{scene.handle}:{error}", error, null);

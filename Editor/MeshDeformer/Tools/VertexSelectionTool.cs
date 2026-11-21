@@ -343,8 +343,10 @@ namespace Net._32Ba.LatticeDeformationTool.Editor
                     VertexPickingQuery.Rectangle(_selectionStartPos, evt.mousePosition));
             }
 
-            // Force repaint for interactive feedback
-            if (evt.type == EventType.MouseMove || evt.type == EventType.MouseDrag)
+            // Force repaint for interactive feedback while dragging (rect selection follows the
+            // cursor). Nothing this tool draws depends on the hover position; Unity repaints the
+            // view itself when the nearest handle changes, so MouseMove needs no repaint.
+            if (evt.type == EventType.MouseDrag)
             {
                 SceneView.RepaintAll();
             }
